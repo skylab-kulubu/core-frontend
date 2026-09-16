@@ -27,6 +27,22 @@ describe('sessionUserFromAccessToken', () => {
     });
   });
 
+  it('reads url roles from core and skylapp resource_access', () => {
+    const token = unsignedJwt({
+      sub: '11111111-1111-1111-1111-111111111111',
+      email: 'yk@example.com',
+      given_name: 'Y',
+      family_name: 'K',
+      preferred_username: 'yk',
+      groups: ['/UYELER/YK'],
+      resource_access: {
+        core: { roles: ['url:create'] },
+        skylapp: { roles: ['skylapp:access', 'url:create'] },
+      },
+    });
+    expect(sessionUserFromAccessToken(token)?.roles).toEqual(['url:create', 'skylapp:access']);
+  });
+
   it('returns null without sub', () => {
     expect(sessionUserFromAccessToken(unsignedJwt({ email: 'x@y.z' }))).toBeNull();
   });

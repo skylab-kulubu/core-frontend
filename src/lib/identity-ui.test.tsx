@@ -37,6 +37,7 @@ describe('filterSidebarNavForUser', () => {
       '/qr',
       '/competitors',
       '/media',
+      '/urls',
     ]);
   });
   it('Leader sees events sessions QR', () => {
@@ -69,6 +70,30 @@ describe('filterSidebarNavForUser', () => {
       groups: ['/UYELER/ARGE/WEBLAB'],
     };
     expect(filterSidebarNavForUser(user)).toEqual([]);
+  });
+  it('member with url:create sees Kısa URL', () => {
+    const user: UserDto = {
+      id: '4',
+      username: 'url',
+      email: 'url@example.com',
+      firstName: 'U',
+      lastName: 'R',
+      roles: ['url:create'],
+      groups: ['/UYELER/ARGE/WEBLAB'],
+    };
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual(['/dashboard', '/urls']);
+  });
+  it('Leader with skylapp:access sees Kısa URL', () => {
+    const user: UserDto = {
+      id: '5',
+      username: 'lead',
+      email: 'lead@example.com',
+      firstName: 'L',
+      lastName: 'E',
+      roles: ['skylapp:access'],
+      groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'],
+    };
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).toContain('/urls');
   });
 });
 

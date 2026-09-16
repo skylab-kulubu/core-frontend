@@ -16,6 +16,7 @@ import {
   Trophy,
   Users,
   Image,
+  Link2,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { performClientLogout } from '@/lib/auth/client-logout';
@@ -35,6 +36,7 @@ const NAV_ICON = {
   '/qr': QrCode,
   '/competitors': Trophy,
   '/media': Image,
+  '/urls': Link2,
 } as const;
 
 type SidebarProps = Readonly<{

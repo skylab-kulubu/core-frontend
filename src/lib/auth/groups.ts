@@ -76,3 +76,34 @@ export function canManageCompetitors(groups: readonly string[], ownerTeam: strin
 export function canSeeSchedulingNav(groups: readonly string[]): boolean {
   return isPrivileged(groups) || isLeader(groups);
 }
+
+export function extractResourceRoles(payload: Record<string, unknown> | null): string[] {
+  if (!payload) return [];
+  const ra = payload.resource_access;
+  if (!ra || typeof ra !== 'object') return [];
+  const clients = ra as Record<string, unknown>;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const client of ['core', 'skylapp'] as const) {
+    const entry = clients[client];
+    if (!entry || typeof entry !== 'object') continue;
+    const raw = (entry as Record<string, unknown>).roles;
+    if (!Array.isArray(raw)) continue;
+    for (const role of raw) {
+      if (typeof role !== 'string' || !role || seen.has(role)) continue;
+      seen.add(role);
+      out.push(role);
+    }
+  }
+  return out;
+}
+
+export function canUseUrls(groups: readonly string[], roles: readonly string[]): boolean {
+  if (isPrivileged(groups)) return true;
+  return roles.some((role) => role.startsWith('url:') || role.startsWith('skylapp:'));
+}
+
+export function canModerateUrls(groups: readonly string[], roles: readonly string[]): boolean {
+  if (isPrivileged(groups)) return true;
+  return roles.includes('url:moderator') || roles.includes('skylapp:moderator');
+}
