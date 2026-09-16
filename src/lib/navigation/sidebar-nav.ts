@@ -9,6 +9,8 @@ const IDENTITY_LINKS: readonly SidebarNavLink[] = [
   { href: '/groups', label: 'Gruplar' },
 ];
 
+const NEWS_LINKS: readonly SidebarNavLink[] = [{ href: '/announcements', label: 'Duyurular' }];
+
 const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/events', label: 'Etkinlikler' },
   { href: '/sessions', label: 'Oturumlar' },
@@ -26,7 +28,7 @@ const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
 export function filterSidebarNavForUser(user: UserDto): SidebarNavLink[] {
   const groups = user.groups ?? [];
   if (isPrivileged(groups)) {
-    return [...IDENTITY_LINKS, ...PRIVILEGED_SCHEDULING_LINKS];
+    return [...IDENTITY_LINKS, ...NEWS_LINKS, ...PRIVILEGED_SCHEDULING_LINKS];
   }
   if (isLeader(groups)) {
     return [...LEADER_SCHEDULING_LINKS];
