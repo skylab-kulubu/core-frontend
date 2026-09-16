@@ -119,4 +119,22 @@ describe('UserCardView', () => {
       'skyforms:form:manage',
     );
   });
+
+  it('shows school email when present', () => {
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          schoolEmail: 'ada@std.yildiz.edu.tr',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+      />,
+    );
+    expect(screen.getByText('ada@std.yildiz.edu.tr')).toBeInTheDocument();
+  });
 });
