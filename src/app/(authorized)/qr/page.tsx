@@ -1,129 +1,108 @@
 'use client';
 
-import { useState } from 'react';
-
+import { useEffect, useState } from 'react';
+import { Field } from '@/components/chrome/Field';
+import { Select } from '@/components/chrome/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { qrCodesApi } from '@/lib/api/qr-codes';
-import { Button } from '@/components/ui/Button';
-import { TextField } from '@/components/forms/TextField';
-import { Form } from '@/components/forms/Form';
-import { Toggle } from '@/components/forms/Toggle';
-import { z } from 'zod';
-import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { ProblemError } from '@/lib/api/core';
+import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
+import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { ticketsApi, type CheckIn } from '@/lib/api/tickets';
+import { canCheckInForTeam } from '@/lib/auth/groups';
+import { saveClass } from '@/lib/scheduling/save-event';
+import { useAuth } from '@/context/AuthContext';
 
-const qrSchema = z.object({
-  url: z.string().min(1, 'URL gereklidir').url('Geçerli bir URL girin'),
-  withLogo: z.boolean().default(true),
-});
-
-type QRFormData = z.infer<typeof qrSchema>;
-
-export default function QRPage() {
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [previewWithLogo, setPreviewWithLogo] = useState(true);
-  const [loading, setLoading] = useState(false);
+export default function QrPage() {
+  const { user } = useAuth();
+  const groups = user?.groups ?? [];
+  const [events, setEvents] = useState<CoreEvent[]>([]);
+  const [days, setDays] = useState<EventDay[]>([]);
+  const [eventId, setEventId] = useState('');
+  const [eventDayId, setEventDayId] = useState('');
+  const [ticketId, setTicketId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CheckIn | null>(null);
 
-  const handleGenerate = async (data: QRFormData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const width = 300;
-      const height = 300;
+  useEffect(() => {
+    eventsApi
+      .list()
+      .then((rows) => {
+        const allowed = rows.filter((ev) => canCheckInForTeam(groups, ev.ownerTeam));
+        setEvents(allowed);
+        setEventId(allowed[0]?.id ?? '');
+      })
+      .catch((err) =>
+        setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi'),
+      );
+  }, [user]);
 
-      const blob = data.withLogo
-        ? await qrCodesApi.generateQRCodeWithLogo(data.url, width, height, 50)
-        : await qrCodesApi.generateQRCode(data.url, width, height);
-      const url = URL.createObjectURL(blob);
-      setQrCode(url);
-      setPreviewWithLogo(data.withLogo);
-
-      // Otomatik indirme
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'qrcode.png';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'QR oluşturma sırasında bir hata oluştu');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!eventId) {
+      setDays([]);
+      setEventDayId('');
+      return;
     }
-  };
+    eventDaysApi
+      .listByEvent(eventId)
+      .then((list) => {
+        setDays(list);
+        setEventDayId(list[0]?.id ?? '');
+      })
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Günler yüklenemedi'));
+  }, [eventId]);
 
   return (
-    <ErrorBoundary>
-      <div className="space-y-6">
-        <PageHeader title="QR Kodlar" />
-        <div className="mx-auto max-w-2xl space-y-6">
-          <div className="bg-light border-dark-200 rounded-lg border p-4 shadow">
-            <Form
-              schema={qrSchema}
-              onSubmit={handleGenerate}
-              defaultValues={{ url: '', withLogo: true }}
-            >
-              {(methods) => {
-                const formErrors = methods.formState.errors;
-
-                return (
-                  <>
-                    {Object.keys(formErrors).length > 0 && (
-                      <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4">
-                        <p className="mb-2 text-sm font-medium text-red-800">Form hataları:</p>
-                        <ul className="list-inside list-disc text-sm text-red-600">
-                          {Object.entries(formErrors).map(([key, error]) => (
-                            <li key={key}>
-                              {key}: {error?.message as string}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <div className="space-y-4">
-                      <TextField
-                        name="url"
-                        label="URL"
-                        type="url"
-                        required
-                        placeholder="https://example.com"
-                      />
-                      <Toggle name="withLogo" label="Logo" thumbUncheckedClassName="bg-green-500" />
-                    </div>
-                    <div className="mt-6">
-                      <Button type="submit" disabled={loading}>
-                        {loading ? 'Oluşturuluyor...' : 'QR Kod Oluştur'}
-                      </Button>
-                    </div>
-                  </>
-                );
-              }}
-            </Form>
-          </div>
-          {/* Hata mesajını göstermeyelim; global banner yeterli */}
-
-          {qrCode && (
-            <div className="flex justify-center">
-              <div
-                className={
-                  previewWithLogo
-                    ? 'border-dark-200 rounded-xl border bg-white p-3 shadow-sm'
-                    : 'border-dark-400 rounded-2xl border-2 bg-neutral-100 p-4 shadow-md ring-1 ring-black/10'
-                }
-              >
-                <div className="ring-dark-200/40 rounded-lg bg-white p-2 shadow-inner ring-1">
-                  <img
-                    src={qrCode}
-                    alt="QR Code"
-                    className="mx-auto block max-h-[300px] max-w-full rounded-md"
-                    onError={() => setError('QR görseli yüklenemedi')}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </ErrorBoundary>
+    <div className="space-y-6">
+      <PageHeader
+        title="QR / check-in"
+        description="Bilet id ve etkinlik günü ile kapı kaydı. Java QR üretici yok."
+      />
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <form
+        className="max-w-md space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            const created = await ticketsApi.checkIn(ticketId.trim(), eventDayId);
+            setResult(created);
+            setError(null);
+          } catch (err) {
+            setResult(null);
+            setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
+          }
+        }}
+      >
+        <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+          <option value="">Etkinlik</option>
+          {events.map((ev) => (
+            <option key={ev.id} value={ev.id}>
+              {ev.name}
+            </option>
+          ))}
+        </Select>
+        <Select value={eventDayId} onChange={(e) => setEventDayId(e.target.value)} required>
+          <option value="">Gün</option>
+          {days.map((day) => (
+            <option key={day.id} value={day.id}>
+              {day.name}
+            </option>
+          ))}
+        </Select>
+        <Field
+          placeholder="Bilet id"
+          value={ticketId}
+          onChange={(e) => setTicketId(e.target.value)}
+          required
+        />
+        <button type="submit" className={saveClass}>
+          Check-in
+        </button>
+      </form>
+      {result ? (
+        <p className="text-sm text-neutral-300">
+          Kayıt: {result.id} · {new Date(result.createdAt).toLocaleString('tr-TR')}
+        </p>
+      ) : null}
+    </div>
   );
 }

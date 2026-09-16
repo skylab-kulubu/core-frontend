@@ -47,10 +47,7 @@ export default function EditAnnouncementPage() {
 
   useEffect(() => {
     if (id) {
-      Promise.all([
-        announcementsApi.getById(id, { includeEventType: true }),
-        eventTypesApi.getAll(),
-      ])
+      Promise.all([announcementsApi.getById(id, { includeEventType: true }), eventTypesApi.list()])
         .then(([announcementResponse, eventTypesResponse]) => {
           if (announcementResponse.success && announcementResponse.data) {
             setAnnouncement(announcementResponse.data);
@@ -58,9 +55,12 @@ export default function EditAnnouncementPage() {
           } else {
             setError('Duyuru bulunamadı');
           }
-          if (eventTypesResponse.success && eventTypesResponse.data) {
-            setEventTypes(eventTypesResponse.data.map((et) => ({ value: et.id, label: et.name })));
-          }
+          setEventTypes(
+            eventTypesResponse.map((team) => ({
+              value: team.team,
+              label: team.displayName?.tr || team.team,
+            })),
+          );
           setLoading(false);
         })
         .catch((err) => {

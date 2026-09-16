@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ChevronRight, LogOut, Users, FolderTree } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  Clock,
+  FolderTree,
+  Layers,
+  LogOut,
+  QrCode,
+  Users,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { Avatar } from '@/components/chrome/Avatar';
@@ -13,6 +22,11 @@ import type { UserDto } from '@/types/api';
 const NAV_ICON = {
   '/users': Users,
   '/groups': FolderTree,
+  '/events': CalendarDays,
+  '/seasons': Layers,
+  '/sessions': Clock,
+  '/event-types': FolderTree,
+  '/qr': QrCode,
 } as const;
 
 type SidebarProps = Readonly<{

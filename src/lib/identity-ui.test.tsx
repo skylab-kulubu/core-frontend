@@ -15,7 +15,7 @@ describe('isPrivileged', () => {
 });
 
 describe('filterSidebarNavForUser', () => {
-  it('Privileged sees Users and Groups only', () => {
+  it('Privileged sees identity and scheduling', () => {
     const user: UserDto = {
       id: '1',
       username: 'yk',
@@ -25,7 +25,31 @@ describe('filterSidebarNavForUser', () => {
       roles: [],
       groups: ['/UYELER/YK'],
     };
-    expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual(['/users', '/groups']);
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
+      '/users',
+      '/groups',
+      '/events',
+      '/seasons',
+      '/sessions',
+      '/event-types',
+      '/qr',
+    ]);
+  });
+  it('Leader sees events sessions QR', () => {
+    const user: UserDto = {
+      id: '3',
+      username: 'lead',
+      email: 'lead@example.com',
+      firstName: 'L',
+      lastName: 'E',
+      roles: [],
+      groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'],
+    };
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
+      '/events',
+      '/sessions',
+      '/qr',
+    ]);
   });
   it('member sees no identity nav', () => {
     const user: UserDto = {

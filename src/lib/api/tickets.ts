@@ -1,33 +1,16 @@
-import { apiClient } from './client';
-import type {
-  DataResultListGetTicketResponseDto,
-  DataResultGetTicketResponseDto,
-  Result,
-} from '@/types/api';
+import { coreFetch } from './core';
+
+export type CheckIn = {
+  id: string;
+  ticketId: string;
+  eventDayId: string;
+  createdAt: string;
+};
 
 export const ticketsApi = {
-  async getAll(params?: { email?: string; userId?: string }) {
-    const searchParams = new URLSearchParams();
-    if (params?.email) searchParams.append('email', params.email);
-    if (params?.userId) searchParams.append('userId', params.userId);
-    const qs = searchParams.toString();
-    return apiClient.get<DataResultListGetTicketResponseDto>(`/api/tickets${qs ? `?${qs}` : ''}`);
-  },
-
-  async getById(ticketId: string) {
-    return apiClient.get<DataResultGetTicketResponseDto>(`/api/tickets/${ticketId}`);
-  },
-
-  async getByEvent(eventId: string, q?: string) {
-    const searchParams = new URLSearchParams();
-    if (q) searchParams.append('q', q);
-    const qs = searchParams.toString();
-    return apiClient.get<DataResultListGetTicketResponseDto>(
-      `/api/events/${eventId}/tickets${qs ? `?${qs}` : ''}`,
-    );
-  },
-
-  async checkIn(ticketId: string, eventDayId: string) {
-    return apiClient.post<Result>(`/api/tickets/${ticketId}/event-days/${eventDayId}/check-in`);
-  },
+  checkIn: (ticketId: string, eventDayId: string) =>
+    coreFetch<CheckIn>(
+      `/v1/tickets/${encodeURIComponent(ticketId)}/event-days/${encodeURIComponent(eventDayId)}/check-in`,
+      { method: 'POST' },
+    ),
 };
