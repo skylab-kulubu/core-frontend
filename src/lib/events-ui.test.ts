@@ -16,7 +16,7 @@ import { CORE_API_URL } from '@/lib/api/core';
 import { ProblemError } from '@/lib/api/core';
 import { eventTypesApi } from '@/lib/api/event-types';
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
-import { eventBodyFromForm } from '@/lib/scheduling/save-event';
+import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
 
 function jsonRes(body: unknown, status = 200): Response {
   const text = status === 204 ? '' : JSON.stringify(body);
@@ -251,5 +251,29 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     });
     expect(body.coverImageId).toBe('m1');
     expect(body).not.toHaveProperty('success');
+  });
+
+  it('saveEventWithSeason attaches gallery image ids', async () => {
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      calls.push(`${init?.method ?? 'GET'} ${url} ${String(init?.body ?? '')}`);
+      if (url.includes('/images')) {
+        return jsonRes({ id: 'e2', images: [{ id: 'm2' }] });
+      }
+      return jsonRes({ id: 'e2', name: 'Hack', images: [] }, 201);
+    }) as typeof fetch;
+    await saveEventWithSeason({
+      ...emptyEventForm('WEBLAB'),
+      name: 'Hack',
+      location: 'YTÜ',
+      imageIds: ['m2'],
+    });
+    expect(
+      calls.some(
+        (c) => c.includes('POST') && c.includes('/v1/events/e2/images') && c.includes('m2'),
+      ),
+    ).toBe(true);
   });
 });
