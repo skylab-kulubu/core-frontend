@@ -13,6 +13,7 @@ export type Person = {
   firstName: string;
   lastName: string;
   username?: string;
+  schoolEmail?: string;
 };
 
 export type ClientRole = {
@@ -53,7 +54,10 @@ export const identityApi = {
     }),
   createGroup: (body: { name: string; parentId?: string }) =>
     coreFetch<Group>('/v1/groups', { method: 'POST', body: JSON.stringify(body) }),
-  listUsers: () => coreFetch<Person[]>('/v1/users'),
+  listUsers: (q?: string) => {
+    const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+    return coreFetch<Person[]>(`/v1/users${query}`);
+  },
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),
   createUser: (body: { email: string; firstName: string; lastName: string }) =>
     coreFetch<Person>('/v1/users', { method: 'POST', body: JSON.stringify(body) }),

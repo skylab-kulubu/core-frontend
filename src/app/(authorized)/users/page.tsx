@@ -19,13 +19,14 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
 
-  async function load() {
+  async function load(q: string) {
     try {
-      setUsers(await identityApi.listUsers());
+      setUsers(await identityApi.listUsers(q));
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Kullanıcılar yüklenemedi');
@@ -33,8 +34,18 @@ export default function UsersPage() {
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    const handle = window.setTimeout(
+      () => {
+        void load(query);
+      },
+      query.trim() ? 250 : 0,
+    );
+    return () => window.clearTimeout(handle);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const slice = useMemo(() => {
@@ -57,6 +68,13 @@ export default function UsersPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <Field
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Ad, e-posta, okul maili"
+        aria-label="Kullanıcı ara"
+      />
       <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
         {slice.map((u) => {
           const name = `${u.firstName} ${u.lastName}`.trim();
@@ -65,7 +83,7 @@ export default function UsersPage() {
               key={u.id}
               href={`/users/${u.id}`}
               title={name || u.email}
-              subtitle={u.email}
+              subtitle={u.schoolEmail || u.email}
               leading={<Avatar name={name} email={u.email} />}
             />
           );
@@ -83,7 +101,7 @@ export default function UsersPage() {
               setFirstName('');
               setLastName('');
               setCreating(false);
-              await load();
+              await load(query);
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
             }

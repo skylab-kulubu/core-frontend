@@ -8,6 +8,7 @@ export function UserCardView({ card }: { card: UserCard }) {
   return (
     <div className="space-y-6">
       <PageHeader title={name || card.email} description={card.email} />
+      {card.schoolEmail ? <p className="text-sm text-neutral-400">{card.schoolEmail}</p> : null}
       <section className="space-y-2">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Gruplar</h2>
         <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
