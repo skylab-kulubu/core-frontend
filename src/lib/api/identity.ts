@@ -14,6 +14,7 @@ export type Person = {
   lastName: string;
   username?: string;
   schoolEmail?: string;
+  skyNumber?: string;
 };
 
 export type ClientRole = {

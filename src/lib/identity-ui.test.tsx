@@ -137,4 +137,22 @@ describe('UserCardView', () => {
     );
     expect(screen.getByText('ada@std.yildiz.edu.tr')).toBeInTheDocument();
   });
+
+  it('shows sky number when present', () => {
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          skyNumber: 'SKY-0000001',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+      />,
+    );
+    expect(screen.getByText('SKY-0000001')).toBeInTheDocument();
+  });
 });
