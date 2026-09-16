@@ -17,6 +17,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     active: form.active,
     ranked: form.ranked,
     prizeInfo: form.prizeInfo || undefined,
+    coverImageId: form.coverImageId || undefined,
   };
 }
 

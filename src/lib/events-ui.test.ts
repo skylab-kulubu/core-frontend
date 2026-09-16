@@ -14,6 +14,8 @@ import { mediaApi } from '@/lib/api/media';
 import { urlsApi } from '@/lib/api/urls';
 import { ProblemError } from '@/lib/api/core';
 import { eventTypesApi } from '@/lib/api/event-types';
+import { emptyEventForm } from '@/components/scheduling/EventEditor';
+import { eventBodyFromForm } from '@/lib/scheduling/save-event';
 
 function jsonRes(body: unknown, status = 200): Response {
   const text = status === 204 ? '' : JSON.stringify(body);
@@ -228,5 +230,16 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(created.name).toBe('N');
     expect(created).not.toHaveProperty('data');
     expect(calls.some((c) => c.startsWith('POST') && c.includes('/v1/events'))).toBe(true);
+  });
+
+  it('eventBodyFromForm sends coverImageId as a resource field', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'Hack',
+      location: 'YTÜ',
+      coverImageId: 'm1',
+    });
+    expect(body.coverImageId).toBe('m1');
+    expect(body).not.toHaveProperty('success');
   });
 });

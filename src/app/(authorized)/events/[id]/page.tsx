@@ -126,6 +126,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         ranked: ev.ranked,
         prizeInfo: ev.prizeInfo ?? '',
         seasonId: ev.seasonId ?? '',
+        coverImageId: ev.coverImageId ?? '',
       });
       setError(null);
       const teams = await teamsApi.list().catch(() => []);

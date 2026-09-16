@@ -15,6 +15,8 @@ export type CoreEvent = {
   ranked: boolean;
   prizeInfo?: string;
   seasonId?: string;
+  coverImageId?: string;
+  coverImageUrl?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -32,6 +34,7 @@ export type EventBody = {
   active: boolean;
   ranked: boolean;
   prizeInfo?: string;
+  coverImageId?: string;
 };
 
 export const eventsApi = {
