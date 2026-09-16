@@ -45,6 +45,10 @@ describe('event write policy', () => {
   it('Leader of owner team can update', () => {
     expect(canWriteEvent(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'WEBLAB', 'update')).toBe(true);
   });
+  it('Privileged can write events with no owner team', () => {
+    expect(canWriteEvent(['/UYELER/YK'], '', 'create')).toBe(true);
+    expect(canWriteEvent(['/UYELER/ARGE/WEBLAB/LIDERLER'], '', 'create')).toBe(false);
+  });
   it('other team Leader cannot', () => {
     expect(canWriteEvent(['/UYELER/ARGE/SKYSEC/LIDERLER'], 'WEBLAB', 'update')).toBe(false);
   });
