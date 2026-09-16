@@ -83,7 +83,7 @@ export default function UsersPage() {
               key={u.id}
               href={`/users/${u.id}`}
               title={name || u.email}
-              subtitle={u.schoolEmail || u.email}
+              subtitle={u.skyNumber || u.schoolEmail || u.email}
               leading={<Avatar name={name} email={u.email} />}
             />
           );
