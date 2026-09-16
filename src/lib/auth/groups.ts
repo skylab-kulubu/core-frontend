@@ -68,6 +68,11 @@ export function canCheckInForTeam(groups: readonly string[], ownerTeam: string):
   return ownerLevels(groups, ownerTeam).includes('LEADER');
 }
 
+export function canManageCompetitors(groups: readonly string[], ownerTeam: string): boolean {
+  if (isPrivileged(groups)) return true;
+  return ownerLevels(groups, ownerTeam).includes('LEADER');
+}
+
 export function canSeeSchedulingNav(groups: readonly string[]): boolean {
   return isPrivileged(groups) || isLeader(groups);
 }

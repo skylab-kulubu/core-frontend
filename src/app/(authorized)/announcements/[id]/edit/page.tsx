@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NewsForm } from '../../NewsForm';
 import { useAuth } from '@/context/AuthContext';
@@ -39,7 +41,24 @@ export default function EditAnnouncementPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Duyuru düzenle" description={item.data?.title || item.slug} />
+      <PageHeader
+        title="Duyuru düzenle"
+        description={item.data?.title || item.slug}
+        actions={
+          <ActionButton
+            icon={Trash2}
+            label="Sil"
+            onClick={async () => {
+              try {
+                await newsApi.remove(item.slug);
+                router.push('/announcements');
+              } catch (err) {
+                setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+              }
+            }}
+          />
+        }
+      />
       <NewsForm
         key={item.slug}
         initial={item.data}

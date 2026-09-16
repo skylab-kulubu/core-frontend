@@ -141,6 +141,25 @@ describe('News writes go to CMS, not core', () => {
     expect(calls[0].url).not.toContain('/v1/');
   });
 
+  it('delete goes to CMS slug, not core', async () => {
+    const calls: { method: string; url: string }[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) {
+        return jsonRes({ token: 'privileged-jwt' });
+      }
+      calls.push({ method: init?.method ?? 'GET', url });
+      return jsonRes('', 204);
+    }) as typeof fetch;
+
+    await newsApi.remove('onemli-duyuru');
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('DELETE');
+    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/News/onemli-duyuru`);
+    expect(calls[0].url).not.toContain(coreHost);
+  });
+
   it('CMS problem+json becomes ProblemError', async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

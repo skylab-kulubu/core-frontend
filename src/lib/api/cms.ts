@@ -97,4 +97,6 @@ export const newsApi = {
       { method: 'PUT', body: JSON.stringify({ data, version }) },
       token,
     ),
+  remove: (slug: string, token?: string | null) =>
+    cmsFetch<void>(newsPath(slug), { method: 'DELETE' }, token),
 };

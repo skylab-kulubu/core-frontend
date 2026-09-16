@@ -1,153 +1,179 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-
+import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
+import { Drawer } from '@/components/chrome/Drawer';
+import { Field } from '@/components/chrome/Field';
+import { ListItem } from '@/components/chrome/ListItem';
+import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { CreatePageButton } from '@/components/ui/CreatePageButton';
-import { useRouter } from 'next/navigation';
-import type { CompetitorDto } from '@/types/api';
-import { competitorsApi } from '@/lib/api/competitors';
-import { eventTypeMatchesLeaderScope, getLeaderEventType } from '@/lib/utils/permissions';
-import { CompetitorsGridClient } from './CompetitorsGridClient';
 import { useAuth } from '@/context/AuthContext';
+import { ProblemError } from '@/lib/api/core';
+import { competitorsApi, type Competitor } from '@/lib/api/competitors';
+import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { identityApi, type Person } from '@/lib/api/identity';
+import { canManageCompetitors, isPrivileged } from '@/lib/auth/groups';
+
+const PAGE_SIZE = 10;
 
 export default function CompetitorsPage() {
-  const router = useRouter();
-  const [competitors, setCompetitors] = useState<CompetitorDto[]>([]);
+  const { user } = useAuth();
+  const groups = user?.groups ?? [];
+  const [rows, setRows] = useState<Competitor[]>([]);
+  const [events, setEvents] = useState<CoreEvent[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [page, setPage] = useState(1);
+  const [userId, setUserId] = useState('');
+  const [eventId, setEventId] = useState('');
+  const [score, setScore] = useState('');
+  const [isWinner, setIsWinner] = useState(false);
 
-  const { user: currentUser } = useAuth();
+  const eventById = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
+  const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+  const writableEvents = events.filter((e) => canManageCompetitors(groups, e.ownerTeam));
+  const canCreate = writableEvents.length > 0 || isPrivileged(groups);
 
-  const loadCompetitors = async () => {
-    setLoading(true);
-    setError(null);
+  async function load() {
     try {
-      const response = await competitorsApi.getAll();
-      if (response.success && response.data) {
-        let data = response.data;
-
-        // Filter for leaders (currentUser.roles varsa kontrol et)
-        if (currentUser?.roles?.length) {
-          const leaderEventType = getLeaderEventType(currentUser);
-          if (leaderEventType) {
-            data = data.filter((c) =>
-              eventTypeMatchesLeaderScope(c.event?.type?.name, leaderEventType),
-            );
-          }
-        }
-
-        setCompetitors(data);
-      } else {
-        setError(response.message || 'Yarışmacılar yüklenirken hata oluştu');
-      }
+      const [comps, eventRows] = await Promise.all([competitorsApi.list(), eventsApi.list()]);
+      setEvents(eventRows);
+      const allowedIds = new Set(
+        eventRows.filter((e) => canManageCompetitors(groups, e.ownerTeam)).map((e) => e.id),
+      );
+      setRows(isPrivileged(groups) ? comps : comps.filter((c) => allowedIds.has(c.eventId)));
+      setPeople(await identityApi.listUsers().catch(() => []));
+      setError(null);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'Yarışmacılar yüklenirken hata oluştu';
-      // 403 hatası için özel mesaj
-      if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
-        setError(
-          'Bu sayfayı görüntülemek için gerekli yetkiniz bulunmamaktadır. Lütfen yöneticinizle iletişime geçin.',
-        );
-      } else {
-        setError(errorMessage);
-      }
-      console.error('Competitors page fetch error:', err);
-    } finally {
-      setLoading(false);
+      setError(err instanceof ProblemError ? err.title : 'Yarışmacılar yüklenemedi');
     }
-  };
-
-  useEffect(() => {
-    loadCompetitors();
-  }, [currentUser]);
-
-  // Group competitors by Event Name
-  const competitorsByEvent = useMemo(() => {
-    const grouped: Record<string, CompetitorDto[]> = {};
-    competitors.forEach((comp) => {
-      const eventName = comp.event?.name || 'Etkinliksiz';
-      if (!grouped[eventName]) {
-        grouped[eventName] = [];
-      }
-      grouped[eventName].push(comp);
-    });
-    return grouped;
-  }, [competitors]);
-
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-2xl font-bold">Yarışmacılar</h1>
-        <p>Yükleniyor...</p>
-      </div>
-    );
   }
 
-  return (
-    <>
-      <div className="space-y-6">
-        <PageHeader
-          title="Yarışmacılar"
-          actions={<CreatePageButton href="/competitors/new">Yeni Yarışmacı</CreatePageButton>}
-        />
+  useEffect(() => {
+    void load();
+  }, [user?.id]);
 
-        {/* Error State */}
-        {error ? (
-          <div className="bg-light border-danger rounded-lg border-l-4 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <div className="bg-danger-100 flex h-10 w-10 items-center justify-center rounded-full">
-                  <svg
-                    className="text-danger-700 h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-danger-800 mb-2 text-lg font-semibold">Hata Oluştu</h2>
-                <p className="text-dark-700 mb-4">{error}</p>
-              </div>
-            </div>
-          </div>
-        ) : competitors.length === 0 ? (
-          /* Empty State */
-          <div className="bg-light border-dark-200/50 rounded-xl border p-12 text-center shadow-lg">
-            <div className="mx-auto max-w-md">
-              <div className="bg-brand-100 mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full">
-                <svg
-                  className="text-brand-600 h-10 w-10"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-dark-800 mb-2 text-xl font-semibold">Henüz yarışmacı yok</h3>
-              <p className="text-dark-600 mb-6">Sisteme ilk yarışmacıyı ekleyerek başlayın</p>
-              <CreatePageButton href="/competitors/new">İlk Yarışmacıyı Ekle</CreatePageButton>
-            </div>
-          </div>
-        ) : (
-          /* Competitors Grid */
-          <CompetitorsGridClient competitorsByEvent={competitorsByEvent} />
-        )}
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const slice = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+  }, [rows, page]);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Yarışmacılar"
+        actions={
+          canCreate ? (
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Yarışmacı ekle"
+              onClick={() => setCreating(true)}
+            />
+          ) : undefined
+        }
+      />
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        {slice.map((row) => {
+          const person = personById.get(row.userId);
+          const event = eventById.get(row.eventId);
+          const name = person
+            ? `${person.firstName} ${person.lastName}`.trim() || person.email
+            : row.userId;
+          return (
+            <ListItem
+              key={row.id}
+              href={`/competitors/${row.id}/edit`}
+              title={name}
+              subtitle={`${event?.name ?? row.eventId}${row.isWinner ? ' · kazanan' : ''}`}
+            />
+          );
+        })}
       </div>
-    </>
+      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Drawer open={creating} onClose={() => setCreating(false)} title="Yarışmacı ekle">
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const event = eventById.get(eventId);
+            if (!event || !canManageCompetitors(groups, event.ownerTeam)) return;
+            const parsed = score.trim() === '' ? undefined : Number(score);
+            await competitorsApi.create({
+              userId,
+              eventId,
+              score: parsed,
+              isWinner,
+            });
+            setCreating(false);
+            setUserId('');
+            setEventId('');
+            setScore('');
+            setIsWinner(false);
+            await load();
+          }}
+        >
+          <select
+            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            required
+          >
+            <option value="">Etkinlik</option>
+            {writableEvents.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </select>
+          {people.length > 0 ? (
+            <select
+              className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              required
+            >
+              <option value="">Kullanıcı</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {`${p.firstName} ${p.lastName}`.trim() || p.email}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Field
+              placeholder="userId"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              required
+            />
+          )}
+          <Field
+            placeholder="Puan"
+            type="number"
+            value={score}
+            onChange={(e) => setScore(e.target.value)}
+          />
+          <label className="flex items-center gap-2 text-xs text-neutral-300">
+            <input
+              type="checkbox"
+              checked={isWinner}
+              onChange={(e) => setIsWinner(e.target.checked)}
+            />
+            Kazanan
+          </label>
+          <button
+            type="submit"
+            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
+          >
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
+    </div>
   );
 }

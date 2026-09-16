@@ -1,245 +1,137 @@
 'use client';
 
-import { useState, useTransition, useEffect, Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-
+import { Field } from '@/components/chrome/Field';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Form } from '@/components/forms/Form';
-import { TextField } from '@/components/forms/TextField';
-import { Select } from '@/components/forms/Select';
-import { Checkbox } from '@/components/forms/Checkbox';
-import { Button } from '@/components/ui/Button';
-import { FormActions } from '@/components/ui/FormActions';
-import { z } from 'zod';
-import { competitorsApi } from '@/lib/api/competitors';
-import { usersApi } from '@/lib/api/users';
-import { eventsApi } from '@/lib/api/events';
-import { canManageCompetitorsForEvent } from '@/lib/utils/permissions';
 import { useAuth } from '@/context/AuthContext';
-
-import type { CoreEvent } from '@/lib/api/events';
-
-const competitorSchema = z.object({
-  userId: z.string().min(1, 'Kullanıcı seçiniz'),
-  eventId: z.string().min(1, 'Etkinlik seçiniz'),
-  points: z.preprocess((val) => {
-    if (val === '' || val === undefined || val === null) return undefined;
-    const n = typeof val === 'string' ? Number(val) : Number(val);
-    return Number.isNaN(n) ? undefined : n;
-  }, z.number().min(0, 'Puan 0 veya daha büyük olmalı').optional()),
-  winner: z.boolean().optional(),
-});
+import { ProblemError } from '@/lib/api/core';
+import { competitorsApi } from '@/lib/api/competitors';
+import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { identityApi, type Person } from '@/lib/api/identity';
+import { canManageCompetitors } from '@/lib/auth/groups';
 
 export default function NewCompetitorPage() {
   return (
-    <Suspense fallback={<CompetitorsNewSkeleton />}>
-      <NewCompetitorPageContent />
+    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
+      <NewCompetitorForm />
     </Suspense>
   );
 }
 
-function CompetitorsNewSkeleton() {
-  return (
-    <div className="space-y-6">
-      <PageHeader title="Yeni Yarışmacı" />
-      <div className="text-dark-500 mx-auto max-w-3xl px-2 text-sm">Yükleniyor…</div>
-    </div>
-  );
-}
-
-function NewCompetitorPageContent() {
+function NewCompetitorForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const lockedEventId = searchParams.get('eventId') || '';
-
-  const [isPending, startTransition] = useTransition();
-  const [users, setUsers] = useState<{ value: string; label: string }[]>([]);
-  const [events, setEvents] = useState<{ value: string; label: string; type?: string }[]>([]);
-  const [lockedEvent, setLockedEvent] = useState<CoreEvent | null>(null);
-  const [lockedEventError, setLockedEventError] = useState<string | null>(null);
-  const [lockedEventLoading, setLockedEventLoading] = useState(false);
-  const { user: currentUser } = useAuth();
+  const { user } = useAuth();
+  const groups = user?.groups ?? [];
+  const [events, setEvents] = useState<CoreEvent[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [userId, setUserId] = useState('');
+  const [eventId, setEventId] = useState(lockedEventId);
+  const [score, setScore] = useState('');
+  const [isWinner, setIsWinner] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    usersApi
-      .getAll()
-      .then((response) => {
-        if (response.success && response.data) {
-          setUsers(
-            response.data.map((user) => ({
-              value: user.id,
-              label: `${user.firstName} ${user.lastName} (${user.email})`,
-            })),
-          );
-        }
-      })
-      .catch((error) => {
-        console.error('Users fetch error:', error);
-      });
+    eventsApi
+      .list()
+      .then(setEvents)
+      .catch((err) =>
+        setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi'),
+      );
+    identityApi
+      .listUsers()
+      .then(setPeople)
+      .catch(() => setPeople([]));
   }, []);
 
-  useEffect(() => {
-    if (!lockedEventId) {
-      setLockedEvent(null);
-      setLockedEventError(null);
-      setLockedEventLoading(false);
-
-      eventsApi
-        .list()
-        .then((rows) => {
-          setEvents(
-            rows.map((event) => ({
-              value: event.id,
-              label: event.name,
-              type: event.ownerTeam,
-            })),
-          );
-        })
-        .catch((error) => {
-          console.error('Events fetch error:', error);
-        });
-      return;
-    }
-
-    setLockedEventLoading(true);
-    eventsApi
-      .get(lockedEventId)
-      .then((event) => {
-        setLockedEvent(event);
-        const allowed = canManageCompetitorsForEvent(currentUser, event.ownerTeam);
-        if (!allowed) {
-          setLockedEventError('Bu etkinlik için yarışmacı ekleme yetkiniz yok.');
-        } else {
-          setLockedEventError(null);
-        }
-      })
-      .catch(() => {
-        setLockedEvent(null);
-        setLockedEventError('Etkinlik yüklenemedi.');
-      })
-      .finally(() => setLockedEventLoading(false));
-  }, [lockedEventId, currentUser]);
-
-  const handleSubmit = async (data: z.infer<typeof competitorSchema>) => {
-    const eventType = lockedEvent?.ownerTeam ?? events.find((e) => e.value === data.eventId)?.type;
-    if (!canManageCompetitorsForEvent(currentUser ?? null, eventType)) {
-      router.replace(data.eventId ? `/events/${data.eventId}` : '/events');
-      return;
-    }
-    startTransition(async () => {
-      try {
-        await competitorsApi.create({
-          userId: data.userId,
-          eventId: data.eventId,
-          points: data.points,
-          winner: data.winner,
-        });
-        router.push(`/events/${data.eventId}`);
-      } catch (error) {
-        console.error('Competitor creation error:', error);
-        const rawMessage = error instanceof Error ? error.message : 'Bilinmeyen hata';
-        const userMessage =
-          rawMessage.includes('405') || rawMessage.toLowerCase().includes('method not allowed')
-            ? 'Yarışmacı oluşturma şu anda desteklenmiyor. Lütfen daha sonra tekrar deneyin.'
-            : rawMessage;
-        alert('Yarışmacı oluşturulurken hata oluştu: ' + userMessage);
-      }
-    });
-  };
-
-  const filteredEvents = currentUser
-    ? events.filter((e) => canManageCompetitorsForEvent(currentUser, e.type))
-    : events;
+  const writable = events.filter((e) => canManageCompetitors(groups, e.ownerTeam));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Yeni Yarışmacı" description={lockedEvent?.name} />
-
-      <div className="mx-auto max-w-3xl">
-        <div className="bg-light border-dark-200 rounded-lg border p-4 shadow">
-          <Form
-            schema={competitorSchema}
-            onSubmit={handleSubmit}
-            defaultValues={{ eventId: lockedEventId || undefined }}
+      <PageHeader title="Yeni yarışmacı" />
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <form
+        className="max-w-md space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const event = events.find((ev) => ev.id === eventId);
+          if (!event || !canManageCompetitors(groups, event.ownerTeam)) {
+            setError('Forbidden');
+            return;
+          }
+          const parsed = score.trim() === '' ? undefined : Number(score);
+          try {
+            await competitorsApi.create({ userId, eventId, score: parsed, isWinner });
+            router.push(lockedEventId ? `/events/${lockedEventId}` : '/competitors');
+          } catch (err) {
+            setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+          }
+        }}
+      >
+        {lockedEventId ? (
+          <p className="text-sm text-neutral-400">
+            {events.find((e) => e.id === lockedEventId)?.name ?? lockedEventId}
+          </p>
+        ) : (
+          <select
+            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            required
           >
-            {(methods) => {
-              const formErrors = methods.formState.errors;
-              return (
-                <>
-                  {Object.keys(formErrors).length > 0 && (
-                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4">
-                      <p className="mb-2 text-sm font-medium text-red-800">Form hataları:</p>
-                      <ul className="list-inside list-disc text-sm text-red-600">
-                        {Object.entries(formErrors).map(([key, error]) => (
-                          <li key={key}>
-                            {key}: {error?.message as string}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {lockedEventError && lockedEventId && (
-                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                      {lockedEventError}
-                    </div>
-                  )}
-                  {lockedEventId && <input type="hidden" {...methods.register('eventId')} />}
-                  {lockedEventId && lockedEventLoading && !lockedEventError && (
-                    <div className="text-dark-600 mb-4 text-sm">Etkinlik bilgisi yükleniyor…</div>
-                  )}
-                  {lockedEvent && lockedEventId && !lockedEventError && (
-                    <div className="border-dark-200 bg-dark-50 mb-5 rounded-lg border px-4 py-3 text-sm">
-                      <span className="text-dark-500 block text-xs">Etkinlik</span>
-                      <p className="text-dark-900 mt-0.5 font-medium">{lockedEvent.name}</p>
-                    </div>
-                  )}
-                  <div className="space-y-5">
-                    <div>
-                      <h3 className="text-dark-800 mb-3 text-sm font-semibold">Temel Bilgiler</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Select name="userId" label="Kullanıcı" options={users} required />
-                        {!lockedEventId && (
-                          <Select
-                            name="eventId"
-                            label="Etkinlik"
-                            options={filteredEvents}
-                            required
-                          />
-                        )}
-                        <TextField name="points" label="Puan" type="number" placeholder="100" />
-                        <div className="flex items-end">
-                          <Checkbox name="winner" label="Kazanan" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <FormActions
-                    cancel={
-                      <Button
-                        href={lockedEventId ? `/events/${lockedEventId}` : '/competitors'}
-                        variant="outlineDanger"
-                      >
-                        İptal
-                      </Button>
-                    }
-                    submit={
-                      <Button
-                        type="submit"
-                        variant="outlineBrand"
-                        disabled={
-                          isPending || !!lockedEventError || (!!lockedEventId && lockedEventLoading)
-                        }
-                      >
-                        {isPending ? 'Kaydediliyor...' : 'Kaydet'}
-                      </Button>
-                    }
-                  />
-                </>
-              );
-            }}
-          </Form>
-        </div>
-      </div>
+            <option value="">Etkinlik</option>
+            {writable.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {people.length > 0 ? (
+          <select
+            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            required
+          >
+            <option value="">Kullanıcı</option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {`${p.firstName} ${p.lastName}`.trim() || p.email}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <Field
+            placeholder="userId"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            required
+          />
+        )}
+        <Field
+          placeholder="Puan"
+          type="number"
+          value={score}
+          onChange={(e) => setScore(e.target.value)}
+        />
+        <label className="flex items-center gap-2 text-xs text-neutral-300">
+          <input
+            type="checkbox"
+            checked={isWinner}
+            onChange={(e) => setIsWinner(e.target.checked)}
+          />
+          Kazanan
+        </label>
+        <button
+          type="submit"
+          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
+        >
+          Kaydet
+        </button>
+      </form>
     </div>
   );
 }
