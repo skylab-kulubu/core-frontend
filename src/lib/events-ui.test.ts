@@ -1,6 +1,8 @@
 import {
   canCheckInForTeam,
   canManageCompetitors,
+  canModerateUrls,
+  canUseUrls,
   canWriteEvent,
   canWriteSeason,
   isLeader,
@@ -9,6 +11,7 @@ import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
 import { mediaApi } from '@/lib/api/media';
+import { urlsApi } from '@/lib/api/urls';
 import { ProblemError } from '@/lib/api/core';
 import { eventTypesApi } from '@/lib/api/event-types';
 
@@ -21,6 +24,20 @@ function jsonRes(body: unknown, status = 200): Response {
     json: async () => body,
   } as Response;
 }
+
+describe('url access from JWT client roles', () => {
+  it('Privileged can use and moderate without url roles', () => {
+    expect(canUseUrls(['/UYELER/YK'], [])).toBe(true);
+    expect(canModerateUrls(['/UYELER/YK'], [])).toBe(true);
+  });
+  it('url:create can use but not moderate', () => {
+    expect(canUseUrls(['/UYELER/ARGE/WEBLAB'], ['url:create'])).toBe(true);
+    expect(canModerateUrls(['/UYELER/ARGE/WEBLAB'], ['url:create'])).toBe(false);
+  });
+  it('skylapp:moderator can moderate', () => {
+    expect(canModerateUrls(['/UYELER/ARGE/WEBLAB'], ['skylapp:moderator'])).toBe(true);
+  });
+});
 
 describe('event write policy', () => {
   it('Leader of owner team can update', () => {
@@ -92,6 +109,18 @@ describe('scheduling clients speak RFC 7807 resources', () => {
           },
         ]);
       }
+      if (url.includes('/v1/urls')) {
+        return jsonRes([
+          {
+            id: 'u1',
+            alias: 'hack',
+            url: 'https://skylab.com',
+            clickCount: 3,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
       if (url.includes('/v1/media')) {
         return jsonRes([
           {
@@ -149,6 +178,13 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     const rows = await mediaApi.list();
     expect(rows[0]).toMatchObject({ id: 'm1', name: 'dot.png' });
     expect(rows[0]).not.toHaveProperty('success');
+  });
+
+  it('url list is a resource array, not a DataResult envelope', async () => {
+    const rows = await urlsApi.listMine();
+    expect(rows[0]).toMatchObject({ id: 'u1', alias: 'hack' });
+    expect(rows[0]).not.toHaveProperty('success');
+    expect(rows).not.toHaveProperty('data');
   });
 
   it('problem+json becomes ProblemError', async () => {

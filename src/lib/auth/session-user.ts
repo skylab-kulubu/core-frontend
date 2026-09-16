@@ -1,4 +1,4 @@
-import { extractGroupsFromClaims } from './groups';
+import { extractGroupsFromClaims, extractResourceRoles } from './groups';
 
 function decodePayloadRecord(token: string): Record<string, unknown> | null {
   try {
@@ -37,7 +37,7 @@ export function sessionUserFromAccessToken(token: string | null | undefined): {
     firstName: given,
     lastName: family,
     username: preferred,
-    roles: [],
+    roles: extractResourceRoles(p),
     groups: extractGroupsFromClaims(p),
   };
 }
