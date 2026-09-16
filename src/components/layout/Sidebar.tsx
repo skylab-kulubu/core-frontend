@@ -10,8 +10,10 @@ import {
   FolderTree,
   Layers,
   LogOut,
+  LayoutDashboard,
   Newspaper,
   QrCode,
+  Trophy,
   Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -21,6 +23,7 @@ import type { SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
 
 const NAV_ICON = {
+  '/dashboard': LayoutDashboard,
   '/users': Users,
   '/groups': FolderTree,
   '/announcements': Newspaper,
@@ -29,6 +32,7 @@ const NAV_ICON = {
   '/sessions': Clock,
   '/event-types': FolderTree,
   '/qr': QrCode,
+  '/competitors': Trophy,
 } as const;
 
 type SidebarProps = Readonly<{

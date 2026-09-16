@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { X, LogOut } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { UserCardView } from '@/components/identity/UserCardView';
@@ -35,6 +35,16 @@ export default function UserDetailPage() {
   return (
     <div className="space-y-6">
       <UserCardView card={card} />
+      <button
+        type="button"
+        className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 inline-flex h-8 items-center gap-2 rounded-md border px-3 font-medium"
+        onClick={async () => {
+          await identityApi.logoutUser(card.id);
+        }}
+      >
+        <LogOut className="h-4 w-4" />
+        Oturumları kapat
+      </button>
       <section className="space-y-3">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Ekstra rol ekle / çıkar

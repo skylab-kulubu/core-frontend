@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
@@ -18,10 +18,18 @@ import {
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { competitorsApi, type Competitor } from '@/lib/api/competitors';
+import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { sessionsApi, SESSION_TYPES, type EventSession } from '@/lib/api/sessions';
 import { teamsApi } from '@/lib/api/teams';
-import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
+import {
+  canCheckInForTeam,
+  canManageCompetitors,
+  canWriteEvent,
+  isPrivileged,
+  leaderOwnerTeams,
+} from '@/lib/auth/groups';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useAuth } from '@/context/AuthContext';
@@ -50,6 +58,14 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
   sessionType: 'WORKSHOP',
 });
 
+function ticketLabel(row: Ticket): string {
+  if (row.ticketType === 'GUEST') {
+    const name = [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ');
+    return name || row.guestEmail || row.id;
+  }
+  return row.ownerId || row.id;
+}
+
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -59,6 +75,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
   const [sessions, setSessions] = useState<EventSession[]>([]);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +92,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
+  const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
+  const canTickets = event ? canCheckInForTeam(groups, event.ownerTeam) : false;
 
   async function load() {
     try {
@@ -85,6 +105,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setEvent(ev);
       setDays(dayRows);
       setSessions(sessionRows);
+      setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
+      setTickets(
+        canCheckInForTeam(groups, ev.ownerTeam)
+          ? await ticketsApi.listByEvent(id).catch(() => [])
+          : [],
+      );
       setForm({
         ...emptyEventForm(ev.ownerTeam),
         name: ev.name,
@@ -163,6 +189,52 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <p className="text-sm whitespace-pre-wrap text-neutral-400">{event.description || '—'}</p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yarışmacılar</h2>
+          {canCompetitors ? (
+            <ActionButton
+              icon={Trophy}
+              variant="primary"
+              label="Yarışmacı ekle"
+              href={`/competitors/new?eventId=${encodeURIComponent(event.id)}`}
+            />
+          ) : null}
+        </div>
+        <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+          {competitors.map((row) => (
+            <ListItem
+              key={row.id}
+              href={`/competitors/${row.id}/edit?eventId=${encodeURIComponent(event.id)}`}
+              title={row.userId}
+              subtitle={
+                row.isWinner ? 'kazanan' : row.score !== undefined ? String(row.score) : '—'
+              }
+            />
+          ))}
+        </div>
+      </div>
+      {canTickets ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Biletler</h2>
+            <ActionButton icon={QrCode} label="QR / check-in" href="/qr" />
+          </div>
+          <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+            {tickets.length === 0 ? (
+              <p className="px-3 py-2.5 text-sm text-neutral-500">Henüz başvuru yok.</p>
+            ) : (
+              tickets.map((row) => (
+                <ListItem
+                  key={row.id}
+                  title={ticketLabel(row)}
+                  subtitle={`${row.ticketType} · ${row.checkIns?.length ?? 0} check-in · ${row.id}`}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Günler ve oturumlar

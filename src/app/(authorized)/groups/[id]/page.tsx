@@ -22,6 +22,7 @@ export default function GroupDetailPage() {
   const [memberId, setMemberId] = useState('');
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
+  const [rename, setRename] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -53,6 +54,31 @@ export default function GroupDetailPage() {
     <div className="space-y-6">
       <PageHeader title={group?.name ?? id} description={group?.path} />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+
+      <form
+        className="flex flex-wrap gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!rename.trim()) return;
+          await identityApi.updateGroup(id, { name: rename.trim() });
+          setRename('');
+          await load();
+        }}
+      >
+        <Field
+          className="w-48"
+          value={rename}
+          onChange={(e) => setRename(e.target.value)}
+          placeholder="Yeni ad"
+          required
+        />
+        <button
+          type="submit"
+          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
+        >
+          Yeniden adlandır
+        </button>
+      </form>
 
       <section className="space-y-3">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Üyeler</h2>
@@ -182,7 +208,7 @@ export default function GroupDetailPage() {
                 onClick={async () => {
                   const next = { ...attrs };
                   delete next[k];
-                  await identityApi.updateGroup(id, next);
+                  await identityApi.updateGroup(id, { attributes: next });
                   await load();
                 }}
               />
@@ -194,7 +220,7 @@ export default function GroupDetailPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             if (!attrKey) return;
-            await identityApi.updateGroup(id, { ...attrs, [attrKey]: attrValue });
+            await identityApi.updateGroup(id, { attributes: { ...attrs, [attrKey]: attrValue } });
             setAttrKey('');
             setAttrValue('');
             await load();

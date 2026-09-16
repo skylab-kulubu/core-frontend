@@ -5,6 +5,7 @@ import type { SidebarNavLink } from '@/lib/navigation/sidebar-types';
 export type { SidebarNavLink } from '@/lib/navigation/sidebar-types';
 
 const IDENTITY_LINKS: readonly SidebarNavLink[] = [
+  { href: '/dashboard', label: 'Özet' },
   { href: '/users', label: 'Kullanıcılar' },
   { href: '/groups', label: 'Gruplar' },
 ];
@@ -12,9 +13,11 @@ const IDENTITY_LINKS: readonly SidebarNavLink[] = [
 const NEWS_LINKS: readonly SidebarNavLink[] = [{ href: '/announcements', label: 'Duyurular' }];
 
 const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
+  { href: '/dashboard', label: 'Özet' },
   { href: '/events', label: 'Etkinlikler' },
   { href: '/sessions', label: 'Oturumlar' },
   { href: '/qr', label: 'QR' },
+  { href: '/competitors', label: 'Yarışmacılar' },
 ];
 
 const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
@@ -23,6 +26,7 @@ const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/sessions', label: 'Oturumlar' },
   { href: '/event-types', label: 'Etkinlik tipleri' },
   { href: '/qr', label: 'QR' },
+  { href: '/competitors', label: 'Yarışmacılar' },
 ];
 
 export function filterSidebarNavForUser(user: UserDto): SidebarNavLink[] {

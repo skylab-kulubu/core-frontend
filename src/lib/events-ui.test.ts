@@ -1,4 +1,10 @@
-import { canWriteEvent, canWriteSeason, isLeader } from '@/lib/auth/groups';
+import {
+  canCheckInForTeam,
+  canManageCompetitors,
+  canWriteEvent,
+  canWriteSeason,
+  isLeader,
+} from '@/lib/auth/groups';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
@@ -36,6 +42,16 @@ describe('event write policy', () => {
     expect(canWriteSeason(['/UYELER/YK'])).toBe(true);
     expect(canWriteSeason(['/UYELER/ARGE/WEBLAB/LIDERLER'])).toBe(false);
   });
+  it('Leader manages competitors for owner team only', () => {
+    expect(canManageCompetitors(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'WEBLAB')).toBe(true);
+    expect(canManageCompetitors(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'SKYSEC')).toBe(false);
+    expect(canManageCompetitors(['/UYELER/YK'], 'WEBLAB')).toBe(true);
+  });
+  it('Leader lists tickets for owner team only', () => {
+    expect(canCheckInForTeam(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'WEBLAB')).toBe(true);
+    expect(canCheckInForTeam(['/UYELER/ARGE/WEBLAB'], 'WEBLAB')).toBe(false);
+    expect(canCheckInForTeam(['/UYELER/YK'], 'WEBLAB')).toBe(true);
+  });
 });
 
 describe('scheduling clients speak RFC 7807 resources', () => {
@@ -45,7 +61,7 @@ describe('scheduling clients speak RFC 7807 resources', () => {
       if (url.includes('/api/auth/token')) {
         return jsonRes({ token: 't' });
       }
-      if (url.includes('/v1/events') && !url.includes('/days')) {
+      if (url.includes('/v1/events') && !url.includes('/days') && !url.includes('/tickets')) {
         return jsonRes([{ id: 'e1', name: 'Hack', ownerTeam: 'WEBLAB' }]);
       }
       if (url.includes('/v1/seasons')) {
@@ -61,6 +77,19 @@ describe('scheduling clients speak RFC 7807 resources', () => {
           { id: 'c1', ticketId: 't1', eventDayId: 'd1', createdAt: '2026-01-01T00:00:00Z' },
           201,
         );
+      }
+      if (url.includes('/tickets')) {
+        return jsonRes([
+          {
+            id: 't1',
+            eventId: 'e1',
+            ticketType: 'REGISTERED',
+            ownerId: 'u1',
+            checkIns: [],
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ]);
       }
       return jsonRes({ title: 'Forbidden' }, 403);
     }) as typeof fetch;
@@ -91,6 +120,13 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     const created = await ticketsApi.checkIn('t1', 'd1');
     expect(created.id).toBe('c1');
     expect(created).not.toHaveProperty('success');
+  });
+
+  it('event tickets list is a resource array', async () => {
+    const rows = await ticketsApi.listByEvent('e1');
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows[0]).toMatchObject({ id: 't1', eventId: 'e1', ticketType: 'REGISTERED' });
+    expect(rows[0]).not.toHaveProperty('success');
   });
 
   it('problem+json becomes ProblemError', async () => {

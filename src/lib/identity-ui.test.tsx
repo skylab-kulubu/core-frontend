@@ -26,6 +26,7 @@ describe('filterSidebarNavForUser', () => {
       groups: ['/UYELER/YK'],
     };
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
+      '/dashboard',
       '/users',
       '/groups',
       '/announcements',
@@ -34,6 +35,7 @@ describe('filterSidebarNavForUser', () => {
       '/sessions',
       '/event-types',
       '/qr',
+      '/competitors',
     ]);
   });
   it('Leader sees events sessions QR', () => {
@@ -47,9 +49,11 @@ describe('filterSidebarNavForUser', () => {
       groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'],
     };
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
+      '/dashboard',
       '/events',
       '/sessions',
       '/qr',
+      '/competitors',
     ]);
   });
   it('member sees no identity nav', () => {
