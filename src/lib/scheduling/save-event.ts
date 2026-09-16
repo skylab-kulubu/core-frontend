@@ -32,6 +32,16 @@ export async function saveEventWithSeason(
   if (form.seasonId) {
     await seasonsApi.assignEvent(form.seasonId, saved.id);
   }
+  const next = form.imageIds ?? [];
+  const prev = (saved.images ?? []).map((image) => image.id);
+  const add = next.filter((id) => !prev.includes(id));
+  const remove = existingId ? prev.filter((id) => !next.includes(id)) : [];
+  if (remove.length) {
+    await eventsApi.removeImages(saved.id, remove);
+  }
+  if (add.length) {
+    await eventsApi.addImages(saved.id, add);
+  }
   return saved.id;
 }
 

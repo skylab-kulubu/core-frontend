@@ -127,6 +127,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         prizeInfo: ev.prizeInfo ?? '',
         seasonId: ev.seasonId ?? '',
         coverImageId: ev.coverImageId ?? '',
+        imageIds: (ev.images ?? []).map((image) => image.id),
       });
       setError(null);
       const teams = await teamsApi.list().catch(() => []);

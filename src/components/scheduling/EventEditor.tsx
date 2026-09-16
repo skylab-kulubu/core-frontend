@@ -8,7 +8,7 @@ import type { EventBody } from '@/lib/api/events';
 import { mediaApi, type Media } from '@/lib/api/media';
 import type { Season } from '@/lib/api/seasons';
 
-export type EventFormState = EventBody & { seasonId: string };
+export type EventFormState = EventBody & { seasonId: string; imageIds: string[] };
 
 type EventEditorProps = {
   value: EventFormState;
@@ -38,6 +38,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     prizeInfo: '',
     seasonId: '',
     coverImageId: '',
+    imageIds: [],
   };
 }
 
@@ -148,6 +149,25 @@ export function EventEditor({
           onChange={(e) => patch({ coverImageId: e.target.value })}
         >
           <option value="">Yok</option>
+          {media.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.name}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label className="block space-y-1">
+        <span className={inputLabel}>Galeri görselleri</span>
+        <Select
+          multiple
+          className="h-24"
+          value={value.imageIds ?? []}
+          onChange={(e) =>
+            patch({
+              imageIds: Array.from(e.target.selectedOptions).map((option) => option.value),
+            })
+          }
+        >
           {media.map((row) => (
             <option key={row.id} value={row.id}>
               {row.name}

@@ -17,6 +17,8 @@ export type CoreEvent = {
   seasonId?: string;
   coverImageId?: string;
   coverImageUrl?: string;
+  images?: { id: string; url?: string }[];
+  imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -52,4 +54,14 @@ export const eventsApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  addImages: (id: string, imageIds: string[]) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/images`, {
+      method: 'POST',
+      body: JSON.stringify(imageIds),
+    }),
+  removeImages: (id: string, imageIds: string[]) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/images`, {
+      method: 'DELETE',
+      body: JSON.stringify(imageIds),
+    }),
 };
