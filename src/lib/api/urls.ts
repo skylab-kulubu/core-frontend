@@ -1,4 +1,4 @@
-import { coreFetch } from './core';
+import { CORE_API_URL, coreFetch } from './core';
 
 export type ShortUrl = {
   id: string;
@@ -22,6 +22,10 @@ export const SHORT_ORIGIN = (process.env.NEXT_PUBLIC_SHORT_ORIGIN || 'https://sk
 
 export function publicShortUrl(alias: string): string {
   return `${SHORT_ORIGIN}/${alias}`;
+}
+
+export function shortQrUrl(alias: string): string {
+  return `${CORE_API_URL}/v1/go/${encodeURIComponent(alias)}/qr`;
 }
 
 export const urlsApi = {

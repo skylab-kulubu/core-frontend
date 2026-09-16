@@ -11,7 +11,8 @@ import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
 import { mediaApi } from '@/lib/api/media';
-import { urlsApi } from '@/lib/api/urls';
+import { urlsApi, shortQrUrl } from '@/lib/api/urls';
+import { CORE_API_URL } from '@/lib/api/core';
 import { ProblemError } from '@/lib/api/core';
 import { eventTypesApi } from '@/lib/api/event-types';
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
@@ -191,6 +192,11 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(rows[0]).toMatchObject({ id: 'u1', alias: 'hack' });
     expect(rows[0]).not.toHaveProperty('success');
     expect(rows).not.toHaveProperty('data');
+  });
+
+  it('short QR PNG is Go /v1/go/:alias/qr, not Java /api/qr-codes', () => {
+    expect(shortQrUrl('hack')).toBe(`${CORE_API_URL}/v1/go/hack/qr`);
+    expect(shortQrUrl('hack')).not.toContain('/api/qr-codes');
   });
 
   it('problem+json becomes ProblemError', async () => {
