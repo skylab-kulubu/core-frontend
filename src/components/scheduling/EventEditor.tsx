@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Field } from '@/components/chrome/Field';
 import { Select } from '@/components/chrome/Select';
 import { TextArea } from '@/components/chrome/TextArea';
 import type { EventBody } from '@/lib/api/events';
+import { mediaApi, type Media } from '@/lib/api/media';
 import type { Season } from '@/lib/api/seasons';
 
 export type EventFormState = EventBody & { seasonId: string };
@@ -34,6 +36,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     ranked: false,
     prizeInfo: '',
     seasonId: '',
+    coverImageId: '',
   };
 }
 
@@ -46,6 +49,14 @@ export function EventEditor({
   showSeason,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
+  const [media, setMedia] = useState<Media[]>([]);
+
+  useEffect(() => {
+    mediaApi
+      .list()
+      .then((rows) => setMedia(rows.filter((row) => row.kind === 'IMAGE')))
+      .catch(() => setMedia([]));
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -127,6 +138,20 @@ export function EventEditor({
           value={Number.isFinite(value.capacity) ? value.capacity : 0}
           onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
         />
+      </label>
+      <label className="block space-y-1">
+        <span className={inputLabel}>Kapak görseli</span>
+        <Select
+          value={value.coverImageId ?? ''}
+          onChange={(e) => patch({ coverImageId: e.target.value })}
+        >
+          <option value="">Yok</option>
+          {media.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.name}
+            </option>
+          ))}
+        </Select>
       </label>
       <label className="block space-y-1">
         <span className={inputLabel}>Form URL</span>
