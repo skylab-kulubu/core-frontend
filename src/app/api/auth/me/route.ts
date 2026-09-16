@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import type { UserDto } from '@/types/api';
+import { CORE_API_URL } from '@/lib/api/core';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken } from '@/lib/auth/oauth2';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
@@ -50,7 +51,7 @@ async function setSessionCookies(
 }
 
 async function jitShadowUser(token: string): Promise<void> {
-  const base = process.env.NEXT_PUBLIC_API_URL || 'https://api.yildizskylab.com';
+  const base = CORE_API_URL;
   try {
     await fetch(`${base}/v1/users/me`, {
       headers: { Authorization: `Bearer ${token}` },

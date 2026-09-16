@@ -36,6 +36,7 @@ describe('filterSidebarNavForUser', () => {
       '/event-types',
       '/qr',
       '/competitors',
+      '/media',
     ]);
   });
   it('Leader sees events sessions QR', () => {
@@ -54,6 +55,7 @@ describe('filterSidebarNavForUser', () => {
       '/sessions',
       '/qr',
       '/competitors',
+      '/media',
     ]);
   });
   it('member sees no identity nav', () => {

@@ -1,3 +1,8 @@
+export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(
+  /\/+$/,
+  '',
+);
+
 export class ProblemError extends Error {
   status: number;
   title: string;
@@ -19,15 +24,15 @@ async function bearer(): Promise<string | null> {
 
 export async function coreFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await bearer();
-  const base = process.env.NEXT_PUBLIC_API_URL || 'https://api.yildizskylab.com';
-  const headers: Record<string, string> = {
-    ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-  };
+  const headers: Record<string, string> = {};
+  if (typeof init.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) headers.Authorization = `Bearer ${token}`;
   if (init.headers) {
     Object.assign(headers, init.headers as Record<string, string>);
   }
-  const res = await fetch(`${base}${path}`, { ...init, credentials: 'include', headers });
+  const res = await fetch(`${CORE_API_URL}${path}`, { ...init, credentials: 'include', headers });
   if (res.status === 204) {
     return undefined as T;
   }

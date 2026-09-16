@@ -18,6 +18,7 @@ const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/sessions', label: 'Oturumlar' },
   { href: '/qr', label: 'QR' },
   { href: '/competitors', label: 'Yarışmacılar' },
+  { href: '/media', label: 'Medya' },
 ];
 
 const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
@@ -27,6 +28,7 @@ const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/event-types', label: 'Etkinlik tipleri' },
   { href: '/qr', label: 'QR' },
   { href: '/competitors', label: 'Yarışmacılar' },
+  { href: '/media', label: 'Medya' },
 ];
 
 export function filterSidebarNavForUser(user: UserDto): SidebarNavLink[] {

@@ -8,6 +8,7 @@ import {
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
+import { mediaApi } from '@/lib/api/media';
 import { ProblemError } from '@/lib/api/core';
 import { eventTypesApi } from '@/lib/api/event-types';
 
@@ -91,6 +92,21 @@ describe('scheduling clients speak RFC 7807 resources', () => {
           },
         ]);
       }
+      if (url.includes('/v1/media')) {
+        return jsonRes([
+          {
+            id: 'm1',
+            name: 'dot.png',
+            type: 'image/png',
+            url: 'https://cdn.example.test/images/m1',
+            size: 12,
+            uploadedBy: 'u1',
+            kind: 'IMAGE',
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ]);
+      }
       return jsonRes({ title: 'Forbidden' }, 403);
     }) as typeof fetch;
   });
@@ -126,6 +142,12 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     const rows = await ticketsApi.listByEvent('e1');
     expect(Array.isArray(rows)).toBe(true);
     expect(rows[0]).toMatchObject({ id: 't1', eventId: 'e1', ticketType: 'REGISTERED' });
+    expect(rows[0]).not.toHaveProperty('success');
+  });
+
+  it('media list is a resource array', async () => {
+    const rows = await mediaApi.list();
+    expect(rows[0]).toMatchObject({ id: 'm1', name: 'dot.png' });
     expect(rows[0]).not.toHaveProperty('success');
   });
 
