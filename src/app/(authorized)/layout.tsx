@@ -4,11 +4,11 @@ import { redirect } from 'next/navigation';
 import { GlobalErrorMessenger } from '@/components/common/GlobalErrorMessenger';
 import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
 import { AuthProvider } from '@/context/AuthContext';
-import { serverFetch } from '@/lib/api/server-client';
 import { getTokenFromCookies } from '@/lib/auth/token';
-import { enrichUserRolesFromAccessToken } from '@/lib/auth/jwt-payload';
+import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
 import { filterSidebarNavForUser } from '@/lib/navigation/sidebar-nav';
-import type { DataResultUserDto, UserDto } from '@/types/api';
+import type { UserDto } from '@/types/api';
+
 export const dynamic = 'force-dynamic';
 
 export default async function AuthorizedLayout({
@@ -24,25 +24,25 @@ export default async function AuthorizedLayout({
     redirect('/login');
   }
 
-  let user: UserDto | null = null;
-
-  try {
-    const response = await serverFetch<DataResultUserDto>('/api/users/me');
-    user = response?.data ?? null;
-  } catch {
+  const session = sessionUserFromAccessToken(token);
+  if (!session) {
     redirect('/login');
   }
 
-  if (!user) {
-    redirect('/login');
-  }
-
-  const mergedUser = enrichUserRolesFromAccessToken(user, token);
-  const sidebarNav = filterSidebarNavForUser(mergedUser);
+  const user: UserDto = {
+    id: session.id,
+    username: session.username,
+    email: session.email,
+    firstName: session.firstName,
+    lastName: session.lastName,
+    roles: session.roles,
+    groups: session.groups,
+  };
+  const sidebarNav = filterSidebarNavForUser(user);
 
   return (
-    <AuthProvider initialUser={mergedUser}>
-      <AuthenticatedChrome sidebarNav={sidebarNav} sidebarUser={mergedUser}>
+    <AuthProvider initialUser={user}>
+      <AuthenticatedChrome sidebarNav={sidebarNav} sidebarUser={user}>
         <GlobalErrorMessenger />
         {children}
       </AuthenticatedChrome>

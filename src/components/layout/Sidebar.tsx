@@ -1,46 +1,19 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import {
-  HiOutlineCalendar,
-  HiOutlineCalendarDays,
-  HiOutlineChartBar,
-  HiOutlineMegaphone,
-  HiOutlineQrCode,
-  HiOutlineSquares2X2,
-  HiOutlineTag,
-  HiOutlineUsers,
-  HiOutlinePuzzlePiece,
-  HiOutlineArrowRightOnRectangle,
-} from 'react-icons/hi2';
+import { useEffect, useState } from 'react';
+import { ChevronRight, LogOut, Users, FolderTree } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { performClientLogout } from '@/lib/auth/client-logout';
-
+import { Avatar } from '@/components/chrome/Avatar';
 import type { SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
-import type { IconType } from 'react-icons';
 
-const NAV_ICON_BY_HREF: Record<string, IconType> = {
-  '/dashboard': HiOutlineChartBar,
-  '/events': HiOutlineCalendar,
-  '/announcements': HiOutlineMegaphone,
-  '/seasons': HiOutlineCalendarDays,
-  '/event-types': HiOutlineTag,
-  '/users': HiOutlineUsers,
-  '/qr': HiOutlineQrCode,
-  '/waiting-room': HiOutlinePuzzlePiece,
-};
-
-function navLinkClassNames(showLabels: boolean, isActive: boolean): string {
-  return [
-    'flex cursor-pointer items-center rounded-lg text-sm font-medium transition-colors',
-    showLabels ? 'gap-3 px-4 py-2 justify-start' : 'justify-center py-2',
-    isActive ? 'bg-brand text-light' : 'text-light hover:bg-dark-800 hover:text-brand',
-  ].join(' ');
-}
+const NAV_ICON = {
+  '/users': Users,
+  '/groups': FolderTree,
+} as const;
 
 type SidebarProps = Readonly<{
   navLinks: readonly SidebarNavLink[];
@@ -57,215 +30,96 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
-  const mobileAsideRef = useRef<HTMLElement | null>(null);
-  const [isDesktopExpanded, setIsDesktopExpanded] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const effectiveUser = user ?? prefetchedUser;
+  const [userMenu, setUserMenu] = useState(false);
+  const fullName = `${effectiveUser.firstName ?? ''} ${effectiveUser.lastName ?? ''}`.trim();
 
   useEffect(() => {
-    if (!isMobileOpen) setIsUserMenuOpen(false);
+    if (!isMobileOpen) setUserMenu(false);
   }, [isMobileOpen]);
 
-  useEffect(() => {
-    if (!isMobileOpen || typeof window === 'undefined') return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onMobileClose?.();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isMobileOpen, onMobileClose]);
-
-  useEffect(() => {
-    if (!isMobileOpen || typeof window === 'undefined') return;
-    const aside = mobileAsideRef.current;
-    if (!aside) return;
-    const id = window.requestAnimationFrame(() => {
-      aside.focus();
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [isMobileOpen]);
-
-  const handleLogout = () => {
-    void performClientLogout();
-  };
-
-  const handleNavigate = () => {
-    onMobileClose?.();
-  };
-
-  const renderUserSection = (showDetails: boolean) => {
-    const initials =
-      effectiveUser.firstName?.[0]?.toUpperCase() ||
-      effectiveUser.username?.[0]?.toUpperCase() ||
-      'U';
-
-    return (
-      <div
-        className={`flex flex-col overflow-hidden ${isUserMenuOpen ? 'border-dark-700 rounded-lg border' : ''}`}
-      >
-        {isUserMenuOpen && (
-          <button
-            type="button"
-            title="Çıkış Yap"
-            onClick={handleLogout}
-            className={`group border-dark-700 bg-dark-800 hover:bg-dark-700 flex w-full cursor-pointer items-center border-b px-4 py-3 text-sm font-medium transition-colors ${showDetails ? 'justify-start gap-3' : 'justify-center'}`}
-          >
-            <HiOutlineArrowRightOnRectangle
-              className="text-danger group-hover:text-danger-300 h-5 w-5 shrink-0"
-              aria-hidden
-            />
-            {showDetails ? (
-              <span className="text-danger group-hover:text-danger-300">Çıkış Yap</span>
-            ) : (
-              <span className="sr-only">Çıkış Yap</span>
-            )}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-          aria-expanded={isUserMenuOpen}
-          aria-label={
-            effectiveUser.firstName && effectiveUser.lastName
-              ? `${effectiveUser.firstName} ${effectiveUser.lastName}, hesap menüsü`
-              : `${effectiveUser.username ?? 'Kullanıcı'}, hesap menüsü`
-          }
-          className={`group hover:bg-dark-800 flex w-full cursor-pointer items-center gap-3 p-2 transition-colors ${
-            isUserMenuOpen ? 'rounded-none' : 'rounded-lg'
-          } ${showDetails ? '' : 'justify-center'}`}
-        >
-          {effectiveUser.profilePictureUrl ? (
-            <img
-              src={effectiveUser.profilePictureUrl}
-              alt=""
-              loading="lazy"
-              className="group-hover:ring-dark-600 h-10 w-10 flex-shrink-0 rounded-full object-cover ring-2 ring-transparent transition-all"
-            />
-          ) : (
-            <div className="bg-brand text-dark group-hover:ring-dark-600 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-2 ring-transparent transition-all">
-              {initials}
-            </div>
-          )}
-          {showDetails && (
-            <div className="min-w-0 flex-1 text-left">
-              <p className="text-light truncate text-sm font-medium">
-                {effectiveUser.firstName && effectiveUser.lastName
-                  ? `${effectiveUser.firstName} ${effectiveUser.lastName}`
-                  : effectiveUser.username}
-              </p>
-              <p className="text-light/60 truncate text-xs">{effectiveUser.email}</p>
-            </div>
-          )}
-        </button>
+  const nav = (
+    <>
+      <div className="border-b border-white/10 px-4 py-4">
+        <p className="text-sm font-medium tracking-wide text-neutral-200">SKY LAB</p>
+        <p className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yönetim</p>
       </div>
-    );
-  };
-
-  const renderMenu = (showLabels: boolean) => (
-    <div className="flex h-full flex-col">
-      <div
-        className={`border-dark-700 flex items-center border-b p-4 ${
-          showLabels ? 'min-h-[3.75rem] justify-start py-3' : 'justify-center'
-        }`}
-      >
-        {showLabels ? (
-          <div className="relative flex h-14 w-full min-w-0 flex-1 items-center justify-start overflow-hidden pr-1">
-            <Image
-              src="/logoyatay.png"
-              alt="Skylab Admin"
-              fill
-              sizes="min(100vw, 256px)"
-              className="object-contain object-left"
-              priority={false}
-              unoptimized
-            />
-          </div>
-        ) : (
-          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden p-1">
-            <Image
-              src="/logo.png"
-              alt="Skylab Admin"
-              fill
-              sizes="48px"
-              className="object-contain object-center"
-              priority={false}
-              unoptimized
-            />
-          </div>
-        )}
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 py-4" aria-label="Ana menü">
-        <ul className="space-y-2">
+      <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Ana menü">
+        <ul className="space-y-1">
           {navLinks.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/dashboard' && pathname?.startsWith(`${item.href}/`));
-
-            const Icon = NAV_ICON_BY_HREF[item.href] ?? HiOutlineSquares2X2;
-
+            const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+            const Icon = NAV_ICON[item.href as keyof typeof NAV_ICON] ?? Users;
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={navLinkClassNames(showLabels, isActive)}
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-label={showLabels ? undefined : item.label}
-                  onClick={handleNavigate}
+                  onClick={() => onMobileClose?.()}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group focus-visible:ring-skylab-400/40 flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                    active
+                      ? 'bg-neutral-800 text-neutral-200'
+                      : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                  }`}
                 >
-                  <Icon className="h-5 w-5 flex-shrink-0" aria-hidden={showLabels} />
-                  {showLabels && <span className="whitespace-nowrap">{item.label}</span>}
+                  <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
+                  <span className="truncate font-medium">{item.label}</span>
+                  <ChevronRight className="ml-auto h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </li>
             );
           })}
         </ul>
       </nav>
-
-      <div className="border-dark-700 border-t px-3 pt-4 pb-3">{renderUserSection(showLabels)}</div>
-    </div>
+      <div className="border-t border-white/10 px-3 py-3">
+        {userMenu ? (
+          <button
+            type="button"
+            onClick={() => void performClientLogout()}
+            className="mb-2 flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-red-300 hover:bg-white/5"
+          >
+            <LogOut className="h-4 w-4" />
+            Çıkış
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setUserMenu((v) => !v)}
+          className="flex w-full items-center gap-3 rounded-md px-1 py-1 hover:bg-white/5"
+        >
+          <Avatar name={fullName} email={effectiveUser.email} size="md" />
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm text-neutral-200">
+              {fullName || effectiveUser.username}
+            </p>
+            <p className="text-3xs truncate text-neutral-500">{effectiveUser.email}</p>
+          </div>
+        </button>
+      </div>
+    </>
   );
 
   return (
     <>
-      <aside
-        className={`bg-dark text-light hidden h-screen shrink-0 flex-col transition-[width] duration-300 ease-out lg:sticky lg:top-0 lg:flex ${
-          isDesktopExpanded ? 'w-64' : 'w-20'
-        }`}
-        onMouseEnter={() => setIsDesktopExpanded(true)}
-        onMouseLeave={() => {
-          setIsDesktopExpanded(false);
-          setIsUserMenuOpen(false);
-        }}
-      >
-        {renderMenu(isDesktopExpanded)}
+      <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-neutral-950 text-neutral-200 lg:sticky lg:top-0 lg:flex">
+        {nav}
       </aside>
-
       <div
-        className={`fixed inset-0 z-40 transition-opacity duration-300 lg:hidden ${
-          isMobileOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-        }`}
+        className={`fixed inset-0 z-40 lg:hidden ${isMobileOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
       >
         <button
           type="button"
-          className="bg-dark/60 absolute inset-0 cursor-pointer border-0 p-0"
+          className={`absolute inset-0 bg-black/60 ${isMobileOpen ? 'opacity-100' : 'opacity-0'}`}
           aria-label="Menüyü kapat"
           onClick={() => onMobileClose?.()}
         />
+        <aside
+          className={`absolute inset-y-0 left-0 flex w-64 flex-col border-r border-white/10 bg-neutral-950 transition-transform ${
+            isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {nav}
+        </aside>
       </div>
-
-      <aside
-        id="sidebar-mobile-panel"
-        ref={mobileAsideRef}
-        tabIndex={-1}
-        aria-hidden={!isMobileOpen}
-        inert={!isMobileOpen}
-        className={`bg-dark text-light focus-visible:ring-brand focus-visible:ring-offset-dark fixed inset-y-0 left-0 z-50 flex h-full w-64 transform flex-col shadow-lg transition-transform duration-300 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none lg:hidden ${
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {renderMenu(true)}
-      </aside>
     </>
   );
 }

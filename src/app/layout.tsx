@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Space_Grotesk, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+const spaceGrotesk = Space_Grotesk({
+  variable: '--font-sans-loaded',
+  subsets: ['latin', 'latin-ext'],
 });
 
 const geistMono = Geist_Mono({
@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Skylab Super Admin',
-  description: 'Skylab Super Admin administration panel.',
+  title: 'SKY LAB Yönetim',
+  description: 'SKY LAB identity and club administration.',
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr">
-      <body className={`${geistSans.variable} ${geistMono.variable} text-dark antialiased`}>
+      <body className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}>
         <ErrorBoundary>{children}</ErrorBoundary>
       </body>
     </html>
