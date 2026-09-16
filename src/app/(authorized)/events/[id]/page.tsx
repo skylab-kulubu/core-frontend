@@ -1,564 +1,428 @@
 'use client';
 
-import React, { useMemo, useState, useEffect, use, Fragment } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { HiOutlinePencilSquare, HiOutlinePlus } from 'react-icons/hi2';
-
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
+import { Drawer } from '@/components/chrome/Drawer';
+import { Field } from '@/components/chrome/Field';
+import { ListItem } from '@/components/chrome/ListItem';
+import { Select } from '@/components/chrome/Select';
+import { TextArea } from '@/components/chrome/TextArea';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/Button';
-import { ModalDangerActions } from '@/components/ui/modal-actions';
-import { Modal } from '@/components/ui/Modal';
-import { eventsApi } from '@/lib/api/events';
-import { eventDaysApi } from '@/lib/api/eventDays';
-import { sessionsApi } from '@/lib/api/sessions';
-import { competitorsApi } from '@/lib/api/competitors';
-import { ticketsApi } from '@/lib/api/tickets';
-import type { EventDto, SessionDto, CompetitorDto, GetTicketResponseDto } from '@/types/api';
-import { useAuth } from '@/context/AuthContext';
 import {
-  canManageCompetitorsForEvent,
-  canManageEventAudienceAdminViews,
-  canOperateEventSchedulingOnEvent,
-} from '@/lib/utils/permissions';
+  emptyEventForm,
+  EventEditor,
+  type EventFormState,
+} from '@/components/scheduling/EventEditor';
+import { ProblemError } from '@/lib/api/core';
+import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
+import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { seasonsApi, type Season } from '@/lib/api/seasons';
+import { sessionsApi, SESSION_TYPES, type EventSession } from '@/lib/api/sessions';
+import { teamsApi } from '@/lib/api/teams';
+import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
+import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
+import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { useAuth } from '@/context/AuthContext';
 
-function competitorNumericSortValue(c: CompetitorDto): number {
-  const v = c.score ?? c.points;
-  if (typeof v === 'number' && !Number.isNaN(v)) return v;
-  return Number.NEGATIVE_INFINITY;
-}
+type SessionDraft = {
+  eventDayId: string;
+  title: string;
+  speakerName: string;
+  speakerLinkedin: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  orderIndex: number;
+  sessionType: string;
+};
 
-function competitorHasPoints(c: CompetitorDto): boolean {
-  const v = c.score ?? c.points;
-  return v !== undefined && v !== null && !(typeof v === 'number' && Number.isNaN(v));
-}
+const emptySession = (eventDayId = ''): SessionDraft => ({
+  eventDayId,
+  title: '',
+  speakerName: '',
+  speakerLinkedin: '',
+  description: '',
+  startTime: '',
+  endTime: '',
+  orderIndex: 0,
+  sessionType: 'WORKSHOP',
+});
 
-function sortSessionsByStart(list: SessionDto[]) {
-  return [...list].sort(
-    (a, b) => new Date(a.startTime || 0).getTime() - new Date(b.startTime || 0).getTime(),
-  );
-}
-
-/** API genelde oturumda `event` doldurmaz; ilişki `eventDayId` üzerindedir. */
-async function resolveSessionsForEvent(
-  eventId: string,
-  eventData: EventDto | undefined,
-  allSessions: SessionDto[] | undefined,
-): Promise<SessionDto[]> {
-  if (!allSessions?.length) return [];
-
-  if (eventData?.sessions && eventData.sessions.length > 0) {
-    return sortSessionsByStart(eventData.sessions);
-  }
-
-  const withEventRef = allSessions.filter((s) => s.event?.id === eventId);
-  if (withEventRef.length > 0) {
-    return sortSessionsByStart(withEventRef);
-  }
-
-  const daysRes = await eventDaysApi.getByEventId(eventId);
-  const dayIds = new Set(daysRes.success && daysRes.data ? daysRes.data.map((d) => d.id) : []);
-  const byDay = allSessions.filter((s) => s.eventDayId && dayIds.has(s.eventDayId));
-  return sortSessionsByStart(byDay);
-}
-
-export default function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
-  const showAudienceAdminSections = canManageEventAudienceAdminViews(user);
-
-  const [event, setEvent] = useState<EventDto | null>(null);
-  const [sessions, setSessions] = useState<SessionDto[]>([]);
-  const [competitors, setCompetitors] = useState<CompetitorDto[]>([]);
-  const [tickets, setTickets] = useState<GetTicketResponseDto[]>([]);
-  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const groups = user?.groups ?? [];
+  const privileged = isPrivileged(groups);
+  const [event, setEvent] = useState<CoreEvent | null>(null);
+  const [days, setDays] = useState<EventDay[]>([]);
+  const [sessions, setSessions] = useState<EventSession[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [eventDeleteOpen, setEventDeleteOpen] = useState(false);
-  const [eventDeleting, setEventDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<EventFormState>(emptyEventForm());
+  const [dayOpen, setDayOpen] = useState(false);
+  const [dayName, setDayName] = useState('');
+  const [dayStart, setDayStart] = useState('');
+  const [dayEnd, setDayEnd] = useState('');
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
+  const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
+
+  async function load() {
+    try {
+      const ev = await eventsApi.get(id);
+      const dayRows = await eventDaysApi.listByEvent(id);
+      const sessionRows = (
+        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
+      ).flat();
+      setEvent(ev);
+      setDays(dayRows);
+      setSessions(sessionRows);
+      setForm({
+        ...emptyEventForm(ev.ownerTeam),
+        name: ev.name,
+        description: ev.description,
+        location: ev.location,
+        ownerTeam: ev.ownerTeam,
+        formUrl: ev.formUrl ?? '',
+        capacity: ev.capacity,
+        startDate: toDatetimeLocal(ev.startDate),
+        endDate: toDatetimeLocal(ev.endDate),
+        linkedin: ev.linkedin ?? '',
+        active: ev.active,
+        ranked: ev.ranked,
+        prizeInfo: ev.prizeInfo ?? '',
+        seasonId: ev.seasonId ?? '',
+      });
+      setError(null);
+      const teams = await teamsApi.list().catch(() => []);
+      const leaderTeams = leaderOwnerTeams(groups);
+      setOwnerOptions(
+        privileged
+          ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
+          : leaderTeams.length
+            ? leaderTeams
+            : [ev.ownerTeam],
+      );
+      if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
+    } catch (err) {
+      setError(err instanceof ProblemError ? err.title : 'Etkinlik yüklenemedi');
+    }
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!id) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const [eventRes, sessionsRes, competitorsRes, ticketsRes] = await Promise.all([
-          eventsApi.getById(id),
-          sessionsApi.getAll(),
-          competitorsApi.getAll(),
-          showAudienceAdminSections
-            ? ticketsApi.getByEvent(id)
-            : Promise.resolve({ success: true as const, data: [] }),
-        ]);
+    void load();
+  }, [id]);
 
-        if (eventRes.success && eventRes.data) {
-          setEvent(eventRes.data);
-        } else {
-          setError('Etkinlik bulunamadı');
-        }
-
-        const sessionList = sessionsRes.success ? sessionsRes.data : undefined;
-        const resolved = await resolveSessionsForEvent(
-          id,
-          eventRes.success ? eventRes.data : undefined,
-          sessionList,
-        );
-        setSessions(resolved);
-
-        if (competitorsRes.success && competitorsRes.data) {
-          setCompetitors(competitorsRes.data.filter((c) => c.event?.id === id));
-        }
-
-        if (ticketsRes.success && ticketsRes.data) {
-          setTickets(ticketsRes.data);
-        }
-      } catch (err) {
-        console.error('Veriler yüklenirken hata oluştu:', err);
-        setError('Veriler yüklenirken hata oluştu');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [id, showAudienceAdminSections]);
-
-  const competitorsSortedByPoints = useMemo(
-    () =>
-      [...competitors].sort((a, b) => {
-        const diff = competitorNumericSortValue(b) - competitorNumericSortValue(a);
-        if (diff !== 0) return diff;
-        const na = `${a.user?.firstName ?? ''} ${a.user?.lastName ?? ''}`;
-        const nb = `${b.user?.firstName ?? ''} ${b.user?.lastName ?? ''}`;
-        return na.localeCompare(nb, 'tr');
-      }),
-    [competitors],
-  );
-
-  const handleDeleteEvent = async () => {
-    if (!event) return;
-    if (!canOperateEventSchedulingOnEvent(user, event.type?.name)) {
-      setEventDeleteOpen(false);
-      return;
+  const sessionsByDay = useMemo(() => {
+    const map = new Map<string, EventSession[]>();
+    for (const session of sessions) {
+      const list = map.get(session.eventDayId) ?? [];
+      list.push(session);
+      map.set(session.eventDayId, list);
     }
-    setEventDeleting(true);
-    try {
-      const res = await eventsApi.delete(id);
-      if (res.success) {
-        router.push('/events');
-        return;
-      }
-      alert(res.message || 'Etkinlik silinemedi.');
-    } catch {
-      alert('Etkinlik silinirken hata oluştu.');
-    } finally {
-      setEventDeleting(false);
-      setEventDeleteOpen(false);
-    }
-  };
+    return map;
+  }, [sessions]);
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <div className="text-dark-500 py-8 text-center">Yükleniyor...</div>
-      </div>
-    );
-  }
-
-  if (error || !event) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-          <h2 className="mb-2 text-lg font-semibold text-red-800">Hata</h2>
-          <p className="text-red-700">{error || 'Etkinlik bulunamadı'}</p>
-          <Button href="/events" variant="secondary" className="mt-4">
-            Geri Dön
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const canMutateSchedule = canOperateEventSchedulingOnEvent(user, event.type?.name);
-  const canManageCompetitorsUi = canManageCompetitorsForEvent(user, event.type?.name);
+  if (error && !event) return <p className="text-sm text-red-300">{error}</p>;
+  if (!event) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Etkinlik Detayları"
-        description={event.name}
+        title={event.name}
+        description={`${event.ownerTeam}${event.location ? ` · ${event.location}` : ''}`}
         actions={
           <>
-            <Button href="/events" variant="secondary">
-              Geri Dön
-            </Button>
-            {canMutateSchedule ? (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => setEventDeleteOpen(true)}
-                className="whitespace-nowrap"
-              >
-                Etkinliği sil
-              </Button>
+            {canMutate ? (
+              <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
+            ) : null}
+            {canDelete ? (
+              <ActionButton
+                icon={Trash2}
+                label="Sil"
+                onClick={async () => {
+                  try {
+                    await eventsApi.delete(event.id);
+                    router.push('/events');
+                  } catch (err) {
+                    setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                  }
+                }}
+              />
             ) : null}
           </>
         }
       />
-
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="w-full space-y-6 lg:w-[70%]">
-          {/* Etkinlik Detayları Kartı */}
-          <div className="bg-light border-dark-200 overflow-hidden rounded-xl border shadow-sm">
-            <div className="border-dark-200 bg-dark-50 flex items-center justify-between border-b p-4">
-              <h2 className="text-dark-900 text-lg font-semibold">Genel Bilgiler</h2>
-              {canMutateSchedule ? (
-                <Button
-                  href={`/events/${id}/edit`}
-                  variant="secondary"
-                  className="flex items-center gap-2 !px-3 !py-1.5 text-sm"
-                >
-                  <HiOutlinePencilSquare className="h-4 w-4" />
-                  Düzenle
-                </Button>
-              ) : null}
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-dark-500 mb-1 block text-xs">Başlangıç Tarihi</span>
-                  <span className="text-dark-900 text-sm font-medium">
-                    {event.startDate ? new Date(event.startDate).toLocaleString('tr-TR') : '-'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-dark-500 mb-1 block text-xs">Bitiş Tarihi</span>
-                  <span className="text-dark-900 text-sm font-medium">
-                    {event.endDate ? new Date(event.endDate).toLocaleString('tr-TR') : '-'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-dark-500 mb-1 block text-xs">Konum</span>
-                  <span className="text-dark-900 text-sm font-medium">{event.location || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-dark-500 mb-1 block text-xs">Etkinlik Tipi</span>
-                  <span className="bg-brand-100 text-brand-800 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium">
-                    {event.type?.name || '-'}
-                  </span>
-                </div>
-              </div>
-              {event.description && (
-                <div className="border-dark-100 border-t pt-4">
-                  <span className="text-dark-500 mb-1 block text-xs">Açıklama</span>
-                  <p className="text-dark-700 text-sm whitespace-pre-wrap">{event.description}</p>
-                </div>
-              )}
-            </div>
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <p className="text-sm whitespace-pre-wrap text-neutral-400">{event.description || '—'}</p>
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
+          Günler ve oturumlar
+        </h2>
+        {canMutate ? (
+          <div className="flex gap-2">
+            <ActionButton icon={Plus} label="Gün ekle" onClick={() => setDayOpen(true)} />
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Oturum ekle"
+              onClick={() => {
+                setEditingSessionId(null);
+                setSessionDraft(emptySession(days[0]?.id ?? ''));
+                setSessionOpen(true);
+              }}
+            />
           </div>
-
-          {/* Oturumlar Kartı */}
-          <div className="bg-light border-dark-200 overflow-hidden rounded-xl border shadow-sm">
-            <div className="border-dark-200 bg-dark-50 flex items-center justify-between border-b p-4">
-              <h2 className="text-dark-900 text-lg font-semibold">Oturumlar ({sessions.length})</h2>
-              {canMutateSchedule ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    href={`/events/${id}/days`}
-                    variant="secondary"
-                    className="!px-3 !py-1.5 text-sm"
-                  >
-                    Günleri Yönet
-                  </Button>
-                  <Button
-                    href={`/sessions/new?eventId=${id}`}
-                    className="flex items-center gap-2 !px-3 !py-1.5 text-sm"
-                  >
-                    <HiOutlinePlus className="h-4 w-4" />
-                    Yeni Oturum
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-            <div className="p-5">
-              {sessions.length === 0 ? (
-                <p className="text-dark-500 py-4 text-center text-sm">Henüz oturum eklenmemiş.</p>
-              ) : (
-                <div className="space-y-3">
-                  {sessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="border-dark-200 bg-light-50 hover:bg-dark-50 flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-dark-900 text-sm font-medium">{session.title}</h3>
-                        <p className="text-dark-500 mt-0.5 text-xs">
-                          {session.startTime
-                            ? new Date(session.startTime).toLocaleString('tr-TR')
-                            : '-'}
-                          {session.speakerName && ` • ${session.speakerName}`}
-                        </p>
-                        {session.speakerLinkedin ? (
-                          <a
-                            href={
-                              session.speakerLinkedin.startsWith('http')
-                                ? session.speakerLinkedin
-                                : `https://${session.speakerLinkedin}`
-                            }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-brand mt-1 inline-block text-xs underline"
-                          >
-                            LinkedIn profili
-                          </a>
-                        ) : null}
-                      </div>
-                      {canMutateSchedule ? (
-                        <Button
-                          href={`/sessions/${session.id}/edit?eventId=${id}`}
-                          variant="secondary"
-                          title="Oturumu düzenle"
-                          aria-label="Oturumu düzenle"
-                          className="border-dark-200 !inline-flex shrink-0 !items-center !gap-1.5 !px-3 !py-2 text-xs font-medium shadow-sm"
-                        >
-                          <HiOutlinePencilSquare className="h-4 w-4 shrink-0" />
-                          Düzenle
-                        </Button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="w-full lg:w-[30%]">
-          {/* Yarışmacılar Kartı */}
-          <div className="bg-light border-dark-200 sticky top-6 overflow-hidden rounded-xl border shadow-sm">
-            <div className="border-dark-200 bg-dark-50 flex items-center justify-between gap-2 border-b p-4">
-              <h2 className="text-dark-900 text-lg font-semibold">
-                Yarışmacılar ({competitors.length})
-              </h2>
-              {canManageCompetitorsUi ? (
-                <Button
-                  href={`/competitors/new?eventId=${id}`}
-                  className="flex shrink-0 items-center gap-2 !px-3 !py-1.5 text-sm"
-                >
-                  <HiOutlinePlus className="h-4 w-4" />
-                  Ekle
-                </Button>
-              ) : null}
-            </div>
-            <div className="max-h-[600px] overflow-y-auto p-5">
-              {competitors.length === 0 ? (
-                <p className="text-dark-500 py-4 text-center text-sm">Yarışmacı bulunmuyor.</p>
-              ) : (
-                <div className="space-y-3">
-                  {competitorsSortedByPoints.map((competitor) => (
-                    <div
-                      key={competitor.id}
-                      className={`border-dark-200 bg-light-50 flex flex-wrap items-center gap-3 rounded-lg border p-3 transition-colors ${canManageCompetitorsUi ? 'hover:border-brand-300 justify-between' : ''}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="text-dark-900 truncate text-sm font-medium">
-                          {competitor.user?.firstName} {competitor.user?.lastName}
-                        </div>
-                        <div
-                          className="text-dark-500 truncate text-xs"
-                          title={competitor.user?.email || ''}
-                        >
-                          {competitor.user?.email}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          {competitorHasPoints(competitor) && (
-                            <span className="bg-brand-50 text-brand-700 inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium">
-                              Puan: {competitor.score ?? competitor.points}
-                            </span>
-                          )}
-                          {competitor.winner && (
-                            <span className="bg-warning-100 text-warning-800 inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium">
-                              Kazanan
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {canManageCompetitorsUi ? (
-                        <div className="flex shrink-0 items-center">
-                          <Button
-                            href={`/competitors/${competitor.id}/edit?eventId=${id}`}
-                            variant="secondary"
-                            className="border-dark-300 inline-flex cursor-pointer items-center justify-center !p-2 shadow-sm"
-                            title="Düzenle"
-                            aria-label="Yarışmacıyı düzenle"
-                          >
-                            <HiOutlinePencilSquare className="h-4 w-4 shrink-0" />
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        ) : null}
       </div>
-
-      {showAudienceAdminSections ? (
-        <div className="bg-light border-dark-200 mt-6 overflow-hidden rounded-xl border shadow-sm">
-          <div className="border-dark-200 bg-dark-50 flex items-center justify-between border-b p-4">
-            <h2 className="text-dark-900 text-lg font-semibold">
-              Katılımcılar / Biletler ({tickets.length})
-            </h2>
-          </div>
-          <div className="overflow-x-auto p-0">
-            {tickets.length === 0 ? (
-              <p className="text-dark-500 py-6 text-center text-sm">Katılımcı bulunmuyor.</p>
-            ) : (
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="bg-dark-50 border-dark-200 text-dark-500 border-b text-xs uppercase">
-                    <th className="p-4 font-medium">Bilet Tipi</th>
-                    <th className="p-4 font-medium">Ad Soyad</th>
-                    <th className="p-4 font-medium">Email</th>
-                    <th className="p-4 font-medium">Okul/Bölüm</th>
-                    <th className="p-4 font-medium">Bilet ID</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-dark-200 divide-y">
-                  {tickets.map((ticket) => {
-                    const isGuest = ticket.ticketType === 'GUEST';
-                    const name = isGuest
-                      ? `${ticket.guestFirstName || ''} ${ticket.guestLastName || ''}`
-                      : `${ticket.owner?.firstName || ''} ${ticket.owner?.lastName || ''}`;
-                    const email = isGuest ? ticket.guestEmail : ticket.owner?.email;
-                    const school = isGuest
-                      ? `${ticket.guestUniversity || ''} - ${ticket.guestDepartment || ''}`
-                      : `${ticket.owner?.university || ''} - ${ticket.owner?.department || ''}`;
-                    const isExpanded = expandedTicketId === ticket.id;
-
-                    return (
-                      <React.Fragment key={ticket.id}>
-                        <tr
-                          className="hover:bg-dark-50 cursor-pointer transition-colors"
-                          onClick={() => setExpandedTicketId(isExpanded ? null : ticket.id)}
-                        >
-                          <td className="p-4 text-sm font-medium">
-                            <span
-                              className={`rounded px-2 py-1 text-xs ${isGuest ? 'bg-warning-100 text-warning-800' : 'bg-success-100 text-success-800'}`}
-                            >
-                              {isGuest ? 'Misafir' : 'Kayıtlı Üye'}
-                            </span>
-                          </td>
-                          <td className="text-dark-900 p-4 text-sm">{name}</td>
-                          <td className="text-dark-600 p-4 text-sm">{email}</td>
-                          <td className="text-dark-600 p-4 text-sm">{school}</td>
-                          <td className="text-dark-400 max-w-[120px] truncate p-4 font-mono text-xs">
-                            {ticket.id}
-                          </td>
-                        </tr>
-                        {isExpanded && (
-                          <tr className="bg-dark-50">
-                            <td colSpan={5} className="p-6">
-                              <div className="flex gap-6">
-                                <div className="flex-1 space-y-3">
-                                  <h4 className="text-dark-900 border-dark-200 border-b pb-2 text-sm font-semibold">
-                                    Bilet Detayları
-                                  </h4>
-                                  <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                      <span className="text-dark-500 mb-1 block text-xs">
-                                        Telefon
-                                      </span>
-                                      <span className="text-dark-900">
-                                        {isGuest
-                                          ? ticket.guestPhoneNumber
-                                          : ticket.owner?.phoneNumber || '-'}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-dark-500 mb-1 block text-xs">
-                                        Sınıf / Derece
-                                      </span>
-                                      <span className="text-dark-900">
-                                        {isGuest ? ticket.guestGrade : '-'}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <span className="text-dark-500 mb-1 block text-xs">
-                                        Mail Gönderildi Mi?
-                                      </span>
-                                      <span className="text-dark-900">
-                                        {ticket.sent ? 'Evet' : 'Hayır'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex-1 space-y-3">
-                                  <h4 className="text-dark-900 border-dark-200 border-b pb-2 text-sm font-semibold">
-                                    Check-in Geçmişi
-                                  </h4>
-                                  {ticket.checkIns && ticket.checkIns.length > 0 ? (
-                                    <ul className="space-y-2">
-                                      {ticket.checkIns.map((ci) => (
-                                        <li
-                                          key={ci.id}
-                                          className="bg-light border-dark-200 flex justify-between rounded border p-2 text-xs"
-                                        >
-                                          <span className="text-dark-700">
-                                            Gün ID: {ci.eventDayId || '-'}
-                                          </span>
-                                          <span className="text-dark-500">
-                                            {ci.createdAt
-                                              ? new Date(ci.createdAt).toLocaleString('tr-TR')
-                                              : ''}
-                                          </span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-dark-500 text-xs">
-                                      Henüz check-in yapılmamış.
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {canMutateSchedule ? (
-        <Modal
-          isOpen={eventDeleteOpen}
-          onClose={() => {
-            if (!eventDeleting) setEventDeleteOpen(false);
+      <div className="space-y-4">
+        {days.length === 0 ? (
+          <p className="text-sm text-neutral-500">Henüz gün yok.</p>
+        ) : (
+          days.map((day) => (
+            <div key={day.id} className="overflow-hidden rounded-lg border border-white/10">
+              <div className="flex items-center justify-between px-3 py-2">
+                <div>
+                  <p className="text-sm text-neutral-200">{day.name}</p>
+                  <p className="text-3xs text-neutral-500">
+                    {day.startDate ? new Date(day.startDate).toLocaleString('tr-TR') : '—'}
+                  </p>
+                </div>
+                {canMutate ? (
+                  <ActionButton
+                    icon={Trash2}
+                    label="Günü sil"
+                    onClick={async () => {
+                      try {
+                        await eventDaysApi.delete(day.id);
+                        await load();
+                      } catch (err) {
+                        setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
+                      }
+                    }}
+                  />
+                ) : null}
+              </div>
+              <div className="divide-y divide-white/5 border-t border-white/5">
+                {(sessionsByDay.get(day.id) ?? []).map((session) => (
+                  <ListItem
+                    key={session.id}
+                    title={session.title}
+                    subtitle={`${session.speakerName} · ${session.sessionType}`}
+                    trailing={
+                      canMutate ? (
+                        <ActionButton
+                          icon={Pencil}
+                          label="Oturumu düzenle"
+                          onClick={() => {
+                            setEditingSessionId(session.id);
+                            setSessionDraft({
+                              eventDayId: session.eventDayId,
+                              title: session.title,
+                              speakerName: session.speakerName,
+                              speakerLinkedin: session.speakerLinkedin ?? '',
+                              description: session.description ?? '',
+                              startTime: toDatetimeLocal(session.startTime),
+                              endTime: toDatetimeLocal(session.endTime),
+                              orderIndex: session.orderIndex,
+                              sessionType: session.sessionType,
+                            });
+                            setSessionOpen(true);
+                          }}
+                        />
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      <Drawer open={editing} onClose={() => setEditing(false)} title="Etkinliği düzenle">
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await saveEventWithSeason(form, event.id);
+              setEditing(false);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+            }
           }}
-          title="Etkinliği sil"
         >
-          <p className="text-dark-700 text-sm">
-            <strong>{event.name}</strong> etkinliğini silmek istediğinize emin misiniz? Bu işlem
-            geri alınamaz.
-          </p>
-          <ModalDangerActions
-            cancelLabel="Vazgeç"
-            onCancel={() => setEventDeleteOpen(false)}
-            onConfirm={handleDeleteEvent}
-            isPending={eventDeleting}
-            pendingLabel="Siliniyor…"
+          <EventEditor
+            value={form}
+            onChange={setForm}
+            ownerOptions={ownerOptions}
+            lockOwner={!privileged}
+            seasons={seasons}
+            showSeason={privileged}
           />
-        </Modal>
-      ) : null}
+          <button type="submit" className={saveClass}>
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
+      <Drawer open={dayOpen} onClose={() => setDayOpen(false)} title="Gün ekle">
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await eventDaysApi.create({
+                eventId: event.id,
+                name: dayName.trim(),
+                startDate: toRfc3339(dayStart),
+                endDate: toRfc3339(dayEnd),
+              });
+              setDayName('');
+              setDayStart('');
+              setDayEnd('');
+              setDayOpen(false);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Gün eklenemedi');
+            }
+          }}
+        >
+          <Field
+            placeholder="Gün adı"
+            value={dayName}
+            onChange={(e) => setDayName(e.target.value)}
+            required
+          />
+          <Field
+            type="datetime-local"
+            value={dayStart}
+            onChange={(e) => setDayStart(e.target.value)}
+          />
+          <Field type="datetime-local" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} />
+          <button type="submit" className={saveClass}>
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
+      <Drawer
+        open={sessionOpen}
+        onClose={() => setSessionOpen(false)}
+        title={editingSessionId ? 'Oturumu düzenle' : 'Oturum ekle'}
+      >
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              const body = {
+                eventDayId: sessionDraft.eventDayId,
+                title: sessionDraft.title.trim(),
+                speakerName: sessionDraft.speakerName.trim(),
+                speakerLinkedin: sessionDraft.speakerLinkedin || undefined,
+                description: sessionDraft.description || undefined,
+                startTime: toRfc3339(sessionDraft.startTime),
+                endTime: toRfc3339(sessionDraft.endTime),
+                orderIndex: sessionDraft.orderIndex,
+                sessionType: sessionDraft.sessionType,
+              };
+              if (editingSessionId) {
+                await sessionsApi.update(editingSessionId, body);
+              } else {
+                await sessionsApi.create(body);
+              }
+              setSessionOpen(false);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Oturum kaydedilemedi');
+            }
+          }}
+        >
+          <Select
+            value={sessionDraft.eventDayId}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, eventDayId: e.target.value })}
+            required
+          >
+            <option value="">Gün</option>
+            {days.map((day) => (
+              <option key={day.id} value={day.id}>
+                {day.name}
+              </option>
+            ))}
+          </Select>
+          <Field
+            placeholder="Başlık"
+            value={sessionDraft.title}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, title: e.target.value })}
+            required
+          />
+          <Field
+            placeholder="Konuşmacı"
+            value={sessionDraft.speakerName}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, speakerName: e.target.value })}
+            required
+          />
+          <Field
+            placeholder="Konuşmacı LinkedIn"
+            value={sessionDraft.speakerLinkedin}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })}
+          />
+          <TextArea
+            placeholder="Açıklama"
+            rows={3}
+            value={sessionDraft.description}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, description: e.target.value })}
+          />
+          <Field
+            type="datetime-local"
+            value={sessionDraft.startTime}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, startTime: e.target.value })}
+          />
+          <Field
+            type="datetime-local"
+            value={sessionDraft.endTime}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, endTime: e.target.value })}
+          />
+          <Select
+            value={sessionDraft.sessionType}
+            onChange={(e) => setSessionDraft({ ...sessionDraft, sessionType: e.target.value })}
+          >
+            {SESSION_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </Select>
+          {editingSessionId ? (
+            <button
+              type="button"
+              className="h-8 rounded-md border border-red-400/30 px-3 text-xs text-red-300"
+              onClick={async () => {
+                try {
+                  await sessionsApi.delete(editingSessionId);
+                  setSessionOpen(false);
+                  await load();
+                } catch (err) {
+                  setError(err instanceof ProblemError ? err.title : 'Oturum silinemedi');
+                }
+              }}
+            >
+              Sil
+            </button>
+          ) : null}
+          <button type="submit" className={saveClass}>
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
     </div>
   );
 }

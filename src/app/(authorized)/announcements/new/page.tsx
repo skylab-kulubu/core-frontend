@@ -34,11 +34,14 @@ export default function NewAnnouncementPage() {
 
   useEffect(() => {
     eventTypesApi
-      .getAll()
-      .then((response) => {
-        if (response.success && response.data) {
-          setEventTypes(response.data.map((et) => ({ value: et.id, label: et.name })));
-        }
+      .list()
+      .then((teams) => {
+        setEventTypes(
+          teams.map((team) => ({
+            value: team.team,
+            label: team.displayName?.tr || team.team,
+          })),
+        );
       })
       .catch((error) => {
         console.error('Event types fetch error:', error);

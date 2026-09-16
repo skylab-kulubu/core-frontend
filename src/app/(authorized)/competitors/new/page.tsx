@@ -17,7 +17,7 @@ import { eventsApi } from '@/lib/api/events';
 import { canManageCompetitorsForEvent } from '@/lib/utils/permissions';
 import { useAuth } from '@/context/AuthContext';
 
-import type { EventDto } from '@/types/api';
+import type { CoreEvent } from '@/lib/api/events';
 
 const competitorSchema = z.object({
   userId: z.string().min(1, 'Kullanıcı seçiniz'),
@@ -55,7 +55,7 @@ function NewCompetitorPageContent() {
   const [isPending, startTransition] = useTransition();
   const [users, setUsers] = useState<{ value: string; label: string }[]>([]);
   const [events, setEvents] = useState<{ value: string; label: string; type?: string }[]>([]);
-  const [lockedEvent, setLockedEvent] = useState<EventDto | null>(null);
+  const [lockedEvent, setLockedEvent] = useState<CoreEvent | null>(null);
   const [lockedEventError, setLockedEventError] = useState<string | null>(null);
   const [lockedEventLoading, setLockedEventLoading] = useState(false);
   const { user: currentUser } = useAuth();
@@ -85,17 +85,15 @@ function NewCompetitorPageContent() {
       setLockedEventLoading(false);
 
       eventsApi
-        .getAll()
-        .then((response) => {
-          if (response.success && response.data) {
-            setEvents(
-              response.data.map((event) => ({
-                value: event.id,
-                label: event.name,
-                type: event.type?.name,
-              })),
-            );
-          }
+        .list()
+        .then((rows) => {
+          setEvents(
+            rows.map((event) => ({
+              value: event.id,
+              label: event.name,
+              type: event.ownerTeam,
+            })),
+          );
         })
         .catch((error) => {
           console.error('Events fetch error:', error);
@@ -105,19 +103,14 @@ function NewCompetitorPageContent() {
 
     setLockedEventLoading(true);
     eventsApi
-      .getById(lockedEventId)
-      .then((response) => {
-        if (response.success && response.data) {
-          setLockedEvent(response.data);
-          const allowed = canManageCompetitorsForEvent(currentUser, response.data.type?.name);
-          if (!allowed) {
-            setLockedEventError('Bu etkinlik için yarışmacı ekleme yetkiniz yok.');
-          } else {
-            setLockedEventError(null);
-          }
+      .get(lockedEventId)
+      .then((event) => {
+        setLockedEvent(event);
+        const allowed = canManageCompetitorsForEvent(currentUser, event.ownerTeam);
+        if (!allowed) {
+          setLockedEventError('Bu etkinlik için yarışmacı ekleme yetkiniz yok.');
         } else {
-          setLockedEvent(null);
-          setLockedEventError('Etkinlik bulunamadı.');
+          setLockedEventError(null);
         }
       })
       .catch(() => {
@@ -128,7 +121,7 @@ function NewCompetitorPageContent() {
   }, [lockedEventId, currentUser]);
 
   const handleSubmit = async (data: z.infer<typeof competitorSchema>) => {
-    const eventType = lockedEvent?.type?.name ?? events.find((e) => e.value === data.eventId)?.type;
+    const eventType = lockedEvent?.ownerTeam ?? events.find((e) => e.value === data.eventId)?.type;
     if (!canManageCompetitorsForEvent(currentUser ?? null, eventType)) {
       router.replace(data.eventId ? `/events/${data.eventId}` : '/events');
       return;

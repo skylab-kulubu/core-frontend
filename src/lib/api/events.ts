@@ -1,59 +1,52 @@
-import { apiClient } from './client';
-import type {
-  DataResultListEventDto,
-  DataResultEventDto,
-  CreateEventRequest,
-  UpdateEventRequest,
-  Result,
-} from '@/types/api';
+import { coreFetch } from './core';
+
+export type CoreEvent = {
+  id: string;
+  name: string;
+  description: string;
+  location: string;
+  ownerTeam: string;
+  formUrl?: string;
+  capacity: number;
+  startDate?: string;
+  endDate?: string;
+  linkedin?: string;
+  active: boolean;
+  ranked: boolean;
+  prizeInfo?: string;
+  seasonId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EventBody = {
+  name: string;
+  description: string;
+  location: string;
+  ownerTeam: string;
+  formUrl?: string;
+  capacity: number;
+  startDate?: string;
+  endDate?: string;
+  linkedin?: string;
+  active: boolean;
+  ranked: boolean;
+  prizeInfo?: string;
+};
 
 export const eventsApi = {
-  async getAll() {
-    return apiClient.get<DataResultListEventDto>('/api/events');
+  list: (ownerTeam?: string) => {
+    const q = ownerTeam ? `?ownerTeam=${encodeURIComponent(ownerTeam)}` : '';
+    return coreFetch<CoreEvent[]>(`/v1/events${q}`);
   },
-
-  async getActive() {
-    return apiClient.get<DataResultListEventDto>('/api/events/active');
-  },
-
-  async getByEventType(eventTypeName: string) {
-    return apiClient.get<any>(`/api/events/type/${encodeURIComponent(eventTypeName)}`);
-  },
-
-  async getById(id: string) {
-    return apiClient.get<DataResultEventDto>(`/api/events/${id}`);
-  },
-
-  async create(data: CreateEventRequest, coverImage: File) {
-    const formData = new FormData();
-    formData.append('coverImage', coverImage);
-    const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-    formData.append('data', jsonBlob);
-    return apiClient.postFormData<DataResultEventDto>('/api/events', formData);
-  },
-
-  async update(id: string, data: UpdateEventRequest) {
-    // Backend docs specify UpdateEventRequest JSON body for PUT
-    return apiClient.put<DataResultEventDto>(`/api/events/${id}`, data);
-  },
-
-  async delete(id: string) {
-    return apiClient.delete<Result>(`/api/events/${id}`);
-  },
-
-  async assignSeason(eventId: string, seasonId: string) {
-    return apiClient.post<DataResultEventDto>(`/api/events/${eventId}/seasons/${seasonId}`);
-  },
-
-  async removeSeason(eventId: string) {
-    return apiClient.delete<Result>(`/api/events/${eventId}/season`);
-  },
-
-  async getCompetitors(eventId: string) {
-    return apiClient.get<any>(`/api/events/${eventId}/competitors`);
-  },
-
-  async getWinner(eventId: string) {
-    return apiClient.get<any>(`/api/events/${eventId}/competitors/winner`);
-  },
+  get: (id: string) => coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`),
+  create: (body: EventBody) =>
+    coreFetch<CoreEvent>('/v1/events', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: EventBody) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  delete: (id: string) =>
+    coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };

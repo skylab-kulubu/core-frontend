@@ -1,81 +1,50 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-
+import { useEffect, useMemo, useState } from 'react';
+import { ListItem } from '@/components/chrome/ListItem';
+import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
-import { CreatePageButton } from '@/components/ui/CreatePageButton';
-import { Modal } from '@/components/ui/Modal';
-import { eventTypesApi } from '@/lib/api/event-types';
-import type { EventTypeDto } from '@/types/api';
+import { ProblemError } from '@/lib/api/core';
+import { teamsApi, type PublicTeam } from '@/lib/api/teams';
+
+const PAGE_SIZE = 10;
 
 export default function EventTypesPage() {
-  const router = useRouter();
-  const [eventTypes, setEventTypes] = useState<EventTypeDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [teams, setTeams] = useState<PublicTeam[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const loadEventTypes = () => {
-    setLoading(true);
-    eventTypesApi
-      .getAll()
-      .then((response) => {
-        if (response.success && response.data) {
-          setEventTypes(response.data);
-        } else {
-          setError('Etkinlik tipleri yüklenirken hata oluştu');
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error('Event types fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Etkinlik tipleri yüklenirken hata oluştu');
-        setLoading(false);
-      });
-  };
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    loadEventTypes();
+    teamsApi
+      .list()
+      .then(setTeams)
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Ekipler yüklenemedi'));
   }, []);
 
-  const handleEdit = (eventType: EventTypeDto) => {
-    router.push(`/event-types/${eventType.id}/edit`);
-  };
-
-  if (loading) {
-    return <div className="py-8 text-center">Yükleniyor...</div>;
-  }
+  const totalPages = Math.max(1, Math.ceil(teams.length / PAGE_SIZE));
+  const slice = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return teams.slice(start, start + PAGE_SIZE);
+  }, [teams, page]);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Etkinlik Tipleri"
-        actions={<CreatePageButton href="/event-types/new">Yeni Etkinlik Tipi</CreatePageButton>}
+        title="Etkinlik tipleri"
+        description="Go API’de ayrı event-type yok; sahip ekip bir Group adıdır."
       />
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-          <h2 className="mb-2 text-lg font-semibold text-red-800">Hata</h2>
-          <p className="text-red-700">{error}</p>
-        </div>
-      ) : eventTypes.length === 0 ? (
-        <div className="bg-light border-dark-200 rounded-lg border p-6 text-center">
-          <p className="text-dark opacity-60">Henüz etkinlik tipi bulunmamaktadır.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {eventTypes.map((et) => (
-            <div
-              key={et.id}
-              onClick={() => handleEdit(et)}
-              className="bg-light border-dark-200 hover:bg-brand-50 hover:border-brand cursor-pointer rounded-md border p-3 transition"
-            >
-              <div className="text-dark-900 text-sm font-medium">{et.name}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        {slice.map((team) => (
+          <ListItem
+            key={team.path}
+            href={`/events?ownerTeam=${encodeURIComponent(team.team)}`}
+            title={team.displayName?.tr || team.team}
+            subtitle={team.path}
+          />
+        ))}
+      </div>
+      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

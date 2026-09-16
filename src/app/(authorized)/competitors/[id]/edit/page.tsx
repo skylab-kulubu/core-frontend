@@ -103,10 +103,13 @@ function EditCompetitorPageContent({ params }: { params: Promise<{ id: string }>
       return;
     }
     eventsApi
-      .getById(queryEventId)
+      .get(queryEventId)
       .then((res) => {
-        if (res.success && res.data) setEventFromApi(res.data);
-        else setEventFromApi(null);
+        setEventFromApi({
+          id: res.id,
+          name: res.name,
+          type: { id: res.ownerTeam, name: res.ownerTeam },
+        } as EventDto);
       })
       .catch(() => setEventFromApi(null));
   }, [queryEventId, competitor?.event?.name, competitor?.event?.type?.name]);

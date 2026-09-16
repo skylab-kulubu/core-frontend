@@ -1,107 +1,202 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
+import { useEffect, useMemo, useState } from 'react';
+import { Pencil, Plus } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
+import { Drawer } from '@/components/chrome/Drawer';
+import { Field } from '@/components/chrome/Field';
+import { ListItem } from '@/components/chrome/ListItem';
+import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { DataTable } from '@/components/tables/DataTable';
-import { CreatePageButton } from '@/components/ui/CreatePageButton';
-import { Modal } from '@/components/ui/Modal';
-import { useRouter } from 'next/navigation';
-import type { SeasonDto } from '@/types/api';
-import { seasonsApi } from '@/lib/api/seasons';
+import { ProblemError } from '@/lib/api/core';
+import { eventsApi } from '@/lib/api/events';
+import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
+import { canWriteSeason } from '@/lib/auth/groups';
+import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
+import { saveClass } from '@/lib/scheduling/save-event';
+import { useAuth } from '@/context/AuthContext';
+
+const PAGE_SIZE = 10;
+
+const emptySeason = (): SeasonBody & { startLocal: string; endLocal: string } => ({
+  name: '',
+  active: true,
+  startLocal: '',
+  endLocal: '',
+});
 
 export default function SeasonsPage() {
-  const router = useRouter();
-  const [seasons, setSeasons] = useState<SeasonDto[]>([]);
+  const { user } = useAuth();
+  const groups = user?.groups ?? [];
+  const canWrite = canWriteSeason(groups);
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptySeason());
+  const [assignEventId, setAssignEventId] = useState('');
+  const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
 
-  const loadSeasons = async () => {
-    setLoading(true);
-    setError(null);
+  async function load() {
     try {
-      const response = await seasonsApi.getAll();
-      if (response.success && response.data) {
-        setSeasons(response.data);
-      } else {
-        setError(response.message || 'Sezonlar yüklenirken hata oluştu');
-      }
+      setSeasons(await seasonsApi.list());
+      setEvents((await eventsApi.list()).map((ev) => ({ id: ev.id, name: ev.name })));
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sezonlar yüklenirken hata oluştu');
-      console.error('Seasons page fetch error:', err);
-    } finally {
-      setLoading(false);
+      setError(err instanceof ProblemError ? err.title : 'Sezonlar yüklenemedi');
     }
-  };
-
-  useEffect(() => {
-    loadSeasons();
-  }, []);
-
-  const handleEdit = (season: SeasonDto) => {
-    router.push(`/seasons/${season.id}/edit`);
-  };
-
-  // Format data for display
-  const formattedSeasons = seasons.map((season) => ({
-    ...season,
-    startDateFormatted: season.startDate
-      ? new Date(season.startDate).toLocaleDateString('tr-TR')
-      : '',
-    endDateFormatted: season.endDate ? new Date(season.endDate).toLocaleDateString('tr-TR') : '',
-    statusText: season.active ? 'Aktif' : 'Pasif',
-  }));
-
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-2xl">
-        <h1 className="mb-6 text-2xl font-bold">Sezonlar</h1>
-        <p>Yükleniyor...</p>
-      </div>
-    );
   }
 
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(seasons.length / PAGE_SIZE));
+  const slice = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return seasons.slice(start, start + PAGE_SIZE);
+  }, [seasons, page]);
+
   return (
-    <>
-      <div className="space-y-6">
-        <PageHeader
-          title="Sezonlar"
-          actions={<CreatePageButton href="/seasons/new">Yeni Sezon</CreatePageButton>}
-        />
-        {error ? (
-          <div className="bg-light border-dark-200 rounded-lg border p-6">
-            <h2 className="text-brand mb-2 text-lg font-semibold">Hata</h2>
-            <p className="text-dark mb-4">{error}</p>
-          </div>
-        ) : seasons.length === 0 ? (
-          <div className="bg-light border-dark-200 rounded-lg border p-6 text-center">
-            <p className="text-dark opacity-60">Henüz sezon bulunmamaktadır.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {seasons.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => handleEdit(s)}
-                className="bg-light border-dark-200 hover:bg-brand-50 hover:border-brand flex cursor-pointer items-center justify-between rounded-md border p-3 transition"
-              >
-                <div className="min-w-0">
-                  <div className="text-dark-900 truncate text-sm font-medium">{s.name}</div>
-                  <div className="text-dark-600 truncate text-xs">
-                    {s.startDate ? new Date(s.startDate).toLocaleDateString('tr-TR') : ''} -{' '}
-                    {s.endDate ? new Date(s.endDate).toLocaleDateString('tr-TR') : '-'}
-                  </div>
-                </div>
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.active ? 'bg-brand-100 text-brand-700 border-brand-200/50' : 'bg-dark-100 text-dark-600 border-dark-200/50'}`}
-                >
-                  {s.active ? 'Aktif' : 'Pasif'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+    <div className="space-y-6">
+      <PageHeader
+        title="Sezonlar"
+        description="Yazma yetkisi Privileged."
+        actions={
+          canWrite ? (
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Sezon ekle"
+              onClick={() => {
+                setEditingId(null);
+                setForm(emptySeason());
+                setAssignEventId('');
+                setOpen(true);
+              }}
+            />
+          ) : undefined
+        }
+      />
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        {slice.map((season) => (
+          <ListItem
+            key={season.id}
+            title={season.name}
+            subtitle={season.active ? 'Aktif' : 'Pasif'}
+            trailing={
+              canWrite ? (
+                <ActionButton
+                  icon={Pencil}
+                  label="Düzenle"
+                  onClick={() => {
+                    setEditingId(season.id);
+                    setForm({
+                      name: season.name,
+                      active: season.active,
+                      startLocal: toDatetimeLocal(season.startDate),
+                      endLocal: toDatetimeLocal(season.endDate),
+                    });
+                    setAssignEventId('');
+                    setOpen(true);
+                  }}
+                />
+              ) : undefined
+            }
+          />
+        ))}
       </div>
-    </>
+      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Drawer
+        open={open}
+        onClose={() => setOpen(false)}
+        title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
+      >
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              const body: SeasonBody = {
+                name: form.name.trim(),
+                active: form.active,
+                startDate: toRfc3339(form.startLocal),
+                endDate: toRfc3339(form.endLocal),
+              };
+              const saved = editingId
+                ? await seasonsApi.update(editingId, body)
+                : await seasonsApi.create(body);
+              if (assignEventId) {
+                await seasonsApi.assignEvent(saved.id, assignEventId);
+              }
+              setOpen(false);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+            }
+          }}
+        >
+          <Field
+            placeholder="Ad"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <Field
+            type="datetime-local"
+            value={form.startLocal}
+            onChange={(e) => setForm({ ...form, startLocal: e.target.value })}
+          />
+          <Field
+            type="datetime-local"
+            value={form.endLocal}
+            onChange={(e) => setForm({ ...form, endLocal: e.target.value })}
+          />
+          <label className="flex items-center gap-2 text-xs text-neutral-400">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+            />
+            Aktif
+          </label>
+          <Field
+            placeholder="Etkinlik id (sezona bağla)"
+            value={assignEventId}
+            onChange={(e) => setAssignEventId(e.target.value)}
+            list="season-events"
+          />
+          <datalist id="season-events">
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </datalist>
+          {editingId ? (
+            <button
+              type="button"
+              className="h-8 rounded-md border border-red-400/30 px-3 text-xs text-red-300"
+              onClick={async () => {
+                try {
+                  await seasonsApi.delete(editingId);
+                  setOpen(false);
+                  await load();
+                } catch (err) {
+                  setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                }
+              }}
+            >
+              Sil
+            </button>
+          ) : null}
+          <button type="submit" className={saveClass}>
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
+    </div>
   );
 }
