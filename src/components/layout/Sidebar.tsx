@@ -10,6 +10,7 @@ import {
   FolderTree,
   Layers,
   LogOut,
+  Newspaper,
   QrCode,
   Users,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import type { UserDto } from '@/types/api';
 const NAV_ICON = {
   '/users': Users,
   '/groups': FolderTree,
+  '/announcements': Newspaper,
   '/events': CalendarDays,
   '/seasons': Layers,
   '/sessions': Clock,

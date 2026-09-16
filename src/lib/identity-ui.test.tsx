@@ -15,7 +15,7 @@ describe('isPrivileged', () => {
 });
 
 describe('filterSidebarNavForUser', () => {
-  it('Privileged sees identity and scheduling', () => {
+  it('Privileged sees identity, duyurular, and scheduling', () => {
     const user: UserDto = {
       id: '1',
       username: 'yk',
@@ -28,6 +28,7 @@ describe('filterSidebarNavForUser', () => {
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
       '/users',
       '/groups',
+      '/announcements',
       '/events',
       '/seasons',
       '/sessions',
