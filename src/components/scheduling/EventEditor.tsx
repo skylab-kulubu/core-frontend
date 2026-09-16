@@ -17,6 +17,7 @@ type EventEditorProps = {
   lockOwner?: boolean;
   seasons?: Season[];
   showSeason?: boolean;
+  ownerOptional?: boolean;
 };
 
 const inputLabel = 'text-3xs tracking-[0.14em] text-neutral-500 uppercase';
@@ -47,6 +48,7 @@ export function EventEditor({
   lockOwner,
   seasons = [],
   showSeason,
+  ownerOptional,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [media, setMedia] = useState<Media[]>([]);
@@ -85,9 +87,9 @@ export function EventEditor({
             value={value.ownerTeam}
             disabled={lockOwner}
             onChange={(e) => patch({ ownerTeam: e.target.value })}
-            required
+            required={!ownerOptional}
           >
-            <option value="">Seçiniz</option>
+            <option value="">{ownerOptional ? 'Yok' : 'Seçiniz'}</option>
             {ownerOptions.map((team) => (
               <option key={team} value={team}>
                 {team}
@@ -98,7 +100,7 @@ export function EventEditor({
           <Field
             value={value.ownerTeam}
             onChange={(e) => patch({ ownerTeam: e.target.value })}
-            required
+            required={!ownerOptional}
             placeholder="WEBLAB"
             disabled={lockOwner}
           />

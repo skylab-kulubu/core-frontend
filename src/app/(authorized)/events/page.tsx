@@ -102,7 +102,7 @@ function EventsPageContent() {
               variant="primary"
               label="Etkinlik ekle"
               onClick={() => {
-                setForm(emptyEventForm(leaderTeams[0] ?? ownerFilter));
+                setForm(emptyEventForm(privileged ? '' : (leaderTeams[0] ?? ownerFilter)));
                 setCreating(true);
               }}
             />
@@ -124,7 +124,7 @@ function EventsPageContent() {
             key={ev.id}
             href={`/events/${ev.id}`}
             title={ev.name}
-            subtitle={`${ev.ownerTeam}${ev.location ? ` · ${ev.location}` : ''}`}
+            subtitle={`${ev.ownerTeam || 'Genel'}${ev.location ? ` · ${ev.location}` : ''}`}
           />
         ))}
       </div>
@@ -150,6 +150,7 @@ function EventsPageContent() {
             lockOwner={!privileged && leaderTeams.length === 1}
             seasons={seasons}
             showSeason={privileged}
+            ownerOptional={privileged}
           />
           <button type="submit" className={saveClass}>
             Kaydet

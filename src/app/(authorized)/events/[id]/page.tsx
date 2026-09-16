@@ -341,6 +341,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             lockOwner={!privileged}
             seasons={seasons}
             showSeason={privileged}
+            ownerOptional={privileged}
           />
           <button type="submit" className={saveClass}>
             Kaydet
