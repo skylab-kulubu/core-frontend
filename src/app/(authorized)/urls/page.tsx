@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, QrCode, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
-import { publicShortUrl, urlsApi, type ShortUrl } from '@/lib/api/urls';
+import { publicShortUrl, shortQrUrl, urlsApi, type ShortUrl } from '@/lib/api/urls';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 
@@ -25,6 +25,7 @@ export default function UrlsPage() {
   const [alias, setAlias] = useState('');
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState<ShortUrl | null>(null);
+  const [qrRow, setQrRow] = useState<ShortUrl | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
 
@@ -113,6 +114,7 @@ export default function UrlsPage() {
           setEditTarget(row.url);
           setEditAlias(row.alias);
         }}
+        onQr={setQrRow}
         onDelete={async (row) => {
           try {
             await urlsApi.remove(row.id);
@@ -131,6 +133,7 @@ export default function UrlsPage() {
             setEditTarget(row.url);
             setEditAlias(row.alias);
           }}
+          onQr={setQrRow}
           onDelete={async (row) => {
             try {
               await urlsApi.remove(row.id);
@@ -141,6 +144,19 @@ export default function UrlsPage() {
           }}
         />
       ) : null}
+      <Drawer open={qrRow !== null} onClose={() => setQrRow(null)} title="QR">
+        {qrRow ? (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-400">{publicShortUrl(qrRow.alias)}</p>
+            <object
+              data={shortQrUrl(qrRow.alias)}
+              type="image/png"
+              className="h-48 w-48 rounded-md bg-white"
+              aria-label={`QR ${qrRow.alias}`}
+            />
+          </div>
+        ) : null}
+      </Drawer>
       <Drawer open={editing !== null} onClose={() => setEditing(null)} title="Kısa URL düzenle">
         {editing ? (
           <form
@@ -188,11 +204,13 @@ function UrlList({
   title,
   items,
   onEdit,
+  onQr,
   onDelete,
 }: {
   title: string;
   items: ShortUrl[];
   onEdit: (row: ShortUrl) => void;
+  onQr: (row: ShortUrl) => void;
   onDelete: (row: ShortUrl) => void;
 }) {
   return (
@@ -216,6 +234,7 @@ function UrlList({
                       label="Kopyala"
                       onClick={() => void navigator.clipboard.writeText(short)}
                     />
+                    <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
                     <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
                     <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
                   </>
