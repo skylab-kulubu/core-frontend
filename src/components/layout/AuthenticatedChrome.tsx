@@ -28,15 +28,15 @@ export function AuthenticatedChrome({
         isOpen: isMobileSidebarOpen,
       }}
     >
-      <div className="bg-light flex min-h-dvh min-h-screen">
+      <div className="flex min-h-dvh min-h-screen bg-[#08070b]">
         <Sidebar
           navLinks={sidebarNav}
           prefetchedUser={sidebarUser}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
         />
-        <div className="bg-light flex min-w-0 flex-1 flex-col">
-          <main className="bg-light text-dark flex-1 overflow-y-auto">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="flex-1 overflow-y-auto text-neutral-200">
             <div className="mx-auto w-full max-w-6xl p-6">{children}</div>
           </main>
         </div>

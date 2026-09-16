@@ -1,125 +1,119 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { getUsers } from './actions';
-import { UsersGridClient } from './UsersGridClient';
-import type { UserDto } from '@/types/api';
-import { serverFetch } from '@/lib/api/server-client';
-import type { DataResult, UserDto as UserDtoType } from '@/types/api';
+import { ActionButton } from '@/components/chrome/ActionButton';
+import { Avatar } from '@/components/chrome/Avatar';
+import { Drawer } from '@/components/chrome/Drawer';
+import { Field } from '@/components/chrome/Field';
+import { ListItem } from '@/components/chrome/ListItem';
+import { Pagination } from '@/components/chrome/Pagination';
+import { identityApi, type Person } from '@/lib/api/identity';
+import { ProblemError } from '@/lib/api/core';
 
-export const revalidate = 60;
-export const dynamic = 'force-dynamic';
-export default async function UsersPage() {
-  let users: UserDto[] = [];
-  let error: string | null = null;
-  let currentUser: UserDtoType | null = null;
+const PAGE_SIZE = 10;
 
-  // Mevcut kullanıcının bilgilerini al
-  try {
-    const userResponse = await serverFetch<DataResult<UserDtoType>>('/api/users/me');
-    currentUser = userResponse.data;
-  } catch (err) {
-    console.error('Failed to get current user:', err);
+export default function UsersPage() {
+  const [users, setUsers] = useState<Person[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [page, setPage] = useState(1);
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  async function load() {
+    try {
+      setUsers(await identityApi.listUsers());
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ProblemError ? err.title : 'Kullanıcılar yüklenemedi');
+    }
   }
 
-  try {
-    users = await getUsers();
-  } catch (err) {
-    error = err instanceof Error ? err.message : 'Kullanıcılar yüklenirken hata oluştu';
-    console.error('Users page error:', err);
-  }
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const slice = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return users.slice(start, start + PAGE_SIZE);
+  }, [users, page]);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Kullanıcılar" />
-
-      {/* Error State */}
-      {error ? (
-        <div className="bg-light border-danger rounded-lg border-l-4 p-6">
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <div className="bg-danger-100 flex h-10 w-10 items-center justify-center rounded-full">
-                <svg
-                  className="text-danger-700 h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div className="flex-1">
-              <h2 className="text-danger-800 mb-2 text-lg font-semibold">Hata Oluştu</h2>
-              <p className="text-dark-700 mb-4">{error}</p>
-              {error.includes('403') || error.includes('yetkiniz') ? (
-                <div className="space-y-3">
-                  <p className="text-dark-600 text-sm">
-                    Bu sayfayı görüntülemek için gerekli yetkiniz bulunmamaktadır.
-                  </p>
-                  {currentUser && (
-                    <div className="bg-light border-dark-200 mt-3 rounded-lg border p-4">
-                      <p className="text-dark-800 mb-2 font-semibold">Mevcut Rolleriniz:</p>
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        {currentUser.roles && currentUser.roles.length > 0 ? (
-                          currentUser.roles.map((role, idx) => (
-                            <span
-                              key={idx}
-                              className="rounded-full border border-purple-200/50 bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700"
-                            >
-                              {role}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-dark-500 text-sm">Rol atanmamış</span>
-                        )}
-                      </div>
-                      <p className="text-dark-500 mt-2 text-xs">
-                        Bu sayfa için muhtemelen <strong className="text-dark-700">ADMIN</strong>{' '}
-                        veya <strong className="text-dark-700">USER_MANAGER</strong> rolü
-                        gerekmektedir.
-                      </p>
-                    </div>
-                  )}
-                  <p className="text-dark-600 text-sm">Lütfen yöneticinizle iletişime geçin.</p>
-                </div>
-              ) : (
-                <p className="text-dark-600 text-sm">
-                  Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : users.length === 0 ? (
-        /* Empty State */
-        <div className="bg-light border-dark-200 rounded-lg border p-12 text-center">
-          <div className="mx-auto max-w-md">
-            <div className="bg-brand-100 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-              <svg
-                className="text-brand-600 h-8 w-8"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-dark-800 mb-2 text-xl font-semibold">Henüz kullanıcı yok</h3>
-            <p className="text-dark-600 mb-6">Henüz kullanıcı verisi bulunmuyor.</p>
-          </div>
-        </div>
-      ) : (
-        <UsersGridClient users={users} />
-      )}
+      <PageHeader
+        title="Kullanıcılar"
+        description="Keycloak dizini. Promote grup üyeliğidir."
+        actions={
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Kullanıcı ekle"
+            onClick={() => setCreating(true)}
+          />
+        }
+      />
+      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        {slice.map((u) => {
+          const name = `${u.firstName} ${u.lastName}`.trim();
+          return (
+            <ListItem
+              key={u.id}
+              href={`/users/${u.id}`}
+              title={name || u.email}
+              subtitle={u.email}
+              leading={<Avatar name={name} email={u.email} />}
+            />
+          );
+        })}
+      </div>
+      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Drawer open={creating} onClose={() => setCreating(false)} title="Kullanıcı ekle">
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await identityApi.createUser({ email, firstName, lastName });
+              setEmail('');
+              setFirstName('');
+              setLastName('');
+              setCreating(false);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+            }
+          }}
+        >
+          <Field
+            placeholder="Ad"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
+          <Field
+            placeholder="Soyad"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+          <Field
+            placeholder="E-posta"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <button
+            type="submit"
+            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
+          >
+            Kaydet
+          </button>
+        </form>
+      </Drawer>
     </div>
   );
 }

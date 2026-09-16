@@ -55,6 +55,7 @@ export interface UserDto {
   faculty?: string;
   department?: string;
   roles: string[];
+  groups?: string[];
   ldapUser?: boolean;
 }
 
