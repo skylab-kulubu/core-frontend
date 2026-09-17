@@ -15,7 +15,7 @@ import { urlsApi, shortQrUrl } from '@/lib/api/urls';
 import { CORE_API_URL } from '@/lib/api/core';
 import { ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
-import { emptyEventForm } from '@/components/scheduling/EventEditor';
+import { emptyEventForm, parseDoorStaffIds } from '@/components/scheduling/EventEditor';
 import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
 
 function jsonRes(body: unknown, status = 200): Response {
@@ -251,6 +251,25 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     });
     expect(body.coverImageId).toBe('m1');
     expect(body).not.toHaveProperty('success');
+  });
+
+  it('parseDoorStaffIds splits a small list of user ids', () => {
+    expect(
+      parseDoorStaffIds(
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa, bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      ),
+    ).toEqual(['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb']);
+    expect(parseDoorStaffIds('')).toEqual([]);
+  });
+
+  it('eventBodyFromForm sends doorStaffIds for Superadmin assign', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'Hack',
+      location: 'YTÜ',
+      doorStaffIds: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+    });
+    expect(body.doorStaffIds).toEqual(['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']);
   });
 
   it('saveEventWithSeason attaches gallery image ids', async () => {
