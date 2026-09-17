@@ -18,6 +18,8 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     ranked: form.ranked,
     prizeInfo: form.prizeInfo || undefined,
     coverImageId: form.coverImageId || undefined,
+    attendanceRule: form.attendanceRule || 'none',
+    attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
     doorStaffIds: form.doorStaffIds ?? [],
   };
 }

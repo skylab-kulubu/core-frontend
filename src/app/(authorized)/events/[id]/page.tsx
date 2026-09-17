@@ -128,6 +128,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         seasonId: ev.seasonId ?? '',
         coverImageId: ev.coverImageId ?? '',
         imageIds: (ev.images ?? []).map((image) => image.id),
+        attendanceRule: ev.attendanceRule ?? 'none',
+        attendanceRatio: ev.attendanceRatio,
         doorStaffIds: ev.doorStaffIds ?? [],
       });
       setError(null);

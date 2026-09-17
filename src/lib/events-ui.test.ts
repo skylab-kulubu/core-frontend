@@ -253,6 +253,18 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(body).not.toHaveProperty('success');
   });
 
+  it('eventBodyFromForm sends attendance rule on the event', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'ARTLAB',
+      location: 'YTÜ',
+      attendanceRule: 'ratio',
+      attendanceRatio: 0.75,
+    });
+    expect(body.attendanceRule).toBe('ratio');
+    expect(body.attendanceRatio).toBe(0.75);
+  });
+
   it('parseDoorStaffIds splits a small list of user ids', () => {
     expect(
       parseDoorStaffIds(

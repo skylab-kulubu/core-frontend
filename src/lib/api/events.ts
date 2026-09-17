@@ -17,6 +17,8 @@ export type CoreEvent = {
   seasonId?: string;
   coverImageId?: string;
   coverImageUrl?: string;
+  attendanceRule?: string;
+  attendanceRatio?: number;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
@@ -38,6 +40,8 @@ export type EventBody = {
   ranked: boolean;
   prizeInfo?: string;
   coverImageId?: string;
+  attendanceRule?: string;
+  attendanceRatio?: number;
   doorStaffIds?: string[];
 };
 
