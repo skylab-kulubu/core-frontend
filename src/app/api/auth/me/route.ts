@@ -6,6 +6,7 @@ import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken } from '@/lib/auth/oauth2';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
 import { getTokenFromCookies } from '@/lib/auth/token';
+import { authCookieSecure } from '@/lib/auth/cookie-secure';
 
 function userFromAccessToken(token: string): UserDto | null {
   const session = sessionUserFromAccessToken(token);
@@ -26,7 +27,7 @@ async function setSessionCookies(
   accessToken: string,
   refreshToken: string,
 ) {
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = authCookieSecure();
   cookieStore.set('auth_token', accessToken, {
     httpOnly: true,
     secure,

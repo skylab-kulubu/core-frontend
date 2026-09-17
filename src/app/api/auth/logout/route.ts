@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { authCookieSecure } from '@/lib/auth/cookie-secure';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,9 +15,10 @@ export async function POST(request: NextRequest) {
     cookieStore.delete('refresh_token');
 
     // Sonra set ile maxAge 0 ile geçersizleştir
+    const secure = authCookieSecure();
     cookieStore.set('auth_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     cookieStore.set('access_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 0,
       path: '/',
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     cookieStore.set('refresh_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 0,
       path: '/',

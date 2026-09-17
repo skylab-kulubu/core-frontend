@@ -2,20 +2,32 @@ const OAUTH2_AUTH_URL = 'https://e.yildizskylab.com/realms/e-skylab/protocol/ope
 const OAUTH2_TOKEN_URL = 'https://e.yildizskylab.com/realms/e-skylab/protocol/openid-connect/token';
 const OAUTH2_LOGOUT_URL =
   'https://e.yildizskylab.com/realms/e-skylab/protocol/openid-connect/logout';
-const CLIENT_ID = process.env.NEXT_PUBLIC_OAUTH2_CLIENT_ID!;
-const CLIENT_SECRET = process.env.OAUTH2_CLIENT_SECRET; // Server-side only
-const REDIRECT_URI =
-  process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI || 'http://localhost:3000/api/auth/callback';
+
+function oauthClientId(): string {
+  return process.env.OAUTH2_CLIENT_ID || process.env.NEXT_PUBLIC_OAUTH2_CLIENT_ID || '';
+}
+
+function oauthClientSecret(): string | undefined {
+  return process.env.OAUTH2_CLIENT_SECRET;
+}
+
+function oauthRedirectUri(): string {
+  return (
+    process.env.OAUTH2_REDIRECT_URI ||
+    process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI ||
+    'http://localhost:3000/api/auth/callback'
+  );
+}
 
 export function getOAuth2AuthUrl(state?: string): string {
-  if (!CLIENT_ID) {
-    console.error('NEXT_PUBLIC_OAUTH2_CLIENT_ID is not defined');
+  const clientId = oauthClientId();
+  if (!clientId) {
     return '/login?error=config_missing';
   }
 
   const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
+    client_id: clientId,
+    redirect_uri: oauthRedirectUri(),
     response_type: 'code',
     scope: 'openid profile email',
     ...(state && { state }),
@@ -26,7 +38,7 @@ export function getOAuth2AuthUrl(state?: string): string {
 
 export function getOAuth2LogoutUrl(postLogoutRedirectUri?: string): string {
   const params = new URLSearchParams({
-    client_id: CLIENT_ID,
+    client_id: oauthClientId(),
     ...(postLogoutRedirectUri && { post_logout_redirect_uri: postLogoutRedirectUri }),
   });
 
@@ -36,16 +48,18 @@ export function getOAuth2LogoutUrl(postLogoutRedirectUri?: string): string {
 export async function exchangeCodeForToken(
   code: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
+  const clientId = oauthClientId();
+  const redirectUri = oauthRedirectUri();
+  const clientSecret = oauthClientSecret();
   const bodyParams = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
+    client_id: clientId,
+    redirect_uri: redirectUri,
   });
 
-  // Eğer client_secret varsa ekle (server-side only)
-  if (CLIENT_SECRET) {
-    bodyParams.append('client_secret', CLIENT_SECRET);
+  if (clientSecret) {
+    bodyParams.append('client_secret', clientSecret);
   }
 
   const response = await fetch(OAUTH2_TOKEN_URL, {
@@ -60,9 +74,9 @@ export async function exchangeCodeForToken(
       status: response.status,
       statusText: response.statusText,
       body: errorText,
-      clientId: CLIENT_ID,
-      redirectUri: REDIRECT_URI,
-      hasClientSecret: !!CLIENT_SECRET,
+      clientId,
+      redirectUri,
+      hasClientSecret: !!clientSecret,
     });
     throw new Error(`Token exchange failed: ${response.status} - ${errorText}`);
   }
@@ -77,15 +91,16 @@ export async function exchangeCodeForToken(
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
+  const clientId = oauthClientId();
+  const clientSecret = oauthClientSecret();
   const bodyParams = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-    client_id: CLIENT_ID,
+    client_id: clientId,
   });
 
-  // Eğer client_secret varsa ekle (server-side only)
-  if (CLIENT_SECRET) {
-    bodyParams.append('client_secret', CLIENT_SECRET);
+  if (clientSecret) {
+    bodyParams.append('client_secret', clientSecret);
   }
 
   const response = await fetch(OAUTH2_TOKEN_URL, {
@@ -107,6 +122,6 @@ export async function refreshAccessToken(
   const data = await response.json();
   return {
     access_token: data.access_token,
-    refresh_token: data.refresh_token || refreshToken, // Yeni refresh token yoksa eskisini kullan
+    refresh_token: data.refresh_token || refreshToken,
   };
 }
