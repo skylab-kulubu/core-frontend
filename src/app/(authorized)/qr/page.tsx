@@ -5,8 +5,9 @@ import { Field } from '@/components/chrome/Field';
 import { Select } from '@/components/chrome/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
-import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
+import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type CheckIn } from '@/lib/api/tickets';
 import { canCheckInForTeam } from '@/lib/auth/groups';
 import { saveClass } from '@/lib/scheduling/save-event';
@@ -16,9 +17,9 @@ export default function QrPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
-  const [days, setDays] = useState<EventDay[]>([]);
+  const [sessions, setSessions] = useState<EventSession[]>([]);
   const [eventId, setEventId] = useState('');
-  const [eventDayId, setEventDayId] = useState('');
+  const [sessionId, setSessionId] = useState('');
   const [ticketId, setTicketId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckIn | null>(null);
@@ -38,24 +39,26 @@ export default function QrPage() {
 
   useEffect(() => {
     if (!eventId) {
-      setDays([]);
-      setEventDayId('');
+      setSessions([]);
+      setSessionId('');
       return;
     }
     eventDaysApi
       .listByEvent(eventId)
-      .then((list) => {
-        setDays(list);
-        setEventDayId(list[0]?.id ?? '');
+      .then(async (days) => {
+        const nested = await Promise.all(days.map((day) => eventDaysApi.listSessions(day.id)));
+        const rows = nested.flat();
+        setSessions(rows);
+        setSessionId(rows[0]?.id ?? '');
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Günler yüklenemedi'));
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi'));
   }, [eventId]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="QR / check-in"
-        description="Bilet id ve etkinlik günü ile kapı kaydı. Java QR üretici yok."
+        description="Bilet id ve oturum ile kapı kaydı. Java QR üretici yok."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <form
@@ -63,7 +66,7 @@ export default function QrPage() {
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            const created = await ticketsApi.checkIn(ticketId.trim(), eventDayId);
+            const created = await ticketsApi.checkIn(ticketId.trim(), sessionId);
             setResult(created);
             setError(null);
           } catch (err) {
@@ -80,11 +83,11 @@ export default function QrPage() {
             </option>
           ))}
         </Select>
-        <Select value={eventDayId} onChange={(e) => setEventDayId(e.target.value)} required>
-          <option value="">Gün</option>
-          {days.map((day) => (
-            <option key={day.id} value={day.id}>
-              {day.name}
+        <Select value={sessionId} onChange={(e) => setSessionId(e.target.value)} required>
+          <option value="">Oturum</option>
+          {sessions.map((session) => (
+            <option key={session.id} value={session.id}>
+              {session.title}
             </option>
           ))}
         </Select>

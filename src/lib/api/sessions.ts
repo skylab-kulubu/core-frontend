@@ -1,4 +1,4 @@
-import { coreFetch } from './core';
+import { CORE_API_URL, coreFetch } from './core';
 import { eventDaysApi } from './eventDays';
 import { eventsApi, type CoreEvent } from './events';
 
@@ -44,6 +44,10 @@ export type SessionRow = EventSession & {
   eventName: string;
   dayName: string;
 };
+
+export function sessionQrUrl(id: string): string {
+  return `${CORE_API_URL}/v1/sessions/${encodeURIComponent(id)}/qr`;
+}
 
 export const sessionsApi = {
   get: (id: string) => coreFetch<EventSession>(`/v1/sessions/${encodeURIComponent(id)}`),
