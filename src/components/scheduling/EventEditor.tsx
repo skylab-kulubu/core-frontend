@@ -39,6 +39,8 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     seasonId: '',
     coverImageId: '',
     imageIds: [],
+    attendanceRule: 'none',
+    attendanceRatio: undefined,
   };
 }
 
@@ -227,6 +229,36 @@ export function EventEditor({
         />
         Sıralamalı
       </label>
+      <label className="block space-y-1">
+        <span className={inputLabel}>Sertifika kuralı</span>
+        <Select
+          value={value.attendanceRule ?? 'none'}
+          onChange={(e) =>
+            patch({
+              attendanceRule: e.target.value,
+              attendanceRatio:
+                e.target.value === 'ratio' ? (value.attendanceRatio ?? 0.75) : undefined,
+            })
+          }
+        >
+          <option value="none">Yok</option>
+          <option value="once">En az bir oturum</option>
+          <option value="ratio">Oran</option>
+        </Select>
+      </label>
+      {value.attendanceRule === 'ratio' ? (
+        <label className="block space-y-1">
+          <span className={inputLabel}>Katılım oranı</span>
+          <Field
+            type="number"
+            min={0.01}
+            max={1}
+            step={0.01}
+            value={value.attendanceRatio ?? 0.75}
+            onChange={(e) => patch({ attendanceRatio: Number(e.target.value) })}
+          />
+        </label>
+      ) : null}
     </div>
   );
 }

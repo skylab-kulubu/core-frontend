@@ -253,6 +253,18 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(body).not.toHaveProperty('success');
   });
 
+  it('eventBodyFromForm sends attendance rule on the event', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'ARTLAB',
+      location: 'YTÜ',
+      attendanceRule: 'ratio',
+      attendanceRatio: 0.75,
+    });
+    expect(body.attendanceRule).toBe('ratio');
+    expect(body.attendanceRatio).toBe(0.75);
+  });
+
   it('saveEventWithSeason attaches gallery image ids', async () => {
     const calls: string[] = [];
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
