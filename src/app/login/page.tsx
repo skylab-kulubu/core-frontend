@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getOAuth2AuthUrl } from '@/lib/auth/oauth2';
+const LOGIN_START = '/api/auth/login';
 
 function LoginContent() {
   const router = useRouter();
@@ -21,7 +21,7 @@ function LoginContent() {
     // Sadece bir kez yönlendir
     if (!hasRedirected) {
       setHasRedirected(true);
-      window.location.href = getOAuth2AuthUrl();
+      window.location.href = LOGIN_START;
     }
   }, [error, logout, hasRedirected]);
 
@@ -49,7 +49,7 @@ function LoginContent() {
             type="button"
             onClick={() => {
               setHasRedirected(false);
-              window.location.href = getOAuth2AuthUrl();
+              window.location.href = LOGIN_START;
             }}
             className="bg-brand text-light hover:bg-brand-600 rounded px-4 py-2 font-medium"
           >
@@ -73,7 +73,7 @@ function LoginContent() {
               </summary>
               <div className="bg-dark-100 text-dark mt-2 rounded p-2 font-mono text-xs break-all">
                 <p>
-                  <strong>Auth URL:</strong> {getOAuth2AuthUrl()}
+                  <strong>Auth URL:</strong> {LOGIN_START}
                 </p>
               </div>
             </details>
@@ -105,18 +105,10 @@ function LoginContent() {
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         // OAuth URL'ini al
-        const oauthUrl = getOAuth2AuthUrl();
-        console.log('Redirecting to OAuth URL:', oauthUrl);
-
-        // External URL'e git - bu middleware'i bypass eder
-        // window.location.href kullan (external URL olduğu için middleware intercept edemez)
-        window.location.href = oauthUrl;
+        window.location.href = LOGIN_START;
       } catch (error) {
         console.error('Login redirect error:', error);
-        // Hata olsa bile OAuth'a git
-        const oauthUrl = getOAuth2AuthUrl();
-        console.log('Fallback redirect to OAuth URL:', oauthUrl);
-        window.location.href = oauthUrl;
+        window.location.href = LOGIN_START;
       }
     };
 

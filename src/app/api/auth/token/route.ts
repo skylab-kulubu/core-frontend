@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getTokenFromCookies } from '@/lib/auth/token';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken } from '@/lib/auth/oauth2';
+import { authCookieSecure } from '@/lib/auth/cookie-secure';
 
 export async function GET() {
   try {
@@ -20,24 +21,25 @@ export async function GET() {
     }
 
     const { access_token, refresh_token } = await refreshAccessToken(refreshToken);
+    const secure = authCookieSecure();
 
     cookieStore.set('auth_token', access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
     cookieStore.set('access_token', access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
     cookieStore.set('refresh_token', refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30,
       path: '/',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForToken } from '@/lib/auth/oauth2';
+import { authCookieSecure } from '@/lib/auth/cookie-secure';
 import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
@@ -29,17 +30,17 @@ export async function GET(request: NextRequest) {
     // Next.js 15'te cookies() async olmalı
     const cookieStore = await cookies();
 
+    const secure = authCookieSecure();
     cookieStore.set('auth_token', access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     });
-    // Farkli ortamlarda cookie anahtari degisse bile token okuma bozulmasin.
     cookieStore.set('access_token', access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     cookieStore.set('refresh_token', refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30,
       path: '/',
@@ -58,16 +59,18 @@ export async function GET(request: NextRequest) {
     // Redirect URL'ini belirle
     // Docker/Proxy arkasında request.url localhost olabilir, bu yüzden env var'dan almayı dene
     let baseUrl = request.nextUrl.origin;
-    const redirectUri = process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
+    const redirectUri =
+      process.env.OAUTH2_REDIRECT_URI || process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI;
 
-    if (process.env.NEXT_PUBLIC_APP_URL) {
-      baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (appUrl) {
+      baseUrl = appUrl;
     } else if (redirectUri) {
       try {
         const url = new URL(redirectUri);
         baseUrl = url.origin;
       } catch (e) {
-        console.error('Invalid NEXT_PUBLIC_OAUTH2_REDIRECT_URI', e);
+        console.error('Invalid OAUTH2_REDIRECT_URI', e);
       }
     }
 
