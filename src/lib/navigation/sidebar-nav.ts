@@ -25,7 +25,7 @@ const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/events', label: 'Etkinlikler' },
   { href: '/seasons', label: 'Sezonlar' },
   { href: '/sessions', label: 'Oturumlar' },
-  { href: '/event-types', label: 'Etkinlik tipleri' },
+  { href: '/teams', label: 'Ekipler' },
   { href: '/qr', label: 'QR' },
   { href: '/competitors', label: 'Yarışmacılar' },
   { href: '/media', label: 'Medya' },

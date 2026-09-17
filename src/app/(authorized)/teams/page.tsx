@@ -9,7 +9,7 @@ import { teamsApi, type PublicTeam } from '@/lib/api/teams';
 
 const PAGE_SIZE = 10;
 
-export default function EventTypesPage() {
+export default function TeamsPage() {
   const [teams, setTeams] = useState<PublicTeam[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -30,8 +30,8 @@ export default function EventTypesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Etkinlik tipleri"
-        description="Go API’de ayrı event-type yok; sahip ekip bir Group adıdır."
+        title="Ekipler"
+        description="Public listing açık ekipler. Etkinlikler bu Group adına bağlanır."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
