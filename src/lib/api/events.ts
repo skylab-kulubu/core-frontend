@@ -19,6 +19,7 @@ export type CoreEvent = {
   coverImageUrl?: string;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
+  doorStaffIds?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -37,6 +38,7 @@ export type EventBody = {
   ranked: boolean;
   prizeInfo?: string;
   coverImageId?: string;
+  doorStaffIds?: string[];
 };
 
 export const eventsApi = {

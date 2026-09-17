@@ -18,6 +18,7 @@ type EventEditorProps = {
   seasons?: Season[];
   showSeason?: boolean;
   ownerOptional?: boolean;
+  assignDoorStaff?: boolean;
 };
 
 const inputLabel = 'text-3xs tracking-[0.14em] text-neutral-500 uppercase';
@@ -39,7 +40,15 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     seasonId: '',
     coverImageId: '',
     imageIds: [],
+    doorStaffIds: [],
   };
+}
+
+export function parseDoorStaffIds(raw: string): string[] {
+  return raw
+    .split(/[\s,]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 
 export function EventEditor({
@@ -50,6 +59,7 @@ export function EventEditor({
   seasons = [],
   showSeason,
   ownerOptional,
+  assignDoorStaff,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [media, setMedia] = useState<Media[]>([]);
@@ -227,6 +237,17 @@ export function EventEditor({
         />
         Sıralamalı
       </label>
+      {assignDoorStaff ? (
+        <label className="block space-y-1">
+          <span className={inputLabel}>Kapı görevlisi user id</span>
+          <TextArea
+            rows={3}
+            value={(value.doorStaffIds ?? []).join('\n')}
+            onChange={(e) => patch({ doorStaffIds: parseDoorStaffIds(e.target.value) })}
+            placeholder="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+          />
+        </label>
+      ) : null}
     </div>
   );
 }
