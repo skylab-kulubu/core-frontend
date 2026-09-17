@@ -33,7 +33,7 @@ describe('filterSidebarNavForUser', () => {
       '/events',
       '/seasons',
       '/sessions',
-      '/event-types',
+      '/teams',
       '/qr',
       '/competitors',
       '/media',

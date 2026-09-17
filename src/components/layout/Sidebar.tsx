@@ -15,6 +15,7 @@ import {
   QrCode,
   Trophy,
   Users,
+  UsersRound,
   Image,
   Link2,
 } from 'lucide-react';
@@ -33,7 +34,7 @@ const NAV_ICON = {
   '/events': CalendarDays,
   '/seasons': Layers,
   '/sessions': Clock,
-  '/event-types': FolderTree,
+  '/teams': UsersRound,
   '/qr': QrCode,
   '/competitors': Trophy,
   '/media': Image,

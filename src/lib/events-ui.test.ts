@@ -14,7 +14,7 @@ import { mediaApi } from '@/lib/api/media';
 import { urlsApi, shortQrUrl } from '@/lib/api/urls';
 import { CORE_API_URL } from '@/lib/api/core';
 import { ProblemError } from '@/lib/api/core';
-import { eventTypesApi } from '@/lib/api/event-types';
+import { teamsApi } from '@/lib/api/teams';
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
 import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
 
@@ -162,8 +162,8 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(Object.keys(rows[0]).includes('success')).toBe(false);
   });
 
-  it('event types list is public teams, not Java EventType', async () => {
-    const rows = await eventTypesApi.list();
+  it('public teams list is not a Java EventType table', async () => {
+    const rows = await teamsApi.list();
     expect(rows[0].team).toBe('WEBLAB');
     expect(rows[0]).not.toHaveProperty('success');
   });
