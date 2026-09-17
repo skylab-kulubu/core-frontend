@@ -3,7 +3,7 @@ WORKDIR /app
 RUN corepack enable
 ENV HUSKY=0
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --config.strict-dep-builds=false
 
 FROM --platform=linux/amd64 node:22-alpine AS builder
 WORKDIR /app
