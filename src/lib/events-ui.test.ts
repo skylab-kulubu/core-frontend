@@ -12,6 +12,7 @@ import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
 import { mediaApi } from '@/lib/api/media';
 import { urlsApi, shortQrUrl } from '@/lib/api/urls';
+import { sessionQrUrl } from '@/lib/api/sessions';
 import { CORE_API_URL } from '@/lib/api/core';
 import { ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
@@ -99,7 +100,13 @@ describe('scheduling clients speak RFC 7807 resources', () => {
       }
       if (url.includes('/check-in')) {
         return jsonRes(
-          { id: 'c1', ticketId: 't1', eventDayId: 'd1', createdAt: '2026-01-01T00:00:00Z' },
+          {
+            id: 'c1',
+            ticketId: 't1',
+            sessionId: 's1',
+            eventDayId: 'd1',
+            createdAt: '2026-01-01T00:00:00Z',
+          },
           201,
         );
       }
@@ -168,10 +175,14 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(rows[0]).not.toHaveProperty('success');
   });
 
-  it('check-in returns CheckIn resource', async () => {
-    const created = await ticketsApi.checkIn('t1', 'd1');
+  it('check-in posts to session path, not EventDay', async () => {
+    const created = await ticketsApi.checkIn('t1', 's1');
     expect(created.id).toBe('c1');
+    expect(created.sessionId).toBe('s1');
     expect(created).not.toHaveProperty('success');
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/tickets/t1/sessions/s1/check-in'))).toBe(true);
+    expect(urls.some((url) => url.includes('/event-days/'))).toBe(false);
   });
 
   it('event tickets list is a resource array', async () => {
@@ -197,6 +208,10 @@ describe('scheduling clients speak RFC 7807 resources', () => {
   it('short QR PNG is Go /v1/go/:alias/qr, not Java /api/qr-codes', () => {
     expect(shortQrUrl('hack')).toBe(`${CORE_API_URL}/v1/go/hack/qr`);
     expect(shortQrUrl('hack')).not.toContain('/api/qr-codes');
+  });
+
+  it('session QR PNG is Go /v1/sessions/:id/qr', () => {
+    expect(sessionQrUrl('s1')).toBe(`${CORE_API_URL}/v1/sessions/s1/qr`);
   });
 
   it('problem+json becomes ProblemError', async () => {

@@ -21,7 +21,7 @@ import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
-import { sessionsApi, SESSION_TYPES, type EventSession } from '@/lib/api/sessions';
+import { sessionsApi, SESSION_TYPES, sessionQrUrl, type EventSession } from '@/lib/api/sessions';
 import { teamsApi } from '@/lib/api/teams';
 import {
   canCheckInForTeam,
@@ -89,6 +89,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [sessionOpen, setSessionOpen] = useState(false);
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [qrSession, setQrSession] = useState<EventSession | null>(null);
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
@@ -295,27 +296,34 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     title={session.title}
                     subtitle={`${session.speakerName} · ${session.sessionType}`}
                     trailing={
-                      canMutate ? (
+                      <div className="flex items-center gap-1">
                         <ActionButton
-                          icon={Pencil}
-                          label="Oturumu düzenle"
-                          onClick={() => {
-                            setEditingSessionId(session.id);
-                            setSessionDraft({
-                              eventDayId: session.eventDayId,
-                              title: session.title,
-                              speakerName: session.speakerName,
-                              speakerLinkedin: session.speakerLinkedin ?? '',
-                              description: session.description ?? '',
-                              startTime: toDatetimeLocal(session.startTime),
-                              endTime: toDatetimeLocal(session.endTime),
-                              orderIndex: session.orderIndex,
-                              sessionType: session.sessionType,
-                            });
-                            setSessionOpen(true);
-                          }}
+                          icon={QrCode}
+                          label="Oturum QR"
+                          onClick={() => setQrSession(session)}
                         />
-                      ) : undefined
+                        {canMutate ? (
+                          <ActionButton
+                            icon={Pencil}
+                            label="Oturumu düzenle"
+                            onClick={() => {
+                              setEditingSessionId(session.id);
+                              setSessionDraft({
+                                eventDayId: session.eventDayId,
+                                title: session.title,
+                                speakerName: session.speakerName,
+                                speakerLinkedin: session.speakerLinkedin ?? '',
+                                description: session.description ?? '',
+                                startTime: toDatetimeLocal(session.startTime),
+                                endTime: toDatetimeLocal(session.endTime),
+                                orderIndex: session.orderIndex,
+                                sessionType: session.sessionType,
+                              });
+                              setSessionOpen(true);
+                            }}
+                          />
+                        ) : null}
+                      </div>
                     }
                   />
                 ))}
@@ -501,6 +509,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             Kaydet
           </button>
         </form>
+      </Drawer>
+      <Drawer
+        open={qrSession !== null}
+        onClose={() => setQrSession(null)}
+        title={qrSession ? `${qrSession.title} QR` : 'Oturum QR'}
+      >
+        {qrSession ? (
+          <object
+            data={sessionQrUrl(qrSession.id)}
+            type="image/png"
+            className="h-48 w-48 rounded-md bg-white"
+            aria-label={`${qrSession.title} QR`}
+          />
+        ) : null}
       </Drawer>
     </div>
   );
