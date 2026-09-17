@@ -151,6 +151,7 @@ function EventsPageContent() {
             seasons={seasons}
             showSeason={privileged}
             ownerOptional={privileged}
+            assignDoorStaff={privileged}
           />
           <button type="submit" className={saveClass}>
             Kaydet

@@ -130,6 +130,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         imageIds: (ev.images ?? []).map((image) => image.id),
         attendanceRule: ev.attendanceRule ?? 'none',
         attendanceRatio: ev.attendanceRatio,
+        doorStaffIds: ev.doorStaffIds ?? [],
       });
       setError(null);
       const teams = await teamsApi.list().catch(() => []);
@@ -345,6 +346,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             seasons={seasons}
             showSeason={privileged}
             ownerOptional={privileged}
+            assignDoorStaff={privileged}
           />
           <button type="submit" className={saveClass}>
             Kaydet

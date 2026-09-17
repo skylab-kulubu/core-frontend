@@ -21,6 +21,7 @@ export type CoreEvent = {
   attendanceRatio?: number;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
+  doorStaffIds?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -41,6 +42,7 @@ export type EventBody = {
   coverImageId?: string;
   attendanceRule?: string;
   attendanceRatio?: number;
+  doorStaffIds?: string[];
 };
 
 export const eventsApi = {

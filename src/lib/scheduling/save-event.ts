@@ -20,6 +20,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     coverImageId: form.coverImageId || undefined,
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
+    doorStaffIds: form.doorStaffIds ?? [],
   };
 }
 
