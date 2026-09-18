@@ -19,4 +19,12 @@ describe('chromeCrumbs', () => {
       { href: '/announcements/n1/edit', label: 'Düzenle' },
     ]);
   });
+
+  it('labels tickets as Başvuranlar under an event', () => {
+    expect(chromeCrumbs('/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/tickets')).toEqual([
+      { href: '/events', label: 'Etkinlikler' },
+      { href: '/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', label: 'Kayıt' },
+      { href: '/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/tickets', label: 'Başvuranlar' },
+    ]);
+  });
 });
