@@ -25,6 +25,10 @@ export type Ticket = {
 export const ticketsApi = {
   listByEvent: (eventId: string) =>
     coreFetch<Ticket[]>(`/v1/events/${encodeURIComponent(eventId)}/tickets`),
+  applyMe: (eventId: string) =>
+    coreFetch<Ticket>(`/v1/events/${encodeURIComponent(eventId)}/applications/me`, {
+      method: 'POST',
+    }),
   checkIn: (ticketId: string, sessionId: string) =>
     coreFetch<CheckIn>(
       `/v1/tickets/${encodeURIComponent(ticketId)}/sessions/${encodeURIComponent(sessionId)}/check-in`,

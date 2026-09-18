@@ -45,6 +45,9 @@ import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
+import { publicMediaUrl } from '@/lib/event-media';
+import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
+import { publicShortUrl } from '@/lib/api/urls';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -108,6 +111,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applyNote, setApplyNote] = useState<string | null>(null);
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
@@ -193,6 +199,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     return map;
   }, [sessions]);
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+  const myTicket = Boolean(
+    (user?.id && tickets.some((row) => row.ownerId === user.id)) || applyNote,
+  );
 
   if (error && !event) return <p className="text-sm text-red-300">{error}</p>;
   if (!event) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
@@ -201,7 +210,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     <div className="space-y-6">
       <PageHeader
         title={event.name}
-        description={`${event.ownerTeam}${event.location ? ` · ${event.location}` : ''}`}
+        description={eventListSubtitle(event)}
         actions={
           <>
             {canMutate ? (
@@ -216,6 +225,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 icon={Trash2}
                 label="Sil"
                 onClick={async () => {
+                  if (!window.confirm('Bu etkinliği silmek istediğine emin misin?')) return;
                   try {
                     await eventsApi.delete(event.id);
                     router.push('/events');
@@ -230,7 +240,63 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
+      {event.coverImageUrl ? (
+        <img
+          src={publicMediaUrl(event.coverImageUrl)}
+          alt=""
+          className="h-40 w-full rounded-lg object-cover"
+        />
+      ) : null}
       <p className="text-sm whitespace-pre-wrap text-neutral-400">{event.description || '—'}</p>
+      {user ? (
+        <div className="space-y-2 rounded-lg border border-white/10 p-3">
+          <p className="text-sm text-neutral-200">Üye kaydı</p>
+          <p className="text-3xs text-neutral-500">
+            Giriş yapmış kişiler public forma düşmez. Ticket hesabınla yazılır.
+          </p>
+          {myTicket ? (
+            <p className="text-skylab-300 text-sm">Bu etkinliğe kayıtlısın.</p>
+          ) : (
+            <SaveButton
+              type="button"
+              disabled={applying}
+              onClick={async () => {
+                setApplying(true);
+                try {
+                  await ticketsApi.applyMe(event.id);
+                  setApplyNote('Bu etkinliğe kayıtlısın.');
+                  if (canTickets) {
+                    setTickets(await ticketsApi.listByEvent(event.id).catch(() => tickets));
+                  }
+                } catch (err) {
+                  if (err instanceof ProblemError && err.status === 409) {
+                    setApplyNote('Bu etkinliğe kayıtlısın.');
+                  } else {
+                    setError(err instanceof ProblemError ? err.title : 'Kayıt olunamadı');
+                  }
+                } finally {
+                  setApplying(false);
+                }
+              }}
+            >
+              {applying ? 'Kaydediliyor…' : 'Hesabınla kaydol'}
+            </SaveButton>
+          )}
+          {event.formAlias || event.formUrl ? (
+            <p className="text-3xs text-neutral-500">
+              Misafir başvurusu (hesabı olmayanlar):{' '}
+              <a
+                className="text-skylab-300 hover:text-skylab-200"
+                href={event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}
+              </a>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yarışmacılar</h2>
@@ -302,6 +368,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               variant="primary"
               label="Oturum ekle"
               onClick={() => {
+                if (days.length === 0) {
+                  setDayOpen(true);
+                  return;
+                }
                 setEditingSessionId(null);
                 setSessionDraft(emptySession(days[0]?.id ?? ''));
                 setSessionOpen(true);
@@ -403,6 +473,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           className="space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
+            const issue = eventFormIssue(form);
+            if (issue) {
+              setError(issue);
+              return;
+            }
+            setSaving(true);
             try {
               await saveEventWithSeason(form, event.id);
               if (typeof window !== 'undefined') {
@@ -412,6 +488,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+            } finally {
+              setSaving(false);
             }
           }}
         >
@@ -432,7 +510,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             ]}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           />
-          <SaveButton>Kaydet</SaveButton>
+          <SaveButton disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
         </form>
       </Drawer>
       <Drawer open={dayOpen} onClose={() => setDayOpen(false)} title="Gün ekle">

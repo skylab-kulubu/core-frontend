@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Trash2, Upload } from 'lucide-react';
+import { Copy, Trash2, Upload } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
@@ -88,20 +88,31 @@ export default function MediaPage() {
             title={row.name}
             subtitle={`${row.kind} · ${publicMediaUrl(row.url) || row.url}`}
             trailing={
-              privileged ? (
-                <ActionButton
-                  icon={Trash2}
-                  label="Sil"
-                  onClick={async () => {
-                    try {
-                      await mediaApi.remove(row.id);
-                      await load();
-                    } catch (err) {
-                      setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+              <div className="flex items-center gap-1">
+                {publicMediaUrl(row.url) || row.url ? (
+                  <ActionButton
+                    icon={Copy}
+                    label="Adresi kopyala"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(publicMediaUrl(row.url) || row.url)
                     }
-                  }}
-                />
-              ) : undefined
+                  />
+                ) : null}
+                {privileged ? (
+                  <ActionButton
+                    icon={Trash2}
+                    label="Sil"
+                    onClick={async () => {
+                      try {
+                        await mediaApi.remove(row.id);
+                        await load();
+                      } catch (err) {
+                        setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                      }
+                    }}
+                  />
+                ) : null}
+              </div>
             }
           />
         ))}

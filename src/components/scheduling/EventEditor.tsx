@@ -216,11 +216,7 @@ export function EventEditor({
       />
       <label className="block space-y-1">
         <FieldLabel>LinkedIn</FieldLabel>
-        <Field
-          type="url"
-          value={value.linkedin ?? ''}
-          onChange={(e) => patch({ linkedin: e.target.value })}
-        />
+        <Field value={value.linkedin ?? ''} onChange={(e) => patch({ linkedin: e.target.value })} />
       </label>
       <label className="block space-y-1">
         <FieldLabel>Ödül</FieldLabel>

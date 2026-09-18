@@ -50,7 +50,7 @@ export function Pagination({
   })();
 
   return (
-    <div className="sticky bottom-0 z-20 bg-[#08070b]">
+    <div className="sticky bottom-0 z-20 bg-neutral-900">
       <div className={`flex flex-wrap items-center justify-center gap-1 pt-3 ${className}`}>
         <button
           type="button"

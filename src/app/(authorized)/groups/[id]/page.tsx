@@ -113,8 +113,12 @@ export default function GroupDetailPage() {
         <GroupProfile
           group={group}
           onSave={async (next) => {
-            await identityApi.updateGroup(id, next);
-            await load();
+            try {
+              await identityApi.updateGroup(id, next);
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+            }
           }}
         />
       ) : null}
@@ -152,8 +156,12 @@ export default function GroupDetailPage() {
                   icon={X}
                   label="Çıkar"
                   onClick={async () => {
-                    await identityApi.removeMember(id, m.id);
-                    await load();
+                    try {
+                      await identityApi.removeMember(id, m.id);
+                      await load();
+                    } catch (err) {
+                      setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
+                    }
                   }}
                 />
               }
@@ -204,11 +212,15 @@ export default function GroupDetailPage() {
                   icon={X}
                   label="Kaldır"
                   onClick={async () => {
-                    await identityApi.setGroupRoles(
-                      id,
-                      roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                    );
-                    await load();
+                    try {
+                      await identityApi.setGroupRoles(
+                        id,
+                        roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                      );
+                      await load();
+                    } catch (err) {
+                      setError(err instanceof ProblemError ? err.title : 'Rol kaldırılamadı');
+                    }
                   }}
                 />
               }
@@ -242,10 +254,14 @@ export default function GroupDetailPage() {
                   icon={X}
                   label="Kaldır"
                   onClick={async () => {
-                    const next = { ...(group?.attributes ?? {}) };
-                    delete next[k];
-                    await identityApi.updateGroup(id, { attributes: next });
-                    await load();
+                    try {
+                      const next = { ...(group?.attributes ?? {}) };
+                      delete next[k];
+                      await identityApi.updateGroup(id, { attributes: next });
+                      await load();
+                    } catch (err) {
+                      setError(err instanceof ProblemError ? err.title : 'Öznitelik kaldırılamadı');
+                    }
                   }}
                 />
               }
@@ -261,12 +277,16 @@ export default function GroupDetailPage() {
               setError('Bu alan yukarıdaki kulüp alanlarında.');
               return;
             }
-            await identityApi.updateGroup(id, {
-              attributes: { ...(group?.attributes ?? {}), [attrKey.trim()]: attrValue },
-            });
-            setAttrKey('');
-            setAttrValue('');
-            await load();
+            try {
+              await identityApi.updateGroup(id, {
+                attributes: { ...(group?.attributes ?? {}), [attrKey.trim()]: attrValue },
+              });
+              setAttrKey('');
+              setAttrValue('');
+              await load();
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Öznitelik eklenemedi');
+            }
           }}
         >
           <label className="block space-y-1">
@@ -297,9 +317,13 @@ export default function GroupDetailPage() {
         options={memberOptions}
         emptyMessage="Kullanıcı yok"
         onPick={async (userId) => {
-          await identityApi.addMember(id, userId);
-          setMemberOpen(false);
-          await load();
+          try {
+            await identityApi.addMember(id, userId);
+            setMemberOpen(false);
+            await load();
+          } catch (err) {
+            setError(err instanceof ProblemError ? err.title : 'Üye eklenemedi');
+          }
         }}
       />
       <PickerDrawer
@@ -316,9 +340,13 @@ export default function GroupDetailPage() {
         onPick={async (picked) => {
           const role = catalog.find((row) => roleKey(row) === picked);
           if (!role) return;
-          await identityApi.setGroupRoles(id, [...roles, role]);
-          setRoleOpen(false);
-          await load();
+          try {
+            await identityApi.setGroupRoles(id, [...roles, role]);
+            setRoleOpen(false);
+            await load();
+          } catch (err) {
+            setError(err instanceof ProblemError ? err.title : 'Rol eklenemedi');
+          }
         }}
       />
     </div>
