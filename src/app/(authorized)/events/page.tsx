@@ -24,6 +24,12 @@ import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
+import {
+  applyFormHandoff,
+  emptyApplySlot,
+  formHandoffFromSearch,
+  persistableFormFields,
+} from '@/lib/event-forms';
 
 const PAGE_SIZE = 10;
 
@@ -77,6 +83,19 @@ function EventsPageContent() {
   useEffect(() => {
     setPage(1);
   }, [ownerFilter]);
+
+  useEffect(() => {
+    const handoff = formHandoffFromSearch(searchParams);
+    if (!handoff) return;
+    setForm((prev) => {
+      const slots = applyFormHandoff(
+        prev.formSlots?.length ? prev.formSlots : [emptyApplySlot()],
+        handoff,
+      );
+      return { ...prev, formSlots: slots, ...persistableFormFields(slots) };
+    });
+    setCreating(true);
+  }, [searchParams]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

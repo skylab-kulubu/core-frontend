@@ -19,6 +19,7 @@ export type EventFormSlot = {
 
 export const APPLY_SLOT_KEY = 'apply';
 export const APPLY_SLOT_LABEL = 'Başvuru formu';
+export const DEFAULT_FORMS_ADMIN_ORIGIN = 'https://forms.yildizskylab.com/admin';
 
 export function emptyApplySlot(): EventFormSlot {
   return {
@@ -91,7 +92,58 @@ function slugPart(value: string): string {
 }
 
 export function formsAdminOrigin(env = process.env.NEXT_PUBLIC_FORMS_ADMIN_URL): string {
-  return (env ?? '').trim().replace(/\/+$/, '');
+  const trimmed = (env ?? '').trim().replace(/\/+$/, '');
+  return trimmed || DEFAULT_FORMS_ADMIN_ORIGIN;
+}
+
+export function withFormSlot(returnTo: string, slotKey: string): string {
+  try {
+    const url = new URL(returnTo);
+    url.searchParams.set('formSlot', slotKey);
+    url.searchParams.delete('formUrl');
+    return url.toString();
+  } catch {
+    return returnTo;
+  }
+}
+
+export function formHandoffFromSearch(search: {
+  get(name: string): string | null;
+}): { formUrl: string; formSlot: string } | null {
+  const formUrl = (search.get('formUrl') ?? '').trim();
+  if (!formUrl) return null;
+  try {
+    const parsed = new URL(formUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  } catch {
+    return null;
+  }
+  const formSlot = (search.get('formSlot') ?? '').trim() || APPLY_SLOT_KEY;
+  return { formUrl, formSlot };
+}
+
+export function applyFormHandoff(
+  slots: EventFormSlot[],
+  handoff: { formUrl: string; formSlot: string },
+): EventFormSlot[] {
+  const rows = slots.length ? slots : [emptyApplySlot()];
+  let found = false;
+  const next = rows.map((slot) => {
+    if (slot.key !== handoff.formSlot) return slot;
+    found = true;
+    return { ...slot, url: handoff.formUrl, mode: 'skyforms' as const };
+  });
+  if (found) return next;
+  if (handoff.formSlot === APPLY_SLOT_KEY) {
+    return [
+      { ...emptyApplySlot(), url: handoff.formUrl, mode: 'skyforms' },
+      ...rows.filter((slot) => slot.key !== APPLY_SLOT_KEY),
+    ];
+  }
+  const extra = extraFormSlot(handoff.formSlot, handoff.formSlot);
+  extra.url = handoff.formUrl;
+  extra.mode = 'skyforms';
+  return [...next, extra];
 }
 
 export function skyformsCreateHref(origin: string, returnTo: string): string | null {

@@ -43,7 +43,12 @@ import {
 import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { slotsFromEvent } from '@/lib/event-forms';
+import {
+  applyFormHandoff,
+  formHandoffFromSearch,
+  persistableFormFields,
+  slotsFromEvent,
+} from '@/lib/event-forms';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -96,6 +101,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EventFormState>(emptyEventForm());
   const [dayOpen, setDayOpen] = useState(false);
@@ -129,16 +135,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           ? await ticketsApi.listByEvent(id).catch(() => [])
           : [],
       );
-      setForm({
+      const slots = slotsFromEvent(ev);
+      const handoff =
+        typeof window === 'undefined'
+          ? null
+          : formHandoffFromSearch(new URLSearchParams(window.location.search));
+      const formSlots = handoff ? applyFormHandoff(slots, handoff) : slots;
+      const persist = persistableFormFields(formSlots);
+      const nextForm: EventFormState = {
         ...emptyEventForm(ev.ownerTeam),
         name: ev.name,
         description: ev.description,
         location: ev.location,
         ownerTeam: ev.ownerTeam,
-        formUrl: ev.formUrl ?? '',
-        formAlias: ev.formAlias ?? '',
-        extraFormUrls: ev.extraFormUrls ?? [],
-        formSlots: slotsFromEvent(ev),
+        formUrl: persist.formUrl || ev.formUrl || '',
+        formAlias: persist.formAlias || ev.formAlias || '',
+        extraFormUrls: persist.extraFormUrls.length
+          ? persist.extraFormUrls
+          : (ev.extraFormUrls ?? []),
+        formSlots,
         capacity: ev.capacity,
         startDate: toDatetimeLocal(ev.startDate),
         endDate: toDatetimeLocal(ev.endDate),
@@ -152,8 +167,31 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         attendanceRule: ev.attendanceRule ?? 'none',
         attendanceRatio: ev.attendanceRatio,
         doorStaffIds: ev.doorStaffIds ?? [],
-      });
+      };
+      setForm(nextForm);
       setError(null);
+      if (handoff && canWriteEvent(groups, ev.ownerTeam, 'update')) {
+        setEditing(true);
+        try {
+          await saveEventWithSeason(nextForm, ev.id);
+          window.history.replaceState(null, '', `/events/${ev.id}`);
+          const saved = await eventsApi.get(id);
+          setEvent(saved);
+          const savedSlots = slotsFromEvent(saved);
+          setForm({
+            ...nextForm,
+            formUrl: saved.formUrl ?? nextForm.formUrl,
+            formAlias: saved.formAlias ?? nextForm.formAlias,
+            extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
+            formSlots: savedSlots,
+            coverImageId: saved.coverImageId ?? nextForm.coverImageId,
+            imageIds: (saved.images ?? []).map((image) => image.id),
+          });
+          setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
+        } catch (err) {
+          setError(err instanceof ProblemError ? err.title : 'Form adresi kaydedilemedi');
+        }
+      }
       const teams = await teamsApi.list().catch(() => []);
       const leaderTeams = leaderOwnerTeams(groups);
       setOwnerOptions(
@@ -215,6 +253,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
       <p className="text-sm whitespace-pre-wrap text-neutral-400">{event.description || '—'}</p>
       <div className="space-y-3">
         <div className="flex items-center justify-between">

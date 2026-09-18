@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
@@ -17,6 +17,7 @@ import {
   shortAliasFromSlug,
   slugYearAlias,
   aliasYear,
+  withFormSlot,
   type EventFormMode,
   type EventFormSlot,
 } from '@/lib/event-forms';
@@ -41,10 +42,11 @@ export function EventFormSlots({
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const bounce = useMemo(() => {
+  const bounceFor = (slotKey: string) => {
     const href = typeof window !== 'undefined' ? returnTo || window.location.href : returnTo || '';
-    return skyformsCreateHref(formsAdminOrigin(), href);
-  }, [returnTo]);
+    if (!href) return skyformsCreateHref(formsAdminOrigin(), '');
+    return skyformsCreateHref(formsAdminOrigin(), withFormSlot(href, slotKey));
+  };
 
   function patchSlot(key: string, partial: Partial<EventFormSlot>) {
     onChange(slots.map((slot) => (slot.key === key ? { ...slot, ...partial } : slot)));
@@ -128,20 +130,20 @@ export function EventFormSlots({
             />
           </div>
           {slot.mode === 'skyforms' ? (
-            bounce ? (
-              <a
-                href={bounce}
-                target="_blank"
-                rel="noreferrer"
-                className="text-2xs text-skylab-300 inline-flex h-8 items-center"
-              >
-                Skyforms taslağı aç
-              </a>
-            ) : (
+            <div className="space-y-1">
+              {bounceFor(slot.key) ? (
+                <a
+                  href={bounceFor(slot.key) ?? undefined}
+                  className="text-2xs text-skylab-300 inline-flex h-8 items-center"
+                >
+                  Skyforms taslağı aç
+                </a>
+              ) : null}
               <p className="text-3xs text-neutral-500">
-                Skyforms adresi yok. NEXT_PUBLIC_FORMS_ADMIN_URL tanımlandıktan sonra taslak açılır.
+                Skyforms’ta kaydet, sonra etkinliğe dön. Form adresi bu alana yazılır; kısa link
+                skyl.app’den basılır.
               </p>
-            )
+            </div>
           ) : null}
           <label className="block space-y-1">
             <FieldLabel>Form adresi</FieldLabel>
