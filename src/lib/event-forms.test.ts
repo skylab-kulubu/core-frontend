@@ -1,10 +1,14 @@
 import {
+  APPLY_SLOT_KEY,
   APPLY_SLOT_LABEL,
+  DEFAULT_FORMS_ADMIN_ORIGIN,
   aliasYear,
+  applyFormHandoff,
   attachFormAliases,
   emptyApplySlot,
   extraFormSlot,
   existingShortFor,
+  formHandoffFromSearch,
   formsAdminOrigin,
   humanFormAlias,
   persistableFormFields,
@@ -12,6 +16,7 @@ import {
   skyformsCreateHref,
   slugYearAlias,
   slotsFromEvent,
+  withFormSlot,
 } from './event-forms';
 
 describe('event form slots', () => {
@@ -69,17 +74,42 @@ describe('event form slots', () => {
     expect(aliasYear('', new Date('2026-09-18T00:00:00Z'))).toBe(2026);
   });
 
-  it('only builds a skyforms bounce when the admin origin is set', () => {
-    expect(formsAdminOrigin('')).toBe('');
+  it('defaults skyforms admin origin to the club forms console', () => {
+    expect(formsAdminOrigin('')).toBe(DEFAULT_FORMS_ADMIN_ORIGIN);
+    expect(formsAdminOrigin(undefined)).toBe(DEFAULT_FORMS_ADMIN_ORIGIN);
+    expect(formsAdminOrigin('https://forms.example.test/admin/')).toBe(
+      'https://forms.example.test/admin',
+    );
     expect(skyformsCreateHref('', 'https://admin.example.test/events/e1')).toBeNull();
     expect(
       skyformsCreateHref(
-        'https://forms.example.test/admin',
-        'https://admin.example.test/events/e1',
+        DEFAULT_FORMS_ADMIN_ORIGIN,
+        withFormSlot('https://admin.yildizskylab.com/events/e1', APPLY_SLOT_KEY),
       ),
     ).toBe(
-      'https://forms.example.test/admin/forms/new-form?returnTo=https%3A%2F%2Fadmin.example.test%2Fevents%2Fe1',
+      'https://forms.yildizskylab.com/admin/forms/new-form?returnTo=https%3A%2F%2Fadmin.yildizskylab.com%2Fevents%2Fe1%3FformSlot%3Dapply',
     );
+  });
+
+  it('applies a returned skyforms url onto the named slot', () => {
+    const search = new URLSearchParams(
+      'formUrl=https://forms.yildizskylab.com/form-1&formSlot=extra-ctf',
+    );
+    expect(formHandoffFromSearch(search)).toEqual({
+      formUrl: 'https://forms.yildizskylab.com/form-1',
+      formSlot: 'extra-ctf',
+    });
+    expect(formHandoffFromSearch(new URLSearchParams('formUrl=not-a-url'))).toBeNull();
+    const slots = applyFormHandoff([emptyApplySlot(), extraFormSlot('CTF', 'extra-ctf')], {
+      formUrl: 'https://forms.yildizskylab.com/form-1',
+      formSlot: 'extra-ctf',
+    });
+    expect(slots[0].url).toBe('');
+    expect(slots[1]).toMatchObject({
+      key: 'extra-ctf',
+      url: 'https://forms.yildizskylab.com/form-1',
+      mode: 'skyforms',
+    });
   });
 
   it('matches an existing short row by alias or destination', () => {
