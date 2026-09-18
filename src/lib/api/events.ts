@@ -75,4 +75,12 @@ export const eventsApi = {
       method: 'DELETE',
       body: JSON.stringify(imageIds),
     }),
+  syncMailList: (id: string) =>
+    coreFetch<EventMailList>(`/v1/events/${encodeURIComponent(id)}/mail-list`, { method: 'POST' }),
+};
+
+export type EventMailList = {
+  mailListId: string;
+  name: string;
+  recipientCount: number;
 };

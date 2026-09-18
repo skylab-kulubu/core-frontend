@@ -271,6 +271,29 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(urls.some((url) => url.includes('formUrl') || url.includes('skyforms'))).toBe(false);
   });
 
+  it('event mail list posts to /v1/events/:id/mail-list', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/mail-list')) {
+        expect(init?.method).toBe('POST');
+        return jsonRes({
+          mailListId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          name: 'WEBLAB SkyDays',
+          recipientCount: 2,
+        });
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const got = await eventsApi.syncMailList('e1');
+    expect(got).toMatchObject({
+      mailListId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      recipientCount: 2,
+    });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/mail-list'))).toBe(true);
+  });
+
   it('media list is a resource array', async () => {
     const rows = await mediaApi.list();
     expect(rows[0]).toMatchObject({ id: 'm1', name: 'dot.png' });
