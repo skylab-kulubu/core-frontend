@@ -1,3 +1,19 @@
+export const DEFAULT_CDN_ORIGIN = 'https://cdn.yildizskylab.com';
+
+export function cdnOrigin(env = process.env.NEXT_PUBLIC_CDN_URL): string {
+  const trimmed = (env ?? '').trim().replace(/\/+$/, '');
+  return trimmed || DEFAULT_CDN_ORIGIN;
+}
+
+export function publicMediaUrl(raw?: string | null, base = cdnOrigin()): string {
+  const value = (raw ?? '').trim();
+  if (!value) return '';
+  if (/^(?:blob|data):/i.test(value)) return value;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.startsWith('//')) return value;
+  const origin = (base || DEFAULT_CDN_ORIGIN).replace(/\/+$/, '');
+  return `${origin}/${value.replace(/^\/+/, '')}`;
+}
+
 export type EventPhotoRef = {
   id: string;
   url?: string;
@@ -43,7 +59,7 @@ export function teamEventPhotos(events: EventWithPhotos[], ownerTeam: string): T
       photos.push({
         id: ref.id,
         title: ref.name || ref.id,
-        url: ref.url,
+        url: publicMediaUrl(ref.url) || undefined,
         eventName,
       });
     }

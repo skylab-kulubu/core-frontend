@@ -8,6 +8,7 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi, type Media } from '@/lib/api/media';
+import { publicMediaUrl } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
@@ -85,7 +86,7 @@ export default function MediaPage() {
           <ListItem
             key={row.id}
             title={row.name}
-            subtitle={`${row.kind} · ${row.url}`}
+            subtitle={`${row.kind} · ${publicMediaUrl(row.url) || row.url}`}
             trailing={
               privileged ? (
                 <ActionButton
