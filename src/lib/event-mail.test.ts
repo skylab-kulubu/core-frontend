@@ -1,4 +1,10 @@
-import { eventMailComposeHref, eventMailListHref, openEventMail } from './event-mail';
+import {
+  DEFAULT_MAIL_ORIGIN,
+  eventMailComposeHref,
+  eventMailListHref,
+  mailOrigin,
+  openEventMail,
+} from './event-mail';
 
 describe('event mail skymail links', () => {
   const original = process.env.NEXT_PUBLIC_MAIL_URL;
@@ -7,6 +13,16 @@ describe('event mail skymail links', () => {
   afterEach(() => {
     if (original === undefined) delete process.env.NEXT_PUBLIC_MAIL_URL;
     else process.env.NEXT_PUBLIC_MAIL_URL = original;
+  });
+
+  it('defaults the Skymail origin when the public env is empty', () => {
+    expect(mailOrigin('')).toBe(DEFAULT_MAIL_ORIGIN);
+    expect(mailOrigin('   ')).toBe(DEFAULT_MAIL_ORIGIN);
+    expect(mailOrigin(undefined)).toBe('https://mail.yildizskylab.com');
+    process.env.NEXT_PUBLIC_MAIL_URL = '';
+    expect(eventMailComposeHref(listId)).toBe(
+      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    );
   });
 
   it('opens skymail compose with the Event mailing list', () => {

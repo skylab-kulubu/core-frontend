@@ -1,3 +1,5 @@
+import { mailOrigin } from './event-mail';
+
 export type ClubConsole = 'admin' | 'forms' | 'mail';
 
 export type ClubSwitcherLink = {
@@ -16,14 +18,12 @@ function clubConsoles(): ClubSwitcherLink[] {
     {
       id: 'forms',
       label: 'Forms',
-      href:
-        process.env.NEXT_PUBLIC_FORMS_ADMIN_URL ??
-        'https://forms.yildizskylab.com/admin',
+      href: process.env.NEXT_PUBLIC_FORMS_ADMIN_URL ?? 'https://forms.yildizskylab.com/admin',
     },
     {
       id: 'mail',
       label: 'Mail',
-      href: process.env.NEXT_PUBLIC_MAIL_URL ?? 'https://mail.yildizskylab.com',
+      href: mailOrigin(),
     },
   ];
 }
