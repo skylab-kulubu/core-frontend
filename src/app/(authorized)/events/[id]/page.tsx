@@ -22,6 +22,7 @@ import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
+import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
@@ -34,7 +35,6 @@ import { teamsApi } from '@/lib/api/teams';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { personLabel } from '@/components/identity/PersonPick';
 import {
-  canCheckInForTeam,
   canManageCompetitors,
   canWriteEvent,
   isPrivileged,
@@ -43,8 +43,13 @@ import {
 import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { formHandoffFromSearch } from '@/lib/event-forms';
-import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
+import {
+  applyFormHandoff,
+  formHandoffFromSearch,
+  persistableFormFields,
+  slotsFromEvent,
+} from '@/lib/event-forms';
+import { clearEventDraft, restoreEventEditor, writeEventDraft } from '@/lib/event-draft';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -74,12 +79,7 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
 });
 
 function ticketLabel(row: Ticket, people: Map<string, Person>): string {
-  if (row.ticketType === 'GUEST') {
-    const name = [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ');
-    return name || row.guestEmail || row.id;
-  }
-  const owner = row.ownerId ? people.get(row.ownerId) : undefined;
-  return owner ? personLabel(owner) : row.ownerId || row.id;
+  return ticketApplicantLabel(row, people);
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -112,24 +112,68 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
   const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
-  const canTickets = event ? canCheckInForTeam(groups, event.ownerTeam) : false;
+  const canTickets = event ? canListEventTickets(groups, event.ownerTeam) : false;
 
   async function load() {
     try {
       const ev = await eventsApi.get(id);
-      const loaded = formStateFromEvent(ev);
+      const dayRows = await eventDaysApi.listByEvent(id);
+      const sessionRows = (
+        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
+      ).flat();
+      setEvent(ev);
+      setDays(dayRows);
+      setSessions(sessionRows);
+      setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
+      setPeople(await identityApi.listUsers().catch(() => []));
+      setTickets(
+        canListEventTickets(groups, ev.ownerTeam)
+          ? await ticketsApi.listByEvent(id).catch(() => [])
+          : [],
+      );
+      const slots = slotsFromEvent(ev);
       const handoff =
         typeof window === 'undefined'
           ? null
           : formHandoffFromSearch(new URLSearchParams(window.location.search));
-      const nextForm = restoreEventEditor(
-        typeof window === 'undefined' ? null : sessionStorage,
-        typeof window === 'undefined' ? `/events/${id}` : window.location.href,
-        loaded,
-        handoff,
-      );
-      setEvent(ev);
+      const loaded: EventFormState = {
+        ...emptyEventForm(ev.ownerTeam),
+        name: ev.name,
+        description: ev.description,
+        location: ev.location,
+        ownerTeam: ev.ownerTeam,
+        formUrl: ev.formUrl || '',
+        formAlias: ev.formAlias || '',
+        extraFormUrls: ev.extraFormUrls ?? [],
+        formSlots: slots,
+        capacity: ev.capacity,
+        startDate: toDatetimeLocal(ev.startDate),
+        endDate: toDatetimeLocal(ev.endDate),
+        linkedin: ev.linkedin ?? '',
+        active: ev.active,
+        ranked: ev.ranked,
+        prizeInfo: ev.prizeInfo ?? '',
+        seasonId: ev.seasonId ?? '',
+        coverImageId: ev.coverImageId ?? '',
+        imageIds: (ev.images ?? []).map((image) => image.id),
+        attendanceRule: ev.attendanceRule ?? 'none',
+        attendanceRatio: ev.attendanceRatio,
+        doorStaffIds: ev.doorStaffIds ?? [],
+      };
+      const nextForm =
+        typeof window === 'undefined'
+          ? handoff
+            ? {
+                ...loaded,
+                formSlots: applyFormHandoff(slots, handoff),
+                ...persistableFormFields(applyFormHandoff(slots, handoff)),
+              }
+            : loaded
+          : restoreEventEditor(sessionStorage, window.location.href, loaded, handoff);
       setForm(nextForm);
+      if (typeof window !== 'undefined') {
+        writeEventDraft(sessionStorage, window.location.href, nextForm);
+      }
       setError(null);
       if (handoff && canWriteEvent(groups, ev.ownerTeam, 'update')) {
         setEditing(true);
@@ -138,32 +182,24 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           window.history.replaceState(null, '', `/events/${ev.id}`);
           const saved = await eventsApi.get(id);
           setEvent(saved);
+          const savedSlots = slotsFromEvent(saved);
           setForm({
-            ...formStateFromEvent(saved),
+            ...nextForm,
             formUrl: saved.formUrl ?? nextForm.formUrl,
             formAlias: saved.formAlias ?? nextForm.formAlias,
             extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
+            formSlots: savedSlots,
             coverImageId: saved.coverImageId ?? nextForm.coverImageId,
+            imageIds: (saved.images ?? []).map((image) => image.id),
           });
-          clearEventDraft(sessionStorage, window.location.href);
+          if (typeof window !== 'undefined') {
+            clearEventDraft(sessionStorage, window.location.href);
+          }
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
         } catch (err) {
           setError(err instanceof ProblemError ? err.title : 'Form adresi kaydedilemedi');
         }
       }
-      const dayRows = await eventDaysApi.listByEvent(id);
-      const sessionRows = (
-        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
-      ).flat();
-      setDays(dayRows);
-      setSessions(sessionRows);
-      setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
-      setPeople(await identityApi.listUsers().catch(() => []));
-      setTickets(
-        canCheckInForTeam(groups, ev.ownerTeam)
-          ? await ticketsApi.listByEvent(id).catch(() => [])
-          : [],
-      );
       const teams = await teamsApi.list().catch(() => []);
       const leaderTeams = leaderOwnerTeams(groups);
       setOwnerOptions(
@@ -208,7 +244,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <ActionButton
                 icon={Pencil}
                 label="Düzenle"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    writeEventDraft(sessionStorage, window.location.href, form);
+                  }
+                  setEditing(true);
+                }}
               />
             ) : null}
             {canDelete ? (
@@ -269,7 +310,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {canTickets ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Biletler</h2>
+            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Başvuranlar</h2>
             <ActionButton icon={QrCode} label="Kapı" href="/qr" />
           </div>
           <ListPanel
@@ -417,7 +458,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         >
           <EventEditor
             value={form}
-            onChange={setForm}
+            onChange={(next) => {
+              setForm(next);
+              if (typeof window !== 'undefined') {
+                writeEventDraft(sessionStorage, window.location.href, next);
+              }
+            }}
             ownerOptions={ownerOptions}
             lockOwner={!privileged}
             seasons={seasons}
@@ -431,6 +477,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
             ]}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
+            onLeaveToSkyforms={() => {
+              if (typeof window !== 'undefined') {
+                writeEventDraft(sessionStorage, window.location.href, form);
+              }
+            }}
           />
           <SaveButton>Kaydet</SaveButton>
         </form>
