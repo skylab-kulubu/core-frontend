@@ -165,6 +165,7 @@ function EventsPageContent() {
             showSeason={privileged}
             ownerOptional={privileged}
             assignDoorStaff={privileged}
+            returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           />
           <SaveButton>Kaydet</SaveButton>
         </form>

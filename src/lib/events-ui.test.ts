@@ -257,6 +257,35 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(calls.some((c) => c.startsWith('POST') && c.includes('/v1/events'))).toBe(true);
   });
 
+  it('eventBodyFromForm sends formUrl as başvuru and extras separately', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'Skydays',
+      location: 'YTÜ',
+      formSlots: [
+        {
+          key: 'apply',
+          label: 'Başvuru formu',
+          mode: 'external',
+          url: 'https://apply.example.test',
+          alias: 'skydays2026',
+        },
+        {
+          key: 'extra-ctf',
+          label: 'CTF',
+          mode: 'external',
+          url: 'https://ctf.example.test',
+          alias: 'skydays-ctf2026',
+        },
+      ],
+    });
+    expect(body.formUrl).toBe('https://apply.example.test');
+    expect(body.formAlias).toBe('skydays2026');
+    expect(body.extraFormUrls).toEqual([
+      { label: 'CTF', url: 'https://ctf.example.test', alias: 'skydays-ctf2026' },
+    ]);
+  });
+
   it('eventBodyFromForm sends coverImageId as a resource field', () => {
     const body = eventBodyFromForm({
       ...emptyEventForm('WEBLAB'),

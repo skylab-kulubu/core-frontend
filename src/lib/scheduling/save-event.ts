@@ -1,15 +1,20 @@
 import { eventsApi, type EventBody } from '@/lib/api/events';
+import { urlsApi } from '@/lib/api/urls';
 import { seasonsApi } from '@/lib/api/seasons';
 import { toRfc3339 } from '@/lib/datetime-local';
+import { attachFormAliases, persistableFormFields } from '@/lib/event-forms';
 import type { EventFormState } from '@/components/scheduling/EventEditor';
 
 export function eventBodyFromForm(form: EventFormState): EventBody {
+  const forms = persistableFormFields(form.formSlots ?? []);
   return {
     name: form.name.trim(),
     description: form.description,
     location: form.location.trim(),
     ownerTeam: form.ownerTeam.trim(),
-    formUrl: form.formUrl || undefined,
+    formUrl: forms.formUrl || undefined,
+    formAlias: forms.formAlias || undefined,
+    extraFormUrls: forms.extraFormUrls,
     capacity: form.capacity,
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
@@ -28,7 +33,17 @@ export async function saveEventWithSeason(
   form: EventFormState,
   existingId?: string,
 ): Promise<string> {
-  const body = eventBodyFromForm(form);
+  const slotted = await attachFormAliases(
+    form.formSlots ?? [],
+    form.name,
+    form.startDate ?? '',
+    (body) => urlsApi.create(body),
+  );
+  const body = eventBodyFromForm({
+    ...form,
+    formSlots: slotted,
+    ...persistableFormFields(slotted),
+  });
   const saved = existingId
     ? await eventsApi.update(existingId, body)
     : await eventsApi.create(body);

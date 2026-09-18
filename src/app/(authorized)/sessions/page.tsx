@@ -17,6 +17,7 @@ import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { sessionsApi, SESSION_TYPES, sessionTypeLabel, type SessionRow } from '@/lib/api/sessions';
 import { canWriteEvent } from '@/lib/auth/groups';
+import { DatePicker } from '@/components/forms/DatePicker';
 import { toRfc3339 } from '@/lib/datetime-local';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
@@ -197,19 +198,11 @@ export default function SessionsPage() {
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <Field
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
+            <DatePicker value={startTime} onChange={setStartTime} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <Field
-              type="datetime-local"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
+            <DatePicker value={endTime} onChange={setEndTime} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Tür</FieldLabel>

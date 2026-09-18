@@ -17,6 +17,7 @@ import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
+import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -163,18 +164,16 @@ export default function SeasonsPage() {
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <Field
-              type="datetime-local"
+            <DatePicker
               value={form.startLocal}
-              onChange={(e) => setForm({ ...form, startLocal: e.target.value })}
+              onChange={(startLocal) => setForm({ ...form, startLocal })}
             />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <Field
-              type="datetime-local"
+            <DatePicker
               value={form.endLocal}
-              onChange={(e) => setForm({ ...form, endLocal: e.target.value })}
+              onChange={(endLocal) => setForm({ ...form, endLocal })}
             />
           </label>
           <Switch
