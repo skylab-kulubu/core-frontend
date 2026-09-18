@@ -22,7 +22,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { Avatar } from '@/components/chrome/Avatar';
-import { WaffleMenu } from '@/components/layout/WaffleMenu';
+import { ClubSwitcher } from '@/components/layout/ClubSwitcher';
 import type { SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
 
@@ -66,12 +66,9 @@ export function Sidebar({
 
   const nav = (
     <>
-      <div className="flex items-start justify-between gap-2 border-b border-white/10 px-4 py-4">
-        <div>
-          <p className="text-sm font-medium tracking-wide text-neutral-200">SKY LAB</p>
-          <p className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yönetim</p>
-        </div>
-        <WaffleMenu align="left" />
+      <div className="border-b border-white/10 px-4 py-4">
+        <p className="text-sm font-medium tracking-wide text-neutral-200">SKY LAB</p>
+        <p className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yönetim</p>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Ana menü">
         <ul className="space-y-1">
@@ -99,6 +96,7 @@ export function Sidebar({
           })}
         </ul>
       </nav>
+      <ClubSwitcher />
       <div className="border-t border-white/10 px-3 py-3">
         {userMenu ? (
           <button
