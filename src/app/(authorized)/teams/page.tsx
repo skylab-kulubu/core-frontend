@@ -35,7 +35,7 @@ export default function TeamsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Ekipler"
-        description="Public listing açık ekipler. Etkinlikler bu Group adına bağlanır."
+        description="Sitede görünen ekipler. Etkinlikler bu ekibe bağlanır."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <ListPanel

@@ -40,7 +40,7 @@ export default function MediaPage() {
     <div className="space-y-6">
       <PageHeader
         title="Medya"
-        description="Yükleme R2’ye gider. URL’yi duyuru kapak görseli olarak yapıştırabilirsiniz."
+        description="Dosya yükle. Duyuru kapağı için adresi kopyalayabilirsin."
         actions={
           <>
             <input

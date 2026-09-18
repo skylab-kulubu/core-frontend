@@ -16,7 +16,7 @@ const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/dashboard', label: 'Özet' },
   { href: '/events', label: 'Etkinlikler' },
   { href: '/sessions', label: 'Oturumlar' },
-  { href: '/qr', label: 'QR' },
+  { href: '/qr', label: 'Kapı' },
   { href: '/competitors', label: 'Yarışmacılar' },
   { href: '/media', label: 'Medya' },
 ];
@@ -26,7 +26,7 @@ const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/seasons', label: 'Sezonlar' },
   { href: '/sessions', label: 'Oturumlar' },
   { href: '/teams', label: 'Ekipler' },
-  { href: '/qr', label: 'QR' },
+  { href: '/qr', label: 'Kapı' },
   { href: '/competitors', label: 'Yarışmacılar' },
   { href: '/media', label: 'Medya' },
 ];

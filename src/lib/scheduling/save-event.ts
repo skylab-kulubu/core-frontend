@@ -47,6 +47,3 @@ export async function saveEventWithSeason(
   }
   return saved.id;
 }
-
-export const saveClass =
-  'border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium';

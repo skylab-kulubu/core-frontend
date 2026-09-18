@@ -5,7 +5,11 @@ import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { SaveButton } from '@/components/chrome/SaveButton';
+import { Select } from '@/components/chrome/Select';
+import { Switch } from '@/components/chrome/Switch';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -14,7 +18,6 @@ import { eventsApi } from '@/lib/api/events';
 import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
-import { saveClass } from '@/lib/scheduling/save-event';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
@@ -67,7 +70,7 @@ export default function SeasonsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sezonlar"
-        description="Yazma yetkisi Privileged."
+        description="Dönemleri yönet, etkinliği bir sezona bağla."
         actions={
           canWrite ? (
             <ActionButton
@@ -150,43 +153,46 @@ export default function SeasonsPage() {
             }
           }}
         >
-          <Field
-            placeholder="Ad"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-          <Field
-            type="datetime-local"
-            value={form.startLocal}
-            onChange={(e) => setForm({ ...form, startLocal: e.target.value })}
-          />
-          <Field
-            type="datetime-local"
-            value={form.endLocal}
-            onChange={(e) => setForm({ ...form, endLocal: e.target.value })}
-          />
-          <label className="flex items-center gap-2 text-xs text-neutral-400">
-            <input
-              type="checkbox"
-              checked={form.active}
-              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+          <label className="block space-y-1">
+            <FieldLabel>Ad</FieldLabel>
+            <Field
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
             />
-            Aktif
           </label>
-          <Field
-            placeholder="Etkinlik id (sezona bağla)"
-            value={assignEventId}
-            onChange={(e) => setAssignEventId(e.target.value)}
-            list="season-events"
+          <label className="block space-y-1">
+            <FieldLabel>Başlangıç</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={form.startLocal}
+              onChange={(e) => setForm({ ...form, startLocal: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Bitiş</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={form.endLocal}
+              onChange={(e) => setForm({ ...form, endLocal: e.target.value })}
+            />
+          </label>
+          <Switch
+            checked={form.active}
+            onChange={(checked) => setForm({ ...form, active: checked })}
+            label="Aktif"
           />
-          <datalist id="season-events">
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </datalist>
+          <label className="block space-y-1">
+            <FieldLabel>Etkinlik bağla</FieldLabel>
+            <Select value={assignEventId} onChange={(e) => setAssignEventId(e.target.value)}>
+              <option value="">Yok</option>
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </Select>
+          </label>
           {editingId ? (
             <button
               type="button"
@@ -204,9 +210,7 @@ export default function SeasonsPage() {
               Sil
             </button>
           ) : null}
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
     </div>

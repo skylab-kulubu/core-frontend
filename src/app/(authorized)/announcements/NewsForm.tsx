@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { SaveButton } from '@/components/chrome/SaveButton';
+import { Switch } from '@/components/chrome/Switch';
+import { TextArea } from '@/components/chrome/TextArea';
 import type { NewsData } from '@/lib/api/cms';
-
-const textareaClass =
-  'focus:border-skylab-400/50 min-h-40 w-full rounded-md border border-white/10 bg-white/3 px-3 py-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus:bg-white/5 focus:outline-none';
 
 type NewsFormProps = {
   initial?: Partial<NewsData>;
@@ -34,7 +35,7 @@ export function NewsForm({ initial, submitLabel, pending, onSubmit }: NewsFormPr
 
   return (
     <form
-      className="space-y-3"
+      className="max-w-xl space-y-3"
       onSubmit={async (e) => {
         e.preventDefault();
         setError(null);
@@ -59,43 +60,41 @@ export function NewsForm({ initial, submitLabel, pending, onSubmit }: NewsFormPr
       }}
     >
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <Field
-        required
-        placeholder="Başlık"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-      />
-      <Field placeholder="Özet" value={summary} onChange={(e) => setSummary(e.target.value)} />
-      <textarea
-        required
-        placeholder="İçerik"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        className={textareaClass}
-      />
-      <Field
-        type="url"
-        placeholder="Kapak görseli URL"
-        value={heroImage}
-        onChange={(e) => setHeroImage(e.target.value)}
-      />
-      <Field
-        placeholder="Etiketler (virgülle)"
-        value={tags}
-        onChange={(e) => setTags(e.target.value)}
-      />
-      <Field placeholder="Yazar" value={author} onChange={(e) => setAuthor(e.target.value)} />
-      <label className="flex items-center gap-2 text-xs text-neutral-300">
-        <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
-        Öne çıkar
+      <label className="block space-y-1">
+        <FieldLabel>Başlık</FieldLabel>
+        <Field required value={title} onChange={(e) => setTitle(e.target.value)} />
       </label>
-      <button
-        type="submit"
-        disabled={pending}
-        className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {submitLabel}
-      </button>
+      <label className="block space-y-1">
+        <FieldLabel>Özet</FieldLabel>
+        <Field value={summary} onChange={(e) => setSummary(e.target.value)} />
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>İçerik</FieldLabel>
+        <TextArea required rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>Kapak görseli</FieldLabel>
+        <Field
+          type="url"
+          placeholder="https://…"
+          value={heroImage}
+          onChange={(e) => setHeroImage(e.target.value)}
+        />
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>Etiketler</FieldLabel>
+        <Field
+          placeholder="virgülle ayır"
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+        />
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>Yazar</FieldLabel>
+        <Field value={author} onChange={(e) => setAuthor(e.target.value)} />
+      </label>
+      <Switch checked={featured} onChange={setFeatured} label="Öne çıkar" />
+      <SaveButton disabled={pending}>{submitLabel}</SaveButton>
     </form>
   );
 }

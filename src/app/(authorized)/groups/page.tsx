@@ -1,14 +1,21 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ActionButton } from '@/components/chrome/ActionButton';
+import { Drawer } from '@/components/chrome/Drawer';
+import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
-import { Field } from '@/components/chrome/Field';
+import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { identityApi, type Group } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { listStatus } from '@/lib/list-status';
+import { pickerMatch } from '@/lib/picker';
 
 const PAGE_SIZE = 10;
 
@@ -17,8 +24,12 @@ export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState('');
+  const [parentOpen, setParentOpen] = useState(false);
+  const [parentQuery, setParentQuery] = useState('');
 
   useEffect(() => {
     identityApi
@@ -28,64 +39,48 @@ export default function GroupsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const filtered = useMemo(
+    () => groups.filter((g) => pickerMatch(query, g.name, g.path)),
+    [groups, query],
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const slice = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return groups.slice(start, start + PAGE_SIZE);
-  }, [groups, page]);
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
+  const parent = groups.find((g) => g.id === parentId);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Gruplar"
-        description="Keycloak grup ağacı. Client-role map grup kartında."
+        description="Ekipler, kurullar ve üye ağacı. Site görünürlüğü grup kartında."
+        actions={
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Grup ekle"
+            onClick={() => setCreating(true)}
+          />
+        }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!name.trim()) return;
-          const created = await identityApi.createGroup({
-            name: name.trim(),
-            parentId: parentId || undefined,
-          });
-          setGroups((prev) => [...prev, created]);
-          setName('');
-          setParentId('');
-        }}
-      >
-        <Field
-          className="w-48"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Grup adı"
-          required
-        />
-        <select
-          className="h-8 rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-          value={parentId}
-          onChange={(e) => setParentId(e.target.value)}
-        >
-          <option value="">Kök</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.path}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-        >
-          Oluştur
-        </button>
-      </form>
+      <Field
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Ad veya yol"
+        aria-label="Grup ara"
+      />
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: groups.length,
+          rowCount: filtered.length,
           emptyMessage: 'Grup yok',
         })}
       >
@@ -99,6 +94,70 @@ export default function GroupsPage() {
         ))}
       </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Drawer
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="Grup ekle"
+      >
+        <form
+          className="space-y-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            try {
+              const created = await identityApi.createGroup({
+                name: name.trim(),
+                parentId: parentId || undefined,
+              });
+              setGroups((prev) => [...prev, created]);
+              setName('');
+              setParentId('');
+              setCreating(false);
+            } catch (err) {
+              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+            }
+          }}
+        >
+          <label className="block space-y-1">
+            <FieldLabel>Ad</FieldLabel>
+            <Field value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Üst grup</FieldLabel>
+            <button
+              type="button"
+              className="focus:border-skylab-400/50 h-8 w-full rounded-md border border-white/10 bg-white/3 px-3 text-left text-xs text-neutral-100"
+              onClick={() => {
+                setParentQuery('');
+                setParentOpen(true);
+              }}
+            >
+              {parent ? parent.path : 'Kök'}
+            </button>
+          </label>
+          <SaveButton>Oluştur</SaveButton>
+        </form>
+      </Drawer>
+      <PickerDrawer
+        open={parentOpen}
+        onClose={() => setParentOpen(false)}
+        title="Üst grup"
+        query={parentQuery}
+        onQuery={setParentQuery}
+        placeholder="Grup yolu veya adı"
+        loading={false}
+        options={[
+          { id: '', title: 'Kök' },
+          ...groups
+            .filter((g) => pickerMatch(parentQuery, g.path, g.name))
+            .map((g) => ({ id: g.id, title: g.path, subtitle: g.name })),
+        ]}
+        emptyMessage="Grup yok"
+        onPick={(picked) => {
+          setParentId(picked);
+          setParentOpen(false);
+        }}
+      />
     </div>
   );
 }

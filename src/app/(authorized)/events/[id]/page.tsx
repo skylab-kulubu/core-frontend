@@ -6,6 +6,7 @@ import { Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Select } from '@/components/chrome/Select';
@@ -22,8 +23,16 @@ import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
-import { sessionsApi, SESSION_TYPES, sessionQrUrl, type EventSession } from '@/lib/api/sessions';
+import {
+  sessionsApi,
+  SESSION_TYPES,
+  sessionQrUrl,
+  sessionTypeLabel,
+  type EventSession,
+} from '@/lib/api/sessions';
 import { teamsApi } from '@/lib/api/teams';
+import { identityApi, type Person } from '@/lib/api/identity';
+import { personLabel } from '@/components/identity/PersonPick';
 import {
   canCheckInForTeam,
   canManageCompetitors,
@@ -32,7 +41,8 @@ import {
   leaderOwnerTeams,
 } from '@/lib/auth/groups';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
-import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
@@ -60,12 +70,13 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
   sessionType: 'WORKSHOP',
 });
 
-function ticketLabel(row: Ticket): string {
+function ticketLabel(row: Ticket, people: Map<string, Person>): string {
   if (row.ticketType === 'GUEST') {
     const name = [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ');
     return name || row.guestEmail || row.id;
   }
-  return row.ownerId || row.id;
+  const owner = row.ownerId ? people.get(row.ownerId) : undefined;
+  return owner ? personLabel(owner) : row.ownerId || row.id;
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +90,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [sessions, setSessions] = useState<EventSession[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +121,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setDays(dayRows);
       setSessions(sessionRows);
       setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
+      setPeople(await identityApi.listUsers().catch(() => []));
       setTickets(
         canCheckInForTeam(groups, ev.ownerTeam)
           ? await ticketsApi.listByEvent(id).catch(() => [])
@@ -164,6 +177,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     }
     return map;
   }, [sessions]);
+  const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
 
   if (error && !event) return <p className="text-sm text-red-300">{error}</p>;
   if (!event) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
@@ -217,23 +231,26 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             emptyMessage: 'Yarışmacı yok',
           })}
         >
-          {competitors.map((row) => (
-            <ListItem
-              key={row.id}
-              href={`/competitors/${row.id}/edit?eventId=${encodeURIComponent(event.id)}`}
-              title={row.userId}
-              subtitle={
-                row.isWinner ? 'kazanan' : row.score !== undefined ? String(row.score) : '—'
-              }
-            />
-          ))}
+          {competitors.map((row) => {
+            const person = personById.get(row.userId);
+            return (
+              <ListItem
+                key={row.id}
+                href={`/competitors/${row.id}/edit?eventId=${encodeURIComponent(event.id)}`}
+                title={person ? personLabel(person) : row.userId}
+                subtitle={
+                  row.isWinner ? 'kazanan' : row.score !== undefined ? String(row.score) : '—'
+                }
+              />
+            );
+          })}
         </ListPanel>
       </div>
       {canTickets ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Biletler</h2>
-            <ActionButton icon={QrCode} label="QR / check-in" href="/qr" />
+            <ActionButton icon={QrCode} label="Kapı" href="/qr" />
           </div>
           <ListPanel
             status={listStatus({
@@ -246,7 +263,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {tickets.map((row) => (
               <ListItem
                 key={row.id}
-                title={ticketLabel(row)}
+                title={ticketLabel(row, personById)}
                 subtitle={`${row.ticketType} · ${row.checkIns?.length ?? 0} check-in · ${row.id}`}
               />
             ))}
@@ -385,9 +402,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             ownerOptional={privileged}
             assignDoorStaff={privileged}
           />
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
       <Drawer open={dayOpen} onClose={() => setDayOpen(false)} title="Gün ekle">
@@ -412,21 +427,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             }
           }}
         >
-          <Field
-            placeholder="Gün adı"
-            value={dayName}
-            onChange={(e) => setDayName(e.target.value)}
-            required
-          />
-          <Field
-            type="datetime-local"
-            value={dayStart}
-            onChange={(e) => setDayStart(e.target.value)}
-          />
-          <Field type="datetime-local" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} />
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <label className="block space-y-1">
+            <FieldLabel>Gün adı</FieldLabel>
+            <Field
+              value={dayName}
+              onChange={(e) => setDayName(e.target.value)}
+              required
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Başlangıç</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={dayStart}
+              onChange={(e) => setDayStart(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Bitiş</FieldLabel>
+            <Field type="datetime-local" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} />
+          </label>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
       <Drawer
@@ -462,61 +483,81 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             }
           }}
         >
-          <Select
-            value={sessionDraft.eventDayId}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, eventDayId: e.target.value })}
-            required
-          >
-            <option value="">Gün</option>
-            {days.map((day) => (
-              <option key={day.id} value={day.id}>
-                {day.name}
-              </option>
-            ))}
-          </Select>
-          <Field
-            placeholder="Başlık"
-            value={sessionDraft.title}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, title: e.target.value })}
-            required
-          />
-          <Field
-            placeholder="Konuşmacı"
-            value={sessionDraft.speakerName}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, speakerName: e.target.value })}
-            required
-          />
-          <Field
-            placeholder="Konuşmacı LinkedIn"
-            value={sessionDraft.speakerLinkedin}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })}
-          />
-          <TextArea
-            placeholder="Açıklama"
-            rows={3}
-            value={sessionDraft.description}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, description: e.target.value })}
-          />
-          <Field
-            type="datetime-local"
-            value={sessionDraft.startTime}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, startTime: e.target.value })}
-          />
-          <Field
-            type="datetime-local"
-            value={sessionDraft.endTime}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, endTime: e.target.value })}
-          />
-          <Select
-            value={sessionDraft.sessionType}
-            onChange={(e) => setSessionDraft({ ...sessionDraft, sessionType: e.target.value })}
-          >
-            {SESSION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </Select>
+          <label className="block space-y-1">
+            <FieldLabel>Gün</FieldLabel>
+            <Select
+              value={sessionDraft.eventDayId}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, eventDayId: e.target.value })}
+              required
+            >
+              <option value="">Seç</option>
+              {days.map((day) => (
+                <option key={day.id} value={day.id}>
+                  {day.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Başlık</FieldLabel>
+            <Field
+              value={sessionDraft.title}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, title: e.target.value })}
+              required
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Konuşmacı</FieldLabel>
+            <Field
+              value={sessionDraft.speakerName}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, speakerName: e.target.value })}
+              required
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>LinkedIn</FieldLabel>
+            <Field
+              value={sessionDraft.speakerLinkedin}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Açıklama</FieldLabel>
+            <TextArea
+              rows={3}
+              value={sessionDraft.description}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, description: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Başlangıç</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={sessionDraft.startTime}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, startTime: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Bitiş</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={sessionDraft.endTime}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, endTime: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Tür</FieldLabel>
+            <Select
+              value={sessionDraft.sessionType}
+              onChange={(e) => setSessionDraft({ ...sessionDraft, sessionType: e.target.value })}
+            >
+              {SESSION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {sessionTypeLabel(type)}
+                </option>
+              ))}
+            </Select>
+          </label>
           {editingSessionId ? (
             <button
               type="button"
@@ -534,9 +575,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               Sil
             </button>
           ) : null}
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
       <Drawer

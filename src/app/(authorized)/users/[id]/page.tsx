@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
@@ -101,16 +102,15 @@ export default function UserDetailPage() {
           await load();
         }}
       />
-      <button
+      <SaveButton
         type="button"
-        className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 inline-flex h-8 items-center gap-2 rounded-md border px-3 font-medium"
         onClick={async () => {
           await identityApi.logoutUser(card.id);
         }}
       >
         <LogOut className="h-4 w-4" />
         Oturumları kapat
-      </button>
+      </SaveButton>
       <PickerDrawer
         open={groupOpen}
         onClose={() => setGroupOpen(false)}

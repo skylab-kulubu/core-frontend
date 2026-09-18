@@ -7,7 +7,9 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { identityApi, type Person } from '@/lib/api/identity';
@@ -62,7 +64,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Kullanıcılar"
-        description="Keycloak dizini. Promote grup üyeliğidir."
+        description="Üye ekle. Grup ve roller kişi kartında."
         actions={
           <ActionButton
             icon={Plus}
@@ -119,29 +121,24 @@ export default function UsersPage() {
             }
           }}
         >
-          <Field
-            placeholder="Ad"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-          />
-          <Field
-            placeholder="Soyad"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-          />
-          <Field
-            placeholder="E-posta"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <button
-            type="submit"
-            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-          >
-            Kaydet
-          </button>
+          <label className="block space-y-1">
+            <FieldLabel>Ad</FieldLabel>
+            <Field value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Soyad</FieldLabel>
+            <Field value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>E-posta</FieldLabel>
+            <Field
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
     </div>

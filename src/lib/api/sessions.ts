@@ -14,6 +14,24 @@ export const SESSION_TYPES = [
   'JAM',
 ] as const;
 
+export const SESSION_TYPE_LABELS: Record<(typeof SESSION_TYPES)[number], string> = {
+  WORKSHOP: 'Atölye',
+  PRESENTATION: 'Sunum',
+  PANEL: 'Panel',
+  KEYNOTE: 'Açılış konuşması',
+  NETWORKING: 'Networking',
+  OTHER: 'Diğer',
+  CTF: 'CTF',
+  HACKATHON: 'Hackathon',
+  JAM: 'Jam',
+};
+
+export function sessionTypeLabel(type: string): string {
+  return type in SESSION_TYPE_LABELS
+    ? SESSION_TYPE_LABELS[type as (typeof SESSION_TYPES)[number]]
+    : type;
+}
+
 export type EventSession = {
   id: string;
   eventDayId: string;

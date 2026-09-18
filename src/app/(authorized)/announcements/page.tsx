@@ -45,14 +45,14 @@ export default function AnnouncementsPage() {
   }, [items, page]);
 
   if (!privileged) {
-    return <p className="text-sm text-red-300">Duyurular yalnızca Privileged gruplar içindir.</p>;
+    return <p className="text-sm text-red-300">Duyurular yalnızca YK ve kurul içindir.</p>;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Duyurular"
-        description="CMS News. Yayınlamak Privileged gruplara aittir."
+        description="Site duyuruları. Yayınlamak YK ve kurul içindir."
         actions={
           <ActionButton
             href="/announcements/new"
