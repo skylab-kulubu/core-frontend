@@ -59,6 +59,7 @@ export const identityApi = {
     const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
     return coreFetch<Person[]>(`/v1/users${query}`);
   },
+  listClientRoles: () => coreFetch<ClientRole[]>('/v1/client-roles'),
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),
   createUser: (body: { email: string; firstName: string; lastName: string }) =>
     coreFetch<Person>('/v1/users', { method: 'POST', body: JSON.stringify(body) }),

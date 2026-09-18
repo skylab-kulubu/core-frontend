@@ -1,45 +1,49 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { listStatus } from '@/lib/list-status';
+import { pickerMatch, roleKey } from '@/lib/picker';
 
 export default function GroupDetailPage() {
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Person[]>([]);
-  const [users, setUsers] = useState<Person[]>([]);
   const [roles, setRoles] = useState<ClientRole[]>([]);
-  const [clientId, setClientId] = useState('skyforms');
-  const [role, setRole] = useState('');
-  const [memberId, setMemberId] = useState('');
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
   const [rename, setRename] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [memberOpen, setMemberOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [memberQuery, setMemberQuery] = useState('');
+  const [roleQuery, setRoleQuery] = useState('');
+  const [people, setPeople] = useState<Person[]>([]);
+  const [catalog, setCatalog] = useState<ClientRole[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerFailed, setPickerFailed] = useState(false);
 
   async function load() {
     try {
-      const [g, mem, mapped, all] = await Promise.all([
+      const [g, mem, mapped] = await Promise.all([
         identityApi.getGroup(id),
         identityApi.members(id),
         identityApi.groupRoles(id),
-        identityApi.listUsers(),
       ]);
       setGroup(g);
       setMembers(mem);
       setRoles(mapped);
-      setUsers(all);
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Yüklenemedi');
@@ -52,8 +56,44 @@ export default function GroupDetailPage() {
     void load();
   }, [id]);
 
-  const notMembers = users.filter((u) => !members.some((m) => m.id === u.id));
+  useEffect(() => {
+    if (!memberOpen) return;
+    const handle = window.setTimeout(
+      () => {
+        setPickerLoading(true);
+        identityApi
+          .listUsers(memberQuery)
+          .then((rows) => {
+            setPeople(rows);
+            setPickerFailed(false);
+          })
+          .catch(() => setPickerFailed(true))
+          .finally(() => setPickerLoading(false));
+      },
+      memberQuery.trim() ? 250 : 0,
+    );
+    return () => window.clearTimeout(handle);
+  }, [memberOpen, memberQuery]);
+
+  const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
+  const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const attrs = group?.attributes ?? {};
+
+  const memberOptions = people
+    .filter((person) => !memberIds.has(person.id))
+    .map((person) => ({
+      id: person.id,
+      title: `${person.firstName} ${person.lastName}`.trim() || person.email,
+      subtitle: person.email,
+    }));
+
+  const roleOptions = catalog
+    .filter((role) => !mappedKeys.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId))
+    .map((role) => ({
+      id: roleKey(role),
+      title: role.role,
+      subtitle: role.clientId,
+    }));
 
   if (error && !group) return <p className="text-sm text-red-300">{error}</p>;
   if (loading && !group) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
@@ -89,7 +129,19 @@ export default function GroupDetailPage() {
       </form>
 
       <section className="space-y-3">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Üyeler</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Üyeler</h2>
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Üye ekle"
+            onClick={() => {
+              setMemberQuery('');
+              setPeople([]);
+              setMemberOpen(true);
+            }}
+          />
+        </div>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -117,41 +169,32 @@ export default function GroupDetailPage() {
             />
           ))}
         </ListPanel>
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!memberId) return;
-            await identityApi.addMember(id, memberId);
-            setMemberId('');
-            await load();
-          }}
-        >
-          <select
-            className="h-8 rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-            value={memberId}
-            onChange={(e) => setMemberId(e.target.value)}
-          >
-            <option value="">Üye ekle</option>
-            {notMembers.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.email}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-          >
-            Ekle
-          </button>
-        </form>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Group → client-role
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
+            Group → client-role
+          </h2>
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Rol ekle"
+            onClick={async () => {
+              setRoleQuery('');
+              setRoleOpen(true);
+              setPickerLoading(true);
+              try {
+                setCatalog(await identityApi.listClientRoles());
+                setPickerFailed(false);
+              } catch {
+                setPickerFailed(true);
+              } finally {
+                setPickerLoading(false);
+              }
+            }}
+          />
+        </div>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -162,7 +205,7 @@ export default function GroupDetailPage() {
         >
           {roles.map((r) => (
             <ListItem
-              key={`${r.clientId}:${r.role}`}
+              key={roleKey(r)}
               title={r.role}
               subtitle={r.clientId}
               trailing={
@@ -181,35 +224,6 @@ export default function GroupDetailPage() {
             />
           ))}
         </ListPanel>
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            await identityApi.setGroupRoles(id, [...roles, { clientId, role }]);
-            setRole('');
-            await load();
-          }}
-        >
-          <Field
-            className="w-36"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="clientId"
-          />
-          <Field
-            className="w-48"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            placeholder="role"
-            required
-          />
-          <button
-            type="submit"
-            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-          >
-            Ekle
-          </button>
-        </form>
       </section>
 
       <section className="space-y-3">
@@ -273,6 +287,43 @@ export default function GroupDetailPage() {
           </button>
         </form>
       </section>
+
+      <PickerDrawer
+        open={memberOpen}
+        onClose={() => setMemberOpen(false)}
+        title="Üye ekle"
+        query={memberQuery}
+        onQuery={setMemberQuery}
+        placeholder="Ad, e-posta"
+        loading={pickerLoading}
+        failed={pickerFailed}
+        options={memberOptions}
+        emptyMessage="Kullanıcı yok"
+        onPick={async (userId) => {
+          await identityApi.addMember(id, userId);
+          setMemberOpen(false);
+          await load();
+        }}
+      />
+      <PickerDrawer
+        open={roleOpen}
+        onClose={() => setRoleOpen(false)}
+        title="Rol ekle"
+        query={roleQuery}
+        onQuery={setRoleQuery}
+        placeholder="Client veya rol"
+        loading={pickerLoading}
+        failed={pickerFailed}
+        options={roleOptions}
+        emptyMessage="Rol yok"
+        onPick={async (picked) => {
+          const role = catalog.find((row) => roleKey(row) === picked);
+          if (!role) return;
+          await identityApi.setGroupRoles(id, [...roles, role]);
+          setRoleOpen(false);
+          await load();
+        }}
+      />
     </div>
   );
 }
