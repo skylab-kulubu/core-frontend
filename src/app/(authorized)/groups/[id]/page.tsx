@@ -7,8 +7,10 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { listStatus } from '@/lib/list-status';
 
 export default function GroupDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +26,7 @@ export default function GroupDetailPage() {
   const [attrValue, setAttrValue] = useState('');
   const [rename, setRename] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
@@ -40,6 +43,8 @@ export default function GroupDetailPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -49,6 +54,9 @@ export default function GroupDetailPage() {
 
   const notMembers = users.filter((u) => !members.some((m) => m.id === u.id));
   const attrs = group?.attributes ?? {};
+
+  if (error && !group) return <p className="text-sm text-red-300">{error}</p>;
+  if (loading && !group) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
 
   return (
     <div className="space-y-6">
@@ -82,7 +90,14 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Üyeler</h2>
-        <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            failed: Boolean(error),
+            rowCount: members.length,
+            emptyMessage: 'Üye yok',
+          })}
+        >
           {members.map((m) => (
             <ListItem
               key={m.id}
@@ -101,7 +116,7 @@ export default function GroupDetailPage() {
               }
             />
           ))}
-        </div>
+        </ListPanel>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={async (e) => {
@@ -137,29 +152,35 @@ export default function GroupDetailPage() {
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Group → client-role
         </h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            failed: Boolean(error),
+            rowCount: roles.length,
+            emptyMessage: 'Client rol yok',
+          })}
+        >
           {roles.map((r) => (
-            <li
+            <ListItem
               key={`${r.clientId}:${r.role}`}
-              className="flex items-center justify-between px-3 py-2"
-            >
-              <span className="text-sm text-neutral-300">
-                {r.clientId} {r.role}
-              </span>
-              <ActionButton
-                icon={X}
-                label="Kaldır"
-                onClick={async () => {
-                  await identityApi.setGroupRoles(
-                    id,
-                    roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                  );
-                  await load();
-                }}
-              />
-            </li>
+              title={r.role}
+              subtitle={r.clientId}
+              trailing={
+                <ActionButton
+                  icon={X}
+                  label="Kaldır"
+                  onClick={async () => {
+                    await identityApi.setGroupRoles(
+                      id,
+                      roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                    );
+                    await load();
+                  }}
+                />
+              }
+            />
           ))}
-        </ul>
+        </ListPanel>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={async (e) => {
@@ -193,28 +214,34 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Öznitelikler</h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            failed: Boolean(error),
+            rowCount: Object.keys(attrs).length,
+            emptyMessage: 'Öznitelik yok',
+          })}
+        >
           {Object.entries(attrs).map(([k, v]) => (
-            <li
+            <ListItem
               key={k}
-              className="flex items-center justify-between px-3 py-2 text-sm text-neutral-300"
-            >
-              <span>
-                <span className="text-neutral-500">{k}</span> {v}
-              </span>
-              <ActionButton
-                icon={X}
-                label="Kaldır"
-                onClick={async () => {
-                  const next = { ...attrs };
-                  delete next[k];
-                  await identityApi.updateGroup(id, { attributes: next });
-                  await load();
-                }}
-              />
-            </li>
+              title={v}
+              subtitle={k}
+              trailing={
+                <ActionButton
+                  icon={X}
+                  label="Kaldır"
+                  onClick={async () => {
+                    const next = { ...attrs };
+                    delete next[k];
+                    await identityApi.updateGroup(id, { attributes: next });
+                    await load();
+                  }}
+                />
+              }
+            />
           ))}
-        </ul>
+        </ListPanel>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={async (e) => {

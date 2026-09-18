@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Select } from '@/components/chrome/Select';
 import { TextArea } from '@/components/chrome/TextArea';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -32,6 +33,7 @@ import {
 } from '@/lib/auth/groups';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 type SessionDraft = {
@@ -207,7 +209,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             />
           ) : null}
         </div>
-        <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            failed: Boolean(error),
+            rowCount: competitors.length,
+            emptyMessage: 'Yarışmacı yok',
+          })}
+        >
           {competitors.map((row) => (
             <ListItem
               key={row.id}
@@ -218,7 +227,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               }
             />
           ))}
-        </div>
+        </ListPanel>
       </div>
       {canTickets ? (
         <div className="space-y-3">
@@ -226,19 +235,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Biletler</h2>
             <ActionButton icon={QrCode} label="QR / check-in" href="/qr" />
           </div>
-          <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
-            {tickets.length === 0 ? (
-              <p className="px-3 py-2.5 text-sm text-neutral-500">Henüz başvuru yok.</p>
-            ) : (
-              tickets.map((row) => (
-                <ListItem
-                  key={row.id}
-                  title={ticketLabel(row)}
-                  subtitle={`${row.ticketType} · ${row.checkIns?.length ?? 0} check-in · ${row.id}`}
-                />
-              ))
-            )}
-          </div>
+          <ListPanel
+            status={listStatus({
+              loading: false,
+              failed: Boolean(error),
+              rowCount: tickets.length,
+              emptyMessage: 'Henüz başvuru yok.',
+            })}
+          >
+            {tickets.map((row) => (
+              <ListItem
+                key={row.id}
+                title={ticketLabel(row)}
+                subtitle={`${row.ticketType} · ${row.checkIns?.length ?? 0} check-in · ${row.id}`}
+              />
+            ))}
+          </ListPanel>
         </div>
       ) : null}
       <div className="flex items-center justify-between">
@@ -263,7 +275,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       </div>
       <div className="space-y-4">
         {days.length === 0 ? (
-          <p className="text-sm text-neutral-500">Henüz gün yok.</p>
+          <ListPanel
+            status={listStatus({
+              loading: false,
+              failed: Boolean(error),
+              rowCount: 0,
+              emptyMessage: 'Henüz gün yok.',
+            })}
+          />
         ) : (
           days.map((day) => (
             <div key={day.id} className="overflow-hidden rounded-lg border border-white/10">
@@ -289,7 +308,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   />
                 ) : null}
               </div>
-              <div className="divide-y divide-white/5 border-t border-white/5">
+              <div className="border-t border-white/5">
+                <ListPanel
+                  framed={false}
+                  status={listStatus({
+                    loading: false,
+                    failed: Boolean(error),
+                    rowCount: (sessionsByDay.get(day.id) ?? []).length,
+                    emptyMessage: 'Oturum yok',
+                  })}
+                >
                 {(sessionsByDay.get(day.id) ?? []).map((session) => (
                   <ListItem
                     key={session.id}
@@ -327,6 +355,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     }
                   />
                 ))}
+                </ListPanel>
               </div>
             </div>
           ))

@@ -1,7 +1,10 @@
 'use client';
 
+import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { PageHeader } from '@/components/layout/PageHeader';
 import type { UserCard } from '@/lib/api/identity';
+import { listStatus } from '@/lib/list-status';
 
 export function UserCardView({ card }: { card: UserCard }) {
   const name = `${card.firstName} ${card.lastName}`.trim();
@@ -14,46 +17,49 @@ export function UserCardView({ card }: { card: UserCard }) {
       {card.schoolEmail ? <p className="text-sm text-neutral-400">{card.schoolEmail}</p> : null}
       <section className="space-y-2">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Gruplar</h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            rowCount: card.groups.length,
+            emptyMessage: 'Grup yok',
+          })}
+        >
           {card.groups.map((g) => (
-            <li key={g.id} className="px-3 py-2 text-sm text-neutral-200">
-              {g.path}
-            </li>
+            <ListItem key={g.id} title={g.path} />
           ))}
-          {card.groups.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-neutral-600">Yok</li>
-          ) : null}
-        </ul>
+        </ListPanel>
       </section>
       <section className="space-y-2">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Miras client rolleri
         </h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            rowCount: card.inheritedRoles.length,
+            emptyMessage: 'Miras rol yok',
+          })}
+        >
           {card.inheritedRoles.map((r) => (
-            <li key={`${r.clientId}:${r.role}`} className="px-3 py-2 text-sm text-neutral-300">
-              <span className="text-neutral-500">{r.clientId}</span> {r.role}
-            </li>
+            <ListItem key={`${r.clientId}:${r.role}`} title={r.role} subtitle={r.clientId} />
           ))}
-          {card.inheritedRoles.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-neutral-600">Yok</li>
-          ) : null}
-        </ul>
+        </ListPanel>
       </section>
       <section className="space-y-2">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Ekstra client rolleri
         </h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            rowCount: card.extraRoles.length,
+            emptyMessage: 'Ekstra rol yok',
+          })}
+        >
           {card.extraRoles.map((r) => (
-            <li key={`${r.clientId}:${r.role}`} className="text-skylab-300 px-3 py-2 text-sm">
-              <span className="text-neutral-500">{r.clientId}</span> {r.role}
-            </li>
+            <ListItem key={`${r.clientId}:${r.role}`} title={r.role} subtitle={r.clientId} />
           ))}
-          {card.extraRoles.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-neutral-600">Yok</li>
-          ) : null}
-        </ul>
+        </ListPanel>
       </section>
     </div>
   );

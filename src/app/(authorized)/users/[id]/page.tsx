@@ -5,9 +5,12 @@ import { useParams } from 'next/navigation';
 import { X, LogOut } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
+import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { identityApi, type ClientRole, type UserCard } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { listStatus } from '@/lib/list-status';
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
@@ -49,26 +52,31 @@ export default function UserDetailPage() {
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
           Ekstra rol ekle / çıkar
         </h2>
-        <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
+        <ListPanel
+          status={listStatus({
+            loading: false,
+            rowCount: card.extraRoles.length,
+            emptyMessage: 'Ekstra rol yok',
+          })}
+        >
           {card.extraRoles.map((r) => (
-            <li
+            <ListItem
               key={`${r.clientId}:${r.role}`}
-              className="flex items-center justify-between px-3 py-2"
-            >
-              <span className="text-skylab-300 text-sm">
-                <span className="text-neutral-500">{r.clientId}</span> {r.role}
-              </span>
-              <ActionButton
-                icon={X}
-                label="Kaldır"
-                onClick={async () => {
-                  await identityApi.removeExtraRole(card.id, r);
-                  await load();
-                }}
-              />
-            </li>
+              title={r.role}
+              subtitle={r.clientId}
+              trailing={
+                <ActionButton
+                  icon={X}
+                  label="Kaldır"
+                  onClick={async () => {
+                    await identityApi.removeExtraRole(card.id, r);
+                    await load();
+                  }}
+                />
+              }
+            />
           ))}
-        </ul>
+        </ListPanel>
         <form
           className="flex flex-wrap gap-2"
           onSubmit={async (e) => {

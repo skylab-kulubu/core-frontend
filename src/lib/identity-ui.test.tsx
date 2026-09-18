@@ -138,6 +138,25 @@ describe('UserCardView', () => {
     expect(screen.getByText('ada@std.yildiz.edu.tr')).toBeInTheDocument();
   });
 
+  it('names empty groups and roles', () => {
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+      />,
+    );
+    expect(screen.getByText('Grup yok')).toBeInTheDocument();
+    expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
+  });
+
   it('shows sky number when present', () => {
     render(
       <UserCardView
