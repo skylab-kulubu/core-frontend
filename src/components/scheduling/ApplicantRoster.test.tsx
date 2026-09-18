@@ -80,4 +80,17 @@ describe('ApplicantRoster', () => {
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
   });
+
+  it('shows applicant counts in the list footer', () => {
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[guest, member]}
+        people={people}
+        event={{ id: 'e1' }}
+      />,
+    );
+    expect(screen.getByText('Başvuru')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
 });

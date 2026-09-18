@@ -4,6 +4,8 @@ import { Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { SectionHeading } from '@/components/chrome/PanelChart';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import type { ClientRole, UserCard } from '@/lib/api/identity';
 import { listStatus } from '@/lib/list-status';
@@ -23,18 +25,26 @@ export function UserCardView({
   const name = `${card.firstName} ${card.lastName}`.trim();
   return (
     <div className="space-y-6">
-      <PageHeader title={name || card.email} description={card.email} />
-      {card.skyNumber ? (
-        <p className="font-mono text-sm text-neutral-200">{card.skyNumber}</p>
-      ) : null}
-      {card.schoolEmail ? <p className="text-sm text-neutral-400">{card.schoolEmail}</p> : null}
+      <PageHeader
+        title={name || card.email}
+        description={card.email}
+        meta={
+          <>
+            {card.skyNumber ? <StatusChip kind="member" label={card.skyNumber} /> : null}
+            {card.schoolEmail ? <StatusChip kind="neutral" label={card.schoolEmail} /> : null}
+          </>
+        }
+      />
       <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Gruplar</h2>
-          {onAddGroup ? (
-            <ActionButton icon={Plus} variant="primary" label="Grup ekle" onClick={onAddGroup} />
-          ) : null}
-        </div>
+        <SectionHeading
+          title="Gruplar"
+          meta={`${card.groups.length} grup`}
+          actions={
+            onAddGroup ? (
+              <ActionButton icon={Plus} variant="primary" label="Grup ekle" onClick={onAddGroup} />
+            ) : null
+          }
+        />
         <ListPanel
           status={listStatus({
             loading: false,
@@ -48,9 +58,7 @@ export function UserCardView({
         </ListPanel>
       </section>
       <section className="space-y-2">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Gruptan gelen roller
-        </h2>
+        <SectionHeading title="Gruptan gelen roller" meta={`${card.inheritedRoles.length} rol`} />
         <ListPanel
           status={listStatus({
             loading: false,
@@ -64,14 +72,15 @@ export function UserCardView({
         </ListPanel>
       </section>
       <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-            Ekstra roller
-          </h2>
-          {onAddRole ? (
-            <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />
-          ) : null}
-        </div>
+        <SectionHeading
+          title="Ekstra roller"
+          meta={`${card.extraRoles.length} rol`}
+          actions={
+            onAddRole ? (
+              <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />
+            ) : null
+          }
+        />
         <ListPanel
           status={listStatus({
             loading: false,

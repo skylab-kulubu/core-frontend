@@ -113,3 +113,19 @@ export function undatedEvents<T extends DatedEvent>(events: readonly T[]): T[] {
     (event) => getInclusiveLocalCalendarDates(event.startDate, event.endDate).length === 0,
   );
 }
+
+export type EventPhaseFilter = 'all' | 'active' | 'upcoming' | 'past';
+
+export function filterEventsByPhase<T extends DatedEvent>(
+  events: readonly T[],
+  filter: EventPhaseFilter,
+  now = new Date(),
+): T[] {
+  if (filter === 'all') return [...events];
+  if (filter === 'active') return events.filter((event) => event.active !== false);
+  return events.filter((event) => {
+    const bucket = phase(event, now);
+    if (filter === 'upcoming') return bucket === 0;
+    return bucket === 2;
+  });
+}

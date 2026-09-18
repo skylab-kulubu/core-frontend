@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
+import { ShieldAlert, Trash2 } from 'lucide-react';
+import { StateCard } from '@/components/chrome/StateCard';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NewsForm } from '../../NewsForm';
@@ -33,11 +34,20 @@ export default function EditAnnouncementPage() {
   }, [privileged, slug]);
 
   if (!privileged) {
-    return <p className="text-sm text-red-300">Duyurular yalnızca YK ve kurul içindir.</p>;
+    return (
+      <StateCard
+        title="Duyurular yalnızca YK ve kurul içindir."
+        description="Bu ekran yayın yetkisi ister."
+        Icon={ShieldAlert}
+        tone="warning"
+      />
+    );
   }
 
-  if (error) return <p className="text-sm text-red-300">{error}</p>;
-  if (!item) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error) {
+    return <StateCard title={error} description="Duyuruya dönemiyor." tone="danger" />;
+  }
+  if (!item) return <StateCard title="Yükleniyor…" isLoading />;
 
   return (
     <div className="space-y-6">

@@ -1,19 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Pencil, QrCode, Trash2 } from 'lucide-react';
+import { Copy, Pencil, QrCode, ShieldAlert, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { Pagination } from '@/components/chrome/Pagination';
+import { HorizontalBars, SectionHeading } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { StateCard } from '@/components/chrome/StateCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { publicShortUrl, shortQrUrl, urlsApi, type ShortUrl } from '@/lib/api/urls';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
 
 export default function UrlsPage() {
@@ -60,6 +66,12 @@ export default function UrlsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title="Kısa URL" description="Bu ekran kısa link rolü ister." />
+        <StateCard
+          title="Kısa URL yetkin yok"
+          description="url:create veya moderasyon rolü gerekir."
+          Icon={ShieldAlert}
+          tone="warning"
+        />
       </div>
     );
   }
@@ -72,7 +84,7 @@ export default function UrlsPage() {
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <form
-          className="flex flex-wrap items-end gap-2"
+        className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!target.trim()) return;
@@ -103,16 +115,17 @@ export default function UrlsPage() {
         </label>
         <label className="block w-40 space-y-1">
           <FieldLabel>Kısa ad</FieldLabel>
-          <Field
-            value={alias}
-            onChange={(e) => setAlias(e.target.value)}
-            placeholder="opsiyonel"
-          />
+          <Field value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="opsiyonel" />
         </label>
         <SaveButton disabled={pending} className="self-end">
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
       </form>
+      <HorizontalBars
+        title="En çok tıklanan"
+        data={topClickUrls(all.length ? all : mine)}
+        empty="Tıklama verisi yok"
+      />
       <UrlList
         title="Linklerim"
         loading={loading}
@@ -197,11 +210,7 @@ export default function UrlsPage() {
             </label>
             <label className="block space-y-1">
               <FieldLabel>Kısa ad</FieldLabel>
-              <Field
-                value={editAlias}
-                onChange={(e) => setEditAlias(e.target.value)}
-                required
-              />
+              <Field value={editAlias} onChange={(e) => setEditAlias(e.target.value)} required />
             </label>
             <SaveButton>Kaydet</SaveButton>
           </form>
@@ -228,18 +237,38 @@ function UrlList({
   onQr: (row: ShortUrl) => void;
   onDelete: (row: ShortUrl) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const filtered = items.filter((row) =>
+    matchesQuery(query, row.alias, row.url, publicShortUrl(row.alias)),
+  );
+  const paged = paginateRows(filtered, page);
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-medium text-neutral-300">{title}</h2>
+      <SectionHeading title={title} meta={`${filtered.length} bağlantı`} />
+      <ListToolbar
+        query={query}
+        onQuery={(value) => {
+          setQuery(value);
+          setPage(1);
+        }}
+        placeholder="Kısa ad veya hedef"
+        searchLabel={`${title} ara`}
+      />
       <ListPanel
         status={listStatus({
           loading,
           failed,
-          rowCount: items.length,
-          emptyMessage: 'Henüz kısa URL yok.',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Henüz kısa URL yok.',
+            noneMatch: 'Eşleşen kısa URL yok.',
+            query,
+          }),
         })}
+        emptyDescription="Hedef adresi kısalt."
       >
-        {items.map((row) => {
+        {paged.slice.map((row) => {
           const short = publicShortUrl(row.alias);
           return (
             <ListItem
@@ -262,6 +291,7 @@ function UrlList({
           );
         })}
       </ListPanel>
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
     </section>
   );
 }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
@@ -80,7 +81,9 @@ export default function UserDetailPage() {
 
   const roleOptions = useMemo(() => {
     return catalog
-      .filter((role) => !heldRoles.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId))
+      .filter(
+        (role) => !heldRoles.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId),
+      )
       .map((role) => ({
         id: roleKey(role),
         title: role.role,
@@ -88,8 +91,10 @@ export default function UserDetailPage() {
       }));
   }, [catalog, heldRoles, roleQuery]);
 
-  if (error) return <p className="text-sm text-red-300">{error}</p>;
-  if (!card) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error) {
+    return <StateCard title={error} description="Kişi kartına dönemiyor." tone="danger" />;
+  }
+  if (!card) return <StateCard title="Yükleniyor…" isLoading />;
 
   return (
     <div className="space-y-6">

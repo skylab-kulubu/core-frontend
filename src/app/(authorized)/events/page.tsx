@@ -2,23 +2,30 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CalendarDays, List, Plus } from 'lucide-react';
+import { Inbox, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Field } from '@/components/chrome/Field';
+import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
+import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
-import { eventListSubtitle, sortEventsForList } from '@/lib/events-view';
+import {
+  eventListSubtitle,
+  filterEventsByPhase,
+  sortEventsForList,
+  type EventPhaseFilter,
+} from '@/lib/events-view';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { formHandoffFromSearch } from '@/lib/event-forms';
-
-const PAGE_SIZE = 10;
+import { activeStatus } from '@/lib/status-chip';
+import { SaveButton } from '@/components/chrome/SaveButton';
 
 function EventsPageContent() {
   const router = useRouter();
@@ -32,6 +39,7 @@ function EventsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
+  const [phase, setPhase] = useState<EventPhaseFilter>('all');
   const privileged = isPrivileged(groups);
   const leaderTeams = leaderOwnerTeams(groups);
   const canCreate = privileged || leaderTeams.some((team) => canWriteEvent(groups, team, 'create'));
@@ -71,21 +79,10 @@ function EventsPageContent() {
   }, [searchParams, router]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const rows = sortEventsForList(events);
-    if (!q) return rows;
-    return rows.filter(
-      (ev) =>
-        ev.name.toLowerCase().includes(q) ||
-        ev.ownerTeam.toLowerCase().includes(q) ||
-        ev.location.toLowerCase().includes(q),
-    );
-  }, [events, query]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+    const rows = filterEventsByPhase(sortEventsForList(events), phase);
+    return rows.filter((ev) => matchesQuery(query, ev.name, ev.ownerTeam, ev.location));
+  }, [events, query, phase]);
+  const paged = paginateRows(filtered, page);
 
   return (
     <div className="space-y-6">
@@ -96,34 +93,15 @@ function EventsPageContent() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <div className="inline-flex h-8 rounded-md border border-white/10 p-0.5">
-              <button
-                type="button"
-                aria-pressed={!calendar}
-                onClick={() => setView('list')}
-                className={`inline-flex h-7 items-center gap-1 rounded px-2 text-xs ${
-                  !calendar
-                    ? 'bg-skylab-500/20 text-skylab-200'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <List className="h-3.5 w-3.5" />
-                Liste
-              </button>
-              <button
-                type="button"
-                aria-pressed={calendar}
-                onClick={() => setView('calendar')}
-                className={`inline-flex h-7 items-center gap-1 rounded px-2 text-xs ${
-                  calendar
-                    ? 'bg-skylab-500/20 text-skylab-200'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
-              >
-                <CalendarDays className="h-3.5 w-3.5" />
-                Takvim
-              </button>
-            </div>
+            <FilterPills
+              ariaLabel="Görünüm"
+              value={calendar ? 'calendar' : 'list'}
+              onChange={(next) => setView(next === 'calendar' ? 'calendar' : 'list')}
+              options={[
+                { value: 'list', label: 'Liste' },
+                { value: 'calendar', label: 'Takvim' },
+              ]}
+            />
             {canCreate ? (
               <ActionButton
                 icon={Plus}
@@ -136,14 +114,30 @@ function EventsPageContent() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <Field
-        placeholder="Ara"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
+      <ListToolbar
+        query={query}
+        onQuery={(value) => {
+          setQuery(value);
           setPage(1);
         }}
-      />
+        placeholder="Ad, ekip, konum"
+        searchLabel="Etkinlik ara"
+      >
+        <FilterPills
+          ariaLabel="Etkinlik dilimi"
+          value={phase}
+          onChange={(value) => {
+            setPhase(value);
+            setPage(1);
+          }}
+          options={[
+            { value: 'all', label: 'Tümü' },
+            { value: 'upcoming', label: 'Yaklaşan' },
+            { value: 'active', label: 'Aktif' },
+            { value: 'past', label: 'Geçmiş' },
+          ]}
+        />
+      </ListToolbar>
       {calendar ? (
         loading ? (
           <p className="text-sm text-neutral-500">Yükleniyor…</p>
@@ -157,19 +151,37 @@ function EventsPageContent() {
               loading,
               failed: Boolean(error),
               rowCount: filtered.length,
-              emptyMessage: 'Etkinlik yok',
+              emptyMessage: emptyListCopy({
+                none: 'Etkinlik yok',
+                noneMatch: 'Eşleşen etkinlik yok',
+                query,
+                filtered: phase !== 'all',
+              }),
             })}
+            emptyIcon={Inbox}
+            emptyDescription={
+              canCreate ? 'Yeni etkinlik ekle veya filtreyi temizle.' : 'Bu dilimde etkinlik yok.'
+            }
+            emptyAction={
+              canCreate && !query && phase === 'all' ? (
+                <SaveButton type="button" onClick={() => router.push('/events/new')}>
+                  Etkinlik ekle
+                </SaveButton>
+              ) : null
+            }
           >
-            {slice.map((ev) => (
+            {paged.slice.map((ev) => (
               <ListItem
                 key={ev.id}
                 href={`/events/${ev.id}`}
                 title={ev.name}
                 subtitle={eventListSubtitle(ev)}
+                leading={<StatusDot kind={activeStatus(ev.active)} />}
+                trailing={<StatusChip kind={activeStatus(ev.active)} />}
               />
             ))}
           </ListPanel>
-          <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+          <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
         </>
       )}
     </div>

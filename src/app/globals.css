@@ -163,6 +163,26 @@ body {
   a[href] {
     cursor: pointer;
   }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(255 255 255 / 4%) 0%,
+      rgb(255 255 255 / 10%) 50%,
+      rgb(255 255 255 / 4%) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
   summary {
     cursor: pointer;
   }

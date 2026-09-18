@@ -8,9 +8,11 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { Pagination } from '@/components/chrome/Pagination';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { Switch } from '@/components/chrome/Switch';
 import { PersonPick, personLabel } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -20,9 +22,8 @@ import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { canManageCompetitors, isPrivileged } from '@/lib/auth/groups';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
-
-const PAGE_SIZE = 10;
 
 export default function CompetitorsPage() {
   const { user } = useAuth();
@@ -34,6 +35,8 @@ export default function CompetitorsPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [winnerOnly, setWinnerOnly] = useState<'all' | 'winner'>('all');
   const [userId, setUserId] = useState('');
   const [eventId, setEventId] = useState('');
   const [score, setScore] = useState('');
@@ -65,11 +68,24 @@ export default function CompetitorsPage() {
     void load();
   }, [user?.id]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
-  }, [rows, page]);
+  const filtered = useMemo(() => {
+    return rows.filter((row) => {
+      if (winnerOnly === 'winner' && !row.isWinner) return false;
+      const person = personById.get(row.userId);
+      const event = eventById.get(row.eventId);
+      return matchesQuery(
+        query,
+        person ? personLabel(person) : row.userId,
+        event?.name,
+        row.eventId,
+      );
+    });
+  }, [rows, query, winnerOnly, personById, eventById]);
+  const paged = paginateRows(filtered, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, winnerOnly]);
 
   return (
     <div className="space-y-6">
@@ -88,15 +104,37 @@ export default function CompetitorsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Kişi veya etkinlik"
+        searchLabel="Yarışmacı ara"
+      >
+        <FilterPills
+          ariaLabel="Kazanan dilimi"
+          value={winnerOnly}
+          onChange={setWinnerOnly}
+          options={[
+            { value: 'all', label: 'Tümü' },
+            { value: 'winner', label: 'Kazanan' },
+          ]}
+        />
+      </ListToolbar>
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: rows.length,
-          emptyMessage: 'Yarışmacı yok',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Yarışmacı yok',
+            noneMatch: 'Eşleşen yarışmacı yok',
+            query,
+            filtered: winnerOnly !== 'all',
+          }),
         })}
+        emptyDescription="Etkinliğe kişi bağla."
       >
-        {slice.map((row) => {
+        {paged.slice.map((row) => {
           const person = personById.get(row.userId);
           const event = eventById.get(row.eventId);
           const name = person ? personLabel(person) : row.userId;
@@ -105,12 +143,13 @@ export default function CompetitorsPage() {
               key={row.id}
               href={`/competitors/${row.id}/edit`}
               title={name}
-              subtitle={`${event?.name ?? row.eventId}${row.isWinner ? ' · kazanan' : ''}`}
+              subtitle={`${event?.name ?? row.eventId}${row.score !== undefined ? ` · ${row.score}` : ''}`}
+              trailing={row.isWinner ? <StatusChip kind="winner" /> : undefined}
             />
           );
         })}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       <Drawer open={creating} onClose={() => setCreating(false)} title="Yarışmacı ekle">
         <form
           className="space-y-3"

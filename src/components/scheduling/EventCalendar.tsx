@@ -4,10 +4,13 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
+import { SectionHeading } from '@/components/chrome/PanelChart';
 import type { CoreEvent } from '@/lib/api/events';
 import { monthGrid, monthTitle, pad2, shiftMonth, weekdayLabels } from '@/lib/date-picker';
 import { eventListSubtitle, eventsByDateKey, localDateKey, undatedEvents } from '@/lib/events-view';
 import { listStatus } from '@/lib/list-status';
+import { activeStatus } from '@/lib/status-chip';
 
 const CHIP_MAX = 3;
 
@@ -114,15 +117,17 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
         </div>
       </div>
       <div className="space-y-2">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          {selected
-            ? new Intl.DateTimeFormat('tr-TR', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-              }).format(new Date(`${selected}T12:00:00`))
-            : 'Gün seç'}
-        </h2>
+        <SectionHeading
+          title={
+            selected
+              ? new Intl.DateTimeFormat('tr-TR', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                }).format(new Date(`${selected}T12:00:00`))
+              : 'Gün seç'
+          }
+        />
         <ListPanel
           status={listStatus({
             loading: false,
@@ -136,13 +141,15 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
               href={`/events/${event.id}`}
               title={event.name}
               subtitle={eventListSubtitle(event)}
+              leading={<StatusDot kind={activeStatus(event.active)} />}
+              trailing={<StatusChip kind={activeStatus(event.active)} />}
             />
           ))}
         </ListPanel>
       </div>
       {undated.length ? (
         <div className="space-y-2">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Tarihsiz</h2>
+          <SectionHeading title="Tarihsiz" />
           <ListPanel
             status={listStatus({
               loading: false,
@@ -156,6 +163,8 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                 href={`/events/${event.id}`}
                 title={event.name}
                 subtitle={eventListSubtitle(event)}
+                leading={<StatusDot kind={activeStatus(event.active)} />}
+                trailing={<StatusChip kind={activeStatus(event.active)} />}
               />
             ))}
           </ListPanel>

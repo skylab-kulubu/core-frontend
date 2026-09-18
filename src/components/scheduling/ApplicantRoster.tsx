@@ -5,13 +5,17 @@ import Link from 'next/link';
 import { ChevronRight, Mail, QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
-import { Field } from '@/components/chrome/Field';
+import { ListFooterMeta, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { Select } from '@/components/chrome/Select';
+import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
+import { emptyListCopy } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
+import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
 import {
   filterApplicantRoster,
   ticketMailRecipients,
@@ -67,7 +71,9 @@ export function ApplicantRoster({
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const slice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  const filteredEmpty = query.trim() || ticketType !== 'all' || status !== 'all';
+  const filteredEmpty = Boolean(query.trim()) || ticketType !== 'all' || status !== 'all';
+  const mix = ticketMix(filtered);
+  const checkIns = ticketCheckInMix(filtered);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -85,19 +91,15 @@ export function ApplicantRoster({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-[180px] flex-1">
-          <Field
-            type="search"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Ad, e-posta, form"
-            aria-label="Başvuran ara"
-          />
-        </div>
+      <ListToolbar
+        query={query}
+        onQuery={(value) => {
+          setQuery(value);
+          setPage(1);
+        }}
+        placeholder="Ad, e-posta, form"
+        searchLabel="Başvuran ara"
+      >
         <Select
           aria-label="Bilet türü"
           className="w-32 shrink-0"
@@ -133,14 +135,24 @@ export function ApplicantRoster({
           />
         ) : null}
         <ActionButton icon={QrCode} label="Kapı" href={doorHref} />
-      </div>
+      </ListToolbar>
       <ListPanel
         status={listStatus({
           loading,
           failed,
           rowCount: filtered.length,
-          emptyMessage: filteredEmpty ? 'Eşleşen başvuru yok.' : 'Henüz başvuru yok.',
+          emptyMessage: emptyListCopy({
+            none: 'Henüz başvuru yok.',
+            noneMatch: 'Eşleşen başvuru yok.',
+            query,
+            filtered: filteredEmpty,
+          }),
         })}
+        emptyDescription={
+          filteredEmpty
+            ? 'Arama veya filtreyi temizle.'
+            : 'Form veya üye kaydı gelince burada durur.'
+        }
       >
         <div
           className={`sticky top-0 z-10 border-b border-white/10 bg-neutral-900 px-3 pb-2 ${ROW_GRID}`}
@@ -156,11 +168,8 @@ export function ApplicantRoster({
         {slice.map((ticket) => {
           const row = ticketRosterRow(ticket, people, event);
           const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
-          const statusTone = row.status === 'checked-in' ? 'text-emerald-300' : 'text-neutral-400';
-          const dot =
-            row.status === 'checked-in'
-              ? 'bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/40'
-              : 'bg-amber-400 shadow-[0_0_6px] shadow-amber-400/40';
+          const typeKind = ticketTypeStatus(row.ticketType);
+          const statusKind = ticketCheckInStatus(row.status === 'checked-in');
           return (
             <div key={ticket.id} className="group/row relative transition-colors hover:bg-white/3">
               <Link
@@ -178,10 +187,7 @@ export function ApplicantRoster({
                   onChange={() => toggle(ticket.id)}
                 />
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    title={row.statusLabel}
-                    className={`size-1.5 shrink-0 rounded-full ${dot}`}
-                  />
+                  <StatusDot kind={statusKind} title={row.statusLabel} />
                   <Avatar name={row.name} email={row.email} size="md" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-neutral-200 transition-colors group-hover/row:text-neutral-50">
@@ -190,8 +196,8 @@ export function ApplicantRoster({
                     <p className="text-3xs mt-0.5 truncate text-neutral-500">{row.email || '—'}</p>
                   </div>
                 </div>
-                <span className="text-2xs hidden truncate text-center text-neutral-300 sm:block">
-                  {row.ticketTypeLabel}
+                <span className="hidden justify-center sm:flex">
+                  <StatusChip kind={typeKind} />
                 </span>
                 <span className="text-2xs hidden min-w-0 truncate text-neutral-400 md:block">
                   {row.sourceFormLabel}
@@ -199,8 +205,8 @@ export function ApplicantRoster({
                 <span className="text-2xs hidden text-center text-neutral-500 tabular-nums lg:block">
                   {row.createdAtLabel}
                 </span>
-                <span className={`text-2xs hidden text-center font-medium lg:block ${statusTone}`}>
-                  {row.statusLabel}
+                <span className="hidden justify-center lg:flex">
+                  <StatusChip kind={statusKind} />
                 </span>
                 <div className="flex justify-end">
                   <Link
@@ -216,7 +222,17 @@ export function ApplicantRoster({
           );
         })}
       </ListPanel>
-      <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ListFooterMeta
+          items={[
+            { label: 'Başvuru', value: filtered.length },
+            { label: 'Giriş', value: checkIns[0]?.count ?? 0 },
+            { label: 'Misafir', value: mix[0]?.count ?? 0 },
+            { label: 'Üye', value: mix[1]?.count ?? 0 },
+          ]}
+        />
+        <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
+      </div>
     </div>
   );
 }

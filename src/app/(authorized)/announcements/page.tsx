@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
+import { StatusChip } from '@/components/chrome/StatusChip';
+import { StateCard } from '@/components/chrome/StateCard';
+import { Plus, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -11,9 +14,8 @@ import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, type NewsItem } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
-
-const PAGE_SIZE = 10;
 
 export default function AnnouncementsPage() {
   const { user } = useAuth();
@@ -22,6 +24,8 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [featuredOnly, setFeaturedOnly] = useState<'all' | 'featured'>('all');
 
   useEffect(() => {
     if (!privileged) {
@@ -38,14 +42,27 @@ export default function AnnouncementsPage() {
       .finally(() => setLoading(false));
   }, [privileged]);
 
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return items.slice(start, start + PAGE_SIZE);
-  }, [items, page]);
+  const filtered = useMemo(() => {
+    return items.filter((item) => {
+      if (featuredOnly === 'featured' && !item.data?.featured) return false;
+      return matchesQuery(query, item.data?.title, item.data?.summary, item.slug);
+    });
+  }, [items, query, featuredOnly]);
+  const paged = paginateRows(filtered, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, featuredOnly]);
 
   if (!privileged) {
-    return <p className="text-sm text-red-300">Duyurular yalnızca YK ve kurul içindir.</p>;
+    return (
+      <StateCard
+        title="Duyurular yalnızca YK ve kurul içindir."
+        description="Bu ekran yayın yetkisi ister."
+        Icon={ShieldAlert}
+        tone="warning"
+      />
+    );
   }
 
   return (
@@ -63,24 +80,47 @@ export default function AnnouncementsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Başlık veya özet"
+        searchLabel="Duyuru ara"
+      >
+        <FilterPills
+          ariaLabel="Duyuru dilimi"
+          value={featuredOnly}
+          onChange={setFeaturedOnly}
+          options={[
+            { value: 'all', label: 'Tümü' },
+            { value: 'featured', label: 'Öne çıkan' },
+          ]}
+        />
+      </ListToolbar>
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: items.length,
-          emptyMessage: 'Duyuru yok',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Duyuru yok',
+            noneMatch: 'Eşleşen duyuru yok',
+            query,
+            filtered: featuredOnly !== 'all',
+          }),
         })}
+        emptyDescription="Yeni duyuru yaz veya filtreyi temizle."
       >
-        {slice.map((item) => (
+        {paged.slice.map((item) => (
           <ListItem
             key={item.slug}
             href={`/announcements/${encodeURIComponent(item.slug)}/edit`}
             title={item.data?.title || item.slug}
             subtitle={item.data?.summary || item.slug}
+            trailing={item.data?.featured ? <StatusChip kind="featured" /> : undefined}
           />
         ))}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
     </div>
   );
 }
