@@ -5,11 +5,13 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, type NewsItem } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { listStatus } from '@/lib/list-status';
 
 const PAGE_SIZE = 10;
 
@@ -17,18 +19,23 @@ export default function AnnouncementsPage() {
   const { user } = useAuth();
   const privileged = isPrivileged(user?.groups ?? []);
   const [items, setItems] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    if (!privileged) return;
+    if (!privileged) {
+      setLoading(false);
+      return;
+    }
     newsApi
       .list({ limit: 100 })
       .then((result) => {
         setItems((result.items ?? []).filter((item) => Boolean(item.slug)));
         setError(null);
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'));
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'))
+      .finally(() => setLoading(false));
   }, [privileged]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -56,7 +63,14 @@ export default function AnnouncementsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: items.length,
+          emptyMessage: 'Duyuru yok',
+        })}
+      >
         {slice.map((item) => (
           <ListItem
             key={item.slug}
@@ -65,7 +79,7 @@ export default function AnnouncementsPage() {
             subtitle={item.data?.summary || item.slug}
           />
         ))}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );

@@ -8,14 +8,17 @@ import { Avatar } from '@/components/chrome/Avatar';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { listStatus } from '@/lib/list-status';
 
 const PAGE_SIZE = 10;
 
 export default function UsersPage() {
   const [users, setUsers] = useState<Person[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
@@ -30,6 +33,8 @@ export default function UsersPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Kullanıcılar yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -75,7 +80,14 @@ export default function UsersPage() {
         placeholder="Ad, e-posta, okul maili"
         aria-label="Kullanıcı ara"
       />
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: users.length,
+          emptyMessage: 'Kullanıcı yok',
+        })}
+      >
         {slice.map((u) => {
           const name = `${u.firstName} ${u.lastName}`.trim();
           return (
@@ -88,7 +100,7 @@ export default function UsersPage() {
             />
           );
         })}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
       <Drawer open={creating} onClose={() => setCreating(false)} title="Kullanıcı ekle">
         <form

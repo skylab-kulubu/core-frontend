@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { Field } from '@/components/chrome/Field';
 import { identityApi, type Group } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { listStatus } from '@/lib/list-status';
 
 const PAGE_SIZE = 10;
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [name, setName] = useState('');
@@ -21,7 +24,8 @@ export default function GroupsPage() {
     identityApi
       .listGroups()
       .then(setGroups)
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Gruplar yüklenemedi'));
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Gruplar yüklenemedi'))
+      .finally(() => setLoading(false));
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
@@ -77,7 +81,14 @@ export default function GroupsPage() {
           Oluştur
         </button>
       </form>
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: groups.length,
+          emptyMessage: 'Grup yok',
+        })}
+      >
         {slice.map((g) => (
           <ListItem
             key={g.id}
@@ -86,7 +97,7 @@ export default function GroupsPage() {
             subtitle={g.path}
           />
         ))}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
