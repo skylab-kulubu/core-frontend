@@ -3,6 +3,8 @@
 import { use, useEffect, useMemo, useState } from 'react';
 import { QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
+import { StateCard } from '@/components/chrome/StateCard';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
@@ -12,7 +14,8 @@ import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import type { EventSession } from '@/lib/api/sessions';
-import { canListEventTickets, ticketApplicantName } from '@/lib/tickets-ui';
+import { canListEventTickets, ticketApplicantName, ticketStatus } from '@/lib/tickets-ui';
+import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
 
 export default function TicketDetailPage({
   params,
@@ -66,14 +69,24 @@ export default function TicketDetailPage({
 
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
 
-  if (error && !ticket) return <p className="text-sm text-red-300">{error}</p>;
-  if (!event || !ticket) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error && !ticket) {
+    return <StateCard title={error} description="Başvuru kaydına dönemiyor." tone="danger" />;
+  }
+  if (!event || !ticket) return <StateCard title="Yükleniyor…" isLoading />;
+
+  const status = ticketStatus(ticket);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={ticketApplicantName(ticket, personById)}
         description={event.name}
+        meta={
+          <>
+            <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
+            <StatusChip kind={ticketCheckInStatus(status.key === 'checked-in')} />
+          </>
+        }
         actions={<ActionButton icon={QrCode} label="Kapı" href="/qr" />}
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}

@@ -1,20 +1,34 @@
 'use client';
 
+import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { StateCard } from '@/components/chrome/StateCard';
 import type { ListStatus } from '@/lib/list-status';
 
 type ListPanelProps = {
   status: ListStatus;
   children?: ReactNode;
   framed?: boolean;
+  emptyIcon?: LucideIcon;
+  emptyDescription?: string;
+  emptyAction?: ReactNode;
 };
 
-export function ListPanel({ status, children, framed = true }: ListPanelProps) {
+export function ListPanel({
+  status,
+  children,
+  framed = true,
+  emptyIcon,
+  emptyDescription,
+  emptyAction,
+}: ListPanelProps) {
   const body =
     status.kind === 'loading' ? (
-      <p className="px-3 py-2.5 text-sm text-neutral-500">Yükleniyor…</p>
+      <StateCard title="Yükleniyor…" isLoading />
     ) : status.kind === 'empty' ? (
-      <p className="px-3 py-2.5 text-sm text-neutral-500">{status.message}</p>
+      <StateCard title={status.message} description={emptyDescription} Icon={emptyIcon}>
+        {emptyAction}
+      </StateCard>
     ) : (
       children
     );

@@ -9,15 +9,15 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { identityApi, type Group } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
-
-const PAGE_SIZE = 10;
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -43,11 +43,7 @@ export default function GroupsPage() {
     () => groups.filter((g) => pickerMatch(query, g.name, g.path)),
     [groups, query],
   );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+  const paged = paginateRows(filtered, page);
   const parent = groups.find((g) => g.id === parentId);
 
   useEffect(() => {
@@ -69,22 +65,26 @@ export default function GroupsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <Field
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
         placeholder="Ad veya yol"
-        aria-label="Grup ara"
+        searchLabel="Grup ara"
       />
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
           rowCount: filtered.length,
-          emptyMessage: 'Grup yok',
+          emptyMessage: emptyListCopy({
+            none: 'Grup yok',
+            noneMatch: 'Eşleşen grup yok',
+            query,
+          }),
         })}
+        emptyDescription="Yeni grup ekle veya aramayı temizle."
       >
-        {slice.map((g) => (
+        {paged.slice.map((g) => (
           <ListItem
             key={g.id}
             href={`/groups/${encodeURIComponent(g.id)}`}
@@ -93,12 +93,8 @@ export default function GroupsPage() {
           />
         ))}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
-      <Drawer
-        open={creating}
-        onClose={() => setCreating(false)}
-        title="Grup ekle"
-      >
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
+      <Drawer open={creating} onClose={() => setCreating(false)} title="Grup ekle">
         <form
           className="space-y-3"
           onSubmit={async (e) => {

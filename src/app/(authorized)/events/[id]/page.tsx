@@ -9,7 +9,9 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { MixChart, SectionHeading } from '@/components/chrome/PanelChart';
 import { Select } from '@/components/chrome/Select';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { TextArea } from '@/components/chrome/TextArea';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
@@ -51,7 +53,9 @@ import { openEventMail } from '@/lib/event-mail';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { publicShortUrl } from '@/lib/api/urls';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { StateCard } from '@/components/chrome/StateCard';
 import { listStatus } from '@/lib/list-status';
+import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
 
 type SessionDraft = {
@@ -197,8 +201,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     (user?.id && tickets.some((row) => row.ownerId === user.id)) || applyNote,
   );
 
-  if (error && !event) return <p className="text-sm text-red-300">{error}</p>;
-  if (!event) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error && !event) {
+    return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
+  }
+  if (!event) return <StateCard title="Yükleniyor…" isLoading />;
 
   const current = event;
   async function mailApplicants() {
@@ -219,6 +225,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         title={event.name}
         description={eventListSubtitle(event)}
+        meta={
+          <>
+            <StatusChip kind={event.active ? 'active' : 'passive'} />
+            {canTickets ? <StatusChip kind="neutral" label={`${tickets.length} başvuru`} /> : null}
+          </>
+        }
         actions={
           <>
             {canMutate ? (
@@ -310,17 +322,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       ) : null}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Yarışmacılar</h2>
-          {canCompetitors ? (
-            <ActionButton
-              icon={Trophy}
-              variant="primary"
-              label="Yarışmacı ekle"
-              href={`/competitors/new?eventId=${encodeURIComponent(event.id)}`}
-            />
-          ) : null}
-        </div>
+        <SectionHeading
+          title="Yarışmacılar"
+          meta={`${competitors.length} kişi`}
+          actions={
+            canCompetitors ? (
+              <ActionButton
+                icon={Trophy}
+                variant="primary"
+                label="Yarışmacı ekle"
+                href={`/competitors/new?eventId=${encodeURIComponent(event.id)}`}
+              />
+            ) : null
+          }
+        />
         <ListPanel
           status={listStatus({
             loading: false,
@@ -328,6 +343,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             rowCount: competitors.length,
             emptyMessage: 'Yarışmacı yok',
           })}
+          emptyDescription="Puan ve kazananı burada işaretle."
         >
           {competitors.map((row) => {
             const person = personById.get(row.userId);
@@ -336,9 +352,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 key={row.id}
                 href={`/competitors/${row.id}/edit?eventId=${encodeURIComponent(event.id)}`}
                 title={person ? personLabel(person) : row.userId}
-                subtitle={
-                  row.isWinner ? 'kazanan' : row.score !== undefined ? String(row.score) : '—'
-                }
+                subtitle={row.score !== undefined ? String(row.score) : '—'}
+                trailing={row.isWinner ? <StatusChip kind="winner" /> : undefined}
               />
             );
           })}
@@ -346,7 +361,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       </div>
       {canTickets ? (
         <div className="space-y-3">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Başvuranlar</h2>
+          <SectionHeading title="Başvuranlar" meta={`${tickets.length} kayıt`} />
+          {tickets.length > 0 ? (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <MixChart title="Misafir / üye" data={ticketMix(tickets)} empty="Başvuru yok" />
+              <MixChart
+                title="Kapı durumu"
+                data={ticketCheckInMix(tickets)}
+                empty="Kapı kaydı yok"
+              />
+            </div>
+          ) : null}
           <ApplicantRoster
             eventId={event.id}
             tickets={tickets}
@@ -356,30 +381,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           />
         </div>
       ) : null}
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Günler ve oturumlar
-        </h2>
-        {canMutate ? (
-          <div className="flex gap-2">
-            <ActionButton icon={Plus} label="Gün ekle" onClick={() => setDayOpen(true)} />
-            <ActionButton
-              icon={Plus}
-              variant="primary"
-              label="Oturum ekle"
-              onClick={() => {
-                if (days.length === 0) {
-                  setDayOpen(true);
-                  return;
-                }
-                setEditingSessionId(null);
-                setSessionDraft(emptySession(days[0]?.id ?? ''));
-                setSessionOpen(true);
-              }}
-            />
-          </div>
-        ) : null}
-      </div>
+      <SectionHeading
+        title="Günler ve oturumlar"
+        actions={
+          canMutate ? (
+            <div className="flex gap-2">
+              <ActionButton icon={Plus} label="Gün ekle" onClick={() => setDayOpen(true)} />
+              <ActionButton
+                icon={Plus}
+                variant="primary"
+                label="Oturum ekle"
+                onClick={() => {
+                  if (days.length === 0) {
+                    setDayOpen(true);
+                    return;
+                  }
+                  setEditingSessionId(null);
+                  setSessionDraft(emptySession(days[0]?.id ?? ''));
+                  setSessionOpen(true);
+                }}
+              />
+            </div>
+          ) : null
+        }
+      />
       <div className="space-y-4">
         {days.length === 0 ? (
           <ListPanel
@@ -429,9 +454,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     <ListItem
                       key={session.id}
                       title={session.title}
-                      subtitle={`${session.speakerName} · ${session.sessionType}`}
+                      subtitle={`${session.speakerName} · ${sessionTypeLabel(session.sessionType)}`}
                       trailing={
                         <div className="flex items-center gap-1">
+                          <StatusChip
+                            kind="neutral"
+                            label={sessionTypeLabel(session.sessionType)}
+                          />
                           <ActionButton
                             icon={QrCode}
                             label="Oturum QR"

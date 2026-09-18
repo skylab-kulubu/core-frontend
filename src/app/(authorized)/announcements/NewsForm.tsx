@@ -83,11 +83,7 @@ export function NewsForm({ initial, submitLabel, pending, onSubmit }: NewsFormPr
       </label>
       <label className="block space-y-1">
         <FieldLabel>Etiketler</FieldLabel>
-        <Field
-          placeholder="virgülle ayır"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-        />
+        <Field placeholder="virgülle ayır" value={tags} onChange={(e) => setTags(e.target.value)} />
       </label>
       <label className="block space-y-1">
         <FieldLabel>Yazar</FieldLabel>

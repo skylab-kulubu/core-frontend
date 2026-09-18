@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -9,14 +9,15 @@ import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
-
-const PAGE_SIZE = 10;
 
 export default function UsersPage() {
   const [users, setUsers] = useState<Person[]>([]);
@@ -54,11 +55,7 @@ export default function UsersPage() {
     setPage(1);
   }, [query]);
 
-  const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return users.slice(start, start + PAGE_SIZE);
-  }, [users, page]);
+  const paged = paginateRows(users, page);
 
   return (
     <div className="space-y-6">
@@ -75,22 +72,26 @@ export default function UsersPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <Field
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
         placeholder="Ad, e-posta, okul maili"
-        aria-label="Kullanıcı ara"
+        searchLabel="Kullanıcı ara"
       />
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
           rowCount: users.length,
-          emptyMessage: 'Kullanıcı yok',
+          emptyMessage: emptyListCopy({
+            none: 'Kullanıcı yok',
+            noneMatch: 'Eşleşen kullanıcı yok',
+            query,
+          }),
         })}
+        emptyDescription="Üye ekle veya aramayı temizle."
       >
-        {slice.map((u) => {
+        {paged.slice.map((u) => {
           const name = `${u.firstName} ${u.lastName}`.trim();
           return (
             <ListItem
@@ -99,11 +100,12 @@ export default function UsersPage() {
               title={name || u.email}
               subtitle={u.skyNumber || u.schoolEmail || u.email}
               leading={<Avatar name={name} email={u.email} />}
+              trailing={u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined}
             />
           );
         })}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       <Drawer open={creating} onClose={() => setCreating(false)} title="Kullanıcı ekle">
         <form
           className="space-y-3"
@@ -131,12 +133,7 @@ export default function UsersPage() {
           </label>
           <label className="block space-y-1">
             <FieldLabel>E-posta</FieldLabel>
-            <Field
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <Field type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </label>
           <SaveButton>Kaydet</SaveButton>
         </form>

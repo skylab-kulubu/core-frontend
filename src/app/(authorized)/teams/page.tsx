@@ -3,19 +3,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Pagination } from '@/components/chrome/Pagination';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { teamsApi, type PublicTeam } from '@/lib/api/teams';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
-
-const PAGE_SIZE = 10;
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<PublicTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     teamsApi
@@ -25,11 +27,15 @@ export default function TeamsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(teams.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return teams.slice(start, start + PAGE_SIZE);
-  }, [teams, page]);
+  const filtered = useMemo(
+    () => teams.filter((team) => matchesQuery(query, team.displayName?.tr, team.team, team.path)),
+    [teams, query],
+  );
+  const paged = paginateRows(filtered, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   return (
     <div className="space-y-6">
@@ -38,24 +44,36 @@ export default function TeamsPage() {
         description="Sitede görünen ekipler. Etkinlikler bu ekibe bağlanır."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Ad veya yol"
+        searchLabel="Ekip ara"
+      />
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: teams.length,
-          emptyMessage: 'Ekip yok',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Ekip yok',
+            noneMatch: 'Eşleşen ekip yok',
+            query,
+          }),
         })}
+        emptyDescription="Site ekipleri burada listelenir."
       >
-        {slice.map((team) => (
+        {paged.slice.map((team) => (
           <ListItem
             key={team.path}
             href={`/events?ownerTeam=${encodeURIComponent(team.team)}`}
             title={team.displayName?.tr || team.team}
             subtitle={team.path}
+            trailing={<StatusChip kind="neutral" label={team.team} />}
           />
         ))}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
     </div>
   );
 }

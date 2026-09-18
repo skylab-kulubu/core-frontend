@@ -9,7 +9,9 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { Switch } from '@/components/chrome/Switch';
+import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -19,10 +21,11 @@ import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
+import { formatEventWhen } from '@/lib/events-view';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { activeStatus } from '@/lib/status-chip';
 import { useAuth } from '@/context/AuthContext';
-
-const PAGE_SIZE = 10;
 
 const emptySeason = (): SeasonBody & { startLocal: string; endLocal: string } => ({
   name: '',
@@ -39,6 +42,8 @@ export default function SeasonsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [activeOnly, setActiveOnly] = useState<'all' | 'active' | 'passive'>('all');
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptySeason());
@@ -61,11 +66,18 @@ export default function SeasonsPage() {
     void load();
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(seasons.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return seasons.slice(start, start + PAGE_SIZE);
-  }, [seasons, page]);
+  const filtered = useMemo(() => {
+    return seasons.filter((season) => {
+      if (activeOnly === 'active' && !season.active) return false;
+      if (activeOnly === 'passive' && season.active) return false;
+      return matchesQuery(query, season.name);
+    });
+  }, [seasons, query, activeOnly]);
+  const paged = paginateRows(filtered, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, activeOnly]);
 
   return (
     <div className="space-y-6">
@@ -89,42 +101,68 @@ export default function SeasonsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <ListToolbar query={query} onQuery={setQuery} placeholder="Sezon adı" searchLabel="Sezon ara">
+        <FilterPills
+          ariaLabel="Sezon durumu"
+          value={activeOnly}
+          onChange={setActiveOnly}
+          options={[
+            { value: 'all', label: 'Tümü' },
+            { value: 'active', label: 'Aktif' },
+            { value: 'passive', label: 'Pasif' },
+          ]}
+        />
+      </ListToolbar>
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: seasons.length,
-          emptyMessage: 'Sezon yok',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Sezon yok',
+            noneMatch: 'Eşleşen sezon yok',
+            query,
+            filtered: activeOnly !== 'all',
+          }),
         })}
+        emptyDescription="Dönem ekle veya filtreyi temizle."
       >
-        {slice.map((season) => (
+        {paged.slice.map((season) => (
           <ListItem
             key={season.id}
             title={season.name}
-            subtitle={season.active ? 'Aktif' : 'Pasif'}
+            subtitle={formatEventWhen({
+              id: season.id,
+              name: season.name,
+              startDate: season.startDate,
+              endDate: season.endDate,
+            })}
             trailing={
-              canWrite ? (
-                <ActionButton
-                  icon={Pencil}
-                  label="Düzenle"
-                  onClick={() => {
-                    setEditingId(season.id);
-                    setForm({
-                      name: season.name,
-                      active: season.active,
-                      startLocal: toDatetimeLocal(season.startDate),
-                      endLocal: toDatetimeLocal(season.endDate),
-                    });
-                    setAssignEventId('');
-                    setOpen(true);
-                  }}
-                />
-              ) : undefined
+              <div className="flex items-center gap-1">
+                <StatusChip kind={activeStatus(season.active)} />
+                {canWrite ? (
+                  <ActionButton
+                    icon={Pencil}
+                    label="Düzenle"
+                    onClick={() => {
+                      setEditingId(season.id);
+                      setForm({
+                        name: season.name,
+                        active: season.active,
+                        startLocal: toDatetimeLocal(season.startDate),
+                        endLocal: toDatetimeLocal(season.endDate),
+                      });
+                      setAssignEventId('');
+                      setOpen(true);
+                    }}
+                  />
+                ) : null}
+              </div>
             }
           />
         ))}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       <Drawer
         open={open}
         onClose={() => setOpen(false)}

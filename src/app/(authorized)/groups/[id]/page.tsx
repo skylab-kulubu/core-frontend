@@ -9,13 +9,17 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { SectionHeading } from '@/components/chrome/PanelChart';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
+import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
 
@@ -32,6 +36,7 @@ export default function GroupDetailPage() {
   const [memberOpen, setMemberOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
+  const [memberRosterQuery, setMemberRosterQuery] = useState('');
   const [roleQuery, setRoleQuery] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [catalog, setCatalog] = useState<ClientRole[]>([]);
@@ -101,12 +106,18 @@ export default function GroupDetailPage() {
       subtitle: role.clientId,
     }));
 
-  if (error && !group) return <p className="text-sm text-red-300">{error}</p>;
-  if (loading && !group) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error && !group) {
+    return <StateCard title={error} description="Grup kartına dönemiyor." tone="danger" />;
+  }
+  if (loading && !group) return <StateCard title="Yükleniyor…" isLoading />;
 
   return (
     <div className="space-y-6">
-      <PageHeader title={group?.name ?? id} description={group?.path} />
+      <PageHeader
+        title={group?.name ?? id}
+        description={group?.path}
+        meta={<span className="text-2xs text-neutral-500">{members.length} üye</span>}
+      />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
       {group ? (
@@ -124,76 +135,91 @@ export default function GroupDetailPage() {
       ) : null}
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Üyeler</h2>
-          <ActionButton
-            icon={Plus}
-            variant="primary"
-            label="Üye ekle"
-            onClick={() => {
-              setMemberQuery('');
-              setPeople([]);
-              setMemberOpen(true);
-            }}
-          />
-        </div>
+        <SectionHeading
+          title="Üyeler"
+          meta={`${members.length} kişi`}
+          actions={
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Üye ekle"
+              onClick={() => {
+                setMemberQuery('');
+                setPeople([]);
+                setMemberOpen(true);
+              }}
+            />
+          }
+        />
+        <ListToolbar
+          query={memberRosterQuery}
+          onQuery={setMemberRosterQuery}
+          placeholder="Ad veya e-posta"
+          searchLabel="Üye ara"
+        />
         <ListPanel
           status={listStatus({
             loading: false,
             failed: Boolean(error),
-            rowCount: members.length,
-            emptyMessage: 'Üye yok',
+            rowCount: members.filter((m) =>
+              matchesQuery(memberRosterQuery, m.firstName, m.lastName, m.email),
+            ).length,
+            emptyMessage: memberRosterQuery.trim() ? 'Eşleşen üye yok' : 'Üye yok',
           })}
+          emptyDescription="Üye ekle veya aramayı temizle."
         >
-          {members.map((m) => (
-            <ListItem
-              key={m.id}
-              href={`/users/${m.id}`}
-              title={`${m.firstName} ${m.lastName}`.trim() || m.email}
-              subtitle={memberSubtitle(group?.path ?? '', m)}
-              trailing={
-                <ActionButton
-                  icon={X}
-                  label="Çıkar"
-                  onClick={async () => {
-                    try {
-                      await identityApi.removeMember(id, m.id);
-                      await load();
-                    } catch (err) {
-                      setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
-                    }
-                  }}
-                />
-              }
-            />
-          ))}
+          {members
+            .filter((m) => matchesQuery(memberRosterQuery, m.firstName, m.lastName, m.email))
+            .map((m) => (
+              <ListItem
+                key={m.id}
+                href={`/users/${m.id}`}
+                title={`${m.firstName} ${m.lastName}`.trim() || m.email}
+                subtitle={memberSubtitle(group?.path ?? '', m)}
+                trailing={
+                  <ActionButton
+                    icon={X}
+                    label="Çıkar"
+                    onClick={async () => {
+                      try {
+                        await identityApi.removeMember(id, m.id);
+                        await load();
+                      } catch (err) {
+                        setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
+                      }
+                    }}
+                  />
+                }
+              />
+            ))}
         </ListPanel>
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-            Uygulama rolleri
-          </h2>
-          <ActionButton
-            icon={Plus}
-            variant="primary"
-            label="Rol ekle"
-            onClick={async () => {
-              setRoleQuery('');
-              setRoleOpen(true);
-              setPickerLoading(true);
-              try {
-                setCatalog(await identityApi.listClientRoles());
-                setPickerFailed(false);
-              } catch {
-                setPickerFailed(true);
-              } finally {
-                setPickerLoading(false);
-              }
-            }}
-          />
-        </div>
+        <SectionHeading
+          title="Uygulama rolleri"
+          meta={`${roles.length} rol`}
+          actions={
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Rol ekle"
+              onClick={async () => {
+                setRoleQuery('');
+                setRoleOpen(true);
+                setPickerLoading(true);
+                try {
+                  setCatalog(await identityApi.listClientRoles());
+                  setPickerFailed(false);
+                } catch {
+                  setPickerFailed(true);
+                } finally {
+                  setPickerLoading(false);
+                }
+              }}
+            />
+          }
+        />
         <ListPanel
           status={listStatus({
             loading: false,
@@ -230,9 +256,7 @@ export default function GroupDetailPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Ekstra öznitelikler
-        </h2>
+        <SectionHeading title="Ekstra öznitelikler" />
         <p className="text-3xs text-neutral-500">
           Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
         </p>

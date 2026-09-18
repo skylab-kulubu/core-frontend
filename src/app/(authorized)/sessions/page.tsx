@@ -20,10 +20,11 @@ import { canWriteEvent } from '@/lib/auth/groups';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { toRfc3339 } from '@/lib/datetime-local';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { listStatus } from '@/lib/list-status';
+import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { useAuth } from '@/context/AuthContext';
-
-const PAGE_SIZE = 10;
 
 export default function SessionsPage() {
   const { user } = useAuth();
@@ -34,6 +35,8 @@ export default function SessionsPage() {
   const [days, setDays] = useState<EventDay[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | (typeof SESSION_TYPES)[number]>('all');
   const [open, setOpen] = useState(false);
   const [eventId, setEventId] = useState('');
   const [eventDayId, setEventDayId] = useState('');
@@ -79,11 +82,24 @@ export default function SessionsPage() {
       .catch(() => setDays([]));
   }, [eventId]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const slice = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
-  }, [rows, page]);
+  const filtered = useMemo(() => {
+    return rows.filter((session) => {
+      if (typeFilter !== 'all' && session.sessionType !== typeFilter) return false;
+      return matchesQuery(
+        query,
+        session.title,
+        session.eventName,
+        session.dayName,
+        session.speakerName,
+        sessionTypeLabel(session.sessionType),
+      );
+    });
+  }, [rows, query, typeFilter]);
+  const paged = paginateRows(filtered, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, typeFilter]);
 
   return (
     <div className="space-y-6">
@@ -112,24 +128,51 @@ export default function SessionsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <ListToolbar
+        query={query}
+        onQuery={setQuery}
+        placeholder="Başlık, etkinlik, konuşmacı"
+        searchLabel="Oturum ara"
+      >
+        <Select
+          aria-label="Oturum türü"
+          className="w-44 shrink-0"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+        >
+          <option value="all">Tür: hepsi</option>
+          {SESSION_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {sessionTypeLabel(type)}
+            </option>
+          ))}
+        </Select>
+      </ListToolbar>
       <ListPanel
         status={listStatus({
           loading,
           failed: Boolean(error),
-          rowCount: rows.length,
-          emptyMessage: 'Oturum yok',
+          rowCount: filtered.length,
+          emptyMessage: emptyListCopy({
+            none: 'Oturum yok',
+            noneMatch: 'Eşleşen oturum yok',
+            query,
+            filtered: typeFilter !== 'all',
+          }),
         })}
+        emptyDescription="Oturum bir etkinlik gününe bağlıdır."
       >
-        {slice.map((session) => (
+        {paged.slice.map((session) => (
           <ListItem
             key={session.id}
             href={`/events/${session.eventId}`}
             title={session.title}
             subtitle={`${session.eventName} · ${session.dayName} · ${session.speakerName}`}
+            trailing={<StatusChip kind="neutral" label={sessionTypeLabel(session.sessionType)} />}
           />
         ))}
       </ListPanel>
-      <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
+      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       <Drawer open={open} onClose={() => setOpen(false)} title="Oturum ekle">
         <form
           className="space-y-3"

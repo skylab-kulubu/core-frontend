@@ -3,6 +3,7 @@ import {
   eventListSubtitle,
   eventsByDateKey,
   eventsOnDateKey,
+  filterEventsByPhase,
   formatEventWhen,
   sortEventsForList,
   undatedEvents,
@@ -77,6 +78,20 @@ describe('event list sort', () => {
       now,
     );
     expect(rows.map((row) => row.id)).toEqual(['next', 'none', 'past']);
+  });
+});
+
+describe('filterEventsByPhase', () => {
+  it('keeps upcoming, past, and active slices separate', () => {
+    const now = new Date('2026-09-19T12:00:00+03:00');
+    const rows = [
+      { id: 'past', name: 'Eski', startDate: '2026-01-01T10:00:00+03:00', active: true },
+      { id: 'next', name: 'Yakın', startDate: '2026-10-01T10:00:00+03:00', active: false },
+      { id: 'on', name: 'Açık', active: true },
+    ];
+    expect(filterEventsByPhase(rows, 'upcoming', now).map((row) => row.id)).toEqual(['next']);
+    expect(filterEventsByPhase(rows, 'past', now).map((row) => row.id)).toEqual(['past']);
+    expect(filterEventsByPhase(rows, 'active', now).map((row) => row.id)).toEqual(['past', 'on']);
   });
 });
 

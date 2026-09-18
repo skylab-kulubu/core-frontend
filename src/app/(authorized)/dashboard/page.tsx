@@ -1,7 +1,18 @@
 'use client';
 
-import Link from 'next/link';
+import { ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
+import {
+  BarChart,
+  HorizontalBars,
+  MetricCard,
+  MixChart,
+  SectionHeading,
+} from '@/components/chrome/PanelChart';
+import { StateCard } from '@/components/chrome/StateCard';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
@@ -9,7 +20,10 @@ import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi } from '@/lib/api/identity';
 import { sessionsApi, type SessionRow } from '@/lib/api/sessions';
+import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { isLeader, isPrivileged } from '@/lib/auth/groups';
+import { eventListSubtitle } from '@/lib/events-view';
+import { listStatus } from '@/lib/list-status';
 import {
   displayCount,
   errorCount,
@@ -18,111 +32,14 @@ import {
   okCount,
   sessionsByEvent,
   type CountState,
-  type NamedCount,
 } from '@/lib/ozet-stats';
+import { ticketCheckInMix, ticketMix, upcomingEvents } from '@/lib/panel-charts';
+import { activeStatus } from '@/lib/status-chip';
 
 const LOADING: CountState = { kind: 'loading' };
 
 function failState(err: unknown): CountState {
   return errorCount(err instanceof ProblemError ? err.title : 'Özet yüklenemedi');
-}
-
-function MetricCard({
-  href,
-  label,
-  state,
-  tone = 'text-neutral-100',
-  dot = 'bg-neutral-500',
-}: {
-  href: string;
-  label: string;
-  state: CountState;
-  tone?: string;
-  dot?: string;
-}) {
-  const value = displayCount(state);
-  const title = state.kind === 'error' ? state.message : label;
-  return (
-    <Link
-      href={href}
-      title={title}
-      className="flex items-center gap-2.5 rounded-md border border-white/5 bg-white/3 px-3 py-2.5 transition-colors hover:border-white/10 hover:bg-white/5"
-    >
-      <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
-      <div className="min-w-0">
-        <p className="text-3xs truncate text-neutral-500">{label}</p>
-        <p
-          className={`text-lg leading-tight font-semibold tabular-nums ${
-            state.kind === 'error' ? 'text-red-300' : tone
-          }`}
-        >
-          {value}
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-function BarChart({ title, data, empty }: { title: string; data: NamedCount[]; empty: string }) {
-  const max = Math.max(0, ...data.map((row) => row.count));
-  return (
-    <div>
-      <h2 className="text-2xs mb-3 font-medium text-neutral-500">{title}</h2>
-      {max === 0 ? (
-        <p className="text-3xs py-6 text-center text-neutral-500">{empty}</p>
-      ) : (
-        <div className="flex h-24 items-end gap-1.5">
-          {data.map((row) => (
-            <div key={row.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <div
-                className="bg-skylab-500/45 w-full rounded-sm"
-                style={{ height: `${Math.max(8, (row.count / max) * 100)}%` }}
-                title={`${row.label}: ${row.count}`}
-              />
-              <span className="text-4xs max-w-full truncate text-neutral-500">{row.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HorizontalBars({
-  title,
-  data,
-  empty,
-}: {
-  title: string;
-  data: NamedCount[];
-  empty: string;
-}) {
-  const max = Math.max(0, ...data.map((row) => row.count));
-  return (
-    <div>
-      <h2 className="text-2xs mb-3 font-medium text-neutral-500">{title}</h2>
-      {data.length === 0 || max === 0 ? (
-        <p className="text-3xs py-6 text-center text-neutral-500">{empty}</p>
-      ) : (
-        <ul className="space-y-2">
-          {data.map((row) => (
-            <li key={row.label} className="space-y-1">
-              <div className="text-3xs flex items-baseline justify-between gap-2 text-neutral-400">
-                <span className="truncate">{row.label}</span>
-                <span className="text-neutral-200 tabular-nums">{row.count}</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
-                <div
-                  className="bg-skylab-500/70 h-full rounded-full"
-                  style={{ width: `${(row.count / max) * 100}%` }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -134,8 +51,10 @@ export default function DashboardPage() {
   const [news, setNews] = useState<CountState>(LOADING);
   const [events, setEvents] = useState<CountState>(LOADING);
   const [sessions, setSessions] = useState<CountState>(LOADING);
+  const [applicants, setApplicants] = useState<CountState>(LOADING);
   const [eventRows, setEventRows] = useState<CoreEvent[]>([]);
   const [sessionRows, setSessionRows] = useState<SessionRow[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
@@ -144,6 +63,7 @@ export default function DashboardPage() {
     async function load() {
       setEvents(LOADING);
       setSessions(LOADING);
+      setApplicants(LOADING);
       setEventsError(null);
       setSessionsError(null);
       if (privileged) {
@@ -155,10 +75,21 @@ export default function DashboardPage() {
         if (cancelled) return;
         setEventRows(rows);
         setEvents(okCount(rows.length));
+        const sample = upcomingEvents(rows, new Date(), 8);
+        const pool = sample.length ? sample : rows.slice(0, 8);
+        const nested = await Promise.all(
+          pool.map((event) => ticketsApi.listByEvent(event.id).catch(() => [] as Ticket[])),
+        );
+        if (cancelled) return;
+        const flat = nested.flat();
+        setTickets(flat);
+        setApplicants(okCount(flat.length));
       } catch (err) {
         if (cancelled) return;
         setEventRows([]);
+        setTickets([]);
         setEvents(failState(err));
+        setApplicants(failState(err));
         setEventsError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
       }
       try {
@@ -196,9 +127,17 @@ export default function DashboardPage() {
   }, [privileged, user?.id]);
 
   if (!privileged && !leader) {
-    return <p className="text-sm text-neutral-500">Bu özet paneli yetkili üyelere açık.</p>;
+    return (
+      <StateCard
+        title="Bu özet paneli yetkili üyelere açık."
+        description="YK, kurul veya ekip lideri rolü gerekir."
+        Icon={ShieldAlert}
+        tone="warning"
+      />
+    );
   }
 
+  const soon = upcomingEvents(eventRows);
   const cards = [
     ...(privileged
       ? [
@@ -226,18 +165,43 @@ export default function DashboardPage() {
       href: '/sessions',
       label: 'Oturumlar',
       state: sessions,
-      tone: 'text-neutral-100',
       dot: 'bg-skylab-400 shadow-[0_0_6px] shadow-skylab-400/40',
+    },
+    {
+      href: '/events',
+      label: 'Başvurular',
+      state: applicants,
+      dot: 'bg-amber-400 shadow-[0_0_6px] shadow-amber-400/40',
     },
   ];
 
   return (
     <div className="space-y-8">
       <PageHeader title="Özet" description={user?.email} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
         {cards.map((card) => (
-          <MetricCard key={card.href} {...card} />
+          <MetricCard
+            key={`${card.href}-${card.label}`}
+            href={card.href}
+            label={card.label}
+            value={displayCount(card.state)}
+            title={card.state.kind === 'error' ? card.state.message : card.label}
+            dot={card.dot}
+            error={card.state.kind === 'error'}
+          />
         ))}
+      </div>
+      <div className="grid gap-8 lg:grid-cols-2">
+        <MixChart
+          title="Misafir / üye"
+          data={ticketMix(tickets)}
+          empty="Yaklaşan etkinlikte başvuru yok"
+        />
+        <MixChart
+          title="Kapı durumu"
+          data={ticketCheckInMix(tickets)}
+          empty="Kapı kaydı henüz yok"
+        />
       </div>
       <div className="grid gap-8 lg:grid-cols-2">
         <div>
@@ -270,6 +234,28 @@ export default function DashboardPage() {
           empty="Etkinlik durumu yok"
         />
       )}
+      <div className="space-y-3">
+        <SectionHeading title="Yaklaşan etkinlikler" meta={`${soon.length} kayıt`} />
+        <ListPanel
+          status={listStatus({
+            loading: events.kind === 'loading',
+            failed: Boolean(eventsError),
+            rowCount: soon.length,
+            emptyMessage: 'Yaklaşan etkinlik yok',
+          })}
+          emptyDescription="Tarihi gelmiş etkinlikler burada durur."
+        >
+          {soon.map((event) => (
+            <ListItem
+              key={event.id}
+              href={`/events/${event.id}`}
+              title={event.name}
+              subtitle={eventListSubtitle(event)}
+              trailing={<StatusChip kind={activeStatus(event.active)} />}
+            />
+          ))}
+        </ListPanel>
+      </div>
     </div>
   );
 }
