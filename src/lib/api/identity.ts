@@ -15,6 +15,8 @@ export type Person = {
   username?: string;
   schoolEmail?: string;
   skyNumber?: string;
+  sourceGroupId?: string;
+  sourceGroupPath?: string;
 };
 
 export type ClientRole = {
