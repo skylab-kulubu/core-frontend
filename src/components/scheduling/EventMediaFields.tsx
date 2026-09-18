@@ -9,7 +9,12 @@ import { saveClass } from '@/components/chrome/SaveButton';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { mediaApi, type Media } from '@/lib/api/media';
-import { teamEventPhotos, type EventMediaHint, type TeamPhoto } from '@/lib/event-media';
+import {
+  publicMediaUrl,
+  teamEventPhotos,
+  type EventMediaHint,
+  type TeamPhoto,
+} from '@/lib/event-media';
 import { pickerMatch } from '@/lib/picker';
 
 const ghostClass =
@@ -71,11 +76,14 @@ export function EventMediaFields({
         uploaded.push(await mediaApi.upload(file));
       }
       const extra: Record<string, string> = {};
-      for (const row of uploaded) extra[row.id] = row.url;
+      for (const row of uploaded) {
+        const href = publicMediaUrl(row.url);
+        if (href) extra[row.id] = href;
+      }
       setPreviews((prev) => ({ ...prev, ...extra }));
       if (target === 'cover') {
         const first = uploaded[0];
-        if (first) onCover(first.id, first.url);
+        if (first) onCover(first.id, extra[first.id]);
       } else {
         const ids = uploaded.map((row) => row.id).filter((id) => !imageIds.includes(id));
         onGallery([...imageIds, ...ids], extra);
@@ -89,18 +97,24 @@ export function EventMediaFields({
 
   function pick(id: string) {
     const photo = library.find((row) => row.id === id);
-    if (photo?.url) setPreviews((prev) => ({ ...prev, [id]: photo.url! }));
-    if (picker === 'cover') onCover(id, photo?.url);
+    const href = publicMediaUrl(photo?.url);
+    if (href) setPreviews((prev) => ({ ...prev, [id]: href }));
+    if (picker === 'cover') onCover(id, href || undefined);
     if (picker === 'gallery' && !imageIds.includes(id)) {
-      onGallery([...imageIds, id], photo?.url ? { [id]: photo.url } : undefined);
+      onGallery([...imageIds, id], href ? { [id]: href } : undefined);
     }
     setPicker(null);
   }
 
   const filtered = library.filter((row) => pickerMatch(query, row.title, row.eventName));
-  const urls: Record<string, string> = { ...previews };
+  const urls: Record<string, string> = {};
+  for (const [id, url] of Object.entries(previews)) {
+    const href = publicMediaUrl(url);
+    if (href) urls[id] = href;
+  }
   for (const row of knownMedia) {
-    if (row.id && row.url && !urls[row.id]) urls[row.id] = row.url;
+    const href = publicMediaUrl(row.url);
+    if (row.id && href && !urls[row.id]) urls[row.id] = href;
   }
 
   return (
