@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -14,6 +15,7 @@ import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { canManageCompetitors, isPrivileged } from '@/lib/auth/groups';
+import { listStatus } from '@/lib/list-status';
 
 const PAGE_SIZE = 10;
 
@@ -21,6 +23,7 @@ export default function CompetitorsPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [rows, setRows] = useState<Competitor[]>([]);
+  const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<CoreEvent[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +51,8 @@ export default function CompetitorsPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Yarışmacılar yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,7 +82,14 @@ export default function CompetitorsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: rows.length,
+          emptyMessage: 'Yarışmacı yok',
+        })}
+      >
         {slice.map((row) => {
           const person = personById.get(row.userId);
           const event = eventById.get(row.eventId);
@@ -93,7 +105,7 @@ export default function CompetitorsPage() {
             />
           );
         })}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
       <Drawer open={creating} onClose={() => setCreating(false)} title="Yarışmacı ekle">
         <form

@@ -6,10 +6,12 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { publicShortUrl, shortQrUrl, urlsApi, type ShortUrl } from '@/lib/api/urls';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
+import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 export default function UrlsPage() {
@@ -20,6 +22,7 @@ export default function UrlsPage() {
   const moderate = canModerateUrls(groups, roles);
   const [mine, setMine] = useState<ShortUrl[]>([]);
   const [all, setAll] = useState<ShortUrl[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState('');
   const [alias, setAlias] = useState('');
@@ -42,6 +45,8 @@ export default function UrlsPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'URL’ler yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }, [allowed, moderate]);
 
@@ -108,6 +113,8 @@ export default function UrlsPage() {
       </form>
       <UrlList
         title="Linklerim"
+        loading={loading}
+        failed={Boolean(error)}
         items={mine}
         onEdit={(row) => {
           setEditing(row);
@@ -127,6 +134,8 @@ export default function UrlsPage() {
       {moderate ? (
         <UrlList
           title="Tümü"
+          loading={loading}
+          failed={Boolean(error)}
           items={all}
           onEdit={(row) => {
             setEditing(row);
@@ -203,12 +212,16 @@ export default function UrlsPage() {
 function UrlList({
   title,
   items,
+  loading,
+  failed,
   onEdit,
   onQr,
   onDelete,
 }: {
   title: string;
   items: ShortUrl[];
+  loading: boolean;
+  failed: boolean;
   onEdit: (row: ShortUrl) => void;
   onQr: (row: ShortUrl) => void;
   onDelete: (row: ShortUrl) => void;
@@ -216,34 +229,37 @@ function UrlList({
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-medium text-neutral-300">{title}</h2>
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
-        {items.length === 0 ? (
-          <p className="px-3 py-2.5 text-sm text-neutral-500">Henüz kısa URL yok.</p>
-        ) : (
-          items.map((row) => {
-            const short = publicShortUrl(row.alias);
-            return (
-              <ListItem
-                key={row.id}
-                title={short}
-                subtitle={`${row.url} · ${row.clickCount} tıklama`}
-                trailing={
-                  <>
-                    <ActionButton
-                      icon={Copy}
-                      label="Kopyala"
-                      onClick={() => void navigator.clipboard.writeText(short)}
-                    />
-                    <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
-                    <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
-                    <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
-                  </>
-                }
-              />
-            );
-          })
-        )}
-      </div>
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed,
+          rowCount: items.length,
+          emptyMessage: 'Henüz kısa URL yok.',
+        })}
+      >
+        {items.map((row) => {
+          const short = publicShortUrl(row.alias);
+          return (
+            <ListItem
+              key={row.id}
+              title={short}
+              subtitle={`${row.url} · ${row.clickCount} tıklama`}
+              trailing={
+                <>
+                  <ActionButton
+                    icon={Copy}
+                    label="Kopyala"
+                    onClick={() => void navigator.clipboard.writeText(short)}
+                  />
+                  <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
+                  <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
+                  <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
+                </>
+              }
+            />
+          );
+        })}
+      </ListPanel>
     </section>
   );
 }

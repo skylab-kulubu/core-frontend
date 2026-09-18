@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
@@ -14,6 +15,7 @@ import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveClass } from '@/lib/scheduling/save-event';
+import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 const PAGE_SIZE = 10;
@@ -30,6 +32,7 @@ export default function SeasonsPage() {
   const groups = user?.groups ?? [];
   const canWrite = canWriteSeason(groups);
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
@@ -45,6 +48,8 @@ export default function SeasonsPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Sezonlar yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -80,7 +85,14 @@ export default function SeasonsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: seasons.length,
+          emptyMessage: 'Sezon yok',
+        })}
+      >
         {slice.map((season) => (
           <ListItem
             key={season.id}
@@ -107,7 +119,7 @@ export default function SeasonsPage() {
             }
           />
         ))}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
       <Drawer
         open={open}

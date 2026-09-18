@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { Select } from '@/components/chrome/Select';
 import { TextArea } from '@/components/chrome/TextArea';
@@ -17,6 +18,7 @@ import { sessionsApi, SESSION_TYPES, type SessionRow } from '@/lib/api/sessions'
 import { canWriteEvent } from '@/lib/auth/groups';
 import { toRfc3339 } from '@/lib/datetime-local';
 import { saveClass } from '@/lib/scheduling/save-event';
+import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 const PAGE_SIZE = 10;
@@ -25,6 +27,7 @@ export default function SessionsPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [rows, setRows] = useState<SessionRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<CoreEvent[]>([]);
   const [days, setDays] = useState<EventDay[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,8 @@ export default function SessionsPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -105,7 +110,14 @@ export default function SessionsPage() {
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: rows.length,
+          emptyMessage: 'Oturum yok',
+        })}
+      >
         {slice.map((session) => (
           <ListItem
             key={session.id}
@@ -114,7 +126,7 @@ export default function SessionsPage() {
             subtitle={`${session.eventName} · ${session.dayName} · ${session.speakerName}`}
           />
         ))}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
       <Drawer open={open} onClose={() => setOpen(false)} title="Oturum ekle">
         <form

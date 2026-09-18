@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
@@ -20,6 +21,7 @@ import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
 import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 const PAGE_SIZE = 10;
@@ -30,6 +32,7 @@ function EventsPageContent() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +64,8 @@ function EventsPageContent() {
       }
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -118,7 +123,14 @@ function EventsPageContent() {
           setPage(1);
         }}
       />
-      <div className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+      <ListPanel
+        status={listStatus({
+          loading,
+          failed: Boolean(error),
+          rowCount: filtered.length,
+          emptyMessage: 'Etkinlik yok',
+        })}
+      >
         {slice.map((ev) => (
           <ListItem
             key={ev.id}
@@ -127,7 +139,7 @@ function EventsPageContent() {
             subtitle={`${ev.ownerTeam || 'Genel'}${ev.location ? ` · ${ev.location}` : ''}`}
           />
         ))}
-      </div>
+      </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
       <Drawer open={creating} onClose={() => setCreating(false)} title="Etkinlik ekle">
         <form
