@@ -214,6 +214,37 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(rows[0]).not.toHaveProperty('success');
   });
 
+  it('ticket detail is GET /v1/tickets/:id, not a list envelope', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/v1/tickets/t1') && !url.includes('/sessions')) {
+        return jsonRes({
+          id: 't1',
+          eventId: 'e1',
+          ticketType: 'GUEST',
+          guestFirstName: 'Ada',
+          guestLastName: 'Lovelace',
+          guestEmail: 'ada@example.com',
+          checkIns: [],
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        });
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.get('t1');
+    expect(ticket).toMatchObject({
+      id: 't1',
+      ticketType: 'GUEST',
+      guestEmail: 'ada@example.com',
+    });
+    expect(ticket).not.toHaveProperty('success');
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/tickets/t1'))).toBe(true);
+    expect(urls.some((url) => url.includes('/api/tickets'))).toBe(false);
+  });
+
   it('member apply posts to applications/me, not a public form', async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

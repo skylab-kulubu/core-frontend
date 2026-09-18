@@ -17,12 +17,13 @@ import {
   EventEditor,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
-import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
+import { canListEventTickets } from '@/lib/tickets-ui';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
@@ -76,10 +77,6 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
   orderIndex: 0,
   sessionType: 'WORKSHOP',
 });
-
-function ticketLabel(row: Ticket, people: Map<string, Person>): string {
-  return ticketApplicantLabel(row, people);
-}
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -333,26 +330,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       </div>
       {canTickets ? (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Başvuranlar</h2>
-            <ActionButton icon={QrCode} label="Kapı" href="/qr" />
-          </div>
-          <ListPanel
-            status={listStatus({
-              loading: false,
-              failed: Boolean(error),
-              rowCount: tickets.length,
-              emptyMessage: 'Henüz başvuru yok.',
-            })}
-          >
-            {tickets.map((row) => (
-              <ListItem
-                key={row.id}
-                title={ticketLabel(row, personById)}
-                subtitle={`${row.ticketType} · ${row.checkIns?.length ?? 0} check-in · ${row.id}`}
-              />
-            ))}
-          </ListPanel>
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Başvuranlar</h2>
+          <ApplicantRoster
+            eventId={event.id}
+            tickets={tickets}
+            people={personById}
+            event={event}
+            mailHref={eventMailHref({ name: event.name, ownerTeam: event.ownerTeam })}
+          />
         </div>
       ) : null}
       <div className="flex items-center justify-between">

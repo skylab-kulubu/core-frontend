@@ -28,6 +28,7 @@ function formatSegment(part: string): string {
     edit: 'Düzenle',
     days: 'Günler',
     delete: 'Sil',
+    tickets: 'Başvuranlar',
   };
   if (known[part]) return known[part];
   return part.replace(/[-_]/g, ' ').replace(/^\S/u, (ch) => ch.toLocaleUpperCase('tr-TR'));
