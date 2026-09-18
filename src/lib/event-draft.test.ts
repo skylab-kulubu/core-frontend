@@ -1,4 +1,5 @@
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
+import type { CoreEvent } from '@/lib/api/events';
 import {
   APPLY_SLOT_KEY,
   DEFAULT_FORMS_ADMIN_ORIGIN,
@@ -13,6 +14,7 @@ import {
   editorReturnTo,
   eventDraftStorageKey,
   eventIdFromHref,
+  formStateFromEvent,
   readEventDraft,
   restoreEventEditor,
   writeEventDraft,
@@ -96,6 +98,114 @@ describe('event editor draft', () => {
     expect(readEventDraft(storage, 'https://admin.yildizskylab.com/events')?.name).toBe('SkyDays');
     clearEventDraft(storage, returnTo);
     expect(readEventDraft(storage, returnTo)).toBeNull();
+  });
+
+  it('hydrates an existing event from GET JSON even if an empty :new draft is stored', () => {
+    const storage = memoryStorage();
+    const getJson: CoreEvent = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'SkyDays',
+      description: 'Kamp',
+      location: 'YTÜ Davutpaşa',
+      ownerTeam: 'GECEKODU',
+      formUrl: 'https://forms.yildizskylab.com/form-1',
+      formAlias: 'gecekodu.skydays2026',
+      extraFormUrls: [{ label: 'CTF', url: 'https://forms.yildizskylab.com/ctf' }],
+      capacity: 120,
+      startDate: '2026-05-01T09:00:00.000Z',
+      endDate: '2026-05-02T18:00:00.000Z',
+      linkedin: 'https://linkedin.com/company/skylab',
+      active: true,
+      ranked: true,
+      prizeInfo: 'Ödül',
+      seasonId: 'season-1',
+      coverImageId: 'img-1',
+      images: [{ id: 'img-2' }],
+      attendanceRule: 'ratio',
+      attendanceRatio: 0.75,
+      doorStaffIds: ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    writeEventDraft(storage, 'https://admin.yildizskylab.com/events/new', emptyEventForm());
+    writeEventDraft(
+      storage,
+      `https://admin.yildizskylab.com/events/${getJson.id}`,
+      emptyEventForm(),
+    );
+    const loaded = formStateFromEvent(getJson);
+    const restored = restoreEventEditor(
+      storage,
+      `https://admin.yildizskylab.com/events/${getJson.id}`,
+      loaded,
+      null,
+    );
+    expect(restored.name).toBe(getJson.name);
+    expect(restored.description).toBe(getJson.description);
+    expect(restored.location).toBe(getJson.location);
+    expect(restored.ownerTeam).toBe(getJson.ownerTeam);
+    expect(restored.formUrl).toBe(getJson.formUrl);
+    expect(restored.formAlias).toBe(getJson.formAlias);
+    expect(restored.capacity).toBe(getJson.capacity);
+    expect(restored.prizeInfo).toBe(getJson.prizeInfo);
+    expect(restored.coverImageId).toBe(getJson.coverImageId);
+    expect(restored.imageIds).toEqual(['img-2']);
+    expect(restored.seasonId).toBe(getJson.seasonId);
+    expect(restored.doorStaffIds).toEqual(getJson.doorStaffIds);
+    expect(restored.formSlots[0]).toMatchObject({
+      url: getJson.formUrl,
+      alias: getJson.formAlias,
+    });
+  });
+
+  it('keeps GET fields when Skyforms returns onto an existing event with an empty draft', () => {
+    const storage = memoryStorage();
+    const eventHref =
+      'https://admin.yildizskylab.com/events/11111111-1111-4111-8111-111111111111?formSlot=apply';
+    writeEventDraft(storage, 'https://admin.yildizskylab.com/events/new', emptyEventForm());
+    writeEventDraft(storage, eventHref, emptyEventForm());
+    const loaded = {
+      ...emptyEventForm('GECEKODU'),
+      name: 'SkyDays',
+      location: 'YTÜ Davutpaşa',
+      description: 'Kamp',
+      formSlots: [{ ...emptyApplySlot(), url: '' }],
+    };
+    const restored = restoreEventEditor(
+      storage,
+      `${eventHref}&formUrl=https://forms.yildizskylab.com/form-1`,
+      loaded,
+      {
+        formUrl: 'https://forms.yildizskylab.com/form-1',
+        formSlot: APPLY_SLOT_KEY,
+      },
+    );
+    expect(restored.name).toBe('SkyDays');
+    expect(restored.location).toBe('YTÜ Davutpaşa');
+    expect(restored.description).toBe('Kamp');
+    expect(restored.formSlots[0]).toMatchObject({
+      key: APPLY_SLOT_KEY,
+      url: 'https://forms.yildizskylab.com/form-1',
+      mode: 'skyforms',
+    });
+  });
+
+  it('does not share the :new draft key with /events/{id}', () => {
+    const storage = memoryStorage();
+    writeEventDraft(storage, 'https://admin.yildizskylab.com/events/new', emptyEventForm());
+    const loaded = { ...emptyEventForm('WEBLAB'), name: 'Hack', location: 'YTÜ' };
+    const restored = restoreEventEditor(
+      storage,
+      'https://admin.yildizskylab.com/events/e1',
+      loaded,
+      null,
+    );
+    expect(eventIdFromHref('https://admin.yildizskylab.com/events/e1')).toBe('e1');
+    expect(eventDraftStorageKey('https://admin.yildizskylab.com/events/e1')).toBe(
+      `${EVENT_DRAFT_PREFIX}:e1`,
+    );
+    expect(restored.name).toBe('Hack');
+    expect(restored.location).toBe('YTÜ');
   });
 
   it('passes event id on the Skyforms create url when the event already exists', () => {
