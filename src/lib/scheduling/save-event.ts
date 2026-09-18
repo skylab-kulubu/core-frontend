@@ -38,6 +38,7 @@ export async function saveEventWithSeason(
     form.name,
     form.startDate ?? '',
     (body) => urlsApi.create(body),
+    form.ownerTeam,
   );
   const body = eventBodyFromForm({
     ...form,

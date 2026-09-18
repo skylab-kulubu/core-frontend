@@ -1,3 +1,4 @@
+import { ProblemError } from '@/lib/api/core';
 import type { ShortUrl, ShortUrlBody } from '@/lib/api/urls';
 
 export type EventFormMode = 'external' | 'skyforms';
@@ -146,12 +147,67 @@ export function applyFormHandoff(
   return [...next, extra];
 }
 
-export function skyformsCreateHref(origin: string, returnTo: string): string | null {
+export function skyformsCreateHref(
+  origin: string,
+  returnTo: string,
+  extras?: { title?: string; ownerTeam?: string },
+): string | null {
   const trimmed = origin.trim().replace(/\/+$/, '');
   if (!trimmed) return null;
   const url = new URL(`${trimmed}/forms/new-form`);
   if (returnTo) url.searchParams.set('returnTo', returnTo);
+  if (extras?.title) url.searchParams.set('title', extras.title);
+  if (extras?.ownerTeam) url.searchParams.set('ownerTeam', extras.ownerTeam);
   return url.toString();
+}
+
+export function skyformsEditHref(origin: string, formId: string, returnTo: string): string | null {
+  const trimmed = origin.trim().replace(/\/+$/, '');
+  const id = formId.trim();
+  if (!trimmed || !id) return null;
+  const url = new URL(`${trimmed}/forms/${id}/edit`);
+  if (returnTo) url.searchParams.set('returnTo', returnTo);
+  return url.toString();
+}
+
+export function skyformsFormId(url: string, origin = formsAdminOrigin()): string | null {
+  if (!looksLikeSkyforms(url, origin)) return null;
+  try {
+    const path = new URL(url).pathname.split('/').filter(Boolean);
+    const id = path[0] ?? '';
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function eventFormTitle(ownerTeam: string, name: string, year: number, extra = ''): string {
+  const head = [ownerTeam.trim(), name.trim(), year || ''].filter(Boolean).join(' ');
+  const slot = extra.trim();
+  if (head && slot) return `${head} ${slot}`;
+  return head || slot || 'Etkinlik formu';
+}
+
+export function aliasFallbacks(alias: string, year: number): string[] {
+  const base = shortAliasFromSlug(alias);
+  const seen = new Set<string>(base ? [base] : []);
+  const out: string[] = [];
+  const push = (value: string) => {
+    const next = shortAliasFromSlug(value);
+    if (!next || seen.has(next)) return;
+    seen.add(next);
+    out.push(next);
+  };
+  const yearText = String(year);
+  if (base && !base.includes(yearText)) push(`${base}${yearText}`);
+  if (base) push(`${base}-${yearText}`);
+  for (let i = 2; i <= 9; i += 1) {
+    if (base) push(`${base}-${i}`);
+  }
+  return out;
 }
 
 export function looksLikeSkyforms(url: string, origin = formsAdminOrigin()): boolean {
@@ -218,27 +274,53 @@ export function existingShortFor(
   return rows.find((row) => (slug && row.alias === slug) || (dest && row.url === dest));
 }
 
+export async function createAliasWithRetry(
+  create: (body: ShortUrlBody) => Promise<ShortUrl>,
+  url: string,
+  alias: string,
+  year: number,
+): Promise<ShortUrl> {
+  const first = shortAliasFromSlug(alias);
+  const candidates = first
+    ? [first, ...aliasFallbacks(first, year)]
+    : aliasFallbacks('etkinlik', year);
+  let last: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await create({ url, alias: candidate });
+    } catch (err) {
+      last = err;
+      if (!(err instanceof ProblemError) || err.status !== 409) throw err;
+    }
+  }
+  throw last instanceof Error ? last : new ProblemError(409, 'Conflict');
+}
+
 export async function attachFormAliases(
   slots: EventFormSlot[],
   name: string,
   startLocal: string,
   create: (body: ShortUrlBody) => Promise<ShortUrl>,
+  ownerTeam = '',
 ): Promise<EventFormSlot[]> {
   const year = aliasYear(startLocal);
   const out: EventFormSlot[] = [];
   for (const slot of slots) {
     const url = slot.url.trim();
-    if (!url || slot.urlId || slot.alias.trim()) {
+    if (!url || slot.urlId) {
       out.push({ ...slot, url });
       continue;
     }
     const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
-    const alias = shortAliasFromSlug(slot.alias.trim() || slugYearAlias(name, year, extra));
+    const alias =
+      slot.alias.trim() ||
+      humanFormAlias(ownerTeam, name, year, extra) ||
+      slugYearAlias(name, year, extra);
     try {
-      const row = await create({ url, alias });
+      const row = await createAliasWithRetry(create, url, alias, year);
       out.push({ ...slot, url, alias: row.alias, urlId: row.id });
     } catch {
-      out.push({ ...slot, url, alias });
+      out.push({ ...slot, url, alias: shortAliasFromSlug(alias) });
     }
   }
   return out;
