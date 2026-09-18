@@ -15,6 +15,7 @@ import { GroupProfile } from '@/components/identity/GroupProfile';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
+import { memberSubtitle } from '@/lib/group-members';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
 
@@ -91,7 +92,9 @@ export default function GroupDetailPage() {
     }));
 
   const roleOptions = catalog
-    .filter((role) => !mappedKeys.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId))
+    .filter(
+      (role) => !mappedKeys.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId),
+    )
     .map((role) => ({
       id: roleKey(role),
       title: role.role,
@@ -143,7 +146,7 @@ export default function GroupDetailPage() {
               key={m.id}
               href={`/users/${m.id}`}
               title={`${m.firstName} ${m.lastName}`.trim() || m.email}
-              subtitle={m.email}
+              subtitle={memberSubtitle(group?.path ?? '', m)}
               trailing={
                 <ActionButton
                   icon={X}
@@ -162,7 +165,7 @@ export default function GroupDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Uygulama rolleri
+            Uygulama rolleri
           </h2>
           <ActionButton
             icon={Plus}
@@ -268,11 +271,7 @@ export default function GroupDetailPage() {
         >
           <label className="block space-y-1">
             <FieldLabel>Anahtar</FieldLabel>
-            <Field
-              className="w-40"
-              value={attrKey}
-              onChange={(e) => setAttrKey(e.target.value)}
-            />
+            <Field className="w-40" value={attrKey} onChange={(e) => setAttrKey(e.target.value)} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Değer</FieldLabel>
