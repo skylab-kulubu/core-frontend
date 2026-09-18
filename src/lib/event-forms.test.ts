@@ -2,22 +2,28 @@ import {
   APPLY_SLOT_KEY,
   APPLY_SLOT_LABEL,
   DEFAULT_FORMS_ADMIN_ORIGIN,
+  aliasFallbacks,
   aliasYear,
   applyFormHandoff,
   attachFormAliases,
+  createAliasWithRetry,
   emptyApplySlot,
   extraFormSlot,
   existingShortFor,
+  eventFormTitle,
   formHandoffFromSearch,
   formsAdminOrigin,
   humanFormAlias,
   persistableFormFields,
   shortAliasFromSlug,
   skyformsCreateHref,
+  skyformsEditHref,
+  skyformsFormId,
   slugYearAlias,
   slotsFromEvent,
   withFormSlot,
 } from './event-forms';
+import { ProblemError } from './api/core';
 
 describe('event form slots', () => {
   it('keeps başvuru as the first slot', () => {
@@ -85,10 +91,35 @@ describe('event form slots', () => {
       skyformsCreateHref(
         DEFAULT_FORMS_ADMIN_ORIGIN,
         withFormSlot('https://admin.yildizskylab.com/events/e1', APPLY_SLOT_KEY),
+        { title: 'GECEKODU SkyDays 2026', ownerTeam: 'GECEKODU' },
       ),
     ).toBe(
-      'https://forms.yildizskylab.com/admin/forms/new-form?returnTo=https%3A%2F%2Fadmin.yildizskylab.com%2Fevents%2Fe1%3FformSlot%3Dapply',
+      'https://forms.yildizskylab.com/admin/forms/new-form?returnTo=https%3A%2F%2Fadmin.yildizskylab.com%2Fevents%2Fe1%3FformSlot%3Dapply&title=GECEKODU+SkyDays+2026&ownerTeam=GECEKODU',
     );
+    expect(
+      skyformsEditHref(
+        DEFAULT_FORMS_ADMIN_ORIGIN,
+        '11111111-1111-4111-8111-111111111111',
+        'https://admin.yildizskylab.com/events/e1?formSlot=apply',
+      ),
+    ).toBe(
+      'https://forms.yildizskylab.com/admin/forms/11111111-1111-4111-8111-111111111111/edit?returnTo=https%3A%2F%2Fadmin.yildizskylab.com%2Fevents%2Fe1%3FformSlot%3Dapply',
+    );
+    expect(
+      skyformsFormId('https://forms.yildizskylab.com/11111111-1111-4111-8111-111111111111'),
+    ).toBe('11111111-1111-4111-8111-111111111111');
+    expect(eventFormTitle('GECEKODU', 'SkyDays', 2026)).toBe('GECEKODU SkyDays 2026');
+    expect(aliasFallbacks('gecekodu-skydays2026', 2026)).toEqual([
+      'gecekodu-skydays2026-2026',
+      'gecekodu-skydays2026-2',
+      'gecekodu-skydays2026-3',
+      'gecekodu-skydays2026-4',
+      'gecekodu-skydays2026-5',
+      'gecekodu-skydays2026-6',
+      'gecekodu-skydays2026-7',
+      'gecekodu-skydays2026-8',
+      'gecekodu-skydays2026-9',
+    ]);
   });
 
   it('applies a returned skyforms url onto the named slot', () => {
@@ -148,5 +179,30 @@ describe('event form slots', () => {
       urlId: 'u2',
     });
     expect(created[1].urlId).toBeUndefined();
+  });
+
+  it('retries a conflicting alias with a suffix', async () => {
+    const seen: string[] = [];
+    const row = await createAliasWithRetry(
+      async (body) => {
+        seen.push(body.alias ?? '');
+        if (body.alias === 'skydays2026') {
+          throw new ProblemError(409, 'Conflict');
+        }
+        return {
+          id: 'u3',
+          alias: body.alias ?? 'x',
+          url: body.url,
+          clickCount: 0,
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        };
+      },
+      'https://apply.example.test',
+      'skydays2026',
+      2026,
+    );
+    expect(seen[0]).toBe('skydays2026');
+    expect(row.alias).toBe('skydays2026-2026');
   });
 });

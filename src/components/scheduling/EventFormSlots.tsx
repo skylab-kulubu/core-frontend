@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { Switch } from '@/components/chrome/Switch';
 import { ProblemError } from '@/lib/api/core';
+import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
 import {
   APPLY_SLOT_KEY,
@@ -14,9 +16,13 @@ import {
   formsAdminOrigin,
   humanFormAlias,
   skyformsCreateHref,
+  skyformsEditHref,
+  skyformsFormId,
   shortAliasFromSlug,
   slugYearAlias,
   aliasYear,
+  eventFormTitle,
+  createAliasWithRetry,
   withFormSlot,
   type EventFormMode,
   type EventFormSlot,
@@ -42,10 +48,64 @@ export function EventFormSlots({
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const bounceFor = (slotKey: string) => {
+  const [gates, setGates] = useState<Record<string, FormGate | 'loading'>>({});
+  const year = aliasYear(startLocal);
+  const origin = formsAdminOrigin();
+  const formIdKey = slots
+    .map((slot) => `${slot.key}:${skyformsFormId(slot.url, origin) ?? ''}`)
+    .join('|');
+  const formIds = useMemo(
+    () =>
+      formIdKey
+        .split('|')
+        .map((row) => {
+          const [key, id] = row.split(':');
+          return { key, id };
+        })
+        .filter((row) => row.key && row.id),
+    [formIdKey],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = formIds;
+    if (!ids.length) {
+      setGates({});
+      return;
+    }
+    setGates((prev) => {
+      const next = { ...prev };
+      for (const row of ids) {
+        if (!next[row.key]) next[row.key] = 'loading';
+      }
+      return next;
+    });
+    void Promise.all(
+      ids.map(async (row) => {
+        try {
+          const gate = await readFormGate(row.id as string);
+          return [row.key, gate] as const;
+        } catch {
+          return [row.key, 'missing'] as const;
+        }
+      }),
+    ).then((rows) => {
+      if (cancelled) return;
+      setGates(Object.fromEntries(rows));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [formIds]);
+
+  const bounceFor = (slot: EventFormSlot) => {
     const href = typeof window !== 'undefined' ? returnTo || window.location.href : returnTo || '';
-    if (!href) return skyformsCreateHref(formsAdminOrigin(), '');
-    return skyformsCreateHref(formsAdminOrigin(), withFormSlot(href, slotKey));
+    const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+    const title = eventFormTitle(ownerTeam, eventName, year, extra);
+    const returnHref = href ? withFormSlot(href, slot.key) : '';
+    const formId = skyformsFormId(slot.url, origin);
+    if (formId) return skyformsEditHref(origin, formId, returnHref);
+    return skyformsCreateHref(origin, returnHref, { title, ownerTeam });
   };
 
   function patchSlot(key: string, partial: Partial<EventFormSlot>) {
@@ -64,8 +124,8 @@ export function EventFormSlots({
     const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
     const alias = shortAliasFromSlug(
       slot.alias.trim() ||
-        humanFormAlias(ownerTeam, eventName, aliasYear(startLocal), extra) ||
-        slugYearAlias(eventName, aliasYear(startLocal), extra),
+        humanFormAlias(ownerTeam, eventName, year, extra) ||
+        slugYearAlias(eventName, year, extra),
     );
     setPendingKey(slot.key);
     setError(null);
@@ -74,7 +134,7 @@ export function EventFormSlots({
         const row = await urlsApi.update(slot.urlId, { url, alias });
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       } else {
-        const row = await urlsApi.create({ url, alias });
+        const row = await createAliasWithRetry((body) => urlsApi.create(body), url, alias, year);
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       }
     } catch (err) {
@@ -82,6 +142,25 @@ export function EventFormSlots({
       if (!slot.alias.trim()) patchSlot(slot.key, { alias });
     } finally {
       setPendingKey(null);
+    }
+  }
+
+  async function toggleGate(slot: EventFormSlot, open: boolean) {
+    const formId = skyformsFormId(slot.url, origin);
+    if (!formId) return;
+    setGates((prev) => ({ ...prev, [slot.key]: 'loading' }));
+    setError(null);
+    try {
+      const next = await setFormGate(formId, open);
+      setGates((prev) => ({ ...prev, [slot.key]: next }));
+    } catch (err) {
+      setError(err instanceof ProblemError ? err.title : 'Form durumu güncellenemedi');
+      try {
+        const current = await readFormGate(formId);
+        setGates((prev) => ({ ...prev, [slot.key]: current }));
+      } catch {
+        setGates((prev) => ({ ...prev, [slot.key]: 'missing' }));
+      }
     }
   }
 
@@ -130,18 +209,32 @@ export function EventFormSlots({
             />
           </div>
           {slot.mode === 'skyforms' ? (
-            <div className="space-y-1">
-              {bounceFor(slot.key) ? (
+            <div className="space-y-2">
+              {bounceFor(slot) ? (
                 <a
-                  href={bounceFor(slot.key) ?? undefined}
-                  className="text-2xs text-skylab-300 inline-flex h-8 items-center"
+                  href={bounceFor(slot) ?? undefined}
+                  className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 font-medium"
                 >
-                  Skyforms taslağı aç
+                  {skyformsFormId(slot.url, origin)
+                    ? 'Daha önceki taslağa git'
+                    : 'Skyforms’ta oluştur'}
                 </a>
+              ) : null}
+              {skyformsFormId(slot.url, origin) ? (
+                <Switch
+                  checked={gates[slot.key] === 'open'}
+                  onChange={(open) => void toggleGate(slot, open)}
+                  label={gates[slot.key] === 'open' ? 'Form açık' : 'Form kapalı'}
+                  hint={
+                    gates[slot.key] === 'loading'
+                      ? 'Skyforms durumu okunuyor…'
+                      : 'Kapalıyken yanıt kabul etmez. Durum Skyforms’taki yayın alanıdır.'
+                  }
+                />
               ) : null}
               <p className="text-3xs text-neutral-500">
                 Skyforms’ta kaydet, sonra etkinliğe dön. Form adresi bu alana yazılır; kısa link
-                skyl.app’den basılır.
+                skyl.app’den basılır. Yeni taslak açık gelir.
               </p>
             </div>
           ) : null}
