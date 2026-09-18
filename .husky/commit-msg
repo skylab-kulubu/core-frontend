@@ -1,1 +1,12 @@
 pnpm exec commitlint --edit "$1"
+
+if grep -Eiq 'cursoragent|cursor \[bot\]|made with cursor|made-with-cursor|co-authored-by:.*cursor' "$1"; then
+  echo "Commit rejected: Cursor identity in the message is forbidden."
+  exit 1
+fi
+
+ident="${GIT_AUTHOR_NAME-} ${GIT_AUTHOR_EMAIL-} ${GIT_COMMITTER_NAME-} ${GIT_COMMITTER_EMAIL-}"
+if printf '%s\n' "$ident" | grep -Eiq 'cursoragent|cursor \[bot\]'; then
+  echo "Commit rejected: Cursor author/committer is forbidden."
+  exit 1
+fi
