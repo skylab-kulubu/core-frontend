@@ -150,7 +150,7 @@ export function applyFormHandoff(
 export function skyformsCreateHref(
   origin: string,
   returnTo: string,
-  extras?: { title?: string; ownerTeam?: string },
+  extras?: { title?: string; ownerTeam?: string; eventId?: string },
 ): string | null {
   const trimmed = origin.trim().replace(/\/+$/, '');
   if (!trimmed) return null;
@@ -158,6 +158,7 @@ export function skyformsCreateHref(
   if (returnTo) url.searchParams.set('returnTo', returnTo);
   if (extras?.title) url.searchParams.set('title', extras.title);
   if (extras?.ownerTeam) url.searchParams.set('ownerTeam', extras.ownerTeam);
+  if (extras?.eventId) url.searchParams.set('eventId', extras.eventId);
   return url.toString();
 }
 

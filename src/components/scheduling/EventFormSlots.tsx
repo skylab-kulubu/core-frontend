@@ -10,6 +10,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { ProblemError } from '@/lib/api/core';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
+import { editorReturnTo, eventIdFromHref } from '@/lib/event-draft';
 import {
   APPLY_SLOT_KEY,
   extraFormSlot,
@@ -23,7 +24,6 @@ import {
   aliasYear,
   eventFormTitle,
   createAliasWithRetry,
-  withFormSlot,
   type EventFormMode,
   type EventFormSlot,
 } from '@/lib/event-forms';
@@ -34,6 +34,7 @@ type EventFormSlotsProps = {
   ownerTeam?: string;
   startLocal: string;
   returnTo?: string;
+  onLeaveToSkyforms?: () => void;
   onChange: (slots: EventFormSlot[]) => void;
 };
 
@@ -43,6 +44,7 @@ export function EventFormSlots({
   ownerTeam = '',
   startLocal,
   returnTo,
+  onLeaveToSkyforms,
   onChange,
 }: EventFormSlotsProps) {
   const [customLabel, setCustomLabel] = useState('');
@@ -99,13 +101,17 @@ export function EventFormSlots({
   }, [formIds]);
 
   const bounceFor = (slot: EventFormSlot) => {
-    const href = typeof window !== 'undefined' ? returnTo || window.location.href : returnTo || '';
+    const href = typeof window !== 'undefined' ? window.location.href : returnTo || '';
     const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
     const title = eventFormTitle(ownerTeam, eventName, year, extra);
-    const returnHref = href ? withFormSlot(href, slot.key) : '';
+    const returnHref = href ? editorReturnTo(href, slot.key) : '';
     const formId = skyformsFormId(slot.url, origin);
     if (formId) return skyformsEditHref(origin, formId, returnHref);
-    return skyformsCreateHref(origin, returnHref, { title, ownerTeam });
+    return skyformsCreateHref(origin, returnHref, {
+      title,
+      ownerTeam,
+      eventId: eventIdFromHref(href) ?? undefined,
+    });
   };
 
   function patchSlot(key: string, partial: Partial<EventFormSlot>) {
@@ -213,6 +219,7 @@ export function EventFormSlots({
               {bounceFor(slot) ? (
                 <a
                   href={bounceFor(slot) ?? undefined}
+                  onClick={() => onLeaveToSkyforms?.()}
                   className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 font-medium"
                 >
                   {skyformsFormId(slot.url, origin)

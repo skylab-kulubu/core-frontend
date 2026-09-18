@@ -49,6 +49,7 @@ import {
   persistableFormFields,
   slotsFromEvent,
 } from '@/lib/event-forms';
+import { clearEventDraft, restoreEventEditor, writeEventDraft } from '@/lib/event-draft';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -140,20 +141,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         typeof window === 'undefined'
           ? null
           : formHandoffFromSearch(new URLSearchParams(window.location.search));
-      const formSlots = handoff ? applyFormHandoff(slots, handoff) : slots;
-      const persist = persistableFormFields(formSlots);
-      const nextForm: EventFormState = {
+      const loaded: EventFormState = {
         ...emptyEventForm(ev.ownerTeam),
         name: ev.name,
         description: ev.description,
         location: ev.location,
         ownerTeam: ev.ownerTeam,
-        formUrl: persist.formUrl || ev.formUrl || '',
-        formAlias: persist.formAlias || ev.formAlias || '',
-        extraFormUrls: persist.extraFormUrls.length
-          ? persist.extraFormUrls
-          : (ev.extraFormUrls ?? []),
-        formSlots,
+        formUrl: ev.formUrl || '',
+        formAlias: ev.formAlias || '',
+        extraFormUrls: ev.extraFormUrls ?? [],
+        formSlots: slots,
         capacity: ev.capacity,
         startDate: toDatetimeLocal(ev.startDate),
         endDate: toDatetimeLocal(ev.endDate),
@@ -168,7 +165,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         attendanceRatio: ev.attendanceRatio,
         doorStaffIds: ev.doorStaffIds ?? [],
       };
+      const nextForm =
+        typeof window === 'undefined'
+          ? handoff
+            ? {
+                ...loaded,
+                formSlots: applyFormHandoff(slots, handoff),
+                ...persistableFormFields(applyFormHandoff(slots, handoff)),
+              }
+            : loaded
+          : restoreEventEditor(sessionStorage, window.location.href, loaded, handoff);
       setForm(nextForm);
+      if (typeof window !== 'undefined') {
+        writeEventDraft(sessionStorage, window.location.href, nextForm);
+      }
       setError(null);
       if (handoff && canWriteEvent(groups, ev.ownerTeam, 'update')) {
         setEditing(true);
@@ -187,6 +197,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             coverImageId: saved.coverImageId ?? nextForm.coverImageId,
             imageIds: (saved.images ?? []).map((image) => image.id),
           });
+          if (typeof window !== 'undefined') {
+            clearEventDraft(sessionStorage, window.location.href);
+          }
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
         } catch (err) {
           setError(err instanceof ProblemError ? err.title : 'Form adresi kaydedilemedi');
@@ -233,7 +246,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         actions={
           <>
             {canMutate ? (
-              <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
+              <ActionButton
+                icon={Pencil}
+                label="Düzenle"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    writeEventDraft(sessionStorage, window.location.href, form);
+                  }
+                  setEditing(true);
+                }}
+              />
             ) : null}
             {canDelete ? (
               <ActionButton
@@ -429,6 +451,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             e.preventDefault();
             try {
               await saveEventWithSeason(form, event.id);
+              if (typeof window !== 'undefined') {
+                clearEventDraft(sessionStorage, window.location.href);
+              }
               setEditing(false);
               await load();
             } catch (err) {
@@ -438,7 +463,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         >
           <EventEditor
             value={form}
-            onChange={setForm}
+            onChange={(next) => {
+              setForm(next);
+              if (typeof window !== 'undefined') {
+                writeEventDraft(sessionStorage, window.location.href, next);
+              }
+            }}
             ownerOptions={ownerOptions}
             lockOwner={!privileged}
             seasons={seasons}
@@ -452,6 +482,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
             ]}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
+            onLeaveToSkyforms={() => {
+              if (typeof window !== 'undefined') {
+                writeEventDraft(sessionStorage, window.location.href, form);
+              }
+            }}
           />
           <SaveButton>Kaydet</SaveButton>
         </form>
