@@ -1,12 +1,25 @@
 'use client';
 
+import { Plus, X } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { PageHeader } from '@/components/layout/PageHeader';
-import type { UserCard } from '@/lib/api/identity';
+import type { ClientRole, UserCard } from '@/lib/api/identity';
 import { listStatus } from '@/lib/list-status';
+import { roleKey } from '@/lib/picker';
 
-export function UserCardView({ card }: { card: UserCard }) {
+export function UserCardView({
+  card,
+  onAddGroup,
+  onAddRole,
+  onRemoveRole,
+}: {
+  card: UserCard;
+  onAddGroup?: () => void;
+  onAddRole?: () => void;
+  onRemoveRole?: (role: ClientRole) => void;
+}) {
   const name = `${card.firstName} ${card.lastName}`.trim();
   return (
     <div className="space-y-6">
@@ -16,7 +29,12 @@ export function UserCardView({ card }: { card: UserCard }) {
       ) : null}
       {card.schoolEmail ? <p className="text-sm text-neutral-400">{card.schoolEmail}</p> : null}
       <section className="space-y-2">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Gruplar</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Gruplar</h2>
+          {onAddGroup ? (
+            <ActionButton icon={Plus} variant="primary" label="Grup ekle" onClick={onAddGroup} />
+          ) : null}
+        </div>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -25,7 +43,7 @@ export function UserCardView({ card }: { card: UserCard }) {
           })}
         >
           {card.groups.map((g) => (
-            <ListItem key={g.id} title={g.path} />
+            <ListItem key={g.id} href={`/groups/${encodeURIComponent(g.id)}`} title={g.path} />
           ))}
         </ListPanel>
       </section>
@@ -41,14 +59,19 @@ export function UserCardView({ card }: { card: UserCard }) {
           })}
         >
           {card.inheritedRoles.map((r) => (
-            <ListItem key={`${r.clientId}:${r.role}`} title={r.role} subtitle={r.clientId} />
+            <ListItem key={roleKey(r)} title={r.role} subtitle={r.clientId} />
           ))}
         </ListPanel>
       </section>
       <section className="space-y-2">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Ekstra client rolleri
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
+            Ekstra client rolleri
+          </h2>
+          {onAddRole ? (
+            <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />
+          ) : null}
+        </div>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -57,7 +80,16 @@ export function UserCardView({ card }: { card: UserCard }) {
           })}
         >
           {card.extraRoles.map((r) => (
-            <ListItem key={`${r.clientId}:${r.role}`} title={r.role} subtitle={r.clientId} />
+            <ListItem
+              key={roleKey(r)}
+              title={r.role}
+              subtitle={r.clientId}
+              trailing={
+                onRemoveRole ? (
+                  <ActionButton icon={X} label="Kaldır" onClick={() => onRemoveRole(r)} />
+                ) : null
+              }
+            />
           ))}
         </ListPanel>
       </section>

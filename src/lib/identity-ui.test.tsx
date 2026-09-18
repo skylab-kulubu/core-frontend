@@ -112,10 +112,10 @@ describe('UserCardView', () => {
         }}
       />,
     );
-    expect(screen.getByText('Miras client rolleri').parentElement).toHaveTextContent(
+    expect(screen.getByText('Miras client rolleri').closest('section')).toHaveTextContent(
       'skyforms:access',
     );
-    expect(screen.getByText('Ekstra client rolleri').parentElement).toHaveTextContent(
+    expect(screen.getByText('Ekstra client rolleri').closest('section')).toHaveTextContent(
       'skyforms:form:manage',
     );
   });
