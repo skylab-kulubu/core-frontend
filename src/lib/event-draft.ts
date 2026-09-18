@@ -1,15 +1,17 @@
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
+import type { CoreEvent } from '@/lib/api/events';
+import { toDatetimeLocal } from '@/lib/datetime-local';
 import {
   APPLY_SLOT_KEY,
   applyFormHandoff,
   emptyApplySlot,
   persistableFormFields,
+  slotsFromEvent,
   withFormSlot,
   type EventFormSlot,
 } from '@/lib/event-forms';
 
 export const EVENT_DRAFT_PREFIX = 'superadmin:eventDraft';
-const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventDraftStorage = {
   getItem(key: string): string | null;
@@ -22,8 +24,8 @@ export function eventIdFromHref(href: string): string | null {
     const path = new URL(href, 'https://admin.yildizskylab.com').pathname;
     const parts = path.split('/').filter(Boolean);
     if (parts[0] !== 'events' || parts.length < 2) return null;
-    const id = parts[1];
-    if (id === 'new' || !EVENT_ID_RE.test(id)) return null;
+    const id = decodeURIComponent(parts[1] ?? '');
+    if (!id || id === 'new') return null;
     return id;
   } catch {
     return null;
@@ -87,17 +89,47 @@ export function clearEventDraft(
   }
 }
 
+export function formStateFromEvent(ev: CoreEvent): EventFormState {
+  const slots = slotsFromEvent(ev);
+  return {
+    ...emptyEventForm(ev.ownerTeam),
+    name: ev.name,
+    description: ev.description,
+    location: ev.location,
+    ownerTeam: ev.ownerTeam,
+    formUrl: ev.formUrl || '',
+    formAlias: ev.formAlias || '',
+    extraFormUrls: ev.extraFormUrls ?? [],
+    formSlots: slots,
+    capacity: ev.capacity,
+    startDate: toDatetimeLocal(ev.startDate),
+    endDate: toDatetimeLocal(ev.endDate),
+    linkedin: ev.linkedin ?? '',
+    active: ev.active,
+    ranked: ev.ranked,
+    prizeInfo: ev.prizeInfo ?? '',
+    seasonId: ev.seasonId ?? '',
+    coverImageId: ev.coverImageId ?? '',
+    imageIds: (ev.images ?? []).map((image) => image.id),
+    attendanceRule: ev.attendanceRule ?? 'none',
+    attendanceRatio: ev.attendanceRatio,
+    doorStaffIds: ev.doorStaffIds ?? [],
+  };
+}
+
 export function restoreEventEditor(
   storage: EventDraftStorage | null | undefined,
   returnTo: string,
   fallback: EventFormState,
   handoff: { formUrl: string; formSlot: string } | null,
 ): EventFormState {
-  const draft = readEventDraft(storage, returnTo) ?? fallback;
-  if (!handoff) return draft;
-  const base = draft.formSlots?.length ? draft.formSlots : [emptyApplySlot()];
-  const formSlots = applyFormHandoff(base, handoff);
-  return { ...draft, formSlots, ...persistableFormFields(formSlots) };
+  const existingId = eventIdFromHref(returnTo);
+  const draft = existingId ? null : readEventDraft(storage, returnTo);
+  const base = draft ?? fallback;
+  if (!handoff) return base;
+  const slots = base.formSlots?.length ? base.formSlots : [emptyApplySlot()];
+  const formSlots = applyFormHandoff(slots, handoff);
+  return { ...base, formSlots, ...persistableFormFields(formSlots) };
 }
 
 function normalizeDraft(parsed: Partial<EventFormState>): EventFormState {
