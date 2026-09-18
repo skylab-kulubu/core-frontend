@@ -7,6 +7,8 @@ export type CoreEvent = {
   location: string;
   ownerTeam: string;
   formUrl?: string;
+  formAlias?: string;
+  extraFormUrls?: { label: string; url: string; alias?: string }[];
   capacity: number;
   startDate?: string;
   endDate?: string;
@@ -32,6 +34,8 @@ export type EventBody = {
   location: string;
   ownerTeam: string;
   formUrl?: string;
+  formAlias?: string;
+  extraFormUrls?: { label: string; url: string; alias?: string }[];
   capacity: number;
   startDate?: string;
   endDate?: string;

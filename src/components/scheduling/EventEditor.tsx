@@ -11,14 +11,22 @@ import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
+import { DatePicker } from '@/components/forms/DatePicker';
 import type { EventBody } from '@/lib/api/events';
 import { identityApi, type Person } from '@/lib/api/identity';
-import { mediaApi, type Media } from '@/lib/api/media';
 import type { Season } from '@/lib/api/seasons';
+import { emptyApplySlot, persistableFormFields, type EventFormSlot } from '@/lib/event-forms';
+import type { EventMediaHint } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
+import { EventFormSlots } from './EventFormSlots';
+import { EventMediaFields } from './EventMediaFields';
 
-export type EventFormState = EventBody & { seasonId: string; imageIds: string[] };
+export type EventFormState = EventBody & {
+  seasonId: string;
+  imageIds: string[];
+  formSlots: EventFormSlot[];
+};
 
 type EventEditorProps = {
   value: EventFormState;
@@ -29,6 +37,8 @@ type EventEditorProps = {
   showSeason?: boolean;
   ownerOptional?: boolean;
   assignDoorStaff?: boolean;
+  knownMedia?: EventMediaHint[];
+  returnTo?: string;
 };
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
@@ -38,6 +48,9 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     location: '',
     ownerTeam,
     formUrl: '',
+    formAlias: '',
+    extraFormUrls: [],
+    formSlots: [emptyApplySlot()],
     capacity: 0,
     startDate: '',
     endDate: '',
@@ -70,20 +83,14 @@ export function EventEditor({
   showSeason,
   ownerOptional,
   assignDoorStaff,
+  knownMedia = [],
+  returnTo,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
-  const [media, setMedia] = useState<Media[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [staffOpen, setStaffOpen] = useState(false);
   const [staffQuery, setStaffQuery] = useState('');
   const [staffLoading, setStaffLoading] = useState(false);
-
-  useEffect(() => {
-    mediaApi
-      .list()
-      .then((rows) => setMedia(rows.filter((row) => row.kind === 'IMAGE')))
-      .catch(() => setMedia([]));
-  }, []);
 
   useEffect(() => {
     if (!assignDoorStaff) return;
@@ -169,19 +176,14 @@ export function EventEditor({
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
           <FieldLabel>Başlangıç</FieldLabel>
-          <Field
-            type="datetime-local"
+          <DatePicker
             value={value.startDate ?? ''}
-            onChange={(e) => patch({ startDate: e.target.value })}
+            onChange={(startDate) => patch({ startDate })}
           />
         </label>
         <label className="block space-y-1">
           <FieldLabel>Bitiş</FieldLabel>
-          <Field
-            type="datetime-local"
-            value={value.endDate ?? ''}
-            onChange={(e) => patch({ endDate: e.target.value })}
-          />
+          <DatePicker value={value.endDate ?? ''} onChange={(endDate) => patch({ endDate })} />
         </label>
       </div>
       <label className="block space-y-1">
@@ -193,47 +195,22 @@ export function EventEditor({
           onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
         />
       </label>
-      <label className="block space-y-1">
-        <FieldLabel>Kapak görseli</FieldLabel>
-        <Select
-          value={value.coverImageId ?? ''}
-          onChange={(e) => patch({ coverImageId: e.target.value })}
-        >
-          <option value="">Yok</option>
-          {media.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label className="block space-y-1">
-        <FieldLabel>Galeri görselleri</FieldLabel>
-        <Select
-          multiple
-          className="h-24"
-          value={value.imageIds ?? []}
-          onChange={(e) =>
-            patch({
-              imageIds: Array.from(e.target.selectedOptions).map((option) => option.value),
-            })
-          }
-        >
-          {media.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label className="block space-y-1">
-        <FieldLabel>Form URL</FieldLabel>
-        <Field
-          type="url"
-          value={value.formUrl ?? ''}
-          onChange={(e) => patch({ formUrl: e.target.value })}
-        />
-      </label>
+      <EventMediaFields
+        ownerTeam={value.ownerTeam}
+        coverImageId={value.coverImageId ?? ''}
+        imageIds={value.imageIds ?? []}
+        knownMedia={knownMedia}
+        onCover={(id) => patch({ coverImageId: id })}
+        onGallery={(ids) => patch({ imageIds: ids })}
+      />
+      <EventFormSlots
+        slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
+        eventName={value.name}
+        ownerTeam={value.ownerTeam}
+        startLocal={value.startDate ?? ''}
+        returnTo={returnTo}
+        onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
+      />
       <label className="block space-y-1">
         <FieldLabel>LinkedIn</FieldLabel>
         <Field
@@ -337,9 +314,7 @@ export function EventEditor({
                     <ActionButton
                       icon={X}
                       label="Kaldır"
-                      onClick={() =>
-                        patch({ doorStaffIds: staffIds.filter((row) => row !== id) })
-                      }
+                      onClick={() => patch({ doorStaffIds: staffIds.filter((row) => row !== id) })}
                     />
                   }
                 />
@@ -358,12 +333,7 @@ export function EventEditor({
               .filter(
                 (person) =>
                   !staffIds.includes(person.id) &&
-                  pickerMatch(
-                    staffQuery,
-                    person.email,
-                    person.firstName,
-                    person.lastName,
-                  ),
+                  pickerMatch(staffQuery, person.email, person.firstName, person.lastName),
               )
               .map((person) => ({
                 id: person.id,

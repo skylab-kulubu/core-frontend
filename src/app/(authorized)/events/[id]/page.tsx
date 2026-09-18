@@ -40,8 +40,10 @@ import {
   isPrivileged,
   leaderOwnerTeams,
 } from '@/lib/auth/groups';
+import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { slotsFromEvent } from '@/lib/event-forms';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -134,6 +136,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         location: ev.location,
         ownerTeam: ev.ownerTeam,
         formUrl: ev.formUrl ?? '',
+        formAlias: ev.formAlias ?? '',
+        extraFormUrls: ev.extraFormUrls ?? [],
+        formSlots: slotsFromEvent(ev),
         capacity: ev.capacity,
         startDate: toDatetimeLocal(ev.startDate),
         endDate: toDatetimeLocal(ev.endDate),
@@ -335,43 +340,43 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     emptyMessage: 'Oturum yok',
                   })}
                 >
-                {(sessionsByDay.get(day.id) ?? []).map((session) => (
-                  <ListItem
-                    key={session.id}
-                    title={session.title}
-                    subtitle={`${session.speakerName} · ${session.sessionType}`}
-                    trailing={
-                      <div className="flex items-center gap-1">
-                        <ActionButton
-                          icon={QrCode}
-                          label="Oturum QR"
-                          onClick={() => setQrSession(session)}
-                        />
-                        {canMutate ? (
+                  {(sessionsByDay.get(day.id) ?? []).map((session) => (
+                    <ListItem
+                      key={session.id}
+                      title={session.title}
+                      subtitle={`${session.speakerName} · ${session.sessionType}`}
+                      trailing={
+                        <div className="flex items-center gap-1">
                           <ActionButton
-                            icon={Pencil}
-                            label="Oturumu düzenle"
-                            onClick={() => {
-                              setEditingSessionId(session.id);
-                              setSessionDraft({
-                                eventDayId: session.eventDayId,
-                                title: session.title,
-                                speakerName: session.speakerName,
-                                speakerLinkedin: session.speakerLinkedin ?? '',
-                                description: session.description ?? '',
-                                startTime: toDatetimeLocal(session.startTime),
-                                endTime: toDatetimeLocal(session.endTime),
-                                orderIndex: session.orderIndex,
-                                sessionType: session.sessionType,
-                              });
-                              setSessionOpen(true);
-                            }}
+                            icon={QrCode}
+                            label="Oturum QR"
+                            onClick={() => setQrSession(session)}
                           />
-                        ) : null}
-                      </div>
-                    }
-                  />
-                ))}
+                          {canMutate ? (
+                            <ActionButton
+                              icon={Pencil}
+                              label="Oturumu düzenle"
+                              onClick={() => {
+                                setEditingSessionId(session.id);
+                                setSessionDraft({
+                                  eventDayId: session.eventDayId,
+                                  title: session.title,
+                                  speakerName: session.speakerName,
+                                  speakerLinkedin: session.speakerLinkedin ?? '',
+                                  description: session.description ?? '',
+                                  startTime: toDatetimeLocal(session.startTime),
+                                  endTime: toDatetimeLocal(session.endTime),
+                                  orderIndex: session.orderIndex,
+                                  sessionType: session.sessionType,
+                                });
+                                setSessionOpen(true);
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                      }
+                    />
+                  ))}
                 </ListPanel>
               </div>
             </div>
@@ -401,6 +406,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             showSeason={privileged}
             ownerOptional={privileged}
             assignDoorStaff={privileged}
+            knownMedia={[
+              ...(event.coverImageId
+                ? [{ id: event.coverImageId, name: 'Kapak', url: event.coverImageUrl }]
+                : []),
+              ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
+            ]}
+            returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           />
           <SaveButton>Kaydet</SaveButton>
         </form>
@@ -429,23 +441,15 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         >
           <label className="block space-y-1">
             <FieldLabel>Gün adı</FieldLabel>
-            <Field
-              value={dayName}
-              onChange={(e) => setDayName(e.target.value)}
-              required
-            />
+            <Field value={dayName} onChange={(e) => setDayName(e.target.value)} required />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <Field
-              type="datetime-local"
-              value={dayStart}
-              onChange={(e) => setDayStart(e.target.value)}
-            />
+            <DatePicker value={dayStart} onChange={setDayStart} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <Field type="datetime-local" value={dayEnd} onChange={(e) => setDayEnd(e.target.value)} />
+            <DatePicker value={dayEnd} onChange={setDayEnd} />
           </label>
           <SaveButton>Kaydet</SaveButton>
         </form>
@@ -518,7 +522,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <FieldLabel>LinkedIn</FieldLabel>
             <Field
               value={sessionDraft.speakerLinkedin}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })}
+              onChange={(e) =>
+                setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })
+              }
             />
           </label>
           <label className="block space-y-1">
@@ -531,18 +537,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <Field
-              type="datetime-local"
+            <DatePicker
               value={sessionDraft.startTime}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, startTime: e.target.value })}
+              onChange={(startTime) => setSessionDraft({ ...sessionDraft, startTime })}
             />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <Field
-              type="datetime-local"
+            <DatePicker
               value={sessionDraft.endTime}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, endTime: e.target.value })}
+              onChange={(endTime) => setSessionDraft({ ...sessionDraft, endTime })}
             />
           </label>
           <label className="block space-y-1">
