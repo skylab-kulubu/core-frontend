@@ -69,7 +69,7 @@ function BarChart({ title, data, empty }: { title: string; data: NamedCount[]; e
     <div>
       <h2 className="text-2xs mb-3 font-medium text-neutral-500">{title}</h2>
       {max === 0 ? (
-        <p className="text-3xs py-6 text-center text-neutral-600">{empty}</p>
+        <p className="text-3xs py-6 text-center text-neutral-500">{empty}</p>
       ) : (
         <div className="flex h-24 items-end gap-1.5">
           {data.map((row) => (
@@ -79,7 +79,7 @@ function BarChart({ title, data, empty }: { title: string; data: NamedCount[]; e
                 style={{ height: `${Math.max(8, (row.count / max) * 100)}%` }}
                 title={`${row.label}: ${row.count}`}
               />
-              <span className="text-4xs max-w-full truncate text-neutral-600">{row.label}</span>
+              <span className="text-4xs max-w-full truncate text-neutral-500">{row.label}</span>
             </div>
           ))}
         </div>
@@ -102,7 +102,7 @@ function HorizontalBars({
     <div>
       <h2 className="text-2xs mb-3 font-medium text-neutral-500">{title}</h2>
       {data.length === 0 || max === 0 ? (
-        <p className="text-3xs py-6 text-center text-neutral-600">{empty}</p>
+        <p className="text-3xs py-6 text-center text-neutral-500">{empty}</p>
       ) : (
         <ul className="space-y-2">
           {data.map((row) => (

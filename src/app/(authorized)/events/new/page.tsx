@@ -14,6 +14,7 @@ import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { eventFormIssue } from '@/lib/events-view';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { clearEventDraft, restoreEventEditor, writeEventDraft } from '@/lib/event-draft';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +34,7 @@ function NewEventPageContent() {
     emptyEventForm(privileged ? '' : (leaderTeams[0] ?? '')),
   );
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   function persist(next: EventFormState) {
     if (typeof window === 'undefined') return;
@@ -103,6 +105,12 @@ function NewEventPageContent() {
           className="space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
+            const issue = eventFormIssue(form);
+            if (issue) {
+              setError(issue);
+              return;
+            }
+            setSaving(true);
             try {
               const id = await saveEventWithSeason(form);
               if (typeof window !== 'undefined')
@@ -110,6 +118,8 @@ function NewEventPageContent() {
               router.push(`/events/${id}`);
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+            } finally {
+              setSaving(false);
             }
           }}
         >
@@ -125,7 +135,7 @@ function NewEventPageContent() {
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
             onLeaveToSkyforms={() => persist(form)}
           />
-          <SaveButton>Kaydet</SaveButton>
+          <SaveButton disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
         </form>
       )}
     </div>
