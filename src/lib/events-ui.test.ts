@@ -214,6 +214,32 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(rows[0]).not.toHaveProperty('success');
   });
 
+  it('member apply posts to applications/me, not a public form', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/applications/me')) {
+        expect(init?.method).toBe('POST');
+        return jsonRes(
+          {
+            id: 't2',
+            eventId: 'e1',
+            ticketType: 'REGISTERED',
+            ownerId: 'u1',
+            checkIns: [],
+          },
+          201,
+        );
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.applyMe('e1');
+    expect(ticket).toMatchObject({ ticketType: 'REGISTERED', ownerId: 'u1' });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/applications/me'))).toBe(true);
+    expect(urls.some((url) => url.includes('formUrl') || url.includes('skyforms'))).toBe(false);
+  });
+
   it('media list is a resource array', async () => {
     const rows = await mediaApi.list();
     expect(rows[0]).toMatchObject({ id: 'm1', name: 'dot.png' });

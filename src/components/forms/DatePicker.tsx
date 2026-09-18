@@ -67,7 +67,7 @@ export function DatePicker({ value, onChange, required }: DatePickerProps) {
         className="focus:border-skylab-400/50 flex h-8 w-full items-center gap-2 rounded-md border border-white/10 bg-white/3 px-3 text-left text-xs text-neutral-100 focus:bg-white/5 focus:outline-none"
       >
         <CalendarDays className="text-skylab-300 h-3.5 w-3.5 shrink-0" />
-        <span className={label ? 'truncate' : 'text-neutral-600'}>{label || 'Tarih ve saat'}</span>
+        <span className={label ? 'truncate' : 'text-neutral-500'}>{label || 'Tarih ve saat'}</span>
       </button>
       {open ? (
         <div
