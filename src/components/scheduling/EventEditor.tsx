@@ -39,6 +39,7 @@ type EventEditorProps = {
   assignDoorStaff?: boolean;
   knownMedia?: EventMediaHint[];
   returnTo?: string;
+  onLeaveToSkyforms?: () => void;
 };
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
@@ -85,6 +86,7 @@ export function EventEditor({
   assignDoorStaff,
   knownMedia = [],
   returnTo,
+  onLeaveToSkyforms,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [people, setPeople] = useState<Person[]>([]);
@@ -209,6 +211,7 @@ export function EventEditor({
         ownerTeam={value.ownerTeam}
         startLocal={value.startDate ?? ''}
         returnTo={returnTo}
+        onLeaveToSkyforms={onLeaveToSkyforms}
         onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
       />
       <label className="block space-y-1">

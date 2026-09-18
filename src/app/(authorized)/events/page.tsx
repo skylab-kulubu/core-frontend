@@ -1,74 +1,42 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
-import {
-  emptyEventForm,
-  EventEditor,
-  type EventFormState,
-} from '@/components/scheduling/EventEditor';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { seasonsApi, type Season } from '@/lib/api/seasons';
-import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
-import { saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
-import {
-  applyFormHandoff,
-  emptyApplySlot,
-  formHandoffFromSearch,
-  persistableFormFields,
-} from '@/lib/event-forms';
+import { formHandoffFromSearch } from '@/lib/event-forms';
 
 const PAGE_SIZE = 10;
 
 function EventsPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get('ownerTeam')?.trim() || '';
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const [form, setForm] = useState<EventFormState>(emptyEventForm());
   const privileged = isPrivileged(groups);
   const leaderTeams = leaderOwnerTeams(groups);
   const canCreate = privileged || leaderTeams.some((team) => canWriteEvent(groups, team, 'create'));
 
   async function load() {
     try {
-      const [rows, teamRows] = await Promise.all([
-        eventsApi.list(ownerFilter || undefined),
-        teamsApi.list().catch(() => []),
-      ]);
-      setEvents(rows);
-      const fromTeams = teamRows.map((t) => t.team);
-      const options = privileged
-        ? [...new Set([...fromTeams, ...leaderTeams])]
-        : leaderTeams.length
-          ? leaderTeams
-          : fromTeams;
-      setOwnerOptions(options);
+      setEvents(await eventsApi.list(ownerFilter || undefined));
       setError(null);
-      if (privileged) {
-        setSeasons(await seasonsApi.list().catch(() => []));
-      }
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
     } finally {
@@ -87,15 +55,9 @@ function EventsPageContent() {
   useEffect(() => {
     const handoff = formHandoffFromSearch(searchParams);
     if (!handoff) return;
-    setForm((prev) => {
-      const slots = applyFormHandoff(
-        prev.formSlots?.length ? prev.formSlots : [emptyApplySlot()],
-        handoff,
-      );
-      return { ...prev, formSlots: slots, ...persistableFormFields(slots) };
-    });
-    setCreating(true);
-  }, [searchParams]);
+    const next = new URLSearchParams(searchParams.toString());
+    router.replace(`/events/new?${next.toString()}`);
+  }, [searchParams, router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -126,10 +88,7 @@ function EventsPageContent() {
               icon={Plus}
               variant="primary"
               label="Etkinlik ekle"
-              onClick={() => {
-                setForm(emptyEventForm(privileged ? '' : (leaderTeams[0] ?? ownerFilter)));
-                setCreating(true);
-              }}
+              onClick={() => router.push('/events/new')}
             />
           ) : undefined
         }
@@ -161,34 +120,6 @@ function EventsPageContent() {
         ))}
       </ListPanel>
       <Pagination current={page} totalPages={totalPages} onPageChange={setPage} />
-      <Drawer open={creating} onClose={() => setCreating(false)} title="Etkinlik ekle">
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await saveEventWithSeason(form);
-              setCreating(false);
-              await load();
-            } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
-            }
-          }}
-        >
-          <EventEditor
-            value={form}
-            onChange={setForm}
-            ownerOptions={ownerOptions}
-            lockOwner={!privileged && leaderTeams.length === 1}
-            seasons={seasons}
-            showSeason={privileged}
-            ownerOptional={privileged}
-            assignDoorStaff={privileged}
-            returnTo={typeof window !== 'undefined' ? window.location.href : ''}
-          />
-          <SaveButton>Kaydet</SaveButton>
-        </form>
-      </Drawer>
     </div>
   );
 }
