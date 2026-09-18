@@ -52,6 +52,13 @@ describe('clubSwitcherLinks', () => {
     ]);
   });
 
+  it('defaults Mail when the public env is empty at build', () => {
+    process.env.NEXT_PUBLIC_MAIL_URL = '';
+    expect(clubSwitcherLinks('admin').find((link) => link.id === 'mail')?.href).toBe(
+      'https://mail.yildizskylab.com',
+    );
+  });
+
   it('uses public origin env when set', () => {
     process.env.NEXT_PUBLIC_ADMIN_URL = 'https://admin.example.test';
     process.env.NEXT_PUBLIC_FORMS_ADMIN_URL = 'https://forms.example.test/admin';
