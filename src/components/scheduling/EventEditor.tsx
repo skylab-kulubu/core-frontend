@@ -26,6 +26,7 @@ export type EventFormState = EventBody & {
   seasonId: string;
   imageIds: string[];
   formSlots: EventFormSlot[];
+  reservedId?: string;
 };
 
 type EventEditorProps = {
@@ -210,6 +211,7 @@ export function EventEditor({
         eventName={value.name}
         ownerTeam={value.ownerTeam}
         startLocal={value.startDate ?? ''}
+        reservedEventId={value.reservedId}
         returnTo={returnTo}
         onLeaveToSkyforms={onLeaveToSkyforms}
         onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}

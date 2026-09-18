@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
+import { Mail, Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
@@ -46,6 +46,7 @@ import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import { publicMediaUrl } from '@/lib/event-media';
+import { eventMailHref } from '@/lib/event-mail';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { publicShortUrl } from '@/lib/api/urls';
 import { SaveButton } from '@/components/chrome/SaveButton';
@@ -210,6 +211,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <>
             {canMutate ? (
               <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
+            ) : null}
+            {canMutate ? (
+              <ActionButton
+                icon={Mail}
+                label="Mail"
+                href={eventMailHref({ name: event.name, ownerTeam: event.ownerTeam })}
+              />
             ) : null}
             {canDelete ? (
               <ActionButton

@@ -2,12 +2,15 @@ import { eventsApi, type EventBody } from '@/lib/api/events';
 import { urlsApi } from '@/lib/api/urls';
 import { seasonsApi } from '@/lib/api/seasons';
 import { toRfc3339 } from '@/lib/datetime-local';
+import { isEventId } from '@/lib/event-draft';
 import { attachFormAliases, persistableFormFields } from '@/lib/event-forms';
 import type { EventFormState } from '@/components/scheduling/EventEditor';
 
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
+  const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
   return {
+    ...(reservedId ? { id: reservedId } : {}),
     name: form.name.trim(),
     description: form.description,
     location: form.location.trim(),

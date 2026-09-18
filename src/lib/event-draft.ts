@@ -12,12 +12,17 @@ import {
 } from '@/lib/event-forms';
 
 export const EVENT_DRAFT_PREFIX = 'superadmin:eventDraft';
+export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type EventDraftStorage = {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 };
+
+export function isEventId(value: string | undefined | null): value is string {
+  return Boolean(value && EVENT_ID_RE.test(value));
+}
 
 export function eventIdFromHref(href: string): string | null {
   try {
@@ -30,6 +35,18 @@ export function eventIdFromHref(href: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function eventIdForForms(href: string, reservedId?: string): string | undefined {
+  return eventIdFromHref(href) ?? (isEventId(reservedId) ? reservedId : undefined);
+}
+
+export function ensureReservedEventId(
+  draft: EventFormState,
+  randomUUID: () => string = () => crypto.randomUUID(),
+): EventFormState {
+  if (isEventId(draft.reservedId)) return draft;
+  return { ...draft, reservedId: randomUUID() };
 }
 
 export function eventDraftStorageKey(returnTo: string): string {
@@ -114,6 +131,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceRule: ev.attendanceRule ?? 'none',
     attendanceRatio: ev.attendanceRatio,
     doorStaffIds: ev.doorStaffIds ?? [],
+    reservedId: ev.id,
   };
 }
 
@@ -151,6 +169,7 @@ function normalizeDraft(parsed: Partial<EventFormState>): EventFormState {
     doorStaffIds: Array.isArray(parsed.doorStaffIds)
       ? parsed.doorStaffIds.filter((id) => typeof id === 'string')
       : [],
+    reservedId: isEventId(parsed.reservedId) ? parsed.reservedId : undefined,
   };
 }
 

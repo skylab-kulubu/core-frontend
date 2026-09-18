@@ -10,7 +10,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { ProblemError } from '@/lib/api/core';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
-import { editorReturnTo, eventIdFromHref } from '@/lib/event-draft';
+import { editorReturnTo, eventIdForForms } from '@/lib/event-draft';
 import {
   APPLY_SLOT_KEY,
   extraFormSlot,
@@ -33,6 +33,7 @@ type EventFormSlotsProps = {
   eventName: string;
   ownerTeam?: string;
   startLocal: string;
+  reservedEventId?: string;
   returnTo?: string;
   onLeaveToSkyforms?: () => void;
   onChange: (slots: EventFormSlot[]) => void;
@@ -43,6 +44,7 @@ export function EventFormSlots({
   eventName,
   ownerTeam = '',
   startLocal,
+  reservedEventId,
   returnTo,
   onLeaveToSkyforms,
   onChange,
@@ -110,7 +112,7 @@ export function EventFormSlots({
     return skyformsCreateHref(origin, returnHref, {
       title,
       ownerTeam,
-      eventId: eventIdFromHref(href) ?? undefined,
+      eventId: eventIdForForms(href, reservedEventId),
     });
   };
 
