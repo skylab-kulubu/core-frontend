@@ -31,6 +31,14 @@ export function ActionButton({
   const buttonClass = `inline-flex h-8 w-8 items-center justify-center rounded-md border text-2xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-skylab-400/40 ${variantClass} ${className}`;
 
   if (href) {
+    const external = /^https?:\/\//.test(href);
+    if (external) {
+      return (
+        <a href={href} className={buttonClass} aria-label={label ?? title} title={title ?? label}>
+          {Icon ? <Icon className="h-4 w-4" /> : null}
+        </a>
+      );
+    }
     return (
       <Link href={href} className={buttonClass} aria-label={label ?? title} title={title ?? label}>
         {Icon ? <Icon className="h-4 w-4" /> : null}

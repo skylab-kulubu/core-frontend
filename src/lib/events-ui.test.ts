@@ -376,6 +376,16 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(body.doorStaffIds).toEqual(['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa']);
   });
 
+  it('eventBodyFromForm sends the reserved Event id so create keeps the Skyforms EventId', () => {
+    const body = eventBodyFromForm({
+      ...emptyEventForm('WEBLAB'),
+      name: 'Hack',
+      location: 'YTÜ',
+      reservedId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(body.id).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
   it('saveEventWithSeason attaches gallery image ids', async () => {
     const calls: string[] = [];
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -29,6 +29,7 @@ export type CoreEvent = {
 };
 
 export type EventBody = {
+  id?: string;
   name: string;
   description: string;
   location: string;

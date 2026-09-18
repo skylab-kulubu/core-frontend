@@ -16,7 +16,12 @@ import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { eventFormIssue } from '@/lib/events-view';
 import { formHandoffFromSearch } from '@/lib/event-forms';
-import { clearEventDraft, restoreEventEditor, writeEventDraft } from '@/lib/event-draft';
+import {
+  clearEventDraft,
+  ensureReservedEventId,
+  restoreEventEditor,
+  writeEventDraft,
+} from '@/lib/event-draft';
 import { useAuth } from '@/context/AuthContext';
 
 function NewEventPageContent() {
@@ -74,11 +79,13 @@ function NewEventPageContent() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handoff = formHandoffFromSearch(searchParams);
-    const restored = restoreEventEditor(
-      sessionStorage,
-      window.location.href,
-      emptyEventForm(privileged ? '' : (leaderTeams[0] ?? '')),
-      handoff,
+    const restored = ensureReservedEventId(
+      restoreEventEditor(
+        sessionStorage,
+        window.location.href,
+        emptyEventForm(privileged ? '' : (leaderTeams[0] ?? '')),
+        handoff,
+      ),
     );
     setForm(restored);
     persist(restored);

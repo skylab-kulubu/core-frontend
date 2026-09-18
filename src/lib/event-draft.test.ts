@@ -12,7 +12,9 @@ import {
   EVENT_DRAFT_PREFIX,
   clearEventDraft,
   editorReturnTo,
+  ensureReservedEventId,
   eventDraftStorageKey,
+  eventIdForForms,
   eventIdFromHref,
   formStateFromEvent,
   readEventDraft,
@@ -206,6 +208,50 @@ describe('event editor draft', () => {
     );
     expect(restored.name).toBe('Hack');
     expect(restored.location).toBe('YTÜ');
+  });
+
+  it('stores a reserved Event id on a new editor so Skyforms can keep it before save', () => {
+    const storage = memoryStorage();
+    const reserved = '11111111-1111-4111-8111-111111111111';
+    const returnTo = 'https://admin.yildizskylab.com/events/new?formSlot=apply';
+    writeEventDraft(storage, returnTo, {
+      ...emptyEventForm('GECEKODU'),
+      name: 'SkyDays',
+      reservedId: reserved,
+    });
+    const restored = restoreEventEditor(storage, returnTo, emptyEventForm(), null);
+    expect(restored.reservedId).toBe(reserved);
+    expect(eventIdForForms(returnTo, restored.reservedId)).toBe(reserved);
+    expect(eventIdFromHref(returnTo)).toBeNull();
+    expect(
+      skyformsCreateHref(DEFAULT_FORMS_ADMIN_ORIGIN, editorReturnTo(returnTo), {
+        title: 'GECEKODU SkyDays 2026',
+        ownerTeam: 'GECEKODU',
+        eventId: eventIdForForms(returnTo, restored.reservedId),
+      }),
+    ).toBe(
+      'https://forms.yildizskylab.com/admin/forms/new-form?returnTo=https%3A%2F%2Fadmin.yildizskylab.com%2Fevents%2Fnew%3FformSlot%3Dapply&title=GECEKODU+SkyDays+2026&ownerTeam=GECEKODU&eventId=11111111-1111-4111-8111-111111111111',
+    );
+  });
+
+  it('keeps the same reserved Event id when the new editor is restored twice', () => {
+    const first = ensureReservedEventId(
+      emptyEventForm('GECEKODU'),
+      () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
+    expect(first.reservedId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    expect(
+      ensureReservedEventId(first, () => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb').reservedId,
+    ).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  });
+
+  it('prefers a saved Event path over the reserved id', () => {
+    expect(
+      eventIdForForms(
+        'https://admin.yildizskylab.com/events/11111111-1111-4111-8111-111111111111',
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ),
+    ).toBe('11111111-1111-4111-8111-111111111111');
   });
 
   it('passes event id on the Skyforms create url when the event already exists', () => {
