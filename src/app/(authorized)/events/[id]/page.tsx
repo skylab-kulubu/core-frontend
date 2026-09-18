@@ -22,6 +22,7 @@ import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
+import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
@@ -34,7 +35,6 @@ import { teamsApi } from '@/lib/api/teams';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { personLabel } from '@/components/identity/PersonPick';
 import {
-  canCheckInForTeam,
   canManageCompetitors,
   canWriteEvent,
   isPrivileged,
@@ -77,12 +77,7 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
 });
 
 function ticketLabel(row: Ticket, people: Map<string, Person>): string {
-  if (row.ticketType === 'GUEST') {
-    const name = [row.guestFirstName, row.guestLastName].filter(Boolean).join(' ');
-    return name || row.guestEmail || row.id;
-  }
-  const owner = row.ownerId ? people.get(row.ownerId) : undefined;
-  return owner ? personLabel(owner) : row.ownerId || row.id;
+  return ticketApplicantLabel(row, people);
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -118,7 +113,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
   const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
-  const canTickets = event ? canCheckInForTeam(groups, event.ownerTeam) : false;
+  const canTickets = event ? canListEventTickets(groups, event.ownerTeam) : false;
 
   async function load() {
     try {
@@ -166,7 +161,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
       setPeople(await identityApi.listUsers().catch(() => []));
       setTickets(
-        canCheckInForTeam(groups, ev.ownerTeam)
+        canListEventTickets(groups, ev.ownerTeam)
           ? await ticketsApi.listByEvent(id).catch(() => [])
           : [],
       );
@@ -214,11 +209,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         actions={
           <>
             {canMutate ? (
-              <ActionButton
-                icon={Pencil}
-                label="Düzenle"
-                onClick={() => setEditing(true)}
-              />
+              <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
             ) : null}
             {canDelete ? (
               <ActionButton
@@ -335,7 +326,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       {canTickets ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Biletler</h2>
+            <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Başvuranlar</h2>
             <ActionButton icon={QrCode} label="Kapı" href="/qr" />
           </div>
           <ListPanel

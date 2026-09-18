@@ -18,6 +18,7 @@ import { ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
 import { emptyEventForm, parseDoorStaffIds } from '@/components/scheduling/EventEditor';
 import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
 
 function jsonRes(body: unknown, status = 200): Response {
   const text = status === 204 ? '' : JSON.stringify(body);
@@ -77,6 +78,27 @@ describe('event write policy', () => {
     expect(canCheckInForTeam(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'WEBLAB')).toBe(true);
     expect(canCheckInForTeam(['/UYELER/ARGE/WEBLAB'], 'WEBLAB')).toBe(false);
     expect(canCheckInForTeam(['/UYELER/YK'], 'WEBLAB')).toBe(true);
+  });
+  it('Event organizers see the applicant roster', () => {
+    expect(canListEventTickets(['/UYELER/ARGE/WEBLAB/LIDERLER'], 'WEBLAB')).toBe(true);
+    expect(canListEventTickets(['/UYELER/ARGE/WEBLAB'], 'WEBLAB')).toBe(false);
+    expect(canListEventTickets(['/UYELER/ORGANIZASYON/GECEKODU'], 'GECEKODU')).toBe(true);
+    expect(
+      ticketApplicantLabel(
+        {
+          id: 't1',
+          eventId: 'e1',
+          ticketType: 'GUEST',
+          guestFirstName: 'Ada',
+          guestLastName: 'Lovelace',
+          guestEmail: 'ada@example.com',
+          checkIns: [],
+          createdAt: '',
+          updatedAt: '',
+        },
+        new Map(),
+      ),
+    ).toBe('Ada Lovelace · ada@example.com');
   });
 });
 
