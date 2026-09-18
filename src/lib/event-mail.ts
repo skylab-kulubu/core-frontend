@@ -4,12 +4,23 @@ export function mailOrigin(env = process.env.NEXT_PUBLIC_MAIL_URL): string {
   return (env ?? '').trim().replace(/\/+$/, '') || DEFAULT_MAIL_ORIGIN;
 }
 
-export function eventMailHref(
-  event: { name?: string; ownerTeam?: string },
-  origin = mailOrigin(),
-): string {
-  const url = new URL(`${origin.replace(/\/+$/, '')}/mailing-lists/create`);
-  const name = [event.ownerTeam?.trim(), event.name?.trim()].filter(Boolean).join(' ');
-  if (name) url.searchParams.set('name', name);
+export function eventMailComposeHref(mailListId: string, origin = mailOrigin()): string {
+  const url = new URL(`${origin.replace(/\/+$/, '')}/mail-tasks/create`);
+  url.searchParams.set('mail_list_id', mailListId);
   return url.toString();
+}
+
+export function eventMailListHref(mailListId: string, origin = mailOrigin()): string {
+  return `${origin.replace(/\/+$/, '')}/mailing-lists/show/${encodeURIComponent(mailListId)}`;
+}
+
+export type EventMailSync = (eventId: string) => Promise<{ mailListId: string }>;
+
+export async function openEventMail(
+  eventId: string,
+  sync: EventMailSync,
+  open: (href: string) => void,
+): Promise<void> {
+  const got = await sync(eventId);
+  open(eventMailComposeHref(got.mailListId));
 }

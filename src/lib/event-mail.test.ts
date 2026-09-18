@@ -1,23 +1,48 @@
-import { eventMailHref } from './event-mail';
+import { eventMailComposeHref, eventMailListHref, openEventMail } from './event-mail';
 
-describe('event mail stub', () => {
+describe('event mail skymail links', () => {
   const original = process.env.NEXT_PUBLIC_MAIL_URL;
+  const listId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
   afterEach(() => {
     if (original === undefined) delete process.env.NEXT_PUBLIC_MAIL_URL;
     else process.env.NEXT_PUBLIC_MAIL_URL = original;
   });
 
-  it('opens skymail mailing-list create with the Event name', () => {
-    expect(eventMailHref({ name: 'SkyDays', ownerTeam: 'GECEKODU' })).toBe(
-      'https://mail.yildizskylab.com/mailing-lists/create?name=GECEKODU+SkyDays',
+  it('opens skymail compose with the Event mailing list', () => {
+    expect(eventMailComposeHref(listId)).toBe(
+      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    );
+  });
+
+  it('opens the skymail list show page for that Event', () => {
+    expect(eventMailListHref(listId)).toBe(
+      'https://mail.yildizskylab.com/mailing-lists/show/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
   });
 
   it('uses the public mail origin when set', () => {
     process.env.NEXT_PUBLIC_MAIL_URL = 'https://mail.example.test/';
-    expect(eventMailHref({ name: 'Hack' })).toBe(
-      'https://mail.example.test/mailing-lists/create?name=Hack',
+    expect(eventMailComposeHref(listId)).toBe(
+      'https://mail.example.test/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
+  });
+
+  it('syncs the Event list then opens Skymail compose for that list', async () => {
+    const opened: string[] = [];
+    await openEventMail(
+      'e1',
+      async () => ({
+        mailListId: listId,
+        name: 'WEBLAB SkyDays',
+        recipientCount: 2,
+      }),
+      (href) => {
+        opened.push(href);
+      },
+    );
+    expect(opened).toEqual([
+      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    ]);
   });
 });

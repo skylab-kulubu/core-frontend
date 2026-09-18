@@ -47,7 +47,7 @@ import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import { publicMediaUrl } from '@/lib/event-media';
-import { eventMailHref } from '@/lib/event-mail';
+import { openEventMail } from '@/lib/event-mail';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { publicShortUrl } from '@/lib/api/urls';
 import { SaveButton } from '@/components/chrome/SaveButton';
@@ -107,6 +107,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyNote, setApplyNote] = useState<string | null>(null);
+  const [mailing, setMailing] = useState(false);
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
@@ -199,6 +200,20 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (error && !event) return <p className="text-sm text-red-300">{error}</p>;
   if (!event) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
 
+  const current = event;
+  async function mailApplicants() {
+    setMailing(true);
+    try {
+      await openEventMail(current.id, eventsApi.syncMailList, (href) => {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      });
+    } catch (err) {
+      setError(err instanceof ProblemError ? err.title : 'Skymail listesi yenilenemedi');
+    } finally {
+      setMailing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -209,11 +224,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {canMutate ? (
               <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
             ) : null}
-            {canMutate ? (
+            {canTickets ? (
               <ActionButton
                 icon={Mail}
-                label="Mail"
-                href={eventMailHref({ name: event.name, ownerTeam: event.ownerTeam })}
+                label="Etkinlik katılımcılarına mail"
+                disabled={mailing}
+                onClick={() => void mailApplicants()}
               />
             ) : null}
             {canDelete ? (
@@ -336,7 +352,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             tickets={tickets}
             people={personById}
             event={event}
-            mailHref={eventMailHref({ name: event.name, ownerTeam: event.ownerTeam })}
+            onMailSelected={() => void mailApplicants()}
           />
         </div>
       ) : null}
