@@ -20,7 +20,8 @@ import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
-import { saveClass, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
@@ -98,7 +99,7 @@ function EventsPageContent() {
       <PageHeader
         title="Etkinlikler"
         description={
-          ownerFilter ? `Sahip ekip: ${ownerFilter}` : 'Go API. Sahip ekip bir Group adıdır.'
+          ownerFilter ? `Sahip ekip: ${ownerFilter}` : 'Ekibe göre süz, yeni etkinlik ekle.'
         }
         actions={
           canCreate ? (
@@ -165,9 +166,7 @@ function EventsPageContent() {
             ownerOptional={privileged}
             assignDoorStaff={privileged}
           />
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
     </div>

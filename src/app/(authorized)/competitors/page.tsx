@@ -5,9 +5,14 @@ import { Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
+import { SaveButton } from '@/components/chrome/SaveButton';
+import { Select } from '@/components/chrome/Select';
+import { Switch } from '@/components/chrome/Switch';
+import { PersonPick, personLabel } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
@@ -70,6 +75,7 @@ export default function CompetitorsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Yarışmacılar"
+        description="Etkinliğe kişi bağla, puan ve kazananı işaretle."
         actions={
           canCreate ? (
             <ActionButton
@@ -93,9 +99,7 @@ export default function CompetitorsPage() {
         {slice.map((row) => {
           const person = personById.get(row.userId);
           const event = eventById.get(row.eventId);
-          const name = person
-            ? `${person.firstName} ${person.lastName}`.trim() || person.email
-            : row.userId;
+          const name = person ? personLabel(person) : row.userId;
           return (
             <ListItem
               key={row.id}
@@ -113,7 +117,7 @@ export default function CompetitorsPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             const event = eventById.get(eventId);
-            if (!event || !canManageCompetitors(groups, event.ownerTeam)) return;
+            if (!event || !canManageCompetitors(groups, event.ownerTeam) || !userId) return;
             const parsed = score.trim() === '' ? undefined : Number(score);
             await competitorsApi.create({
               userId,
@@ -129,61 +133,24 @@ export default function CompetitorsPage() {
             await load();
           }}
         >
-          <select
-            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            required
-          >
-            <option value="">Etkinlik</option>
-            {writableEvents.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
-          {people.length > 0 ? (
-            <select
-              className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              required
-            >
-              <option value="">Kullanıcı</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {`${p.firstName} ${p.lastName}`.trim() || p.email}
+          <label className="block space-y-1">
+            <FieldLabel>Etkinlik</FieldLabel>
+            <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+              <option value="">Seç</option>
+              {writableEvents.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
                 </option>
               ))}
-            </select>
-          ) : (
-            <Field
-              placeholder="userId"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              required
-            />
-          )}
-          <Field
-            placeholder="Puan"
-            type="number"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-          />
-          <label className="flex items-center gap-2 text-xs text-neutral-300">
-            <input
-              type="checkbox"
-              checked={isWinner}
-              onChange={(e) => setIsWinner(e.target.checked)}
-            />
-            Kazanan
+            </Select>
           </label>
-          <button
-            type="submit"
-            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-          >
-            Kaydet
-          </button>
+          <PersonPick valueId={userId} onChange={setUserId} />
+          <label className="block space-y-1">
+            <FieldLabel>Puan</FieldLabel>
+            <Field type="number" value={score} onChange={(e) => setScore(e.target.value)} />
+          </label>
+          <Switch checked={isWinner} onChange={setIsWinner} label="Kazanan" />
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
     </div>

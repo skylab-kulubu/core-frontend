@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
@@ -14,10 +15,10 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { sessionsApi, SESSION_TYPES, type SessionRow } from '@/lib/api/sessions';
+import { sessionsApi, SESSION_TYPES, sessionTypeLabel, type SessionRow } from '@/lib/api/sessions';
 import { canWriteEvent } from '@/lib/auth/groups';
 import { toRfc3339 } from '@/lib/datetime-local';
-import { saveClass } from '@/lib/scheduling/save-event';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
@@ -152,68 +153,78 @@ export default function SessionsPage() {
             }
           }}
         >
-          <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
-            <option value="">Etkinlik</option>
-            {writableEvents.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={eventDayId} onChange={(e) => setEventDayId(e.target.value)} required>
-            <option value="">Gün</option>
-            {days.map((day) => (
-              <option key={day.id} value={day.id}>
-                {day.name}
-              </option>
-            ))}
-          </Select>
-          <Field
-            placeholder="Başlık"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <Field
-            placeholder="Konuşmacı"
-            value={speakerName}
-            onChange={(e) => setSpeakerName(e.target.value)}
-            required
-          />
-          <Field
-            placeholder="LinkedIn"
-            value={speakerLinkedin}
-            onChange={(e) => setSpeakerLinkedin(e.target.value)}
-          />
-          <TextArea
-            placeholder="Açıklama"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          <Field
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-          />
-          <Field
-            type="datetime-local"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-          />
-          <Select
-            value={sessionType}
-            onChange={(e) => setSessionType(e.target.value as (typeof SESSION_TYPES)[number])}
-          >
-            {SESSION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </Select>
-          <button type="submit" className={saveClass}>
-            Kaydet
-          </button>
+          <label className="block space-y-1">
+            <FieldLabel>Etkinlik</FieldLabel>
+            <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+              <option value="">Seç</option>
+              {writableEvents.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Gün</FieldLabel>
+            <Select value={eventDayId} onChange={(e) => setEventDayId(e.target.value)} required>
+              <option value="">Seç</option>
+              {days.map((day) => (
+                <option key={day.id} value={day.id}>
+                  {day.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Başlık</FieldLabel>
+            <Field value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Konuşmacı</FieldLabel>
+            <Field value={speakerName} onChange={(e) => setSpeakerName(e.target.value)} required />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>LinkedIn</FieldLabel>
+            <Field value={speakerLinkedin} onChange={(e) => setSpeakerLinkedin(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Açıklama</FieldLabel>
+            <TextArea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Başlangıç</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Bitiş</FieldLabel>
+            <Field
+              type="datetime-local"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Tür</FieldLabel>
+            <Select
+              value={sessionType}
+              onChange={(e) => setSessionType(e.target.value as (typeof SESSION_TYPES)[number])}
+            >
+              {SESSION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {sessionTypeLabel(type)}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>
     </div>

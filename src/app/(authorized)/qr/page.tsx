@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
@@ -10,7 +12,6 @@ import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type CheckIn } from '@/lib/api/tickets';
 import { canCheckInForTeam } from '@/lib/auth/groups';
-import { saveClass } from '@/lib/scheduling/save-event';
 import { useAuth } from '@/context/AuthContext';
 
 export default function QrPage() {
@@ -57,8 +58,8 @@ export default function QrPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="QR / check-in"
-        description="Bilet id ve oturum ile kapı kaydı. Java QR üretici yok."
+        title="Kapı check-in"
+        description="Bilet kimliği ve oturum seç, kaydı yaz."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <form
@@ -75,31 +76,38 @@ export default function QrPage() {
           }
         }}
       >
-        <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
-          <option value="">Etkinlik</option>
-          {events.map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.name}
-            </option>
-          ))}
-        </Select>
-        <Select value={sessionId} onChange={(e) => setSessionId(e.target.value)} required>
-          <option value="">Oturum</option>
-          {sessions.map((session) => (
-            <option key={session.id} value={session.id}>
-              {session.title}
-            </option>
-          ))}
-        </Select>
-        <Field
-          placeholder="Bilet id"
-          value={ticketId}
-          onChange={(e) => setTicketId(e.target.value)}
-          required
-        />
-        <button type="submit" className={saveClass}>
-          Check-in
-        </button>
+        <label className="block space-y-1">
+          <FieldLabel>Etkinlik</FieldLabel>
+          <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+            <option value="">Seç</option>
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block space-y-1">
+          <FieldLabel>Oturum</FieldLabel>
+          <Select value={sessionId} onChange={(e) => setSessionId(e.target.value)} required>
+            <option value="">Seç</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.title}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block space-y-1">
+          <FieldLabel>Bilet</FieldLabel>
+          <Field
+            placeholder="Bilet kimliği"
+            value={ticketId}
+            onChange={(e) => setTicketId(e.target.value)}
+            required
+          />
+        </label>
+        <SaveButton>Check-in</SaveButton>
       </form>
       {result ? (
         <p className="text-sm text-neutral-300">

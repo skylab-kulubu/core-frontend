@@ -49,7 +49,7 @@ export function UserCardView({
       </section>
       <section className="space-y-2">
         <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-          Miras client rolleri
+          Gruptan gelen roller
         </h2>
         <ListPanel
           status={listStatus({
@@ -66,7 +66,7 @@ export function UserCardView({
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-            Ekstra client rolleri
+            Ekstra roller
           </h2>
           {onAddRole ? (
             <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />

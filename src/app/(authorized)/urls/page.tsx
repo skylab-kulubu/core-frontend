@@ -5,7 +5,9 @@ import { Copy, Pencil, QrCode, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
@@ -57,7 +59,7 @@ export default function UrlsPage() {
   if (!allowed) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Kısa URL" description="Bu ekran url veya skylapp client rolü ister." />
+        <PageHeader title="Kısa URL" description="Bu ekran kısa link rolü ister." />
       </div>
     );
   }
@@ -66,11 +68,11 @@ export default function UrlsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Kısa URL"
-        description="skyl.app/{alias} Traefik üzerinden Go core’a 301 gider."
+        description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <form
-        className="flex flex-wrap gap-2"
+          className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!target.trim()) return;
@@ -90,26 +92,26 @@ export default function UrlsPage() {
           }
         }}
       >
-        <Field
-          className="min-w-64 flex-1"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          placeholder="https://…"
-          required
-        />
-        <Field
-          className="w-40"
-          value={alias}
-          onChange={(e) => setAlias(e.target.value)}
-          placeholder="alias (opsiyonel)"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium disabled:opacity-60"
-        >
+        <label className="block min-w-64 flex-1 space-y-1">
+          <FieldLabel>Hedef adres</FieldLabel>
+          <Field
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder="https://…"
+            required
+          />
+        </label>
+        <label className="block w-40 space-y-1">
+          <FieldLabel>Kısa ad</FieldLabel>
+          <Field
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            placeholder="opsiyonel"
+          />
+        </label>
+        <SaveButton disabled={pending} className="self-end">
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
-        </button>
+        </SaveButton>
       </form>
       <UrlList
         title="Linklerim"
@@ -184,24 +186,24 @@ export default function UrlsPage() {
               }
             }}
           >
-            <Field
-              value={editTarget}
-              onChange={(e) => setEditTarget(e.target.value)}
-              placeholder="https://…"
-              required
-            />
-            <Field
-              value={editAlias}
-              onChange={(e) => setEditAlias(e.target.value)}
-              placeholder="alias"
-              required
-            />
-            <button
-              type="submit"
-              className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-            >
-              Kaydet
-            </button>
+            <label className="block space-y-1">
+              <FieldLabel>Hedef adres</FieldLabel>
+              <Field
+                value={editTarget}
+                onChange={(e) => setEditTarget(e.target.value)}
+                placeholder="https://…"
+                required
+              />
+            </label>
+            <label className="block space-y-1">
+              <FieldLabel>Kısa ad</FieldLabel>
+              <Field
+                value={editAlias}
+                onChange={(e) => setEditAlias(e.target.value)}
+                required
+              />
+            </label>
+            <SaveButton>Kaydet</SaveButton>
           </form>
         ) : null}
       </Drawer>

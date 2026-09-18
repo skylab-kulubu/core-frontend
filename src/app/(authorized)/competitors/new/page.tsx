@@ -3,12 +3,16 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { SaveButton } from '@/components/chrome/SaveButton';
+import { Select } from '@/components/chrome/Select';
+import { Switch } from '@/components/chrome/Switch';
+import { PersonPick } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { identityApi, type Person } from '@/lib/api/identity';
 import { canManageCompetitors } from '@/lib/auth/groups';
 
 export default function NewCompetitorPage() {
@@ -26,7 +30,6 @@ function NewCompetitorForm() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
-  const [people, setPeople] = useState<Person[]>([]);
   const [userId, setUserId] = useState('');
   const [eventId, setEventId] = useState(lockedEventId);
   const [score, setScore] = useState('');
@@ -40,10 +43,6 @@ function NewCompetitorForm() {
       .catch((err) =>
         setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi'),
       );
-    identityApi
-      .listUsers()
-      .then(setPeople)
-      .catch(() => setPeople([]));
   }, []);
 
   const writable = events.filter((e) => canManageCompetitors(groups, e.ownerTeam));
@@ -57,8 +56,8 @@ function NewCompetitorForm() {
         onSubmit={async (e) => {
           e.preventDefault();
           const event = events.find((ev) => ev.id === eventId);
-          if (!event || !canManageCompetitors(groups, event.ownerTeam)) {
-            setError('Forbidden');
+          if (!event || !canManageCompetitors(groups, event.ownerTeam) || !userId) {
+            setError('Bu etkinliğe yarışmacı ekleyemezsin.');
             return;
           }
           const parsed = score.trim() === '' ? undefined : Number(score);
@@ -75,62 +74,25 @@ function NewCompetitorForm() {
             {events.find((e) => e.id === lockedEventId)?.name ?? lockedEventId}
           </p>
         ) : (
-          <select
-            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            required
-          >
-            <option value="">Etkinlik</option>
-            {writable.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
+          <label className="block space-y-1">
+            <FieldLabel>Etkinlik</FieldLabel>
+            <Select value={eventId} onChange={(e) => setEventId(e.target.value)} required>
+              <option value="">Seç</option>
+              {writable.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </Select>
+          </label>
         )}
-        {people.length > 0 ? (
-          <select
-            className="h-8 w-full rounded-md border border-white/10 bg-white/3 px-2 text-xs text-neutral-100"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-          >
-            <option value="">Kullanıcı</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {`${p.firstName} ${p.lastName}`.trim() || p.email}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <Field
-            placeholder="userId"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-          />
-        )}
-        <Field
-          placeholder="Puan"
-          type="number"
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-        />
-        <label className="flex items-center gap-2 text-xs text-neutral-300">
-          <input
-            type="checkbox"
-            checked={isWinner}
-            onChange={(e) => setIsWinner(e.target.checked)}
-          />
-          Kazanan
+        <PersonPick valueId={userId} onChange={setUserId} />
+        <label className="block space-y-1">
+          <FieldLabel>Puan</FieldLabel>
+          <Field type="number" value={score} onChange={(e) => setScore(e.target.value)} />
         </label>
-        <button
-          type="submit"
-          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-        >
-          Kaydet
-        </button>
+        <Switch checked={isWinner} onChange={setIsWinner} label="Kazanan" />
+        <SaveButton>Kaydet</SaveButton>
       </form>
     </div>
   );

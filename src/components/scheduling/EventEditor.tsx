@@ -1,12 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { ListItem } from '@/components/chrome/ListItem';
+import { ListPanel } from '@/components/chrome/ListPanel';
+import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { Select } from '@/components/chrome/Select';
+import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import type { EventBody } from '@/lib/api/events';
+import { identityApi, type Person } from '@/lib/api/identity';
 import { mediaApi, type Media } from '@/lib/api/media';
 import type { Season } from '@/lib/api/seasons';
+import { listStatus } from '@/lib/list-status';
+import { pickerMatch } from '@/lib/picker';
 
 export type EventFormState = EventBody & { seasonId: string; imageIds: string[] };
 
@@ -20,8 +30,6 @@ type EventEditorProps = {
   ownerOptional?: boolean;
   assignDoorStaff?: boolean;
 };
-
-const inputLabel = 'text-3xs tracking-[0.14em] text-neutral-500 uppercase';
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
@@ -65,6 +73,10 @@ export function EventEditor({
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [media, setMedia] = useState<Media[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [staffOpen, setStaffOpen] = useState(false);
+  const [staffQuery, setStaffQuery] = useState('');
+  const [staffLoading, setStaffLoading] = useState(false);
 
   useEffect(() => {
     mediaApi
@@ -73,10 +85,37 @@ export function EventEditor({
       .catch(() => setMedia([]));
   }, []);
 
+  useEffect(() => {
+    if (!assignDoorStaff) return;
+    identityApi
+      .listUsers()
+      .then(setPeople)
+      .catch(() => setPeople([]));
+  }, [assignDoorStaff]);
+
+  useEffect(() => {
+    if (!staffOpen) return;
+    const handle = window.setTimeout(
+      () => {
+        setStaffLoading(true);
+        identityApi
+          .listUsers(staffQuery)
+          .then(setPeople)
+          .catch(() => setPeople([]))
+          .finally(() => setStaffLoading(false));
+      },
+      staffQuery.trim() ? 250 : 0,
+    );
+    return () => window.clearTimeout(handle);
+  }, [staffOpen, staffQuery]);
+
+  const staffIds = value.doorStaffIds ?? [];
+  const staffById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+
   return (
     <div className="space-y-3">
       <label className="block space-y-1">
-        <span className={inputLabel}>Ad</span>
+        <FieldLabel>Ad</FieldLabel>
         <Field
           value={value.name}
           onChange={(e) => patch({ name: e.target.value })}
@@ -85,7 +124,7 @@ export function EventEditor({
         />
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Konum</span>
+        <FieldLabel>Konum</FieldLabel>
         <Field
           value={value.location}
           onChange={(e) => patch({ location: e.target.value })}
@@ -94,7 +133,7 @@ export function EventEditor({
         />
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Sahip ekip</span>
+        <FieldLabel>Sahip ekip</FieldLabel>
         {ownerOptions.length > 0 ? (
           <Select
             value={value.ownerTeam}
@@ -120,7 +159,7 @@ export function EventEditor({
         )}
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Açıklama</span>
+        <FieldLabel>Açıklama</FieldLabel>
         <TextArea
           rows={4}
           value={value.description}
@@ -129,7 +168,7 @@ export function EventEditor({
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className={inputLabel}>Başlangıç</span>
+          <FieldLabel>Başlangıç</FieldLabel>
           <Field
             type="datetime-local"
             value={value.startDate ?? ''}
@@ -137,7 +176,7 @@ export function EventEditor({
           />
         </label>
         <label className="block space-y-1">
-          <span className={inputLabel}>Bitiş</span>
+          <FieldLabel>Bitiş</FieldLabel>
           <Field
             type="datetime-local"
             value={value.endDate ?? ''}
@@ -146,7 +185,7 @@ export function EventEditor({
         </label>
       </div>
       <label className="block space-y-1">
-        <span className={inputLabel}>Kapasite</span>
+        <FieldLabel>Kapasite</FieldLabel>
         <Field
           type="number"
           min={0}
@@ -155,7 +194,7 @@ export function EventEditor({
         />
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Kapak görseli</span>
+        <FieldLabel>Kapak görseli</FieldLabel>
         <Select
           value={value.coverImageId ?? ''}
           onChange={(e) => patch({ coverImageId: e.target.value })}
@@ -169,7 +208,7 @@ export function EventEditor({
         </Select>
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Galeri görselleri</span>
+        <FieldLabel>Galeri görselleri</FieldLabel>
         <Select
           multiple
           className="h-24"
@@ -188,7 +227,7 @@ export function EventEditor({
         </Select>
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Form URL</span>
+        <FieldLabel>Form URL</FieldLabel>
         <Field
           type="url"
           value={value.formUrl ?? ''}
@@ -196,7 +235,7 @@ export function EventEditor({
         />
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>LinkedIn</span>
+        <FieldLabel>LinkedIn</FieldLabel>
         <Field
           type="url"
           value={value.linkedin ?? ''}
@@ -204,7 +243,7 @@ export function EventEditor({
         />
       </label>
       <label className="block space-y-1">
-        <span className={inputLabel}>Ödül</span>
+        <FieldLabel>Ödül</FieldLabel>
         <Field
           value={value.prizeInfo ?? ''}
           onChange={(e) => patch({ prizeInfo: e.target.value })}
@@ -212,7 +251,7 @@ export function EventEditor({
       </label>
       {showSeason ? (
         <label className="block space-y-1">
-          <span className={inputLabel}>Sezon</span>
+          <FieldLabel>Sezon</FieldLabel>
           <Select value={value.seasonId} onChange={(e) => patch({ seasonId: e.target.value })}>
             <option value="">Yok</option>
             {seasons.map((season) => (
@@ -223,24 +262,18 @@ export function EventEditor({
           </Select>
         </label>
       ) : null}
-      <label className="flex items-center gap-2 text-xs text-neutral-400">
-        <input
-          type="checkbox"
-          checked={value.active}
-          onChange={(e) => patch({ active: e.target.checked })}
-        />
-        Aktif
-      </label>
-      <label className="flex items-center gap-2 text-xs text-neutral-400">
-        <input
-          type="checkbox"
-          checked={value.ranked}
-          onChange={(e) => patch({ ranked: e.target.checked })}
-        />
-        Sıralamalı
-      </label>
+      <Switch
+        checked={value.active}
+        onChange={(checked) => patch({ active: checked })}
+        label="Aktif"
+      />
+      <Switch
+        checked={value.ranked}
+        onChange={(checked) => patch({ ranked: checked })}
+        label="Sıralamalı"
+      />
       <label className="block space-y-1">
-        <span className={inputLabel}>Sertifika kuralı</span>
+        <FieldLabel>Sertifika kuralı</FieldLabel>
         <Select
           value={value.attendanceRule ?? 'none'}
           onChange={(e) =>
@@ -258,7 +291,7 @@ export function EventEditor({
       </label>
       {value.attendanceRule === 'ratio' ? (
         <label className="block space-y-1">
-          <span className={inputLabel}>Katılım oranı</span>
+          <FieldLabel>Katılım oranı</FieldLabel>
           <Field
             type="number"
             min={0.01}
@@ -270,15 +303,80 @@ export function EventEditor({
         </label>
       ) : null}
       {assignDoorStaff ? (
-        <label className="block space-y-1">
-          <span className={inputLabel}>Kapı görevlisi user id</span>
-          <TextArea
-            rows={3}
-            value={(value.doorStaffIds ?? []).join('\n')}
-            onChange={(e) => patch({ doorStaffIds: parseDoorStaffIds(e.target.value) })}
-            placeholder="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <FieldLabel>Kapı görevlileri</FieldLabel>
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Kişi ekle"
+              onClick={() => {
+                setStaffQuery('');
+                setStaffOpen(true);
+              }}
+            />
+          </div>
+          <ListPanel
+            status={listStatus({
+              loading: false,
+              rowCount: staffIds.length,
+              emptyMessage: 'Atanmış kişi yok',
+            })}
+          >
+            {staffIds.map((id) => {
+              const person = staffById.get(id);
+              const name = person
+                ? `${person.firstName} ${person.lastName}`.trim() || person.email
+                : id;
+              return (
+                <ListItem
+                  key={id}
+                  title={name}
+                  subtitle={person?.email ?? id}
+                  trailing={
+                    <ActionButton
+                      icon={X}
+                      label="Kaldır"
+                      onClick={() =>
+                        patch({ doorStaffIds: staffIds.filter((row) => row !== id) })
+                      }
+                    />
+                  }
+                />
+              );
+            })}
+          </ListPanel>
+          <PickerDrawer
+            open={staffOpen}
+            onClose={() => setStaffOpen(false)}
+            title="Kapı görevlisi ekle"
+            query={staffQuery}
+            onQuery={setStaffQuery}
+            placeholder="Ad, e-posta"
+            loading={staffLoading}
+            options={people
+              .filter(
+                (person) =>
+                  !staffIds.includes(person.id) &&
+                  pickerMatch(
+                    staffQuery,
+                    person.email,
+                    person.firstName,
+                    person.lastName,
+                  ),
+              )
+              .map((person) => ({
+                id: person.id,
+                title: `${person.firstName} ${person.lastName}`.trim() || person.email,
+                subtitle: person.email,
+              }))}
+            emptyMessage="Kullanıcı yok"
+            onPick={(picked) => {
+              patch({ doorStaffIds: [...staffIds, picked] });
+              setStaffOpen(false);
+            }}
           />
-        </label>
+        </div>
       ) : null}
     </div>
   );

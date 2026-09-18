@@ -6,11 +6,15 @@ import { Plus, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { SaveButton } from '@/components/chrome/SaveButton';
+import { GroupProfile } from '@/components/identity/GroupProfile';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
 
@@ -22,7 +26,6 @@ export default function GroupDetailPage() {
   const [roles, setRoles] = useState<ClientRole[]>([]);
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
-  const [rename, setRename] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberOpen, setMemberOpen] = useState(false);
@@ -77,7 +80,7 @@ export default function GroupDetailPage() {
 
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
-  const attrs = group?.attributes ?? {};
+  const extraAttrs = extraGroupAttrs(group?.attributes);
 
   const memberOptions = people
     .filter((person) => !memberIds.has(person.id))
@@ -103,30 +106,15 @@ export default function GroupDetailPage() {
       <PageHeader title={group?.name ?? id} description={group?.path} />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!rename.trim()) return;
-          await identityApi.updateGroup(id, { name: rename.trim() });
-          setRename('');
-          await load();
-        }}
-      >
-        <Field
-          className="w-48"
-          value={rename}
-          onChange={(e) => setRename(e.target.value)}
-          placeholder="Yeni ad"
-          required
+      {group ? (
+        <GroupProfile
+          group={group}
+          onSave={async (next) => {
+            await identityApi.updateGroup(id, next);
+            await load();
+          }}
         />
-        <button
-          type="submit"
-          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-        >
-          Yeniden adlandır
-        </button>
-      </form>
+      ) : null}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -174,7 +162,7 @@ export default function GroupDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
-            Group → client-role
+          Uygulama rolleri
           </h2>
           <ActionButton
             icon={Plus}
@@ -227,16 +215,21 @@ export default function GroupDetailPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">Öznitelikler</h2>
+        <h2 className="text-3xs tracking-[0.18em] text-neutral-500 uppercase">
+          Ekstra öznitelikler
+        </h2>
+        <p className="text-3xs text-neutral-500">
+          Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
+        </p>
         <ListPanel
           status={listStatus({
             loading: false,
             failed: Boolean(error),
-            rowCount: Object.keys(attrs).length,
-            emptyMessage: 'Öznitelik yok',
+            rowCount: Object.keys(extraAttrs).length,
+            emptyMessage: 'Ekstra öznitelik yok',
           })}
         >
-          {Object.entries(attrs).map(([k, v]) => (
+          {Object.entries(extraAttrs).map(([k, v]) => (
             <ListItem
               key={k}
               title={v}
@@ -246,7 +239,7 @@ export default function GroupDetailPage() {
                   icon={X}
                   label="Kaldır"
                   onClick={async () => {
-                    const next = { ...attrs };
+                    const next = { ...(group?.attributes ?? {}) };
                     delete next[k];
                     await identityApi.updateGroup(id, { attributes: next });
                     await load();
@@ -257,34 +250,39 @@ export default function GroupDetailPage() {
           ))}
         </ListPanel>
         <form
-          className="flex flex-wrap gap-2"
+          className="flex flex-wrap items-end gap-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!attrKey) return;
-            await identityApi.updateGroup(id, { attributes: { ...attrs, [attrKey]: attrValue } });
+            if (!attrKey.trim()) return;
+            if (isKnownGroupAttr(attrKey.trim())) {
+              setError('Bu alan yukarıdaki kulüp alanlarında.');
+              return;
+            }
+            await identityApi.updateGroup(id, {
+              attributes: { ...(group?.attributes ?? {}), [attrKey.trim()]: attrValue },
+            });
             setAttrKey('');
             setAttrValue('');
             await load();
           }}
         >
-          <Field
-            className="w-40"
-            value={attrKey}
-            onChange={(e) => setAttrKey(e.target.value)}
-            placeholder="key"
-          />
-          <Field
-            className="w-40"
-            value={attrValue}
-            onChange={(e) => setAttrValue(e.target.value)}
-            placeholder="value"
-          />
-          <button
-            type="submit"
-            className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 h-8 rounded-md border px-3 font-medium"
-          >
-            Kaydet
-          </button>
+          <label className="block space-y-1">
+            <FieldLabel>Anahtar</FieldLabel>
+            <Field
+              className="w-40"
+              value={attrKey}
+              onChange={(e) => setAttrKey(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>Değer</FieldLabel>
+            <Field
+              className="w-40"
+              value={attrValue}
+              onChange={(e) => setAttrValue(e.target.value)}
+            />
+          </label>
+          <SaveButton className="self-end">Ekle</SaveButton>
         </form>
       </section>
 

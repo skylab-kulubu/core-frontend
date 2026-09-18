@@ -9,7 +9,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/seasons': 'Sezonlar',
   '/sessions': 'Oturumlar',
   '/teams': 'Ekipler',
-  '/qr': 'QR',
+  '/qr': 'Kapı',
   '/competitors': 'Yarışmacılar',
   '/competitors/new': 'Yeni yarışmacı',
   '/media': 'Medya',

@@ -16,12 +16,12 @@ export default function NewAnnouncementPage() {
   const [pending, setPending] = useState(false);
 
   if (!privileged) {
-    return <p className="text-sm text-red-300">Duyurular yalnızca Privileged gruplar içindir.</p>;
+    return <p className="text-sm text-red-300">Duyurular yalnızca YK ve kurul içindir.</p>;
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Yeni duyuru" description="CMS News koleksiyonuna yayınlar." />
+      <PageHeader title="Yeni duyuru" />
       <NewsForm
         submitLabel="Yayınla"
         pending={pending}

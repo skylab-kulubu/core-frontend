@@ -33,7 +33,7 @@ export default function EditAnnouncementPage() {
   }, [privileged, slug]);
 
   if (!privileged) {
-    return <p className="text-sm text-red-300">Duyurular yalnızca Privileged gruplar içindir.</p>;
+    return <p className="text-sm text-red-300">Duyurular yalnızca YK ve kurul içindir.</p>;
   }
 
   if (error) return <p className="text-sm text-red-300">{error}</p>;
