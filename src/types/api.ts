@@ -13,6 +13,7 @@ export interface UserDto {
   university?: string;
   faculty?: string;
   department?: string;
+  studentCardUid?: string;
   roles: string[];
   groups?: string[];
   ldapUser?: boolean;

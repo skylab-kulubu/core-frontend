@@ -11,30 +11,41 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { PersonPick } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { identityApi, type Person } from '@/lib/api/identity';
 import { type EventSession } from '@/lib/api/sessions';
-import { ticketsApi, type CheckIn } from '@/lib/api/tickets';
+import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { canCheckInForTeam } from '@/lib/auth/groups';
-import { formatApplicantWhen } from '@/lib/tickets-ui';
+import { checkInSuccessLine, doorTicketName, resolveDoorTicket } from '@/lib/door-check-in';
 import { emptyListCopy, matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
-type RecentCheckIn = CheckIn & { eventName: string; sessionTitle: string; ticketId: string };
+type RecentCheckIn = {
+  id: string;
+  name: string;
+  eventName: string;
+  sessionTitle: string;
+  createdAt: string;
+};
 
 export default function QrPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
   const [sessions, setSessions] = useState<EventSession[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [people, setPeople] = useState<Map<string, Person>>(new Map());
   const [eventId, setEventId] = useState('');
   const [sessionId, setSessionId] = useState('');
-  const [ticketId, setTicketId] = useState('');
+  const [personId, setPersonId] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CheckIn | null>(null);
+  const [successLine, setSuccessLine] = useState<string | null>(null);
   const [recent, setRecent] = useState<RecentCheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -55,6 +66,7 @@ export default function QrPage() {
     if (!eventId) {
       setSessions([]);
       setSessionId('');
+      setTickets([]);
       return;
     }
     eventDaysApi
@@ -66,12 +78,20 @@ export default function QrPage() {
         setSessionId(rows[0]?.id ?? '');
       })
       .catch((err) => setError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi'));
+    ticketsApi
+      .listByEvent(eventId)
+      .then(setTickets)
+      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Biletler yüklenemedi'));
+    identityApi
+      .listUsers()
+      .then((rows) => setPeople(new Map(rows.map((person) => [person.id, person]))))
+      .catch(() => setPeople(new Map()));
   }, [eventId]);
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Kapı check-in" description="Bilet kimliği ve oturum seç, kaydı yaz." />
+        <PageHeader title="Kapı check-in" description="Kişi veya e-posta ile oturuma yaz." />
         <StateCard title="Yükleniyor…" isLoading />
       </div>
     );
@@ -80,7 +100,7 @@ export default function QrPage() {
   if (events.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Kapı check-in" description="Bilet kimliği ve oturum seç, kaydı yaz." />
+        <PageHeader title="Kapı check-in" description="Kişi veya e-posta ile oturuma yaz." />
         <StateCard
           title="Kapı için etkinlik yok"
           description="Kapı yetkisi olan bir etkinlik burada durur."
@@ -92,33 +112,52 @@ export default function QrPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Kapı check-in" description="Bilet kimliği ve oturum seç, kaydı yaz." />
+      <PageHeader title="Kapı check-in" description="Kişi veya e-posta ile oturuma yaz." />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <form
         className="max-w-md space-y-3"
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            const created = await ticketsApi.checkIn(ticketId.trim(), sessionId);
+            const ticket = resolveDoorTicket({
+              tickets,
+              people,
+              personId,
+              email,
+            });
+            if (!ticket) {
+              setSuccessLine(null);
+              setError('Kişi veya e-posta ile bilet bulunamadı');
+              return;
+            }
+            const created = await ticketsApi.checkIn(ticket.id, sessionId);
             const eventName = events.find((ev) => ev.id === eventId)?.name || eventId;
             const sessionTitle =
               sessions.find((session) => session.id === sessionId)?.title || sessionId;
-            setResult(created);
+            const name = doorTicketName(ticket, people);
+            const line = checkInSuccessLine({
+              name,
+              sessionTitle,
+              createdAt: created.createdAt,
+            });
+            setSuccessLine(line);
             setRecent((prev) =>
               [
                 {
-                  ...created,
+                  id: created.id,
+                  name,
                   eventName,
                   sessionTitle,
-                  ticketId: ticketId.trim(),
+                  createdAt: created.createdAt,
                 },
                 ...prev,
               ].slice(0, 8),
             );
-            setTicketId('');
+            setPersonId('');
+            setEmail('');
             setError(null);
           } catch (err) {
-            setResult(null);
+            setSuccessLine(null);
             setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
           }
         }}
@@ -145,36 +184,35 @@ export default function QrPage() {
             ))}
           </Select>
         </label>
+        <PersonPick valueId={personId} onChange={setPersonId} />
         <label className="block space-y-1">
-          <FieldLabel>Bilet</FieldLabel>
+          <FieldLabel>Ad veya e-posta</FieldLabel>
           <Field
-            placeholder="Bilet kimliği"
-            value={ticketId}
-            onChange={(e) => setTicketId(e.target.value)}
-            required
+            type="text"
+            placeholder="Ad veya e-posta"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </label>
         <SaveButton>Check-in</SaveButton>
       </form>
-      {result ? (
+      {successLine ? (
         <div className="flex items-center gap-2">
           <StatusChip kind="checked-in" />
-          <p className="text-sm text-neutral-300">
-            {result.id} · {new Date(result.createdAt).toLocaleString('tr-TR')}
-          </p>
+          <p className="text-sm text-neutral-300">{successLine}</p>
         </div>
       ) : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
-        placeholder="Oturum, etkinlik, bilet"
+        placeholder="Oturum, etkinlik, kişi"
         searchLabel="Kapı kaydı ara"
       />
       <ListPanel
         status={listStatus({
           loading: false,
           rowCount: recent.filter((row) =>
-            matchesQuery(query, row.sessionTitle, row.eventName, row.ticketId),
+            matchesQuery(query, row.sessionTitle, row.eventName, row.name),
           ).length,
           emptyMessage: emptyListCopy({
             none: 'Bu oturumda henüz kapı kaydı yok.',
@@ -186,12 +224,16 @@ export default function QrPage() {
         emptyIcon={CheckCircle2}
       >
         {recent
-          .filter((row) => matchesQuery(query, row.sessionTitle, row.eventName, row.ticketId))
+          .filter((row) => matchesQuery(query, row.sessionTitle, row.eventName, row.name))
           .map((row) => (
             <ListItem
               key={row.id}
-              title={row.sessionTitle}
-              subtitle={`${row.eventName} · ${row.ticketId} · ${formatApplicantWhen(row.createdAt)}`}
+              title={row.name}
+              subtitle={checkInSuccessLine({
+                name: row.sessionTitle,
+                sessionTitle: row.eventName,
+                createdAt: row.createdAt,
+              })}
               trailing={<StatusChip kind="checked-in" />}
             />
           ))}

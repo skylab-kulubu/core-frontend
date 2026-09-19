@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Mail, QrCode } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Mail, Plus, QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
 import { ListFooterMeta, ListToolbar } from '@/components/chrome/ListToolbar';
@@ -39,11 +39,14 @@ type ApplicantRosterProps = {
   tickets: Ticket[];
   people: Map<string, Person>;
   event?: TicketSourceEvent | null;
+  sessions?: readonly { id: string; title: string }[];
   mailHref?: string;
   doorHref?: string;
   loading?: boolean;
   failed?: boolean;
   onMailSelected?: (recipients: ReturnType<typeof ticketMailRecipients>) => void;
+  onAddParticipant?: () => void;
+  onMarkAttended?: (ticket: Ticket, sessionId: string) => void;
 };
 
 export function ApplicantRoster({
@@ -53,15 +56,19 @@ export function ApplicantRoster({
   event,
   mailHref,
   doorHref = '/qr',
+  sessions = [],
   loading = false,
   failed = false,
   onMailSelected,
+  onAddParticipant,
+  onMarkAttended,
 }: ApplicantRosterProps) {
   const [query, setQuery] = useState('');
   const [ticketType, setTicketType] = useState<ApplicantRosterFilter['ticketType']>('all');
   const [status, setStatus] = useState<ApplicantRosterFilter['status']>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [attendSessionId, setAttendSessionId] = useState(sessions[0]?.id ?? '');
 
   const filtered = useMemo(
     () => filterApplicantRoster(tickets, people, { query, ticketType, status }, event),
@@ -126,6 +133,29 @@ export function ApplicantRoster({
           <option value="registered">Kayıtlı</option>
           <option value="checked-in">Giriş yaptı</option>
         </Select>
+        {onMarkAttended && sessions.length > 0 ? (
+          <Select
+            aria-label="Oturum"
+            className="w-40 shrink-0"
+            value={attendSessionId}
+            onChange={(e) => setAttendSessionId(e.target.value)}
+          >
+            <option value="">Oturum</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.title}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+        {onAddParticipant ? (
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Katılımcı ekle"
+            onClick={onAddParticipant}
+          />
+        ) : null}
         {mailHref || onMailSelected ? (
           <ActionButton
             icon={Mail}
@@ -208,11 +238,22 @@ export function ApplicantRoster({
                 <span className="hidden justify-center lg:flex">
                   <StatusChip kind={statusKind} />
                 </span>
-                <div className="flex justify-end">
+                <div className="relative z-10 flex justify-end gap-1">
+                  {onMarkAttended ? (
+                    <ActionButton
+                      icon={CheckCircle2}
+                      label="Katıldı"
+                      disabled={!attendSessionId}
+                      onClick={() => {
+                        if (!attendSessionId) return;
+                        onMarkAttended(ticket, attendSessionId);
+                      }}
+                    />
+                  ) : null}
                   <Link
                     href={href}
                     aria-label="Kaydı aç"
-                    className="group-hover/row:text-skylab-300 relative z-10 inline-flex h-6 w-6 items-center justify-center text-neutral-400"
+                    className="group-hover/row:text-skylab-300 inline-flex h-6 w-6 items-center justify-center text-neutral-400"
                   >
                     <ChevronRight className="h-4 w-4 transition-transform group-hover/row:translate-x-0.5" />
                   </Link>

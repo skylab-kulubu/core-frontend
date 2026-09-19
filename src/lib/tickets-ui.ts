@@ -1,7 +1,7 @@
 import { personLabel } from '@/components/identity/PersonPick';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
-import { canWriteEvent } from '@/lib/auth/groups';
+import { canCheckInForTeam, canWriteEvent, isPrivileged, ownerLevels } from '@/lib/auth/groups';
 import { publicShortUrl } from '@/lib/api/urls';
 import { pad2 } from '@/lib/date-picker';
 
@@ -43,6 +43,15 @@ const MONTHS_TR = [
 
 export function canListEventTickets(groups: readonly string[], ownerTeam: string): boolean {
   return canWriteEvent(groups, ownerTeam, 'update');
+}
+
+export function canAssignEventTicket(groups: readonly string[], ownerTeam: string): boolean {
+  if (isPrivileged(groups)) return true;
+  return ownerLevels(groups, ownerTeam).includes('LEADER');
+}
+
+export function canDeskCheckIn(groups: readonly string[], ownerTeam: string): boolean {
+  return canCheckInForTeam(groups, ownerTeam);
 }
 
 function guestName(row: Ticket): string {

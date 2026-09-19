@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { isPrivileged } from '@/lib/auth/groups';
 import { filterSidebarNavForUser } from '@/lib/navigation/sidebar-nav';
 import { UserCardView } from '@/components/identity/UserCardView';
@@ -32,15 +33,15 @@ describe('filterSidebarNavForUser', () => {
       '/announcements',
       '/events',
       '/seasons',
-      '/sessions',
       '/teams',
       '/qr',
       '/competitors',
       '/media',
       '/urls',
     ]);
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
-  it('Leader sees events sessions QR', () => {
+  it('Leader sees events and QR without a sessions page', () => {
     const user: UserDto = {
       id: '3',
       username: 'lead',
@@ -53,11 +54,11 @@ describe('filterSidebarNavForUser', () => {
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
       '/dashboard',
       '/events',
-      '/sessions',
       '/qr',
       '/competitors',
       '/media',
     ]);
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
   it('member sees no identity nav', () => {
     const user: UserDto = {
@@ -173,5 +174,91 @@ describe('UserCardView', () => {
       />,
     );
     expect(screen.getByText('SKY-0000001')).toBeInTheDocument();
+  });
+
+  it('shows university, faculty, department, LinkedIn, phone, and student card uid', () => {
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          skyNumber: 'SKY-0000001',
+          university: 'YTÜ',
+          faculty: 'Elektrik-Elektronik',
+          department: 'Bilgisayar',
+          linkedin: 'https://linkedin.com/in/ada',
+          phone: '5551112233',
+          studentCardUid: 'AABBCCDDEEFF',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+      />,
+    );
+    expect(screen.getByText('YTÜ')).toBeInTheDocument();
+    expect(screen.getByText('Elektrik-Elektronik')).toBeInTheDocument();
+    expect(screen.getByText('Bilgisayar')).toBeInTheDocument();
+    expect(screen.getByText('https://linkedin.com/in/ada')).toBeInTheDocument();
+    expect(screen.getByText('5551112233')).toBeInTheDocument();
+    expect(screen.getByText('AABBCCDDEEFF')).toBeInTheDocument();
+  });
+
+  it('lets privileged save profile fields without uid, sky number, or password', async () => {
+    const onSaveProfile = jest.fn();
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          skyNumber: 'SKY-0000001',
+          university: 'YTÜ',
+          studentCardUid: 'AABBCCDDEEFF',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+        canEditProfile
+        onSaveProfile={onSaveProfile}
+      />,
+    );
+    const university = screen.getByLabelText('Üniversite');
+    await userEvent.clear(university);
+    await userEvent.type(university, 'İTÜ');
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    expect(onSaveProfile).toHaveBeenCalledTimes(1);
+    const patch = onSaveProfile.mock.calls[0][0];
+    expect(patch).toMatchObject({ university: 'İTÜ' });
+    expect(patch).not.toHaveProperty('skyNumber');
+    expect(patch).not.toHaveProperty('studentCardUid');
+    expect(patch).not.toHaveProperty('password');
+    expect(patch).not.toHaveProperty('phone');
+    expect(screen.getByLabelText('Öğrenci kartı UID')).toHaveAttribute('readOnly');
+  });
+
+  it('clears phone only when the operator emptied a value that was on the card', async () => {
+    const onSaveProfile = jest.fn();
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          phone: '5551112233',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+        canEditProfile
+        onSaveProfile={onSaveProfile}
+      />,
+    );
+    await userEvent.clear(screen.getByLabelText('Telefon'));
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ phone: '' }));
   });
 });

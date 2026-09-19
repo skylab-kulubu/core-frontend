@@ -9,10 +9,14 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
+import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch, roleKey } from '@/lib/picker';
+import { useAuth } from '@/context/AuthContext';
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const privileged = isPrivileged(user?.groups ?? []);
   const [card, setCard] = useState<UserCard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -100,6 +104,15 @@ export default function UserDetailPage() {
     <div className="space-y-6">
       <UserCardView
         card={card}
+        canEditProfile={privileged}
+        onSaveProfile={
+          privileged
+            ? async (patch) => {
+                await identityApi.updateUser(card.id, patch);
+                await load();
+              }
+            : undefined
+        }
         onAddGroup={() => void openGroups()}
         onAddRole={() => void openRoles()}
         onRemoveRole={async (role) => {

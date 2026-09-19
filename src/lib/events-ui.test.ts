@@ -11,14 +11,19 @@ import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
 import { ticketsApi } from '@/lib/api/tickets';
 import { mediaApi } from '@/lib/api/media';
-import { urlsApi, shortQrUrl } from '@/lib/api/urls';
-import { sessionQrUrl } from '@/lib/api/sessions';
-import { CORE_API_URL } from '@/lib/api/core';
-import { ProblemError } from '@/lib/api/core';
+import { urlsApi, shortQrFileName, shortQrUrl } from '@/lib/api/urls';
+import { identityApi } from '@/lib/api/identity';
+import { CORE_API_URL, coreFetchBlob, ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
 import { emptyEventForm, parseDoorStaffIds } from '@/components/scheduling/EventEditor';
 import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
+import { sessionQrFileName, sessionQrUrl } from '@/lib/api/sessions';
+import {
+  canAssignEventTicket,
+  canDeskCheckIn,
+  canListEventTickets,
+  ticketApplicantLabel,
+} from '@/lib/tickets-ui';
 
 function jsonRes(body: unknown, status = 200): Response {
   const text = status === 204 ? '' : JSON.stringify(body);
@@ -99,6 +104,22 @@ describe('event write policy', () => {
         new Map(),
       ),
     ).toBe('Ada Lovelace · ada@example.com');
+  });
+  it('GECEKODU member can write the event but cannot desk check-in on the hub', () => {
+    const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
+    expect(canWriteEvent(gece, 'GECEKODU', 'update')).toBe(true);
+    expect(canListEventTickets(gece, 'GECEKODU')).toBe(true);
+    expect(canDeskCheckIn(gece, 'GECEKODU')).toBe(false);
+    expect(canDeskCheckIn(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'], 'GECEKODU')).toBe(true);
+    expect(canDeskCheckIn(['/UYELER/YK'], 'GECEKODU')).toBe(true);
+  });
+  it('apply-for-other is Ticket Assign, not write-event', () => {
+    const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
+    expect(canAssignEventTicket(gece, 'GECEKODU')).toBe(false);
+    expect(canAssignEventTicket(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'], 'GECEKODU')).toBe(true);
+    expect(canAssignEventTicket(['/UYELER/YK'], 'GECEKODU')).toBe(true);
+    expect(canAssignEventTicket(['/UYELER/ARGE/WEBLAB/LIDERLER'], '')).toBe(false);
+    expect(canAssignEventTicket(['/UYELER/YK'], '')).toBe(true);
   });
 });
 
@@ -307,13 +328,203 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     expect(rows).not.toHaveProperty('data');
   });
 
-  it('short QR PNG is Go /v1/go/:alias/qr, not Java /api/qr-codes', () => {
-    expect(shortQrUrl('hack')).toBe(`${CORE_API_URL}/v1/go/hack/qr`);
+  it('short QR PNG is Go /v1/go/:alias/qr with club logo, not Java /api/qr-codes', () => {
+    expect(shortQrUrl('hack')).toBe(`${CORE_API_URL}/v1/go/hack/qr?logo=1`);
     expect(shortQrUrl('hack')).not.toContain('/api/qr-codes');
   });
 
-  it('session QR PNG is Go /v1/sessions/:id/qr', () => {
-    expect(sessionQrUrl('s1')).toBe(`${CORE_API_URL}/v1/sessions/s1/qr`);
+  it('short QR download prefers size 1024 and names the PNG after the alias', () => {
+    expect(shortQrUrl('hack', { size: 1024 })).toBe(
+      `${CORE_API_URL}/v1/go/hack/qr?logo=1&size=1024`,
+    );
+    expect(shortQrFileName('hack')).toBe('skylapp-hack.png');
+  });
+
+  it('session QR PNG is Go /v1/sessions/:id/qr with club logo', () => {
+    expect(sessionQrUrl('s1')).toBe(`${CORE_API_URL}/v1/sessions/s1/qr?logo=1`);
+  });
+
+  it('session QR download prefers size 1024', () => {
+    expect(sessionQrUrl('s1', { size: 1024 })).toBe(
+      `${CORE_API_URL}/v1/sessions/s1/qr?logo=1&size=1024`,
+    );
+  });
+
+  it('session QR download uses the session title when present', () => {
+    expect(sessionQrFileName('s1', 'Açılış')).toBe('oturum-Açılış.png');
+    expect(sessionQrFileName('s1')).toBe('oturum-s1.png');
+  });
+
+  it('QR PNG download fetches CORE with bearer', async () => {
+    const calls: { url: string; auth?: string }[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 'tok' });
+      const headers = init?.headers as Record<string, string> | undefined;
+      calls.push({ url, auth: headers?.Authorization });
+      return {
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['png']),
+        text: async () => '',
+      } as Response;
+    }) as typeof fetch;
+    const blob = await coreFetchBlob('/v1/go/hack/qr?logo=1&size=1024');
+    expect(blob).toBeInstanceOf(Blob);
+    expect(calls).toEqual([
+      { url: `${CORE_API_URL}/v1/go/hack/qr?logo=1&size=1024`, auth: 'Bearer tok' },
+    ]);
+  });
+
+  it('admin profile PATCH is /v1/users/:id and omits uid, sky number, and password', async () => {
+    const calls: { url: string; method?: string; body?: string }[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      calls.push({ url, method: init?.method, body: String(init?.body ?? '') });
+      return jsonRes({
+        id: 'u1',
+        email: 'ada@example.com',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        university: 'YTÜ',
+        phone: '555',
+        groups: [],
+        inheritedRoles: [],
+        extraRoles: [],
+      });
+    }) as typeof fetch;
+    const card = await identityApi.updateUser('u1', {
+      university: 'YTÜ',
+      faculty: 'Elektrik',
+      department: 'Bilgisayar',
+      linkedin: 'https://linkedin.com/in/ada',
+      phone: '555',
+    });
+    expect(card.university).toBe('YTÜ');
+    expect(card.phone).toBe('555');
+    expect(calls.some((c) => c.method === 'PATCH' && c.url.includes('/v1/users/u1'))).toBe(true);
+    const body = JSON.parse(calls.find((c) => c.method === 'PATCH')?.body ?? '{}') as Record<
+      string,
+      unknown
+    >;
+    expect(body).toEqual({
+      university: 'YTÜ',
+      faculty: 'Elektrik',
+      department: 'Bilgisayar',
+      linkedin: 'https://linkedin.com/in/ada',
+      phone: '555',
+    });
+    expect(body).not.toHaveProperty('skyNumber');
+    expect(body).not.toHaveProperty('studentCardUid');
+    expect(body).not.toHaveProperty('password');
+    expect(calls.some((c) => c.url.includes('/api/users'))).toBe(false);
+  });
+
+  it('apply-for-other posts to applications/users/:userId, not applications/me', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/applications/users/u1')) {
+        expect(init?.method).toBe('POST');
+        return jsonRes(
+          {
+            id: 't-other',
+            eventId: 'e1',
+            ticketType: 'REGISTERED',
+            ownerId: 'u1',
+            checkIns: [],
+          },
+          201,
+        );
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.applyForOther('e1', 'u1');
+    expect(ticket).toMatchObject({ ticketType: 'REGISTERED', ownerId: 'u1' });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/applications/users/u1'))).toBe(true);
+    expect(urls.some((url) => url.includes('/applications/other'))).toBe(false);
+    expect(urls.some((url) => url.includes('/applications/me'))).toBe(false);
+  });
+
+  it('guest apply posts name, surname, email, and phone to applications/guest', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/applications/guest')) {
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(String(init?.body))).toEqual({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          email: 'ada@example.com',
+          phoneNumber: '555',
+        });
+        return jsonRes(
+          {
+            id: 't-guest',
+            eventId: 'e1',
+            ticketType: 'GUEST',
+            guestEmail: 'ada@example.com',
+            checkIns: [],
+          },
+          201,
+        );
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.applyGuest('e1', {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.com',
+      phoneNumber: '555',
+    });
+    expect(ticket).toMatchObject({ ticketType: 'GUEST', guestEmail: 'ada@example.com' });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/applications/guest'))).toBe(true);
+    expect(urls.some((url) => url.includes('/api/events') || url.includes('/api/tickets'))).toBe(
+      false,
+    );
+  });
+
+  it('short URL hits are a resource array and keep empty userId', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/v1/urls/u1/hits')) {
+        return jsonRes([
+          {
+            id: 'h1',
+            urlId: 'u1',
+            alias: 'club',
+            createdAt: '2026-09-19T08:00:00Z',
+            ip: '203.0.113.10',
+            userAgent: 'Mozilla/5.0',
+            referer: 'https://instagram.com/',
+            userId: '',
+          },
+        ]);
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const rows = await urlsApi.listHits('u1');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: 'h1',
+      urlId: 'u1',
+      alias: 'club',
+      createdAt: '2026-09-19T08:00:00Z',
+      ip: '203.0.113.10',
+      userAgent: 'Mozilla/5.0',
+      referer: 'https://instagram.com/',
+      userId: '',
+    });
+    expect(rows[0]).not.toHaveProperty('time');
+    expect(rows[0]).not.toHaveProperty('user');
+    expect(rows[0]).not.toHaveProperty('success');
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/urls/u1/hits'))).toBe(true);
+    expect(urls.some((url) => url.includes('/api/urls') || url.includes('/api/go'))).toBe(false);
   });
 
   it('problem+json becomes ProblemError', async () => {

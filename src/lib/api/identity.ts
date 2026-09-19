@@ -15,8 +15,24 @@ export type Person = {
   username?: string;
   schoolEmail?: string;
   skyNumber?: string;
+  linkedin?: string;
+  university?: string;
+  faculty?: string;
+  department?: string;
+  phone?: string;
+  studentCardUid?: string;
   sourceGroupId?: string;
   sourceGroupPath?: string;
+};
+
+export type UserProfilePatch = {
+  firstName?: string;
+  lastName?: string;
+  linkedin?: string;
+  university?: string;
+  faculty?: string;
+  department?: string;
+  phone?: string;
 };
 
 export type ClientRole = {
@@ -63,6 +79,11 @@ export const identityApi = {
   },
   listClientRoles: () => coreFetch<ClientRole[]>('/v1/client-roles'),
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),
+  updateUser: (id: string, body: UserProfilePatch) =>
+    coreFetch<UserCard>(`/v1/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   createUser: (body: { email: string; firstName: string; lastName: string }) =>
     coreFetch<Person>('/v1/users', { method: 'POST', body: JSON.stringify(body) }),
   deleteUser: (id: string) => coreFetch<void>(`/v1/users/${id}`, { method: 'DELETE' }),

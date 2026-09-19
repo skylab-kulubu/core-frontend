@@ -162,7 +162,7 @@ export default function DashboardPage() {
       dot: 'bg-neutral-500',
     },
     {
-      href: '/sessions',
+      href: '/events',
       label: 'Oturumlar',
       state: sessions,
       dot: 'bg-skylab-400 shadow-[0_0_6px] shadow-skylab-400/40',

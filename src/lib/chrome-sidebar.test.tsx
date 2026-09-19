@@ -32,5 +32,11 @@ describe('Sidebar chrome', () => {
     expect(screen.getAllByRole('link', { name: 'Mail' }).length).toBeGreaterThan(0);
     expect(screen.queryByText('Place')).not.toBeInTheDocument();
     expect(screen.queryByText('Yönetim')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Oturumlar' })).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Etkinlikler' })
+        .every((link) => link.getAttribute('href') === '/events'),
+    ).toBe(true);
   });
 });
