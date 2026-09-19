@@ -99,6 +99,22 @@ describe('filterSidebarNavForUser', () => {
 });
 
 describe('UserCardView', () => {
+  it('renders a GET user payload that omits empty groups, roles, phone, and uid', () => {
+    const card = {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      email: 'ada@example.com',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    };
+    render(<UserCardView card={card} />);
+    expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    expect(screen.getByText('Grup yok')).toBeInTheDocument();
+    expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Telefon').closest('div')).toHaveTextContent('—');
+    expect(screen.queryByText('Öğrenci kartı UID')).not.toBeInTheDocument();
+  });
+
   it('keeps inherited and extra client roles distinct', () => {
     render(
       <UserCardView

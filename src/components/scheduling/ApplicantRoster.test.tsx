@@ -94,6 +94,21 @@ describe('ApplicantRoster', () => {
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 
+  it('renders tickets that omit checkIns and createdAt', () => {
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[
+          { id: 't-sparse', eventId: 'e1', ticketType: 'GUEST', guestFirstName: 'Ada' } as Ticket,
+        ]}
+        people={people}
+        event={{ id: 'e1' }}
+      />,
+    );
+    expect(screen.getByText('Ada')).toBeInTheDocument();
+    expect(screen.getAllByText('Kayıtlı').length).toBeGreaterThan(0);
+  });
+
   it('lets an operator add a participant and mark katıldı on an existing Ticket', async () => {
     const user = userEvent.setup();
     const onAddParticipant = jest.fn();

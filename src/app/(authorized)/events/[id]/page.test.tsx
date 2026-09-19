@@ -20,7 +20,7 @@ jest.mock('@/context/AuthContext', () => ({
 }));
 
 jest.mock('@/lib/api/events', () => ({
-  eventsApi: { get: jest.fn(), delete: jest.fn() },
+  eventsApi: { get: jest.fn(), delete: jest.fn(), list: jest.fn() },
 }));
 
 jest.mock('@/lib/api/eventDays', () => ({
@@ -114,6 +114,7 @@ describe('Event hub Katıldı', () => {
     (identityApi.listUsers as jest.Mock).mockResolvedValue([]);
     (competitorsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (teamsApi.list as jest.Mock).mockResolvedValue([]);
+    (eventsApi.list as jest.Mock).mockResolvedValue([]);
   });
 
   it('hides Katıldı for a GECEKODU member who can still write the event', async () => {
@@ -180,6 +181,7 @@ describe('Event hub apply-for-other', () => {
     (identityApi.listUsers as jest.Mock).mockResolvedValue([]);
     (competitorsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (teamsApi.list as jest.Mock).mockResolvedValue([]);
+    (eventsApi.list as jest.Mock).mockResolvedValue([]);
   });
 
   it('lets a GECEKODU member see the roster but not apply-for-other', async () => {
@@ -191,6 +193,19 @@ describe('Event hub apply-for-other', () => {
       expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument(),
     );
     expect(screen.queryByRole('button', { name: 'Katılımcı ekle' })).not.toBeInTheDocument();
+  });
+
+  it('opens the editor when GET omits images, extra forms, and door staff', async () => {
+    const user = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: authUser(['/UYELER/YK']),
+    });
+    await renderHub();
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
+    expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
   });
 
   it.each([

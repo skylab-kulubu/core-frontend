@@ -20,7 +20,8 @@ export type ShortUrlHit = {
   id: string;
   urlId: string;
   alias: string;
-  createdAt: string;
+  createdAt?: string;
+  time?: string;
   ip: string;
   userAgent: string;
   referer: string;
@@ -51,6 +52,14 @@ export function shortQrFileName(alias: string): string {
 export function hitUserLabel(hit: Pick<ShortUrlHit, 'userId'>): string {
   if (hit.userId?.trim()) return hit.userId;
   return '—';
+}
+
+export function hitWhen(hit: Pick<ShortUrlHit, 'createdAt' | 'time'>): string {
+  return hit.createdAt || hit.time || '';
+}
+
+export function asHitList(rows: ShortUrlHit[] | null | undefined): ShortUrlHit[] {
+  return Array.isArray(rows) ? rows : [];
 }
 
 export const urlsApi = {

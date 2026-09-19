@@ -15,7 +15,9 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import {
+  asHitList,
   hitUserLabel,
+  hitWhen,
   publicShortUrl,
   shortQrFileName,
   shortQrPath,
@@ -157,7 +159,7 @@ export default function UrlsPage() {
                 setHitsRow(row);
                 setHitsError(null);
                 try {
-                  setHits(await urlsApi.listHits(row.id));
+                  setHits(asHitList(await urlsApi.listHits(row.id)));
                 } catch (err) {
                   setHits([]);
                   setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
@@ -191,7 +193,7 @@ export default function UrlsPage() {
             setHitsRow(row);
             setHitsError(null);
             try {
-              setHits(await urlsApi.listHits(row.id));
+              setHits(asHitList(await urlsApi.listHits(row.id)));
             } catch (err) {
               setHits([]);
               setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
@@ -235,8 +237,8 @@ export default function UrlsPage() {
             >
               {hits.map((hit, index) => (
                 <ListItem
-                  key={`${hit.createdAt}-${hit.ip}-${index}`}
-                  title={formatApplicantWhen(hit.createdAt)}
+                  key={`${hitWhen(hit)}-${hit.ip}-${index}`}
+                  title={formatApplicantWhen(hitWhen(hit))}
                   subtitle={`${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
                 />
               ))}

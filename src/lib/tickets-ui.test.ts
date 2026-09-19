@@ -21,6 +21,17 @@ const ada: Ticket = {
 };
 
 describe('ticket roster row', () => {
+  it('treats omitted check-ins and createdAt as kayıtlı with no date', () => {
+    const row = ticketRosterRow(
+      { id: 't-sparse', eventId: 'e1', ticketType: 'GUEST', guestFirstName: 'Ada' } as Ticket,
+      new Map(),
+      { id: 'e1' },
+    );
+    expect(row.name).toBe('Ada');
+    expect(row.status).toBe('registered');
+    expect(row.createdAtLabel).toBe('—');
+  });
+
   it('shows guest name, email, Misafir type, apply form, and kayıtlı status', () => {
     const row = ticketRosterRow(
       ada,

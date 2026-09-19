@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UrlsPage from '@/app/(authorized)/urls/page';
 import { urlsApi } from '@/lib/api/urls';
@@ -82,5 +83,34 @@ describe('Kısa URL hit list', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: 'Tıklamalar' }).length).toBeGreaterThan(0),
     );
+  });
+
+  it('renders a hit that uses time instead of createdAt, and a null hits body as empty', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ roles: [], groups: ['/UYELER/YK'] }),
+    });
+    (urlsApi.listHits as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce([
+      {
+        id: 'h1',
+        urlId: 'u1',
+        alias: 'hack',
+        time: (() => {
+          const when = new Date();
+          when.setHours(8, 5, 0, 0);
+          return when.toISOString();
+        })(),
+        ip: '203.0.113.9',
+        userAgent: 'Safari/18',
+        referer: '',
+      },
+    ]);
+    render(<UrlsPage />);
+    const buttons = await screen.findAllByRole('button', { name: 'Tıklamalar' });
+    await clicker.click(buttons[0]);
+    expect(await screen.findByText('Henüz tıklama yok.')).toBeInTheDocument();
+    await clicker.click(buttons[0]);
+    expect(await screen.findByText('Bugün, 08:05')).toBeInTheDocument();
+    expect(screen.getByText(/203\.0\.113\.9/)).toBeInTheDocument();
   });
 });

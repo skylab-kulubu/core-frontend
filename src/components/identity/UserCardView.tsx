@@ -35,10 +35,13 @@ export function UserCardView({
   onAddRole?: () => void;
   onRemoveRole?: (role: ClientRole) => void;
 }) {
-  const name = `${card.firstName} ${card.lastName}`.trim();
+  const groups = card.groups ?? [];
+  const inheritedRoles = card.inheritedRoles ?? [];
+  const extraRoles = card.extraRoles ?? [];
+  const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim();
   const [profile, setProfile] = useState({
-    firstName: card.firstName,
-    lastName: card.lastName,
+    firstName: card.firstName ?? '',
+    lastName: card.lastName ?? '',
     university: card.university ?? '',
     faculty: card.faculty ?? '',
     department: card.department ?? '',
@@ -48,8 +51,8 @@ export function UserCardView({
 
   useEffect(() => {
     setProfile({
-      firstName: card.firstName,
-      lastName: card.lastName,
+      firstName: card.firstName ?? '',
+      lastName: card.lastName ?? '',
       university: card.university ?? '',
       faculty: card.faculty ?? '',
       department: card.department ?? '',
@@ -182,7 +185,7 @@ export function UserCardView({
       <section className="space-y-2">
         <SectionHeading
           title="Gruplar"
-          meta={`${card.groups.length} grup`}
+          meta={`${groups.length} grup`}
           actions={
             onAddGroup ? (
               <ActionButton icon={Plus} variant="primary" label="Grup ekle" onClick={onAddGroup} />
@@ -192,25 +195,25 @@ export function UserCardView({
         <ListPanel
           status={listStatus({
             loading: false,
-            rowCount: card.groups.length,
+            rowCount: groups.length,
             emptyMessage: 'Grup yok',
           })}
         >
-          {card.groups.map((g) => (
+          {groups.map((g) => (
             <ListItem key={g.id} href={`/groups/${encodeURIComponent(g.id)}`} title={g.path} />
           ))}
         </ListPanel>
       </section>
       <section className="space-y-2">
-        <SectionHeading title="Gruptan gelen roller" meta={`${card.inheritedRoles.length} rol`} />
+        <SectionHeading title="Gruptan gelen roller" meta={`${inheritedRoles.length} rol`} />
         <ListPanel
           status={listStatus({
             loading: false,
-            rowCount: card.inheritedRoles.length,
+            rowCount: inheritedRoles.length,
             emptyMessage: 'Miras rol yok',
           })}
         >
-          {card.inheritedRoles.map((r) => (
+          {inheritedRoles.map((r) => (
             <ListItem key={roleKey(r)} title={r.role} subtitle={r.clientId} />
           ))}
         </ListPanel>
@@ -218,7 +221,7 @@ export function UserCardView({
       <section className="space-y-2">
         <SectionHeading
           title="Ekstra roller"
-          meta={`${card.extraRoles.length} rol`}
+          meta={`${extraRoles.length} rol`}
           actions={
             onAddRole ? (
               <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />
@@ -228,11 +231,11 @@ export function UserCardView({
         <ListPanel
           status={listStatus({
             loading: false,
-            rowCount: card.extraRoles.length,
+            rowCount: extraRoles.length,
             emptyMessage: 'Ekstra rol yok',
           })}
         >
-          {card.extraRoles.map((r) => (
+          {extraRoles.map((r) => (
             <ListItem
               key={roleKey(r)}
               title={r.role}
