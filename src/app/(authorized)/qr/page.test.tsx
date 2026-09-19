@@ -92,11 +92,11 @@ describe('Kapı check-in page', () => {
   it('checks in by person or email and labels success as name · session · time', async () => {
     const user = userEvent.setup();
     render(<QrPage />);
-    await waitFor(() => expect(screen.getByLabelText('E-posta')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Ad veya e-posta')).toBeInTheDocument());
     expect(screen.queryByPlaceholderText('Bilet kimliği')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kişi seç' })).toBeInTheDocument();
-    await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     await waitFor(() => expect(ticketsApi.checkIn).toHaveBeenCalledWith('t-guest', 's1'));
     expect(screen.getByText(/Ada Lovelace · Açılış · /)).toBeInTheDocument();
@@ -106,9 +106,10 @@ describe('Kapı check-in page', () => {
   it('accepts a typed name in the person field', async () => {
     const user = userEvent.setup();
     render(<QrPage />);
-    await waitFor(() => expect(screen.getByPlaceholderText('Ad veya e-posta')).toBeInTheDocument());
-    const field = screen.getByPlaceholderText('Ad veya e-posta') as HTMLInputElement;
+    await waitFor(() => expect(screen.getByLabelText('Ad veya e-posta')).toBeInTheDocument());
+    const field = screen.getByLabelText('Ad veya e-posta') as HTMLInputElement;
     expect(field).toHaveAttribute('type', 'text');
+    expect(field).toHaveAttribute('placeholder', 'Ad veya e-posta');
     await user.type(field, 'Ada Lovelace');
     expect(field.checkValidity()).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Check-in' }));

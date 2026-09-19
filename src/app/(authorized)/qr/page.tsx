@@ -186,7 +186,7 @@ export default function QrPage() {
         </label>
         <PersonPick valueId={personId} onChange={setPersonId} />
         <label className="block space-y-1">
-          <FieldLabel>E-posta</FieldLabel>
+          <FieldLabel>Ad veya e-posta</FieldLabel>
           <Field
             type="text"
             placeholder="Ad veya e-posta"

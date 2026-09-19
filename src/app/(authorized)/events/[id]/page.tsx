@@ -816,9 +816,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
             <PersonPick valueId={deskPersonId} onChange={setDeskPersonId} />
             <label className="block space-y-1">
-              <FieldLabel>E-posta</FieldLabel>
+              <FieldLabel>Ad veya e-posta</FieldLabel>
               <Field
-                type="email"
+                type="text"
+                placeholder="Ad veya e-posta"
                 value={deskEmail}
                 onChange={(e) => setDeskEmail(e.target.value)}
               />
