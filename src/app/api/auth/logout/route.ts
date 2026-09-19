@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     cookieStore.delete('auth_token');
     cookieStore.delete('access_token');
     cookieStore.delete('refresh_token');
+    cookieStore.delete('token');
 
     // Sonra set ile maxAge 0 ile geçersizleştir
     const secure = authCookieSecure();
@@ -35,6 +36,15 @@ export async function POST(request: NextRequest) {
     });
 
     cookieStore.set('refresh_token', '', {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/',
+      expires: new Date(0),
+    });
+
+    cookieStore.set('token', '', {
       httpOnly: true,
       secure,
       sameSite: 'lax',
