@@ -1,7 +1,7 @@
 import { personLabel } from '@/components/identity/PersonPick';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
-import { canCheckInForTeam, canWriteEvent, isPrivileged, ownerLevels } from '@/lib/auth/groups';
+import { canCheckInForEvent, canWriteEvent, isPrivileged, ownerLevels } from '@/lib/auth/groups';
 import { publicShortUrl } from '@/lib/api/urls';
 import { pad2 } from '@/lib/date-picker';
 
@@ -50,8 +50,33 @@ export function canAssignEventTicket(groups: readonly string[], ownerTeam: strin
   return ownerLevels(groups, ownerTeam).includes('LEADER');
 }
 
-export function canDeskCheckIn(groups: readonly string[], ownerTeam: string): boolean {
-  return canCheckInForTeam(groups, ownerTeam);
+export function canDeskCheckIn(
+  groups: readonly string[],
+  ownerTeam: string,
+  userId?: string,
+  doorStaffIds: readonly string[] = [],
+): boolean {
+  return canCheckInForEvent(groups, ownerTeam, userId, doorStaffIds);
+}
+
+export function ticketOwnerPeople(rows: readonly Ticket[]): Map<string, Person> {
+  return new Map(
+    rows.flatMap((ticket) =>
+      ticket.owner
+        ? [
+            [
+              ticket.owner.id,
+              {
+                id: ticket.owner.id,
+                email: ticket.owner.email,
+                firstName: ticket.owner.firstName,
+                lastName: ticket.owner.lastName,
+              },
+            ] as const,
+          ]
+        : [],
+    ),
+  );
 }
 
 function guestName(row: Ticket): string {
@@ -60,14 +85,7 @@ function guestName(row: Ticket): string {
 
 function ownerPerson(row: Ticket, people: Map<string, Person>): Person | undefined {
   if (row.ownerId && people.has(row.ownerId)) return people.get(row.ownerId);
-  if (row.owner?.id) {
-    return {
-      id: row.owner.id,
-      email: row.owner.email ?? '',
-      firstName: row.owner.firstName ?? '',
-      lastName: row.owner.lastName ?? '',
-    };
-  }
+  if (row.owner) return row.owner;
   return undefined;
 }
 

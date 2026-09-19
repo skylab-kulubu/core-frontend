@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, ChevronRight, Mail, Plus, QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -25,14 +25,17 @@ import {
 } from '@/lib/tickets-ui';
 
 const PAGE_SIZE = 10;
-const ROW_GRID = [
-  'grid items-center gap-3',
-  'grid-cols-[1.25rem_minmax(0,1fr)_1.5rem]',
-  'sm:grid-cols-[1.25rem_minmax(0,1fr)_6.5rem_1.5rem]',
-  'md:grid-cols-[1.25rem_minmax(0,1fr)_6.5rem_7rem_1.5rem]',
-  'lg:grid-cols-[1.25rem_minmax(0,1.4fr)_5.5rem_7.5rem_6.5rem_5.5rem_1.5rem]',
-].join(' ');
 const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-neutral-600';
+type RosterSort = 'name' | 'createdAt' | 'status';
+type RosterDensity = 'dense' | 'comfortable';
+type PersistedRosterState = {
+  query?: string;
+  ticketType?: ApplicantRosterFilter['ticketType'];
+  status?: ApplicantRosterFilter['status'];
+  page?: number;
+  selected?: string[];
+  sort?: { key: RosterSort; direction: 'ascending' | 'descending' };
+};
 
 type ApplicantRosterProps = {
   eventId: string;
@@ -69,11 +72,93 @@ export function ApplicantRoster({
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [attendSessionId, setAttendSessionId] = useState(sessions[0]?.id ?? '');
+  const [sort, setSort] = useState<{ key: RosterSort; direction: 'ascending' | 'descending' }>({
+    key: 'createdAt',
+    direction: 'descending',
+  });
+  const [density, setDensity] = useState<RosterDensity>('dense');
+  const [restoredEventId, setRestoredEventId] = useState('');
 
-  const filtered = useMemo(
-    () => filterApplicantRoster(tickets, people, { query, ticketType, status }, event),
-    [tickets, people, query, ticketType, status, event],
-  );
+  useEffect(() => {
+    const saved = window.localStorage.getItem('skylab.admin.roster-density');
+    if (saved === 'dense' || saved === 'comfortable') setDensity(saved);
+  }, []);
+
+  useEffect(() => {
+    setQuery('');
+    setTicketType('all');
+    setStatus('all');
+    setPage(1);
+    setSelected(new Set());
+    setSort({ key: 'createdAt', direction: 'descending' });
+    try {
+      const raw = window.sessionStorage.getItem(`skylab.admin.roster.${eventId}`);
+      if (raw) {
+        const saved = JSON.parse(raw) as PersistedRosterState;
+        if (typeof saved.query === 'string') setQuery(saved.query);
+        if (
+          saved.ticketType === 'all' ||
+          saved.ticketType === 'GUEST' ||
+          saved.ticketType === 'REGISTERED'
+        ) {
+          setTicketType(saved.ticketType);
+        }
+        if (
+          saved.status === 'all' ||
+          saved.status === 'registered' ||
+          saved.status === 'checked-in'
+        ) {
+          setStatus(saved.status);
+        }
+        if (typeof saved.page === 'number' && saved.page > 0) setPage(saved.page);
+        if (Array.isArray(saved.selected)) {
+          const ticketIDs = new Set(tickets.map((ticket) => ticket.id));
+          setSelected(new Set(saved.selected.filter((id) => ticketIDs.has(id))));
+        }
+        if (
+          saved.sort &&
+          ['name', 'createdAt', 'status'].includes(saved.sort.key) &&
+          (saved.sort.direction === 'ascending' || saved.sort.direction === 'descending')
+        ) {
+          setSort(saved.sort);
+        }
+      }
+    } catch {
+      window.sessionStorage.removeItem(`skylab.admin.roster.${eventId}`);
+    }
+    setRestoredEventId(eventId);
+  }, [eventId, tickets]);
+
+  useEffect(() => {
+    if (restoredEventId !== eventId) return;
+    const saved: PersistedRosterState = {
+      query,
+      ticketType,
+      status,
+      page,
+      selected: [...selected],
+      sort,
+    };
+    window.sessionStorage.setItem(`skylab.admin.roster.${eventId}`, JSON.stringify(saved));
+  }, [eventId, page, query, restoredEventId, selected, sort, status, ticketType]);
+
+  const filtered = useMemo(() => {
+    const rows = filterApplicantRoster(tickets, people, { query, ticketType, status }, event);
+    const direction = sort.direction === 'ascending' ? 1 : -1;
+    return [...rows].sort((left, right) => {
+      if (sort.key === 'createdAt') {
+        const leftTime = Date.parse(left.createdAt || '') || 0;
+        const rightTime = Date.parse(right.createdAt || '') || 0;
+        return direction * (leftTime - rightTime);
+      }
+      const leftRow = ticketRosterRow(left, people, event);
+      const rightRow = ticketRosterRow(right, people, event);
+      if (sort.key === 'status') {
+        return direction * leftRow.status.localeCompare(rightRow.status, 'tr');
+      }
+      return direction * leftRow.name.localeCompare(rightRow.name, 'tr');
+    });
+  }, [tickets, people, query, ticketType, status, event, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -95,6 +180,24 @@ export function ApplicantRoster({
     const chosen = selected.size ? tickets.filter((row) => selected.has(row.id)) : filtered;
     return ticketMailRecipients(chosen, people);
   }
+
+  function toggleSort(key: RosterSort) {
+    setSort((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === 'ascending' ? 'descending' : 'ascending',
+    }));
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setQuery('');
+    setTicketType('all');
+    setStatus('all');
+    setPage(1);
+  }
+
+  const rowPadding = density === 'dense' ? 'py-2' : 'py-3.5';
 
   return (
     <div className="space-y-3">
@@ -148,6 +251,19 @@ export function ApplicantRoster({
             ))}
           </Select>
         ) : null}
+        <Select
+          aria-label="Satır yoğunluğu"
+          className="w-32 shrink-0"
+          value={density}
+          onChange={(changeEvent) => {
+            const next = changeEvent.target.value as RosterDensity;
+            setDensity(next);
+            window.localStorage.setItem('skylab.admin.roster-density', next);
+          }}
+        >
+          <option value="dense">Yoğun</option>
+          <option value="comfortable">Rahat</option>
+        </Select>
         {onAddParticipant ? (
           <ActionButton
             icon={Plus}
@@ -166,6 +282,67 @@ export function ApplicantRoster({
         ) : null}
         <ActionButton icon={QrCode} label="Kapı" href={doorHref} />
       </ListToolbar>
+      {filteredEmpty ? (
+        <div aria-label="Aktif filtreler" className="flex flex-wrap items-center gap-2">
+          {query.trim() ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+            >
+              Arama: {query.trim()} ×
+            </button>
+          ) : null}
+          {ticketType !== 'all' ? (
+            <button
+              type="button"
+              onClick={() => setTicketType('all')}
+              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+            >
+              Tür: {ticketType === 'GUEST' ? 'Misafir' : 'Üye'} ×
+            </button>
+          ) : null}
+          {status !== 'all' ? (
+            <button
+              type="button"
+              onClick={() => setStatus('all')}
+              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+            >
+              Durum: {status === 'checked-in' ? 'Giriş yaptı' : 'Kayıtlı'} ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-2xs text-skylab-300 rounded-md px-2 py-1 hover:bg-white/5"
+          >
+            Tümünü temizle
+          </button>
+        </div>
+      ) : null}
+      {selected.size ? (
+        <div
+          role="status"
+          aria-label="Seçim özeti"
+          className="border-skylab-400/20 bg-skylab-500/5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+        >
+          <span className="text-xs font-medium text-neutral-200">{selected.size} kişi seçildi</span>
+          {onMailSelected ? (
+            <ActionButton
+              icon={Mail}
+              label="Seçilenlere mail"
+              onClick={() => onMailSelected(mailRecipients())}
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-2xs ml-auto rounded-md px-2 py-1 text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+          >
+            Seçimi temizle
+          </button>
+        </div>
+      ) : null}
       <ListPanel
         status={listStatus({
           loading,
@@ -184,84 +361,144 @@ export function ApplicantRoster({
             : 'Form veya üye kaydı gelince burada durur.'
         }
       >
-        <div
-          className={`sticky top-0 z-10 border-b border-white/10 bg-neutral-900 px-3 pb-2 ${ROW_GRID}`}
-        >
-          <span />
-          <span className={COLUMN_LABEL}>Kişi</span>
-          <span className={`hidden text-center sm:block ${COLUMN_LABEL}`}>Tür</span>
-          <span className={`hidden md:block ${COLUMN_LABEL}`}>Form</span>
-          <span className={`hidden text-center lg:block ${COLUMN_LABEL}`}>Tarih</span>
-          <span className={`hidden text-center lg:block ${COLUMN_LABEL}`}>Durum</span>
-          <span />
-        </div>
-        {slice.map((ticket) => {
-          const row = ticketRosterRow(ticket, people, event);
-          const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
-          const typeKind = ticketTypeStatus(row.ticketType);
-          const statusKind = ticketCheckInStatus(row.status === 'checked-in');
-          return (
-            <div key={ticket.id} className="group/row relative transition-colors hover:bg-white/3">
-              <Link
-                href={href}
-                className="absolute inset-0 z-0"
-                aria-label={row.name}
-                tabIndex={-1}
-              />
-              <div className={`${ROW_GRID} px-3 py-2.5`}>
-                <input
-                  type="checkbox"
-                  className="accent-skylab-400 relative z-10 h-3.5 w-3.5"
-                  checked={selected.has(ticket.id)}
-                  aria-label={`${row.name} seç`}
-                  onChange={() => toggle(ticket.id)}
-                />
-                <div className="flex min-w-0 items-center gap-3">
-                  <StatusDot kind={statusKind} title={row.statusLabel} />
-                  <Avatar name={row.name} email={row.email} size="md" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-neutral-200 transition-colors group-hover/row:text-neutral-50">
-                      {row.name}
-                    </p>
-                    <p className="text-3xs mt-0.5 truncate text-neutral-500">{row.email || '—'}</p>
-                  </div>
-                </div>
-                <span className="hidden justify-center sm:flex">
-                  <StatusChip kind={typeKind} />
-                </span>
-                <span className="text-2xs hidden min-w-0 truncate text-neutral-400 md:block">
-                  {row.sourceFormLabel}
-                </span>
-                <span className="text-2xs hidden text-center text-neutral-500 tabular-nums lg:block">
-                  {row.createdAtLabel}
-                </span>
-                <span className="hidden justify-center lg:flex">
-                  <StatusChip kind={statusKind} />
-                </span>
-                <div className="relative z-10 flex justify-end gap-1">
-                  {onMarkAttended ? (
-                    <ActionButton
-                      icon={CheckCircle2}
-                      label="Katıldı"
-                      disabled={!attendSessionId}
-                      onClick={() => {
-                        if (!attendSessionId) return;
-                        onMarkAttended(ticket, attendSessionId);
-                      }}
-                    />
+        <table className="w-full table-fixed border-collapse">
+          <thead className="sticky top-0 z-10 bg-neutral-900">
+            <tr className="border-b border-white/10">
+              {onMailSelected ? (
+                <th scope="col" className="w-10 px-3 pb-2">
+                  <span className="sr-only">Seç</span>
+                </th>
+              ) : null}
+              <th
+                scope="col"
+                aria-sort={sort.key === 'name' ? sort.direction : 'none'}
+                className={`${COLUMN_LABEL} pb-2 text-left`}
+              >
+                <button type="button" onClick={() => toggleSort('name')} className="py-1">
+                  Kişi
+                </button>
+              </th>
+              <th
+                scope="col"
+                className={`hidden w-24 pb-2 text-center sm:table-cell ${COLUMN_LABEL}`}
+              >
+                Tür
+              </th>
+              <th
+                scope="col"
+                className={`hidden w-28 pb-2 text-left md:table-cell ${COLUMN_LABEL}`}
+              >
+                Form
+              </th>
+              <th
+                scope="col"
+                aria-sort={sort.key === 'createdAt' ? sort.direction : 'none'}
+                className={`hidden w-24 pb-2 text-center lg:table-cell ${COLUMN_LABEL}`}
+              >
+                <button type="button" onClick={() => toggleSort('createdAt')} className="py-1">
+                  Tarih
+                </button>
+              </th>
+              <th
+                scope="col"
+                aria-sort={sort.key === 'status' ? sort.direction : 'none'}
+                className={`hidden w-24 pb-2 text-center lg:table-cell ${COLUMN_LABEL}`}
+              >
+                <button type="button" onClick={() => toggleSort('status')} className="py-1">
+                  Durum
+                </button>
+              </th>
+              <th scope="col" className={`${onMarkAttended ? 'w-20' : 'w-10'} px-3 pb-2`}>
+                <span className="sr-only">İşlemler</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {slice.map((ticket) => {
+              const row = ticketRosterRow(ticket, people, event);
+              const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
+              const typeKind = ticketTypeStatus(row.ticketType);
+              const statusKind = ticketCheckInStatus(row.status === 'checked-in');
+              return (
+                <tr key={ticket.id} className="group/row transition-colors hover:bg-white/3">
+                  {onMailSelected ? (
+                    <td className={`w-10 px-3 align-middle ${rowPadding}`}>
+                      <input
+                        type="checkbox"
+                        className="accent-skylab-400 h-3.5 w-3.5"
+                        checked={selected.has(ticket.id)}
+                        aria-label={`${row.name} seç`}
+                        onChange={() => toggle(ticket.id)}
+                      />
+                    </td>
                   ) : null}
-                  <Link
-                    href={href}
-                    aria-label="Kaydı aç"
-                    className="group-hover/row:text-skylab-300 inline-flex h-6 w-6 items-center justify-center text-neutral-400"
+                  <td className={`min-w-0 align-middle ${rowPadding}`}>
+                    <Link
+                      href={href}
+                      aria-label={row.name}
+                      className="flex min-w-0 items-center gap-3"
+                    >
+                      <StatusDot kind={statusKind} title={row.statusLabel} />
+                      <Avatar name={row.name} email={row.email} size="md" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-neutral-200 transition-colors group-hover/row:text-neutral-50">
+                          {row.name}
+                        </span>
+                        <span className="text-3xs mt-0.5 block truncate text-neutral-500">
+                          {row.email || '—'}
+                        </span>
+                      </span>
+                    </Link>
+                  </td>
+                  <td
+                    className={`hidden w-24 text-center align-middle sm:table-cell ${rowPadding}`}
                   >
-                    <ChevronRight className="h-4 w-4 transition-transform group-hover/row:translate-x-0.5" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                    <StatusChip kind={typeKind} />
+                  </td>
+                  <td
+                    className={`text-2xs hidden w-28 truncate text-neutral-400 md:table-cell ${rowPadding}`}
+                  >
+                    {row.sourceFormLabel}
+                  </td>
+                  <td
+                    className={`text-2xs hidden w-24 text-center text-neutral-500 tabular-nums lg:table-cell ${rowPadding}`}
+                  >
+                    {row.createdAtLabel}
+                  </td>
+                  <td
+                    className={`hidden w-24 text-center align-middle lg:table-cell ${rowPadding}`}
+                  >
+                    <StatusChip kind={statusKind} />
+                  </td>
+                  <td
+                    className={`${onMarkAttended ? 'w-20' : 'w-10'} px-3 align-middle ${rowPadding}`}
+                  >
+                    <div className="flex justify-end gap-1">
+                      {onMarkAttended ? (
+                        <ActionButton
+                          icon={CheckCircle2}
+                          label="Katıldı"
+                          disabled={!attendSessionId}
+                          onClick={() => {
+                            if (!attendSessionId) return;
+                            onMarkAttended(ticket, attendSessionId);
+                          }}
+                        />
+                      ) : null}
+                      <Link
+                        href={href}
+                        aria-label="Kaydı aç"
+                        className="group-hover/row:text-skylab-300 inline-flex h-6 w-6 items-center justify-center text-neutral-400"
+                      >
+                        <ChevronRight className="h-4 w-4 transition-transform group-hover/row:translate-x-0.5" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </ListPanel>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ListFooterMeta

@@ -8,6 +8,7 @@ jest.mock('@/lib/api/tickets', () => ({
   ticketsApi: {
     applyForOther: jest.fn(),
     applyGuest: jest.fn(),
+    listAssignableUsers: jest.fn(),
   },
 }));
 
@@ -17,6 +18,8 @@ jest.mock('@/lib/api/identity', () => ({
 
 describe('AddParticipantDrawer guest apply', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
+    (ticketsApi.listAssignableUsers as jest.Mock).mockResolvedValue([]);
     (ticketsApi.applyGuest as jest.Mock).mockResolvedValue({
       id: 't-guest',
       eventId: 'e1',
@@ -24,6 +27,16 @@ describe('AddParticipantDrawer guest apply', () => {
       guestEmail: 'ada@example.com',
       checkIns: [],
     });
+  });
+
+  it('searches the event-scoped assignable directory for leaders', async () => {
+    const user = userEvent.setup();
+    render(<AddParticipantDrawer open onClose={jest.fn()} eventId="e1" onCreated={jest.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Kişi seç' }));
+    const search = screen.getByPlaceholderText('Ad, e-posta');
+    await user.type(search, 'Ada');
+    await waitFor(() => expect(ticketsApi.listAssignableUsers).toHaveBeenCalledWith('e1', 'Ada'));
+    expect((await import('@/lib/api/identity')).identityApi.listUsers).not.toHaveBeenCalled();
   });
 
   it('submits guest apply without a phone', async () => {
@@ -45,5 +58,35 @@ describe('AddParticipantDrawer guest apply', () => {
       }),
     );
     expect((ticketsApi.applyGuest as jest.Mock).mock.calls[0][1]).not.toHaveProperty('phoneNumber');
+  });
+
+  it('rejects whitespace-only guest names before calling the API', async () => {
+    const user = userEvent.setup();
+    render(<AddParticipantDrawer open onClose={jest.fn()} eventId="e1" onCreated={jest.fn()} />);
+    await user.type(screen.getByLabelText('Ad'), '   ');
+    await user.type(screen.getByLabelText('Soyad'), 'Lovelace');
+    await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Misafir kaydı yaz' }));
+    expect(ticketsApi.applyGuest).not.toHaveBeenCalled();
+    expect(screen.getByText('Ad zorunlu')).toBeInTheDocument();
+  });
+
+  it('locks both submission paths while a participant request is pending', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.listAssignableUsers as jest.Mock).mockResolvedValue([
+      {
+        id: 'u1',
+        email: 'ada@example.com',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      },
+    ]);
+    (ticketsApi.applyForOther as jest.Mock).mockImplementation(() => new Promise(() => undefined));
+    render(<AddParticipantDrawer open onClose={jest.fn()} eventId="e1" onCreated={jest.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Kişi seç' }));
+    await user.click(await screen.findByRole('button', { name: 'Ada Lovelace' }));
+    await user.click(screen.getByRole('button', { name: 'Üye kaydı yaz' }));
+    await waitFor(() => expect(ticketsApi.applyForOther).toHaveBeenCalledWith('e1', 'u1'));
+    expect(screen.getByRole('button', { name: 'Misafir kaydı yaz' })).toBeDisabled();
   });
 });

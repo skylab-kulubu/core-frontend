@@ -20,8 +20,7 @@ export type ShortUrlHit = {
   id: string;
   urlId: string;
   alias: string;
-  createdAt?: string;
-  time?: string;
+  createdAt: string;
   ip: string;
   userAgent: string;
   referer: string;
@@ -54,8 +53,8 @@ export function hitUserLabel(hit: Pick<ShortUrlHit, 'userId'>): string {
   return '—';
 }
 
-export function hitWhen(hit: Pick<ShortUrlHit, 'createdAt' | 'time'>): string {
-  return hit.createdAt || hit.time || '';
+export function hitWhen(hit: Pick<ShortUrlHit, 'createdAt'>): string {
+  return hit.createdAt;
 }
 
 export function asHitList(rows: ShortUrlHit[] | null | undefined): ShortUrlHit[] {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
@@ -32,6 +32,11 @@ const people = new Map<string, Person>([
 ]);
 
 describe('ApplicantRoster', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
   it('shows name, email, type, source form, date, and status instead of a ticket-id dump', () => {
     render(
       <ApplicantRoster
@@ -47,6 +52,8 @@ describe('ApplicantRoster', () => {
       />,
     );
     expect(screen.getByRole('searchbox', { name: 'Başvuran ara' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('ada@example.com')).toBeInTheDocument();
     expect(screen.getAllByText('Misafir').length).toBeGreaterThan(0);
@@ -79,6 +86,65 @@ describe('ApplicantRoster', () => {
     await user.type(screen.getByRole('searchbox', { name: 'Başvuran ara' }), 'grace');
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Arama: grace/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tümünü temizle' }));
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+  });
+
+  it('sorts semantic columns and remembers row density', async () => {
+    const user = userEvent.setup();
+    const first = render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[member, guest]}
+        people={people}
+        event={{ id: 'e1' }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Kişi' }));
+    const dataRows = screen.getAllByRole('row').slice(1);
+    expect(within(dataRows[0]).getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Kişi' })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Satır yoğunluğu' }),
+      'comfortable',
+    );
+    expect(window.localStorage.getItem('skylab.admin.roster-density')).toBe('comfortable');
+    first.unmount();
+
+    render(<ApplicantRoster eventId="e1" tickets={[guest]} people={people} event={{ id: 'e1' }} />);
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Satır yoğunluğu' })).toHaveValue('comfortable'),
+    );
+  });
+
+  it('restores filters, sorting, and selection when returning to the event', async () => {
+    const user = userEvent.setup();
+    const props = {
+      eventId: 'e1',
+      tickets: [guest, member],
+      people,
+      event: { id: 'e1' },
+      onMailSelected: jest.fn(),
+    };
+    const first = render(<ApplicantRoster {...props} />);
+    await user.type(screen.getByRole('searchbox', { name: 'Başvuran ara' }), 'grace');
+    await user.click(screen.getByRole('button', { name: 'Kişi' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Grace Hopper seç' }));
+    first.unmount();
+
+    render(<ApplicantRoster {...props} />);
+    await waitFor(() =>
+      expect(screen.getByRole('searchbox', { name: 'Başvuran ara' })).toHaveValue('grace'),
+    );
+    expect(screen.getByRole('columnheader', { name: 'Kişi' })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+    expect(screen.getByRole('checkbox', { name: 'Grace Hopper seç' })).toBeChecked();
   });
 
   it('shows applicant counts in the list footer', () => {
@@ -113,6 +179,7 @@ describe('ApplicantRoster', () => {
     const user = userEvent.setup();
     const onAddParticipant = jest.fn();
     const onMarkAttended = jest.fn();
+    const onMailSelected = jest.fn();
     render(
       <ApplicantRoster
         eventId="e1"
@@ -122,6 +189,7 @@ describe('ApplicantRoster', () => {
         sessions={[{ id: 's1', title: 'Açılış' }]}
         onAddParticipant={onAddParticipant}
         onMarkAttended={onMarkAttended}
+        onMailSelected={onMailSelected}
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Katılımcı ekle' }));
@@ -129,5 +197,11 @@ describe('ApplicantRoster', () => {
     await user.selectOptions(screen.getByLabelText('Oturum'), 's1');
     await user.click(screen.getAllByRole('button', { name: 'Katıldı' })[0]);
     expect(onMarkAttended).toHaveBeenCalledWith(guest, 's1');
+    await user.click(screen.getByRole('checkbox', { name: 'Ada Lovelace seç' }));
+    expect(screen.getByRole('status', { name: 'Seçim özeti' })).toHaveTextContent('1 kişi seçildi');
+    await user.click(screen.getByRole('button', { name: 'Seçilenlere mail' }));
+    expect(onMailSelected).toHaveBeenCalledWith([
+      { ticketId: 't-guest', name: 'Ada Lovelace', email: 'ada@example.com' },
+    ]);
   });
 });

@@ -6,7 +6,6 @@ import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
 import { AuthProvider } from '@/context/AuthContext';
 import { getTokenFromCookies } from '@/lib/auth/token';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
-import { filterSidebarNavForUser } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
 
 export const dynamic = 'force-dynamic';
@@ -38,11 +37,9 @@ export default async function AuthorizedLayout({
     roles: session.roles,
     groups: session.groups,
   };
-  const sidebarNav = filterSidebarNavForUser(user);
-
   return (
     <AuthProvider initialUser={user}>
-      <AuthenticatedChrome sidebarNav={sidebarNav} sidebarUser={user}>
+      <AuthenticatedChrome sidebarUser={user}>
         <GlobalErrorMessenger />
         {children}
       </AuthenticatedChrome>

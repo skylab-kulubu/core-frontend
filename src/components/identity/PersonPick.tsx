@@ -15,11 +15,13 @@ export function PersonPick({
   onChange,
   onPicked,
   label = 'Kişi',
+  searchPeople,
 }: {
   valueId: string;
   onChange: (id: string) => void;
   onPicked?: (person: Person | null) => void;
   label?: string;
+  searchPeople?: (query: string) => Promise<Person[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -34,6 +36,7 @@ export function PersonPick({
       return;
     }
     let cancelled = false;
+    if (searchPeople) return;
     identityApi
       .getUser(valueId)
       .then((card) => {
@@ -49,15 +52,14 @@ export function PersonPick({
     return () => {
       cancelled = true;
     };
-  }, [valueId]);
+  }, [searchPeople, valueId]);
 
   useEffect(() => {
     if (!open) return;
     const handle = window.setTimeout(
       () => {
         setLoading(true);
-        identityApi
-          .listUsers(query)
+        (searchPeople ?? identityApi.listUsers)(query)
           .then((rows) => {
             setPeople(rows);
             setFailed(false);
@@ -68,7 +70,7 @@ export function PersonPick({
       query.trim() ? 250 : 0,
     );
     return () => window.clearTimeout(handle);
-  }, [open, query]);
+  }, [open, query, searchPeople]);
 
   const selected = useMemo(() => {
     if (picked && picked.id === valueId) return picked;

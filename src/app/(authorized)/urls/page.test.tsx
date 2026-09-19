@@ -85,7 +85,7 @@ describe('Kısa URL hit list', () => {
     );
   });
 
-  it('renders a hit that uses time instead of createdAt, and a null hits body as empty', async () => {
+  it('renders a hit with createdAt, and a null hits body as empty', async () => {
     const clicker = userEvent.setup();
     (useAuth as jest.Mock).mockReturnValue({
       user: user({ roles: [], groups: ['/UYELER/YK'] }),
@@ -95,7 +95,7 @@ describe('Kısa URL hit list', () => {
         id: 'h1',
         urlId: 'u1',
         alias: 'hack',
-        time: (() => {
+        createdAt: (() => {
           const when = new Date();
           when.setHours(8, 5, 0, 0);
           return when.toISOString();

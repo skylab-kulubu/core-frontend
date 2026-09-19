@@ -72,6 +72,32 @@ describe('filterSidebarNavForUser', () => {
     };
     expect(filterSidebarNavForUser(user)).toEqual([]);
   });
+  it('GECEKODU member sees the event workspace they can operate', () => {
+    const user: UserDto = {
+      id: '7',
+      username: 'gece',
+      email: 'gece@example.com',
+      firstName: 'Gece',
+      lastName: 'Kodu',
+      roles: [],
+      groups: ['/UYELER/ORGANIZASYON/GECEKODU'],
+    };
+    expect(filterSidebarNavForUser(user).map((link) => link.href)).toEqual(['/events']);
+  });
+  it('assigned door staff sees the door workspace without management links', () => {
+    const user: UserDto = {
+      id: '8',
+      username: 'door',
+      email: 'door@example.com',
+      firstName: 'Door',
+      lastName: 'Staff',
+      roles: [],
+      groups: ['/UYELER/ARGE/WEBLAB'],
+    };
+    expect(
+      filterSidebarNavForUser(user, { hasDoorAssignment: true }).map((link) => link.href),
+    ).toEqual(['/qr']);
+  });
   it('member with url:create sees Kısa URL', () => {
     const user: UserDto = {
       id: '4',
@@ -84,7 +110,19 @@ describe('filterSidebarNavForUser', () => {
     };
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual(['/dashboard', '/urls']);
   });
-  it('Leader with skylapp:access sees Kısa URL', () => {
+  it('users:read sees only the read-safe user area', () => {
+    const user: UserDto = {
+      id: '6',
+      username: 'reader',
+      email: 'reader@example.com',
+      firstName: 'Read',
+      lastName: 'Only',
+      roles: ['users:read'],
+      groups: ['/SERVICES/FORMS'],
+    };
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual(['/users']);
+  });
+  it('Leader with only a legacy skylapp role does not see Kısa URL', () => {
     const user: UserDto = {
       id: '5',
       username: 'lead',
@@ -94,7 +132,7 @@ describe('filterSidebarNavForUser', () => {
       roles: ['skylapp:access'],
       groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'],
     };
-    expect(filterSidebarNavForUser(user).map((l) => l.href)).toContain('/urls');
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/urls');
   });
 });
 
@@ -276,5 +314,27 @@ describe('UserCardView', () => {
     await userEvent.clear(screen.getByLabelText('Telefon'));
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ phone: '' }));
+  });
+
+  it('sends an empty first name so an operator can clear it', async () => {
+    const onSaveProfile = jest.fn();
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          groups: [],
+          inheritedRoles: [],
+          extraRoles: [],
+        }}
+        canEditProfile
+        onSaveProfile={onSaveProfile}
+      />,
+    );
+    await userEvent.clear(screen.getByLabelText('Ad'));
+    await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
+    expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ firstName: '' }));
   });
 });
