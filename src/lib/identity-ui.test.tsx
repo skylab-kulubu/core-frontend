@@ -32,15 +32,15 @@ describe('filterSidebarNavForUser', () => {
       '/announcements',
       '/events',
       '/seasons',
-      '/sessions',
       '/teams',
       '/qr',
       '/competitors',
       '/media',
       '/urls',
     ]);
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
-  it('Leader sees events sessions QR', () => {
+  it('Leader sees events and QR without a sessions page', () => {
     const user: UserDto = {
       id: '3',
       username: 'lead',
@@ -53,11 +53,11 @@ describe('filterSidebarNavForUser', () => {
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
       '/dashboard',
       '/events',
-      '/sessions',
       '/qr',
       '/competitors',
       '/media',
     ]);
+    expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
   it('member sees no identity nav', () => {
     const user: UserDto = {

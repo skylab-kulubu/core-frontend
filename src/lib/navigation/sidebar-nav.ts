@@ -15,7 +15,6 @@ const NEWS_LINKS: readonly SidebarNavLink[] = [{ href: '/announcements', label: 
 const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/dashboard', label: 'Özet' },
   { href: '/events', label: 'Etkinlikler' },
-  { href: '/sessions', label: 'Oturumlar' },
   { href: '/qr', label: 'Kapı' },
   { href: '/competitors', label: 'Yarışmacılar' },
   { href: '/media', label: 'Medya' },
@@ -24,7 +23,6 @@ const LEADER_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
 const PRIVILEGED_SCHEDULING_LINKS: readonly SidebarNavLink[] = [
   { href: '/events', label: 'Etkinlikler' },
   { href: '/seasons', label: 'Sezonlar' },
-  { href: '/sessions', label: 'Oturumlar' },
   { href: '/teams', label: 'Ekipler' },
   { href: '/qr', label: 'Kapı' },
   { href: '/competitors', label: 'Yarışmacılar' },
