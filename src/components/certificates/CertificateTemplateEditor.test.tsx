@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import {
   CertificateTemplateEditor,
@@ -82,5 +83,22 @@ describe('CertificateTemplateEditor', () => {
     await waitFor(() => expect(name).toHaveValue('SKY LAB Varsayılan Sertifika'));
     expect(name).toBeDisabled();
     expect(screen.getByText(/Bu şablon salt okunur/)).toBeInTheDocument();
+  });
+
+  it('explains that a Canva link is a source reference and an export must be uploaded', async () => {
+    const user = userEvent.setup();
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.selectOptions(screen.getByLabelText('Tasarım kaynağı'), 'canva');
+    await user.type(
+      screen.getByLabelText('Kaynak bağlantısı'),
+      'https://www.canva.com/design/example/edit',
+    );
+
+    expect(
+      screen.getByText(/Canva bağlantısı tasarımı otomatik olarak içe aktarmaz/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Canva exportunu yükle')).toBeInTheDocument();
   });
 });

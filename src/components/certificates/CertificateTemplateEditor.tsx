@@ -151,6 +151,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     () => draft.layout.elements.find((element) => element.id === selectedId),
     [draft.layout.elements, selectedId],
   );
+  const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
+  const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -542,50 +544,114 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             {currentPreset(draft.layout) === 'custom' ? <option value="custom">Özel</option> : null}
           </Select>
         </label>
-        <label className="space-y-1.5 lg:col-span-2">
-          <FieldLabel>Kaynak bağlantısı</FieldLabel>
-          <Field
-            disabled={!canEdit}
-            type="url"
-            value={draft.sourceEditUrl}
-            placeholder="Canva veya Figma düzenleme bağlantısı"
-            onChange={(event) => setDraft({ ...draft, sourceEditUrl: event.target.value })}
-          />
-        </label>
-        <label className="space-y-1.5 lg:col-span-2">
-          <FieldLabel>Kaynak dosya / tasarım kimliği</FieldLabel>
-          <Field
-            disabled={!canEdit}
-            value={draft.sourceRef}
-            placeholder="Örn. Canva design id veya Figma node"
-            onChange={(event) => setDraft({ ...draft, sourceRef: event.target.value })}
-          />
-        </label>
-        <div className="flex flex-wrap items-end gap-2 lg:col-span-4">
-          <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200 hover:bg-white/5">
-            <ImagePlus className="h-4 w-4" /> Canva/Figma export yükle
-            <input
-              className="sr-only"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              disabled={busy || !canEdit}
-              onChange={(event) => void uploadBackground(event.target.files?.[0])}
-            />
-          </label>
-          {draft.sourceEditUrl ? (
-            <a
-              className="text-skylab-300 inline-flex h-8 items-center gap-2 rounded-md border border-white/10 px-3 text-xs hover:bg-white/5"
-              href={draft.sourceEditUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink className="h-4 w-4" /> Kaynakta düzenle
-            </a>
-          ) : null}
-          <span className="text-3xs text-neutral-500">
-            Tasarımı PNG/JPG/SVG dışa aktar; dinamik alanları burada düzenle.
-          </span>
-        </div>
+        {externalSource ? (
+          <div className="border-skylab-400/15 bg-skylab-500/5 space-y-4 rounded-lg border p-4 lg:col-span-4">
+            <div>
+              <p className="text-sm font-semibold text-neutral-100">
+                {sourceName} tasarımını bağla
+              </p>
+              <p className="mt-1 text-xs leading-5 text-neutral-400">
+                {sourceName} bağlantısı tasarımı otomatik olarak içe aktarmaz. Bağlantı, özgün
+                tasarımı daha sonra tekrar açabilmen için saklanır. Sertifikada görünmesi için
+                tasarımı dışa aktarıp aşağıdan yüklemelisin.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
+                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+                  1 · Düzenleme bağlantısı
+                </p>
+                <label className="block space-y-1.5">
+                  <FieldLabel>Kaynak bağlantısı</FieldLabel>
+                  <Field
+                    disabled={!canEdit}
+                    type="url"
+                    value={draft.sourceEditUrl}
+                    placeholder={`${sourceName} düzenleme bağlantısı`}
+                    onChange={(event) => setDraft({ ...draft, sourceEditUrl: event.target.value })}
+                  />
+                </label>
+                {draft.sourceEditUrl ? (
+                  <a
+                    className="text-skylab-300 hover:text-skylab-200 inline-flex items-center gap-1.5 text-xs"
+                    href={draft.sourceEditUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> {sourceName}&apos;da düzenle
+                  </a>
+                ) : (
+                  <p className="text-3xs text-neutral-500">
+                    İsteğe bağlı; paylaşılabilir düzenleme bağlantısını yapıştır.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
+                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+                  2 · Tasarımı dışa aktar
+                </p>
+                <p className="text-xs leading-5 text-neutral-300">
+                  {sourceName}&apos;da PNG, JPG veya SVG olarak indir. Katılımcı adı, etkinlik adı
+                  ve QR için tasarımda boş alan bırak.
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
+                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+                  3 · Export dosyasını yükle
+                </p>
+                <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200 hover:bg-white/5">
+                  <ImagePlus className="h-4 w-4" /> {sourceName} exportunu yükle
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    disabled={busy || !canEdit}
+                    onChange={(event) => void uploadBackground(event.target.files?.[0])}
+                  />
+                </label>
+                <p
+                  className={`text-3xs ${backgroundUrl ? 'text-emerald-300' : 'text-neutral-500'}`}
+                >
+                  {backgroundUrl
+                    ? 'Arka plan hazır; aşağıdaki tuvalde görüntüleniyor.'
+                    : 'Henüz bir export dosyası yüklenmedi.'}
+                </p>
+              </div>
+            </div>
+
+            <details className="text-3xs text-neutral-500">
+              <summary className="cursor-pointer select-none">Gelişmiş kaynak bilgileri</summary>
+              <label className="mt-2 block max-w-md space-y-1.5">
+                <FieldLabel>Kaynak kimliği</FieldLabel>
+                <Field
+                  disabled={!canEdit}
+                  value={draft.sourceRef}
+                  placeholder="İsteğe bağlı Canva design id veya Figma node"
+                  onChange={(event) => setDraft({ ...draft, sourceRef: event.target.value })}
+                />
+              </label>
+            </details>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-black/10 p-3 lg:col-span-4">
+            <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200 hover:bg-white/5">
+              <ImagePlus className="h-4 w-4" /> Arka plan görseli yükle
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                disabled={busy || !canEdit}
+                onChange={(event) => void uploadBackground(event.target.files?.[0])}
+              />
+            </label>
+            <span className="text-3xs text-neutral-500">
+              İstersen boş tuvalle devam et; metinleri, görselleri ve QR alanını editörde ekle.
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
