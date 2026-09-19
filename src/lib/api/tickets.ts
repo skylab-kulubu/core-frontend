@@ -26,7 +26,7 @@ export type Ticket = {
   formId?: string;
   formUrl?: string;
   formAlias?: string;
-  checkIns: CheckIn[];
+  checkIns?: CheckIn[];
   createdAt: string;
   updatedAt: string;
   event?: { id?: string; name?: string };

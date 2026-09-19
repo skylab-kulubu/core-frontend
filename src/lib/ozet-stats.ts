@@ -26,7 +26,7 @@ export function sessionsByEvent(
 ): NamedCount[] {
   const map = new Map<string, number>();
   for (const row of sessions) {
-    const label = row.eventName.trim() || 'Etkinlik';
+    const label = (row.eventName ?? '').trim() || 'Etkinlik';
     map.set(label, (map.get(label) ?? 0) + 1);
   }
   return [...map.entries()]

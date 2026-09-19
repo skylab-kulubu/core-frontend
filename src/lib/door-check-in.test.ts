@@ -1,4 +1,4 @@
-import { hitUserLabel } from '@/lib/api/urls';
+import { asHitList, hitUserLabel, hitWhen } from '@/lib/api/urls';
 import { checkInSuccessLine, resolveDoorTicket } from '@/lib/door-check-in';
 import type { Ticket } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
@@ -47,6 +47,15 @@ describe('resolveDoorTicket', () => {
       't-guest',
     );
   });
+
+  it('does not throw when a roster person is missing email', () => {
+    const sparse = new Map<string, Person>([
+      ['u1', { id: 'u1', firstName: 'Grace', lastName: 'Hopper' } as Person],
+    ]);
+    expect(
+      resolveDoorTicket({ tickets: [member, guest], people: sparse, email: 'grace@skylab.com' }),
+    ).toBeUndefined();
+  });
 });
 
 describe('checkInSuccessLine', () => {
@@ -59,6 +68,21 @@ describe('checkInSuccessLine', () => {
         now: new Date(2026, 8, 19, 10, 0, 0),
       }),
     ).toBe('Grace Hopper · Açılış · Bugün, 09:04');
+  });
+});
+
+describe('hitWhen', () => {
+  it('prefers createdAt and falls back to time', () => {
+    expect(hitWhen({ createdAt: '2026-09-19T08:05:00.000Z' })).toBe('2026-09-19T08:05:00.000Z');
+    expect(hitWhen({ time: '2026-09-19T08:05:00.000Z' })).toBe('2026-09-19T08:05:00.000Z');
+    expect(hitWhen({})).toBe('');
+  });
+});
+
+describe('asHitList', () => {
+  it('turns a null hits body into an empty list', () => {
+    expect(asHitList(null)).toEqual([]);
+    expect(asHitList(undefined)).toEqual([]);
   });
 });
 

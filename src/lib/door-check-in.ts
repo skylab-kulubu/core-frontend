@@ -19,7 +19,7 @@ export function resolveDoorTicket(args: {
     if (row.guestEmail?.toLowerCase() === query) return true;
     if (row.owner?.email?.toLowerCase() === query) return true;
     const person = row.ownerId ? args.people.get(row.ownerId) : undefined;
-    if (person?.email.toLowerCase() === query) return true;
+    if (person?.email?.toLowerCase() === query) return true;
     const name = ticketApplicantName(row, args.people).trim().toLowerCase();
     return Boolean(name) && (name === query || name.includes(query));
   });

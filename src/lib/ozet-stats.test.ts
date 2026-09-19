@@ -25,6 +25,12 @@ describe('sessionsByEvent', () => {
       { label: 'CTF', count: 1 },
     ]);
   });
+
+  it('treats a missing event name as Etkinlik', () => {
+    expect(sessionsByEvent([{ eventName: undefined as unknown as string }])).toEqual([
+      { label: 'Etkinlik', count: 1 },
+    ]);
+  });
 });
 
 describe('eventsByMonth', () => {
