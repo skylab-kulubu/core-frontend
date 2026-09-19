@@ -49,11 +49,15 @@ export async function coreFetch<T>(path: string, init: RequestInit = {}): Promis
   return JSON.parse(text) as T;
 }
 
-export async function coreFetchBlob(path: string): Promise<Blob> {
+export async function coreFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
   const token = await bearer();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${CORE_API_URL}${path}`, { credentials: 'include', headers });
+  const res = await fetch(`${CORE_API_URL}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
+  });
   if (!res.ok) {
     let title = `HTTP ${res.status}`;
     try {

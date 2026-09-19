@@ -28,7 +28,13 @@ describe('groupSidebarNav', () => {
 describe('buildSidebarNavigation', () => {
   it('turns privileged navigation into shallow task groups', () => {
     const nodes = buildSidebarNavigation(privileged);
-    expect(nodes.map((node) => node.label)).toEqual(['Özet', 'Etkinlikler', 'Kulüp', 'İçerik']);
+    expect(nodes.map((node) => node.label)).toEqual([
+      'Özet',
+      'Etkinlikler',
+      'Kulüp',
+      'İçerik',
+      'Sertifikalar',
+    ]);
     const events = nodes.find((node) => node.label === 'Etkinlikler');
     expect(events?.kind).toBe('group');
     if (events?.kind !== 'group') throw new Error('event group missing');
@@ -43,6 +49,14 @@ describe('buildSidebarNavigation', () => {
     const club = nodes.find((node) => node.label === 'Kulüp');
     if (club?.kind !== 'group') throw new Error('club group missing');
     expect(club.children.map((item) => item.href)).toEqual(['/users', '/groups', '/teams']);
+    const certificates = nodes.find((node) => node.label === 'Sertifikalar');
+    if (certificates?.kind !== 'group') throw new Error('certificate group missing');
+    expect(certificates.children.map((item) => item.href)).toEqual([
+      '/certificates/templates',
+      '/certificates/defaults',
+      '/certificates/issued',
+      '/certificates/jobs',
+    ]);
   });
 
   it('does not emit empty groups for a url-only member', () => {

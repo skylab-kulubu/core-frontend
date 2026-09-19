@@ -5,6 +5,7 @@ type EventWorkspaceNavProps = {
   canSeeParticipants?: boolean;
   canSeeCompetitors?: boolean;
   canUseDoor?: boolean;
+  canSeeCertificates?: boolean;
 };
 
 const localLink =
@@ -15,6 +16,7 @@ export function EventWorkspaceNav({
   canSeeParticipants = false,
   canSeeCompetitors = false,
   canUseDoor = false,
+  canSeeCertificates = false,
 }: EventWorkspaceNavProps) {
   return (
     <nav
@@ -35,6 +37,11 @@ export function EventWorkspaceNav({
       {canSeeCompetitors ? (
         <a className={localLink} href="#competitors">
           Yarışmacılar
+        </a>
+      ) : null}
+      {canSeeCertificates ? (
+        <a className={localLink} href="#certificates">
+          Sertifikalar
         </a>
       ) : null}
       {canUseDoor ? (

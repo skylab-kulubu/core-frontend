@@ -26,6 +26,7 @@ import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDraw
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
+import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
@@ -53,7 +54,12 @@ import { personLabel } from '@/components/identity/PersonPick';
 import { teamsApi } from '@/lib/api/teams';
 import { identityApi, type Person } from '@/lib/api/identity';
 import {
+  canBindCertificateTemplates,
   canManageCompetitors,
+  canIssueCertificates,
+  canReadCertificates,
+  canRevokeCertificates,
+  canUseCertificateWorkspace,
   canWriteEvent,
   isPrivileged,
   leaderOwnerTeams,
@@ -124,6 +130,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const router = useRouter();
   const { user } = useAuth();
   const groups = user?.groups ?? [];
+  const roles = user?.roles ?? [];
   const privileged = isPrivileged(groups);
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
@@ -170,9 +177,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
   const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
-  const canTickets = event ? canListEventTickets(groups, event.ownerTeam) : false;
+  const canTickets = event ? canListEventTickets(groups, event.ownerTeam, roles) : false;
   const canAssign = event ? canAssignEventTicket(groups, event.ownerTeam) : false;
   const canDesk = event ? canDeskCheckIn(groups, event.ownerTeam) || doorAccess : false;
+  const canCertificates = event
+    ? canUseCertificateWorkspace(groups, roles, event.ownerTeam)
+    : false;
+  const canReadIssuedCertificates = event
+    ? canReadCertificates(groups, roles, event.ownerTeam)
+    : false;
+  const canIssueCertificate = event ? canIssueCertificates(groups, roles, event.ownerTeam) : false;
+  const canBindCertificate = event
+    ? canBindCertificateTemplates(groups, roles, event.ownerTeam)
+    : false;
+  const canRevokeCertificate = event
+    ? canRevokeCertificates(groups, roles, event.ownerTeam)
+    : false;
 
   async function load() {
     try {
@@ -222,7 +242,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setDays(dayRows);
       setSessions(sessionRows);
       setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
-      const ticketRows = canListEventTickets(groups, ev.ownerTeam)
+      const ticketRows = canListEventTickets(groups, ev.ownerTeam, roles)
         ? await ticketsApi.listByEvent(id).catch(() => [] as Ticket[])
         : [];
       setTickets(ticketRows);
@@ -336,6 +356,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         canSeeParticipants={canTickets}
         canSeeCompetitors={canCompetitors}
         canUseDoor={canDesk}
+        canSeeCertificates={canCertificates}
       />
       {error ? (
         <p role="alert" className="text-sm text-red-300">
@@ -487,6 +508,23 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   }
                 : undefined
             }
+          />
+        </div>
+      ) : null}
+      {canCertificates ? (
+        <div id="certificates" className="scroll-mt-24 space-y-3">
+          <SectionHeading title="Sertifikalar" meta="Şablon, katılım ve üretim" />
+          <EventCertificatesPanel
+            eventId={event.id}
+            ownerTeam={event.ownerTeam}
+            attendanceRule={event.attendanceRule ?? 'none'}
+            attendanceRatio={event.attendanceRatio}
+            eventActive={event.active}
+            tickets={tickets}
+            canIssue={canIssueCertificate}
+            canBind={canBindCertificate}
+            canRevoke={canRevokeCertificate}
+            canReadIssued={canReadIssuedCertificates}
           />
         </div>
       ) : null}

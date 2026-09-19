@@ -109,3 +109,83 @@ export function canModerateUrls(groups: readonly string[], roles: readonly strin
   if (isPrivileged(groups)) return true;
   return roles.includes('url:moderator');
 }
+
+export function canUseCertificates(groups: readonly string[], roles: readonly string[]): boolean {
+  if (isPrivileged(groups) || isLeader(groups)) return true;
+  return roles.some((role) => role.startsWith('certificate:'));
+}
+
+export function canIssueCertificates(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  if (isPrivileged(groups) || ownerLevels(groups, ownerTeam).includes('LEADER')) return true;
+  return ownerLevels(groups, ownerTeam).length > 0 && roles.includes('certificate:issue');
+}
+
+export function canReadCertificates(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  if (isPrivileged(groups) || ownerLevels(groups, ownerTeam).includes('LEADER')) return true;
+  return (
+    ownerLevels(groups, ownerTeam).length > 0 &&
+    roles.some((role) => role === 'certificate:issue' || role === 'certificate:revoke')
+  );
+}
+
+export function canUseCertificateWorkspace(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  if (isPrivileged(groups) || ownerLevels(groups, ownerTeam).includes('LEADER')) return true;
+  return (
+    ownerLevels(groups, ownerTeam).length > 0 &&
+    roles.some((role) => role.startsWith('certificate:'))
+  );
+}
+
+function canUseCertificateRoleForTeam(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+  role: string,
+): boolean {
+  if (isPrivileged(groups) || ownerLevels(groups, ownerTeam).includes('LEADER')) return true;
+  return ownerLevels(groups, ownerTeam).length > 0 && roles.includes(role);
+}
+
+export function canBindCertificateTemplates(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  return canUseCertificateRoleForTeam(groups, roles, ownerTeam, 'certificate:binding:manage');
+}
+
+export function canRevokeCertificates(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  return canUseCertificateRoleForTeam(groups, roles, ownerTeam, 'certificate:revoke');
+}
+
+export function canManageCertificateTemplates(
+  groups: readonly string[],
+  roles: readonly string[],
+): boolean {
+  return isPrivileged(groups) || isLeader(groups) || roles.includes('certificate:template:manage');
+}
+
+export function canEditCertificateTemplateForTeam(
+  groups: readonly string[],
+  roles: readonly string[],
+  ownerTeam: string,
+): boolean {
+  if (!ownerTeam) return isPrivileged(groups);
+  return canUseCertificateRoleForTeam(groups, roles, ownerTeam, 'certificate:template:manage');
+}

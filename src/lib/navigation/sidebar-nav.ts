@@ -1,4 +1,10 @@
-import { canUseUrls, canWriteEvent, isLeader, isPrivileged } from '@/lib/auth/groups';
+import {
+  canUseCertificates,
+  canUseUrls,
+  canWriteEvent,
+  isLeader,
+  isPrivileged,
+} from '@/lib/auth/groups';
 import type { UserDto } from '@/types/api';
 import type { SidebarNavLink, SidebarNavNode } from '@/lib/navigation/sidebar-types';
 
@@ -14,6 +20,7 @@ export type SidebarNavigationContext = Readonly<{
     canSeeParticipants: boolean;
     canSeeCompetitors: boolean;
     canUseDoor: boolean;
+    canSeeCertificates?: boolean;
   }>;
 }>;
 
@@ -64,6 +71,11 @@ const NAVIGATION_LINKS: ReadonlyArray<
   {
     ...URLS_LINK,
     visibleWhen: ({ groups, roles }) => canUseUrls(groups, roles),
+  },
+  {
+    href: '/certificates',
+    label: 'Sertifikalar',
+    visibleWhen: ({ groups, roles }) => canUseCertificates(groups, roles),
   },
 ];
 
@@ -139,6 +151,9 @@ export function buildSidebarNavigation(
         label: 'Kapı',
       });
     }
+    if (context.activeEvent.canSeeCertificates) {
+      activeEventChildren.push({ href: `${eventHref}#certificates`, label: 'Sertifikalar' });
+    }
     nodes.push({
       kind: 'group',
       id: 'active-event',
@@ -163,6 +178,38 @@ export function buildSidebarNavigation(
   ].filter((item) => allowed.has(item.href));
   if (contentChildren.length) {
     nodes.push({ kind: 'group', id: 'content', label: 'İçerik', children: contentChildren });
+  }
+  if (allowed.has('/certificates')) {
+    const groups = user.groups ?? [];
+    const roles = user.roles ?? [];
+    const privilegedOrLeader = isPrivileged(groups) || isLeader(groups);
+    const certificateChildren: SidebarNavLink[] = [];
+    if (
+      privilegedOrLeader ||
+      roles.includes('certificate:template:manage') ||
+      roles.includes('certificate:binding:manage')
+    ) {
+      certificateChildren.push({ href: '/certificates/templates', label: 'Şablonlar' });
+    }
+    if (privilegedOrLeader || roles.includes('certificate:binding:manage')) {
+      certificateChildren.push({ href: '/certificates/defaults', label: 'Varsayılanlar' });
+    }
+    if (
+      privilegedOrLeader ||
+      roles.includes('certificate:issue') ||
+      roles.includes('certificate:revoke')
+    ) {
+      certificateChildren.push({ href: '/certificates/issued', label: 'Verilenler' });
+    }
+    if (privilegedOrLeader || roles.includes('certificate:issue')) {
+      certificateChildren.push({ href: '/certificates/jobs', label: 'Üretim İşleri' });
+    }
+    nodes.push({
+      kind: 'group',
+      id: 'certificates',
+      label: 'Sertifikalar',
+      children: certificateChildren,
+    });
   }
   return nodes;
 }
