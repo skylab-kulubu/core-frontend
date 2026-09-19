@@ -41,9 +41,9 @@ export type ClientRole = {
 };
 
 export type UserCard = Person & {
-  groups: Group[];
-  inheritedRoles: ClientRole[];
-  extraRoles: ClientRole[];
+  groups?: Group[];
+  inheritedRoles?: ClientRole[];
+  extraRoles?: ClientRole[];
 };
 
 export const identityApi = {
