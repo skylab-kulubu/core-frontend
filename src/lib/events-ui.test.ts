@@ -18,7 +18,12 @@ import { ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
 import { emptyEventForm, parseDoorStaffIds } from '@/components/scheduling/EventEditor';
 import { eventBodyFromForm, saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { canListEventTickets, ticketApplicantLabel } from '@/lib/tickets-ui';
+import {
+  canAssignEventTicket,
+  canDeskCheckIn,
+  canListEventTickets,
+  ticketApplicantLabel,
+} from '@/lib/tickets-ui';
 
 function jsonRes(body: unknown, status = 200): Response {
   const text = status === 204 ? '' : JSON.stringify(body);
@@ -99,6 +104,22 @@ describe('event write policy', () => {
         new Map(),
       ),
     ).toBe('Ada Lovelace · ada@example.com');
+  });
+  it('GECEKODU member can write the event but cannot desk check-in on the hub', () => {
+    const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
+    expect(canWriteEvent(gece, 'GECEKODU', 'update')).toBe(true);
+    expect(canListEventTickets(gece, 'GECEKODU')).toBe(true);
+    expect(canDeskCheckIn(gece, 'GECEKODU')).toBe(false);
+    expect(canDeskCheckIn(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'], 'GECEKODU')).toBe(true);
+    expect(canDeskCheckIn(['/UYELER/YK'], 'GECEKODU')).toBe(true);
+  });
+  it('apply-for-other is Ticket Assign, not write-event', () => {
+    const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
+    expect(canAssignEventTicket(gece, 'GECEKODU')).toBe(false);
+    expect(canAssignEventTicket(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'], 'GECEKODU')).toBe(true);
+    expect(canAssignEventTicket(['/UYELER/YK'], 'GECEKODU')).toBe(true);
+    expect(canAssignEventTicket(['/UYELER/ARGE/WEBLAB/LIDERLER'], '')).toBe(false);
+    expect(canAssignEventTicket(['/UYELER/YK'], '')).toBe(true);
   });
 });
 
@@ -314,6 +335,72 @@ describe('scheduling clients speak RFC 7807 resources', () => {
 
   it('session QR PNG is Go /v1/sessions/:id/qr', () => {
     expect(sessionQrUrl('s1')).toBe(`${CORE_API_URL}/v1/sessions/s1/qr`);
+  });
+
+  it('apply-for-other posts to applications/users/:userId, not applications/me', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/applications/users/u1')) {
+        expect(init?.method).toBe('POST');
+        return jsonRes(
+          {
+            id: 't-other',
+            eventId: 'e1',
+            ticketType: 'REGISTERED',
+            ownerId: 'u1',
+            checkIns: [],
+          },
+          201,
+        );
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.applyForOther('e1', 'u1');
+    expect(ticket).toMatchObject({ ticketType: 'REGISTERED', ownerId: 'u1' });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/applications/users/u1'))).toBe(true);
+    expect(urls.some((url) => url.includes('/applications/other'))).toBe(false);
+    expect(urls.some((url) => url.includes('/applications/me'))).toBe(false);
+  });
+
+  it('guest apply posts name, surname, email, and phone to applications/guest', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      if (url.includes('/applications/guest')) {
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(String(init?.body))).toEqual({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          email: 'ada@example.com',
+          phoneNumber: '555',
+        });
+        return jsonRes(
+          {
+            id: 't-guest',
+            eventId: 'e1',
+            ticketType: 'GUEST',
+            guestEmail: 'ada@example.com',
+            checkIns: [],
+          },
+          201,
+        );
+      }
+      return jsonRes({ title: 'Forbidden' }, 403);
+    }) as typeof fetch;
+    const ticket = await ticketsApi.applyGuest('e1', {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.com',
+      phoneNumber: '555',
+    });
+    expect(ticket).toMatchObject({ ticketType: 'GUEST', guestEmail: 'ada@example.com' });
+    const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes('/v1/events/e1/applications/guest'))).toBe(true);
+    expect(urls.some((url) => url.includes('/api/events') || url.includes('/api/tickets'))).toBe(
+      false,
+    );
   });
 
   it('problem+json becomes ProblemError', async () => {

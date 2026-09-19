@@ -13,10 +13,12 @@ export function personLabel(person: Person): string {
 export function PersonPick({
   valueId,
   onChange,
+  onPicked,
   label = 'Kişi',
 }: {
   valueId: string;
   onChange: (id: string) => void;
+  onPicked?: (person: Person | null) => void;
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -79,6 +81,7 @@ export function PersonPick({
         <FieldLabel>{label}</FieldLabel>
         <button
           type="button"
+          aria-label="Kişi seç"
           className="focus:border-skylab-400/50 h-8 w-full rounded-md border border-white/10 bg-white/3 px-3 text-left text-xs text-neutral-100"
           onClick={() => {
             setQuery('');
@@ -109,6 +112,7 @@ export function PersonPick({
           const person = people.find((row) => row.id === id) ?? null;
           setPicked(person);
           onChange(id);
+          onPicked?.(person);
           setOpen(false);
         }}
       />

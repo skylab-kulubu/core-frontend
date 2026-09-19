@@ -93,4 +93,26 @@ describe('ApplicantRoster', () => {
     expect(screen.getByText('Başvuru')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
   });
+
+  it('lets an operator add a participant and mark katıldı on an existing Ticket', async () => {
+    const user = userEvent.setup();
+    const onAddParticipant = jest.fn();
+    const onMarkAttended = jest.fn();
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[guest, member]}
+        people={people}
+        event={{ id: 'e1' }}
+        sessions={[{ id: 's1', title: 'Açılış' }]}
+        onAddParticipant={onAddParticipant}
+        onMarkAttended={onMarkAttended}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Katılımcı ekle' }));
+    expect(onAddParticipant).toHaveBeenCalledTimes(1);
+    await user.selectOptions(screen.getByLabelText('Oturum'), 's1');
+    await user.click(screen.getAllByRole('button', { name: 'Katıldı' })[0]);
+    expect(onMarkAttended).toHaveBeenCalledWith(guest, 's1');
+  });
 });

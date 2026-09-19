@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
+import { CheckCircle2, Mail, Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
@@ -19,13 +19,14 @@ import {
   EventEditor,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
-import { canListEventTickets } from '@/lib/tickets-ui';
+import { canAssignEventTicket, canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
@@ -34,9 +35,10 @@ import {
   sessionTypeLabel,
   type EventSession,
 } from '@/lib/api/sessions';
+import { checkInSuccessLine, doorTicketName, resolveDoorTicket } from '@/lib/door-check-in';
+import { PersonPick, personLabel } from '@/components/identity/PersonPick';
 import { teamsApi } from '@/lib/api/teams';
 import { identityApi, type Person } from '@/lib/api/identity';
-import { personLabel } from '@/components/identity/PersonPick';
 import {
   canManageCompetitors,
   canWriteEvent,
@@ -112,11 +114,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [applying, setApplying] = useState(false);
   const [applyNote, setApplyNote] = useState<string | null>(null);
   const [mailing, setMailing] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
+  const [deskPersonId, setDeskPersonId] = useState('');
+  const [deskEmail, setDeskEmail] = useState('');
+  const [deskNote, setDeskNote] = useState<string | null>(null);
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
   const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
   const canTickets = event ? canListEventTickets(groups, event.ownerTeam) : false;
+  const canAssign = event ? canAssignEventTicket(groups, event.ownerTeam) : false;
+  const canDesk = event ? canDeskCheckIn(groups, event.ownerTeam) : false;
 
   async function load() {
     try {
@@ -264,6 +273,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
+      {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
       {event.coverImageUrl ? (
         <img
           src={publicMediaUrl(event.coverImageUrl)}
@@ -377,7 +387,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             tickets={tickets}
             people={personById}
             event={event}
+            sessions={sessions.map((session) => ({ id: session.id, title: session.title }))}
             onMailSelected={() => void mailApplicants()}
+            onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
+            onMarkAttended={
+              canDesk
+                ? async (ticket, sessionId) => {
+                    try {
+                      const created = await ticketsApi.checkIn(ticket.id, sessionId);
+                      const sessionTitle =
+                        sessions.find((session) => session.id === sessionId)?.title || sessionId;
+                      setDeskNote(
+                        checkInSuccessLine({
+                          name: doorTicketName(ticket, personById),
+                          sessionTitle,
+                          createdAt: created.createdAt,
+                        }),
+                      );
+                      await load();
+                    } catch (err) {
+                      setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
+                    }
+                  }
+                : undefined
+            }
           />
         </div>
       ) : null}
@@ -461,6 +494,18 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                             kind="neutral"
                             label={sessionTypeLabel(session.sessionType)}
                           />
+                          {canDesk ? (
+                            <ActionButton
+                              icon={CheckCircle2}
+                              label="Katıldı"
+                              onClick={() => {
+                                setDeskNote(null);
+                                setDeskPersonId('');
+                                setDeskEmail('');
+                                setCheckInSession(session);
+                              }}
+                            />
+                          ) : null}
                           <ActionButton
                             icon={QrCode}
                             label="Oturum QR"
@@ -719,6 +764,64 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             className="h-48 w-48 rounded-md bg-white"
             aria-label={`${qrSession.title} QR`}
           />
+        ) : null}
+      </Drawer>
+      <AddParticipantDrawer
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        eventId={event.id}
+        onCreated={async () => {
+          await load();
+        }}
+      />
+      <Drawer
+        open={checkInSession !== null}
+        onClose={() => setCheckInSession(null)}
+        title={checkInSession ? `${checkInSession.title} · Katıldı` : 'Katıldı'}
+      >
+        {checkInSession ? (
+          <form
+            className="space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const ticket = resolveDoorTicket({
+                  tickets,
+                  people: personById,
+                  personId: deskPersonId,
+                  email: deskEmail,
+                });
+                if (!ticket) {
+                  setError('Bilet bulunamadı');
+                  return;
+                }
+                const created = await ticketsApi.checkIn(ticket.id, checkInSession.id);
+                setDeskNote(
+                  checkInSuccessLine({
+                    name: doorTicketName(ticket, personById),
+                    sessionTitle: checkInSession.title,
+                    createdAt: created.createdAt,
+                  }),
+                );
+                setCheckInSession(null);
+                await load();
+              } catch (err) {
+                setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
+              }
+            }}
+          >
+            {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
+            <PersonPick valueId={deskPersonId} onChange={setDeskPersonId} />
+            <label className="block space-y-1">
+              <FieldLabel>E-posta</FieldLabel>
+              <Field
+                type="email"
+                value={deskEmail}
+                onChange={(e) => setDeskEmail(e.target.value)}
+              />
+            </label>
+            <SaveButton disabled={!deskPersonId && !deskEmail.trim()}>Katıldı</SaveButton>
+          </form>
         ) : null}
       </Drawer>
     </div>
