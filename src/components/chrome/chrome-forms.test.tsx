@@ -82,6 +82,13 @@ describe('Forms chrome primitives', () => {
     expect(screen.getByText('Bu özet paneli yetkili üyelere açık.')).toBeInTheDocument();
   });
 
+  it('uses the SKY LAB mark for loading states', () => {
+    render(<StateCard title="Yükleniyor…" isLoading />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Yükleniyor…');
+    expect(document.querySelector('.skylab-loader__mark')).toBeInTheDocument();
+  });
+
   it('returns focus to the trigger when a drawer closes', async () => {
     const user = userEvent.setup();
     function Harness() {

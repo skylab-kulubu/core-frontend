@@ -194,6 +194,99 @@ body {
       background-position: -100% 0;
     }
   }
+
+  .skylab-loader {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    color: var(--skylab-loader-color);
+    isolation: isolate;
+  }
+
+  .skylab-loader__halo,
+  .skylab-loader__mark {
+    position: absolute;
+    inset: 0;
+  }
+
+  .skylab-loader__halo {
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle,
+      color-mix(in srgb, currentColor 18%, transparent),
+      transparent 70%
+    );
+    filter: blur(8px);
+    animation: skylab-loader-halo 3.2s ease-in-out infinite;
+  }
+
+  .skylab-loader__mark {
+    background: linear-gradient(
+      105deg,
+      color-mix(in srgb, currentColor 42%, transparent) 10%,
+      currentColor 45%,
+      color-mix(in srgb, currentColor 42%, transparent) 80%
+    );
+    background-size: 250% 100%;
+    -webkit-mask: url('/logo.png') center / contain no-repeat;
+    mask: url('/logo.png') center / contain no-repeat;
+    animation:
+      skylab-loader-cycle 3.2s ease-in-out infinite,
+      skylab-loader-shimmer 3.2s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes skylab-loader-cycle {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    38%,
+    69% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    88% {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  @keyframes skylab-loader-shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    88%,
+    100% {
+      background-position: -100% 0;
+    }
+  }
+
+  @keyframes skylab-loader-halo {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skylab-loader__halo {
+      animation: none;
+      opacity: 0.45;
+    }
+
+    .skylab-loader__mark {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
   summary {
     cursor: pointer;
   }
