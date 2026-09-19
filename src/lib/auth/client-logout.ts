@@ -2,9 +2,15 @@
  * Oturumu sunucuda sonlandırmaya çalışır; istemci oturum verisini temizler ve
  * giriş sayfasına yönlendirir (ağ hatasında da çıkışı tamamlar).
  */
-export async function performClientLogout(): Promise<void> {
+type LogoutClientOptions = {
+  request?: typeof fetch;
+  navigate?: (target: string) => void;
+};
+
+export async function performClientLogout(options: LogoutClientOptions = {}): Promise<void> {
+  const request = options.request ?? fetch;
   try {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    await request('/api/auth/logout', { method: 'POST', credentials: 'include' });
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
@@ -12,6 +18,7 @@ export async function performClientLogout(): Promise<void> {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('auth_user');
-    window.location.href = '/login';
+    const navigate = options.navigate ?? ((target: string) => (window.location.href = target));
+    navigate('/login?logout=1');
   }
 }

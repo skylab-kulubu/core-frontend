@@ -6,6 +6,7 @@ import type { UserDto } from '@/types/api';
 
 let currentPathname = '/dashboard';
 let currentSearch = '';
+const mockPerformClientLogout = jest.fn();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
@@ -14,6 +15,10 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: null }),
+}));
+
+jest.mock('@/lib/auth/client-logout', () => ({
+  performClientLogout: () => mockPerformClientLogout(),
 }));
 
 const user: UserDto = {
@@ -28,9 +33,19 @@ const user: UserDto = {
 
 describe('Sidebar chrome', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     currentPathname = '/dashboard';
     currentSearch = '';
     window.localStorage.clear();
+  });
+
+  it('connects the exit control to the logout flow', async () => {
+    const pointer = userEvent.setup();
+    render(<Sidebar prefetchedUser={user} />);
+
+    await pointer.click(screen.getByRole('button', { name: 'Çıkış yap' }));
+
+    expect(mockPerformClientLogout).toHaveBeenCalledTimes(1);
   });
 
   it('shows identity, role, Özet, club footer without Place or waffle', () => {
