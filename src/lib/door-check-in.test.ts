@@ -1,3 +1,4 @@
+import { hitUserLabel } from '@/lib/api/urls';
 import { checkInSuccessLine, resolveDoorTicket } from '@/lib/door-check-in';
 import type { Ticket } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
@@ -58,5 +59,18 @@ describe('checkInSuccessLine', () => {
         now: new Date(2026, 8, 19, 10, 0, 0),
       }),
     ).toBe('Grace Hopper · Açılış · Bugün, 09:04');
+  });
+});
+
+describe('hitUserLabel', () => {
+  it('treats empty userId as a public click', () => {
+    expect(hitUserLabel({ userId: '' })).toBe('—');
+    expect(hitUserLabel({})).toBe('—');
+  });
+
+  it('shows the userId when the hop already carried one', () => {
+    expect(hitUserLabel({ userId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' })).toBe(
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    );
   });
 });

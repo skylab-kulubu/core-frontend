@@ -1,23 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, Pencil, QrCode, ShieldAlert, Trash2 } from 'lucide-react';
-import { ActionButton } from '@/components/chrome/ActionButton';
+import { ShieldAlert } from 'lucide-react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
-import { ListToolbar } from '@/components/chrome/ListToolbar';
-import { Pagination } from '@/components/chrome/Pagination';
-import { HorizontalBars, SectionHeading } from '@/components/chrome/PanelChart';
+import { HorizontalBars } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StateCard } from '@/components/chrome/StateCard';
+import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
-import { publicShortUrl, shortQrUrl, urlsApi, type ShortUrl } from '@/lib/api/urls';
+import { QrPreview } from '@/components/chrome/QrPreview';
+import {
+  hitUserLabel,
+  publicShortUrl,
+  shortQrFileName,
+  shortQrPath,
+  shortQrUrl,
+  urlsApi,
+  type ShortUrl,
+  type ShortUrlHit,
+} from '@/lib/api/urls';
+import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
-import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
@@ -37,6 +45,9 @@ export default function UrlsPage() {
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState<ShortUrl | null>(null);
   const [qrRow, setQrRow] = useState<ShortUrl | null>(null);
+  const [hitsRow, setHitsRow] = useState<ShortUrl | null>(null);
+  const [hits, setHits] = useState<ShortUrlHit[]>([]);
+  const [hitsError, setHitsError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
 
@@ -121,22 +132,39 @@ export default function UrlsPage() {
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
       </form>
-      <HorizontalBars
-        title="En çok tıklanan"
-        data={topClickUrls(all.length ? all : mine)}
-        empty="Tıklama verisi yok"
-      />
+      {moderate ? (
+        <HorizontalBars
+          title="En çok tıklanan"
+          data={topClickUrls(all.length ? all : mine)}
+          empty="Tıklama verisi yok"
+        />
+      ) : null}
       <UrlList
         title="Linklerim"
         loading={loading}
         failed={Boolean(error)}
         items={mine}
+        showClicks={moderate}
         onEdit={(row) => {
           setEditing(row);
           setEditTarget(row.url);
           setEditAlias(row.alias);
         }}
         onQr={setQrRow}
+        onHits={
+          moderate
+            ? async (row) => {
+                setHitsRow(row);
+                setHitsError(null);
+                try {
+                  setHits(await urlsApi.listHits(row.id));
+                } catch (err) {
+                  setHits([]);
+                  setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
+                }
+              }
+            : undefined
+        }
         onDelete={async (row) => {
           try {
             await urlsApi.remove(row.id);
@@ -152,12 +180,23 @@ export default function UrlsPage() {
           loading={loading}
           failed={Boolean(error)}
           items={all}
+          showClicks
           onEdit={(row) => {
             setEditing(row);
             setEditTarget(row.url);
             setEditAlias(row.alias);
           }}
           onQr={setQrRow}
+          onHits={async (row) => {
+            setHitsRow(row);
+            setHitsError(null);
+            try {
+              setHits(await urlsApi.listHits(row.id));
+            } catch (err) {
+              setHits([]);
+              setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
+            }
+          }}
           onDelete={async (row) => {
             try {
               await urlsApi.remove(row.id);
@@ -172,12 +211,36 @@ export default function UrlsPage() {
         {qrRow ? (
           <div className="space-y-3">
             <p className="text-sm text-neutral-400">{publicShortUrl(qrRow.alias)}</p>
-            <object
-              data={shortQrUrl(qrRow.alias)}
-              type="image/png"
-              className="h-48 w-48 rounded-md bg-white"
-              aria-label={`QR ${qrRow.alias}`}
+            <QrPreview
+              imageUrl={shortQrUrl(qrRow.alias)}
+              downloadPath={shortQrPath(qrRow.alias, { size: 1024 })}
+              fileName={shortQrFileName(qrRow.alias)}
+              label={`QR ${qrRow.alias}`}
             />
+          </div>
+        ) : null}
+      </Drawer>
+      <Drawer open={hitsRow !== null} onClose={() => setHitsRow(null)} title="Tıklamalar">
+        {hitsRow ? (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-400">{publicShortUrl(hitsRow.alias)}</p>
+            {hitsError ? <p className="text-sm text-red-300">{hitsError}</p> : null}
+            <ListPanel
+              status={listStatus({
+                loading: false,
+                failed: Boolean(hitsError),
+                rowCount: hits.length,
+                emptyMessage: 'Henüz tıklama yok.',
+              })}
+            >
+              {hits.map((hit, index) => (
+                <ListItem
+                  key={`${hit.createdAt}-${hit.ip}-${index}`}
+                  title={formatApplicantWhen(hit.createdAt)}
+                  subtitle={`${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
+                />
+              ))}
+            </ListPanel>
           </div>
         ) : null}
       </Drawer>
@@ -217,81 +280,5 @@ export default function UrlsPage() {
         ) : null}
       </Drawer>
     </div>
-  );
-}
-
-function UrlList({
-  title,
-  items,
-  loading,
-  failed,
-  onEdit,
-  onQr,
-  onDelete,
-}: {
-  title: string;
-  items: ShortUrl[];
-  loading: boolean;
-  failed: boolean;
-  onEdit: (row: ShortUrl) => void;
-  onQr: (row: ShortUrl) => void;
-  onDelete: (row: ShortUrl) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const filtered = items.filter((row) =>
-    matchesQuery(query, row.alias, row.url, publicShortUrl(row.alias)),
-  );
-  const paged = paginateRows(filtered, page);
-  return (
-    <section className="space-y-2">
-      <SectionHeading title={title} meta={`${filtered.length} bağlantı`} />
-      <ListToolbar
-        query={query}
-        onQuery={(value) => {
-          setQuery(value);
-          setPage(1);
-        }}
-        placeholder="Kısa ad veya hedef"
-        searchLabel={`${title} ara`}
-      />
-      <ListPanel
-        status={listStatus({
-          loading,
-          failed,
-          rowCount: filtered.length,
-          emptyMessage: emptyListCopy({
-            none: 'Henüz kısa URL yok.',
-            noneMatch: 'Eşleşen kısa URL yok.',
-            query,
-          }),
-        })}
-        emptyDescription="Hedef adresi kısalt."
-      >
-        {paged.slice.map((row) => {
-          const short = publicShortUrl(row.alias);
-          return (
-            <ListItem
-              key={row.id}
-              title={short}
-              subtitle={`${row.url} · ${row.clickCount} tıklama`}
-              trailing={
-                <>
-                  <ActionButton
-                    icon={Copy}
-                    label="Kopyala"
-                    onClick={() => void navigator.clipboard.writeText(short)}
-                  />
-                  <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
-                  <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
-                  <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
-                </>
-              }
-            />
-          );
-        })}
-      </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
-    </section>
   );
 }

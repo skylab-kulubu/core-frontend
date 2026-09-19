@@ -1,6 +1,7 @@
 import { CORE_API_URL, coreFetch } from './core';
 import { eventDaysApi } from './eventDays';
 import { eventsApi, type CoreEvent } from './events';
+import { qrLogoQuery } from '@/lib/qr-url';
 
 export const SESSION_TYPES = [
   'WORKSHOP',
@@ -63,8 +64,20 @@ export type SessionRow = EventSession & {
   dayName: string;
 };
 
-export function sessionQrUrl(id: string): string {
-  return `${CORE_API_URL}/v1/sessions/${encodeURIComponent(id)}/qr`;
+export function sessionQrPath(id: string, opts?: { size?: number }): string {
+  return `/v1/sessions/${encodeURIComponent(id)}/qr${qrLogoQuery(opts)}`;
+}
+
+export function sessionQrUrl(id: string, opts?: { size?: number }): string {
+  return `${CORE_API_URL}${sessionQrPath(id, opts)}`;
+}
+
+export function sessionQrFileName(id: string, title?: string): string {
+  const label = title
+    ?.trim()
+    .replace(/[/\\?%*:|"<>]+/g, '')
+    .replace(/\s+/g, '-');
+  return `oturum-${label || id}.png`;
 }
 
 export const sessionsApi = {

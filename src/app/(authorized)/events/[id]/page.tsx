@@ -21,6 +21,7 @@ import {
 } from '@/components/scheduling/EventEditor';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
+import { QrPreview } from '@/components/chrome/QrPreview';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -31,6 +32,8 @@ import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
   SESSION_TYPES,
+  sessionQrFileName,
+  sessionQrPath,
   sessionQrUrl,
   sessionTypeLabel,
   type EventSession,
@@ -758,11 +761,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         title={qrSession ? `${qrSession.title} QR` : 'Oturum QR'}
       >
         {qrSession ? (
-          <object
-            data={sessionQrUrl(qrSession.id)}
-            type="image/png"
-            className="h-48 w-48 rounded-md bg-white"
-            aria-label={`${qrSession.title} QR`}
+          <QrPreview
+            imageUrl={sessionQrUrl(qrSession.id)}
+            downloadPath={sessionQrPath(qrSession.id, { size: 1024 })}
+            fileName={sessionQrFileName(qrSession.id, qrSession.title)}
+            label={`${qrSession.title} QR`}
           />
         ) : null}
       </Drawer>
