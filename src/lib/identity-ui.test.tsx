@@ -38,6 +38,7 @@ describe('filterSidebarNavForUser', () => {
       '/competitors',
       '/media',
       '/urls',
+      '/certificates',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
@@ -57,6 +58,7 @@ describe('filterSidebarNavForUser', () => {
       '/qr',
       '/competitors',
       '/media',
+      '/certificates',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });

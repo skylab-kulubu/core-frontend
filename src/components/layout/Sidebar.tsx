@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   CalendarDays,
+  Award,
   ChevronDown,
   ChevronRight,
   FolderTree,
@@ -50,6 +51,10 @@ const NAV_ICON = {
   '/competitors': Trophy,
   '/media': Image,
   '/urls': Link2,
+  '/certificates/templates': Award,
+  '/certificates/defaults': Award,
+  '/certificates/issued': Award,
+  '/certificates/jobs': Award,
 } as const;
 
 const GROUP_ICON = {
@@ -57,6 +62,7 @@ const GROUP_ICON = {
   'active-event': CalendarDays,
   club: UsersRound,
   content: Newspaper,
+  certificates: Award,
 } as const;
 
 type SidebarProps = Readonly<{

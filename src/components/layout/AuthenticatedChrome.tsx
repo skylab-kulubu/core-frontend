@@ -10,7 +10,7 @@ import { CommandPalette } from './CommandPalette';
 import type { UserDto } from '@/types/api';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
-import { canManageCompetitors } from '@/lib/auth/groups';
+import { canManageCompetitors, canReadCertificates } from '@/lib/auth/groups';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
 import { useBodyScrollLock } from '@/lib/ui/use-body-scroll-lock';
 import type { SidebarNavigationContext } from '@/lib/navigation/sidebar-nav';
@@ -56,14 +56,20 @@ export function AuthenticatedChrome({ children, sidebarUser }: AuthenticatedChro
         const groups = sidebarUser.groups ?? [];
         const next = {
           id: event.id,
-          canSeeParticipants: canListEventTickets(groups, event.ownerTeam),
+          canSeeParticipants: canListEventTickets(groups, event.ownerTeam, sidebarUser.roles ?? []),
           canSeeCompetitors: canManageCompetitors(groups, event.ownerTeam),
           canUseDoor:
             canDeskCheckIn(groups, event.ownerTeam, sidebarUser.id, event.doorStaffIds ?? []) ||
             doorEventIds.includes(event.id),
+          canSeeCertificates: canReadCertificates(groups, sidebarUser.roles ?? [], event.ownerTeam),
         };
         setActiveEvent(
-          next.canSeeParticipants || next.canSeeCompetitors || next.canUseDoor ? next : undefined,
+          next.canSeeParticipants ||
+            next.canSeeCompetitors ||
+            next.canUseDoor ||
+            next.canSeeCertificates
+            ? next
+            : undefined,
         );
       })
       .catch(() => {

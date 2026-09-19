@@ -41,8 +41,15 @@ const MONTHS_TR = [
   'Ara',
 ] as const;
 
-export function canListEventTickets(groups: readonly string[], ownerTeam: string): boolean {
-  return canWriteEvent(groups, ownerTeam, 'update');
+export function canListEventTickets(
+  groups: readonly string[],
+  ownerTeam: string,
+  roles: readonly string[] = [],
+): boolean {
+  return (
+    canWriteEvent(groups, ownerTeam, 'update') ||
+    (ownerLevels(groups, ownerTeam).length > 0 && roles.includes('certificate:issue'))
+  );
 }
 
 export function canAssignEventTicket(groups: readonly string[], ownerTeam: string): boolean {
