@@ -143,11 +143,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
-  const [systemTemplate, setSystemTemplate] = useState(false);
-
   const canEdit = templateId
-    ? !systemTemplate &&
-      canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam)
+    ? canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam)
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []);
 
   const selected = useMemo(
@@ -241,7 +238,6 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           layout: template.draftLayout,
         };
         setDraft(next);
-        setSystemTemplate(template.system);
         const mediaIds = [
           next.layout.backgroundMediaId,
           ...next.layout.elements.map((element) => element.mediaId),
