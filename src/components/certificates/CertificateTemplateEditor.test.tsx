@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import {
@@ -6,6 +6,7 @@ import {
   emptyCertificateDraft,
 } from '@/components/certificates/CertificateTemplateEditor';
 import { certificatesApi } from '@/lib/api/certificates';
+import { mediaApi } from '@/lib/api/media';
 
 const mockReplace = jest.fn();
 let mockCurrentUser = {
@@ -100,5 +101,59 @@ describe('CertificateTemplateEditor', () => {
       screen.getByText(/Canva bağlantısı tasarımı otomatik olarak içe aktarmaz/i),
     ).toBeInTheDocument();
     expect(screen.getByText('Canva exportunu yükle')).toBeInTheDocument();
+  });
+
+  it('offers a broad server-safe font library for editable text layers', async () => {
+    const user = userEvent.setup();
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    const recipientLayers = screen.getAllByRole('button', { name: 'Katılımcı adı' });
+    const layerListButton = recipientLayers.find((button) => button.className.includes('truncate'));
+    expect(layerListButton).toBeDefined();
+    await user.click(layerListButton!);
+
+    const fontSelect = screen.getByLabelText('Yazı tipi');
+    const options = within(fontSelect)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(options).toEqual(
+      expect.arrayContaining([
+        'Arial',
+        'Carlito',
+        'Noto Sans Display',
+        'DejaVu Sans Condensed',
+        'Caladea',
+        'Noto Serif Display',
+        'Liberation Mono',
+      ]),
+    );
+    expect(options.length).toBeGreaterThanOrEqual(18);
+  });
+
+  it('accepts a one-page PDF as a vector certificate background', async () => {
+    const user = userEvent.setup();
+    (mediaApi.upload as jest.Mock).mockResolvedValue({
+      id: 'pdf-background',
+      name: 'certificate.pdf',
+      type: 'application/pdf',
+      url: 'https://cdn.example.test/files/certificate.pdf',
+      kind: 'FILE',
+    });
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.selectOptions(screen.getByLabelText('Tasarım kaynağı'), 'canva');
+    const input = screen.getByLabelText('Canva exportunu yükle');
+    expect(input).toHaveAttribute('accept', expect.stringContaining('application/pdf'));
+
+    const pdf = new File(['%PDF-1.7 example'], 'certificate.pdf', {
+      type: 'application/pdf',
+    });
+    await user.upload(input, pdf);
+
+    expect(mediaApi.upload).toHaveBeenCalledWith(pdf);
+    expect(await screen.findByText(/PDF arka planı hazır/i)).toBeInTheDocument();
+    expect(screen.getByTitle('PDF arka plan önizlemesi')).toBeInTheDocument();
   });
 });

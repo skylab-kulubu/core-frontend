@@ -71,6 +71,53 @@ const PAGE_PRESETS = {
   letterPortrait: { label: 'US Letter dikey', width: 816, height: 1056, orientation: 'portrait' },
 } as const;
 
+const BACKGROUND_FILE_TYPES = 'image/png,image/jpeg,image/webp,image/svg+xml,application/pdf,.pdf';
+
+const FONT_GROUPS = [
+  {
+    label: 'Sans serif',
+    fonts: [
+      ['Arial', "'Liberation Sans', Arial, sans-serif"],
+      ['Helvetica', "'Liberation Sans', Helvetica, sans-serif"],
+      ['Carlito', "Carlito, 'Liberation Sans', sans-serif"],
+      ['Noto Sans', "'Noto Sans', 'DejaVu Sans', sans-serif"],
+      ['Noto Sans Display', "'Noto Sans Display', 'Noto Sans', sans-serif"],
+      ['DejaVu Sans', "'DejaVu Sans', 'Liberation Sans', sans-serif"],
+      ['DejaVu Sans Condensed', "'DejaVu Sans Condensed', 'DejaVu Sans', sans-serif"],
+      ['Liberation Sans', "'Liberation Sans', Arial, sans-serif"],
+    ],
+  },
+  {
+    label: 'Serif',
+    fonts: [
+      ['Georgia', "'Liberation Serif', Georgia, serif"],
+      ['Times New Roman', "'Liberation Serif', 'Times New Roman', serif"],
+      ['Caladea', "Caladea, 'Liberation Serif', serif"],
+      ['Noto Serif', "'Noto Serif', 'DejaVu Serif', serif"],
+      ['Noto Serif Display', "'Noto Serif Display', 'Noto Serif', serif"],
+      ['DejaVu Serif', "'DejaVu Serif', 'Liberation Serif', serif"],
+      ['DejaVu Serif Condensed', "'DejaVu Serif Condensed', 'DejaVu Serif', serif"],
+      ['Liberation Serif', "'Liberation Serif', 'Times New Roman', serif"],
+    ],
+  },
+  {
+    label: 'Monospace',
+    fonts: [
+      ['Courier New', "'Liberation Mono', 'Courier New', monospace"],
+      ['DejaVu Sans Mono', "'DejaVu Sans Mono', 'Liberation Mono', monospace"],
+      ['Liberation Mono', "'Liberation Mono', 'Courier New', monospace"],
+    ],
+  },
+] as const;
+
+function certificateFontStack(font?: string) {
+  for (const group of FONT_GROUPS) {
+    const match = group.fonts.find(([name]) => name === font);
+    if (match) return match[1];
+  }
+  return "'Liberation Sans', Arial, sans-serif";
+}
+
 function currentPreset(layout: CertificateLayout) {
   return (
     Object.entries(PAGE_PRESETS).find(
@@ -138,6 +185,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [savedId, setSavedId] = useState(templateId);
   const [selectedId, setSelectedId] = useState<string>();
   const [backgroundUrl, setBackgroundUrl] = useState<string>();
+  const [backgroundType, setBackgroundType] = useState<string>();
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(Boolean(templateId));
   const [busy, setBusy] = useState(false);
@@ -153,6 +201,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   );
   const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
   const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
+  const backgroundIsPDF = backgroundType === 'application/pdf';
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -240,6 +289,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           layout: template.draftLayout,
         };
         setDraft(next);
+        setBackgroundUrl(undefined);
+        setBackgroundType(undefined);
         const mediaIds = [
           next.layout.backgroundMediaId,
           ...next.layout.elements.map((element) => element.mediaId),
@@ -249,7 +300,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         const urls = Object.fromEntries(
           media.filter((item) => item !== null).map((item) => [item.id, publicMediaUrl(item.url)]),
         );
-        if (next.layout.backgroundMediaId) setBackgroundUrl(urls[next.layout.backgroundMediaId]);
+        if (next.layout.backgroundMediaId) {
+          const background = media.find((item) => item?.id === next.layout.backgroundMediaId);
+          setBackgroundUrl(urls[next.layout.backgroundMediaId]);
+          setBackgroundType(background?.type);
+        }
         setImageUrls(urls);
       })
       .catch((cause) => {
@@ -370,7 +425,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       const media = await mediaApi.upload(file);
       updateLayout({ backgroundMediaId: media.id });
       setBackgroundUrl(publicMediaUrl(media.url));
-      setMessage('Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.');
+      setBackgroundType(media.type);
+      setMessage(
+        media.type === 'application/pdf'
+          ? 'PDF arka planı yüklendi. Vektörel taban korunacak; dinamik katmanlar üstüne işlenecek.'
+          : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.',
+      );
     } catch (cause) {
       setError(cause instanceof ProblemError ? cause.title : 'Arka plan yüklenemedi');
     } finally {
@@ -593,8 +653,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   2 · Tasarımı dışa aktar
                 </p>
                 <p className="text-xs leading-5 text-neutral-300">
-                  {sourceName}&apos;da PNG, JPG veya SVG olarak indir. Katılımcı adı, etkinlik adı
-                  ve QR için tasarımda boş alan bırak.
+                  {sourceName}&apos;da PNG, JPG, SVG veya tek sayfalık PDF olarak indir. Katılımcı
+                  adı, etkinlik adı ve QR için tasarımda boş alan bırak.
                 </p>
               </div>
 
@@ -607,7 +667,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   <input
                     className="sr-only"
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    accept={BACKGROUND_FILE_TYPES}
                     disabled={busy || !canEdit}
                     onChange={(event) => void uploadBackground(event.target.files?.[0])}
                   />
@@ -616,9 +676,17 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   className={`text-3xs ${backgroundUrl ? 'text-emerald-300' : 'text-neutral-500'}`}
                 >
                   {backgroundUrl
-                    ? 'Arka plan hazır; aşağıdaki tuvalde görüntüleniyor.'
+                    ? backgroundIsPDF
+                      ? 'PDF arka planı hazır; final dosyada vektörel olarak korunacak.'
+                      : 'Arka plan hazır; aşağıdaki tuvalde görüntüleniyor.'
                     : 'Henüz bir export dosyası yüklenmedi.'}
                 </p>
+                {backgroundIsPDF ? (
+                  <p className="text-3xs leading-4 text-neutral-500">
+                    PDF&apos;in kendi öğeleri kilitli tabandır; SKY LAB metinleri, görselleri ve QR
+                    katmanları ayrı ayrı düzenlenir.
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -642,13 +710,13 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               <input
                 className="sr-only"
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                accept={BACKGROUND_FILE_TYPES}
                 disabled={busy || !canEdit}
                 onChange={(event) => void uploadBackground(event.target.files?.[0])}
               />
             </label>
             <span className="text-3xs text-neutral-500">
-              İstersen boş tuvalle devam et; metinleri, görselleri ve QR alanını editörde ekle.
+              PNG/JPG/SVG veya tek sayfalık PDF yükleyebilir ya da boş tuvalle devam edebilirsin.
             </span>
           </div>
         )}
@@ -693,7 +761,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               aspectRatio: `${draft.layout.width} / ${draft.layout.height}`,
               containerType: 'inline-size',
               backgroundColor: draft.layout.backgroundColor,
-              backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : undefined,
+              backgroundImage:
+                backgroundUrl && !backgroundIsPDF ? `url(${backgroundUrl})` : undefined,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -701,6 +770,14 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             onPointerUp={() => (dragRef.current = null)}
             onPointerCancel={() => (dragRef.current = null)}
           >
+            {backgroundIsPDF && backgroundUrl ? (
+              <object
+                title="PDF arka plan önizlemesi"
+                data={`${backgroundUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                type="application/pdf"
+                className="pointer-events-none absolute inset-0 z-0 h-full w-full border-0"
+              />
+            ) : null}
             {draft.layout.elements.map((element) => {
               const style = {
                 left: `${(element.x / draft.layout.width) * 100}%`,
@@ -708,7 +785,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 width: `${(element.width / draft.layout.width) * 100}%`,
                 height: `${(element.height / draft.layout.height) * 100}%`,
                 color: element.color,
-                fontFamily: element.fontFamily,
+                fontFamily: certificateFontStack(element.fontFamily),
                 fontSize: `${((element.fontSize ?? 16) / draft.layout.width) * 100}cqw`,
                 fontWeight: element.fontWeight,
                 textAlign: element.align,
@@ -728,7 +805,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   aria-label={ELEMENT_LABELS[element.kind]}
                   onPointerDown={(event) => startDrag(event, element)}
                   style={style}
-                  className={`absolute flex touch-none items-center justify-center overflow-hidden whitespace-nowrap ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
+                  className={`absolute z-10 flex touch-none items-center justify-center overflow-hidden whitespace-nowrap ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
                 >
                   {element.kind === 'image' && element.mediaId ? (
                     <img
@@ -869,10 +946,19 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                         updateElement(selected.id, { fontFamily: event.target.value })
                       }
                     >
-                      <option value="Arial">Arial</option>
-                      <option value="Georgia">Georgia</option>
-                      <option value="Times New Roman">Times New Roman</option>
-                      <option value="Courier New">Courier New</option>
+                      {FONT_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.fonts.map(([font]) => (
+                            <option
+                              key={font}
+                              value={font}
+                              style={{ fontFamily: certificateFontStack(font) }}
+                            >
+                              {font}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </Select>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
