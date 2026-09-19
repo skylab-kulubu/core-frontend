@@ -1,8 +1,11 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Mail, Pencil, Plus, QrCode, Trash2, Trophy } from 'lucide-react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
@@ -21,13 +24,20 @@ import {
 } from '@/components/scheduling/EventEditor';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
+import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
-import { canAssignEventTicket, canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
+import {
+  canAssignEventTicket,
+  canDeskCheckIn,
+  canListEventTickets,
+  ticketOwnerPeople,
+} from '@/lib/tickets-ui';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import {
   sessionsApi,
@@ -38,8 +48,8 @@ import {
   sessionTypeLabel,
   type EventSession,
 } from '@/lib/api/sessions';
-import { checkInSuccessLine, doorTicketName, resolveDoorTicket } from '@/lib/door-check-in';
-import { PersonPick, personLabel } from '@/components/identity/PersonPick';
+import { checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
+import { personLabel } from '@/components/identity/PersonPick';
 import { teamsApi } from '@/lib/api/teams';
 import { identityApi, type Person } from '@/lib/api/identity';
 import {
@@ -63,17 +73,39 @@ import { listStatus } from '@/lib/list-status';
 import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
 
-type SessionDraft = {
-  eventDayId: string;
-  title: string;
-  speakerName: string;
-  speakerLinkedin: string;
-  description: string;
-  startTime: string;
-  endTime: string;
-  orderIndex: number;
-  sessionType: string;
-};
+const daySchema = z.object({
+  name: z.string().trim().min(1, 'Gün adı zorunlu'),
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
+const sessionSchema = z.object({
+  eventDayId: z.string().min(1, 'Gün seçin'),
+  title: z.string().trim().min(1, 'Başlık zorunlu'),
+  speakerName: z.string().trim().min(1, 'Konuşmacı zorunlu'),
+  speakerLinkedin: z.string().trim(),
+  description: z.string().trim(),
+  startTime: z.string(),
+  endTime: z.string(),
+  orderIndex: z.number(),
+  sessionType: z.string().min(1),
+});
+
+const deskSchema = z
+  .object({ personId: z.string(), email: z.string().trim() })
+  .refine((value) => value.personId !== '' || value.email !== '', {
+    message: 'Kişi veya e-posta girin',
+    path: ['email'],
+  });
+
+const eventEditSchema = z
+  .object({ event: z.custom<EventFormState>() })
+  .superRefine(({ event }, context) => {
+    const issue = eventFormIssue(event);
+    if (issue) context.addIssue({ code: 'custom', message: issue, path: ['event'] });
+  });
+
+type SessionDraft = z.infer<typeof sessionSchema>;
 
 const emptySession = (eventDayId = ''): SessionDraft => ({
   eventDayId,
@@ -104,31 +136,43 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<EventFormState>(emptyEventForm());
   const [dayOpen, setDayOpen] = useState(false);
-  const [dayName, setDayName] = useState('');
-  const [dayStart, setDayStart] = useState('');
-  const [dayEnd, setDayEnd] = useState('');
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [sessionDraft, setSessionDraft] = useState<SessionDraft>(emptySession());
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
-  const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyNote, setApplyNote] = useState<string | null>(null);
   const [mailing, setMailing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
-  const [deskPersonId, setDeskPersonId] = useState('');
-  const [deskEmail, setDeskEmail] = useState('');
   const [deskNote, setDeskNote] = useState<string | null>(null);
+  const [doorAccess, setDoorAccess] = useState(false);
+  const dayForm = useForm<z.infer<typeof daySchema>>({
+    resolver: zodResolver(daySchema),
+    defaultValues: { name: '', startDate: '', endDate: '' },
+  });
+  const sessionForm = useForm<SessionDraft>({
+    resolver: zodResolver(sessionSchema),
+    defaultValues: emptySession(),
+  });
+  const deskForm = useForm<z.infer<typeof deskSchema>>({
+    resolver: zodResolver(deskSchema),
+    defaultValues: { personId: '', email: '' },
+  });
+  const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
+    resolver: zodResolver(eventEditSchema),
+    defaultValues: { event: emptyEventForm() },
+  });
+  const form = eventEditForm.watch('event');
+  const deskPersonId = deskForm.watch('personId');
+  const deskQuery = deskForm.watch('email');
 
   const canMutate = event ? canWriteEvent(groups, event.ownerTeam, 'update') : false;
   const canDelete = event ? canWriteEvent(groups, event.ownerTeam, 'delete') : false;
   const canCompetitors = event ? canManageCompetitors(groups, event.ownerTeam) : false;
   const canTickets = event ? canListEventTickets(groups, event.ownerTeam) : false;
   const canAssign = event ? canAssignEventTicket(groups, event.ownerTeam) : false;
-  const canDesk = event ? canDeskCheckIn(groups, event.ownerTeam) : false;
+  const canDesk = event ? canDeskCheckIn(groups, event.ownerTeam) || doorAccess : false;
 
   async function load() {
     try {
@@ -145,7 +189,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         handoff,
       );
       setEvent(ev);
-      setForm(nextForm);
+      const doorEvents = await ticketsApi.listDoorEvents().catch(() => []);
+      setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
+      eventEditForm.reset({ event: nextForm });
       setError(null);
       if (handoff && canWriteEvent(groups, ev.ownerTeam, 'update')) {
         setEditing(true);
@@ -154,12 +200,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           window.history.replaceState(null, '', `/events/${ev.id}`);
           const saved = await eventsApi.get(id);
           setEvent(saved);
-          setForm({
-            ...formStateFromEvent(saved),
-            formUrl: saved.formUrl ?? nextForm.formUrl,
-            formAlias: saved.formAlias ?? nextForm.formAlias,
-            extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
-            coverImageId: saved.coverImageId ?? nextForm.coverImageId,
+          eventEditForm.reset({
+            event: {
+              ...formStateFromEvent(saved),
+              formUrl: saved.formUrl ?? nextForm.formUrl,
+              formAlias: saved.formAlias ?? nextForm.formAlias,
+              extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
+              coverImageId: saved.coverImageId ?? nextForm.coverImageId,
+            },
           });
           clearEventDraft(sessionStorage, window.location.href);
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
@@ -174,12 +222,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setDays(dayRows);
       setSessions(sessionRows);
       setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
-      setPeople(await identityApi.listUsers().catch(() => []));
-      setTickets(
-        canListEventTickets(groups, ev.ownerTeam)
-          ? await ticketsApi.listByEvent(id).catch(() => [])
-          : [],
-      );
+      const ticketRows = canListEventTickets(groups, ev.ownerTeam)
+        ? await ticketsApi.listByEvent(id).catch(() => [] as Ticket[])
+        : [];
+      setTickets(ticketRows);
+      const directoryPeople = privileged ? await identityApi.listUsers().catch(() => []) : [];
+      const knownPeople = new Map(directoryPeople.map((person) => [person.id, person]));
+      for (const [personId, person] of ticketOwnerPeople(ticketRows)) {
+        knownPeople.set(personId, person);
+      }
+      setPeople([...knownPeople.values()]);
       const teams = await teamsApi.list().catch(() => []);
       const leaderTeams = leaderOwnerTeams(groups);
       setOwnerOptions(
@@ -219,12 +271,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   if (!event) return <StateCard title="Yükleniyor…" isLoading />;
 
   const current = event;
-  async function mailApplicants() {
+  async function mailApplicants(ticketIds?: string[]) {
     setMailing(true);
     try {
-      await openEventMail(current.id, eventsApi.syncMailList, (href) => {
-        window.open(href, '_blank', 'noopener,noreferrer');
-      });
+      await openEventMail(
+        current.id,
+        (eventId) => eventsApi.syncMailList(eventId, ticketIds),
+        (href) => {
+          window.open(href, '_blank', 'noopener,noreferrer');
+        },
+      );
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Skymail listesi yenilenemedi');
     } finally {
@@ -234,6 +290,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
+      <span id="overview" className="-mb-6 block scroll-mt-24" />
       <PageHeader
         title={event.name}
         description={eventListSubtitle(event)}
@@ -274,9 +331,23 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </>
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      <EventWorkspaceNav
+        eventId={event.id}
+        canSeeParticipants={canTickets}
+        canSeeCompetitors={canCompetitors}
+        canUseDoor={canDesk}
+      />
+      {error ? (
+        <p role="alert" className="text-sm text-red-300">
+          {error}
+        </p>
+      ) : null}
       {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
-      {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
+      {deskNote ? (
+        <p role="status" aria-label="Check-in sonucu" className="text-skylab-300 text-sm">
+          {deskNote}
+        </p>
+      ) : null}
       {event.coverImageUrl ? (
         <img
           src={publicMediaUrl(event.coverImageUrl)}
@@ -334,7 +405,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           ) : null}
         </div>
       ) : null}
-      <div className="space-y-3">
+      <div id="competitors" className="scroll-mt-24 space-y-3">
         <SectionHeading
           title="Yarışmacılar"
           meta={`${competitors.length} kişi`}
@@ -373,7 +444,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </ListPanel>
       </div>
       {canTickets ? (
-        <div className="space-y-3">
+        <div id="participants" className="scroll-mt-24 space-y-3">
           <SectionHeading title="Başvuranlar" meta={`${tickets.length} kayıt`} />
           {tickets.length > 0 ? (
             <div className="grid gap-6 lg:grid-cols-2">
@@ -391,8 +462,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             people={personById}
             event={event}
             sessions={sessions.map((session) => ({ id: session.id, title: session.title }))}
-            onMailSelected={() => void mailApplicants()}
             onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
+            onMailSelected={(recipients) =>
+              void mailApplicants(recipients.map((recipient) => recipient.ticketId))
+            }
             onMarkAttended={
               canDesk
                 ? async (ticket, sessionId) => {
@@ -417,6 +490,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           />
         </div>
       ) : null}
+      <span id="program" className="-mb-6 block scroll-mt-24" />
       <SectionHeading
         title="Günler ve oturumlar"
         actions={
@@ -433,7 +507,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     return;
                   }
                   setEditingSessionId(null);
-                  setSessionDraft(emptySession(days[0]?.id ?? ''));
+                  sessionForm.reset(emptySession(days[0]?.id ?? ''));
                   setSessionOpen(true);
                 }}
               />
@@ -503,8 +577,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                               label="Katıldı"
                               onClick={() => {
                                 setDeskNote(null);
-                                setDeskPersonId('');
-                                setDeskEmail('');
+                                deskForm.reset();
                                 setCheckInSession(session);
                               }}
                             />
@@ -520,7 +593,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                               label="Oturumu düzenle"
                               onClick={() => {
                                 setEditingSessionId(session.id);
-                                setSessionDraft({
+                                sessionForm.reset({
                                   eventDayId: session.eventDayId,
                                   title: session.title,
                                   speakerName: session.speakerName,
@@ -548,16 +621,10 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       <Drawer open={editing} onClose={() => setEditing(false)} title="Etkinliği düzenle">
         <form
           className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const issue = eventFormIssue(form);
-            if (issue) {
-              setError(issue);
-              return;
-            }
-            setSaving(true);
+          noValidate
+          onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
             try {
-              await saveEventWithSeason(form, event.id);
+              await saveEventWithSeason(eventForm, event.id);
               if (typeof window !== 'undefined') {
                 clearEventDraft(sessionStorage, window.location.href);
               }
@@ -565,14 +632,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
-            } finally {
-              setSaving(false);
             }
-          }}
+          })}
         >
           <EventEditor
             value={form}
-            onChange={setForm}
+            onChange={(value) =>
+              eventEditForm.setValue('event', value, {
+                shouldDirty: true,
+                shouldValidate: eventEditForm.formState.isSubmitted,
+              })
+            }
             ownerOptions={ownerOptions}
             lockOwner={!privileged}
             seasons={seasons}
@@ -587,55 +657,84 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             ]}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           />
-          <SaveButton disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
+          {eventEditForm.formState.errors.event ? (
+            <p className="text-2xs text-red-300">{eventEditForm.formState.errors.event.message}</p>
+          ) : null}
+          <SaveButton disabled={eventEditForm.formState.isSubmitting}>
+            {eventEditForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+          </SaveButton>
         </form>
       </Drawer>
-      <Drawer open={dayOpen} onClose={() => setDayOpen(false)} title="Gün ekle">
+      <Drawer
+        open={dayOpen}
+        onClose={() => {
+          dayForm.reset();
+          setDayOpen(false);
+        }}
+        title="Gün ekle"
+      >
         <form
           className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
+          noValidate
+          onSubmit={dayForm.handleSubmit(async (day) => {
             try {
               await eventDaysApi.create({
                 eventId: event.id,
-                name: dayName.trim(),
-                startDate: toRfc3339(dayStart),
-                endDate: toRfc3339(dayEnd),
+                name: day.name,
+                startDate: toRfc3339(day.startDate),
+                endDate: toRfc3339(day.endDate),
               });
-              setDayName('');
-              setDayStart('');
-              setDayEnd('');
+              dayForm.reset();
               setDayOpen(false);
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Gün eklenemedi');
             }
-          }}
+          })}
         >
           <label className="block space-y-1">
             <FieldLabel>Gün adı</FieldLabel>
-            <Field value={dayName} onChange={(e) => setDayName(e.target.value)} required />
+            <Field
+              {...dayForm.register('name')}
+              aria-invalid={Boolean(dayForm.formState.errors.name)}
+            />
+            {dayForm.formState.errors.name ? (
+              <span className="text-2xs text-red-300">{dayForm.formState.errors.name.message}</span>
+            ) : null}
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <DatePicker value={dayStart} onChange={setDayStart} />
+            <Controller
+              control={dayForm.control}
+              name="startDate"
+              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
+            />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <DatePicker value={dayEnd} onChange={setDayEnd} />
+            <Controller
+              control={dayForm.control}
+              name="endDate"
+              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
+            />
           </label>
-          <SaveButton>Kaydet</SaveButton>
+          <SaveButton disabled={dayForm.formState.isSubmitting}>
+            {dayForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+          </SaveButton>
         </form>
       </Drawer>
       <Drawer
         open={sessionOpen}
-        onClose={() => setSessionOpen(false)}
+        onClose={() => {
+          sessionForm.reset(emptySession());
+          setSessionOpen(false);
+        }}
         title={editingSessionId ? 'Oturumu düzenle' : 'Oturum ekle'}
       >
         <form
           className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
+          noValidate
+          onSubmit={sessionForm.handleSubmit(async (sessionDraft) => {
             try {
               const body = {
                 eventDayId: sessionDraft.eventDayId,
@@ -658,14 +757,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Oturum kaydedilemedi');
             }
-          }}
+          })}
         >
           <label className="block space-y-1">
             <FieldLabel>Gün</FieldLabel>
             <Select
-              value={sessionDraft.eventDayId}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, eventDayId: e.target.value })}
-              required
+              {...sessionForm.register('eventDayId')}
+              aria-invalid={Boolean(sessionForm.formState.errors.eventDayId)}
             >
               <option value="">Seç</option>
               {days.map((day) => (
@@ -674,60 +772,63 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </option>
               ))}
             </Select>
+            {sessionForm.formState.errors.eventDayId ? (
+              <span className="text-2xs text-red-300">
+                {sessionForm.formState.errors.eventDayId.message}
+              </span>
+            ) : null}
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlık</FieldLabel>
             <Field
-              value={sessionDraft.title}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, title: e.target.value })}
-              required
+              {...sessionForm.register('title')}
+              aria-invalid={Boolean(sessionForm.formState.errors.title)}
             />
+            {sessionForm.formState.errors.title ? (
+              <span className="text-2xs text-red-300">
+                {sessionForm.formState.errors.title.message}
+              </span>
+            ) : null}
           </label>
           <label className="block space-y-1">
             <FieldLabel>Konuşmacı</FieldLabel>
             <Field
-              value={sessionDraft.speakerName}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, speakerName: e.target.value })}
-              required
+              {...sessionForm.register('speakerName')}
+              aria-invalid={Boolean(sessionForm.formState.errors.speakerName)}
             />
+            {sessionForm.formState.errors.speakerName ? (
+              <span className="text-2xs text-red-300">
+                {sessionForm.formState.errors.speakerName.message}
+              </span>
+            ) : null}
           </label>
           <label className="block space-y-1">
             <FieldLabel>LinkedIn</FieldLabel>
-            <Field
-              value={sessionDraft.speakerLinkedin}
-              onChange={(e) =>
-                setSessionDraft({ ...sessionDraft, speakerLinkedin: e.target.value })
-              }
-            />
+            <Field {...sessionForm.register('speakerLinkedin')} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Açıklama</FieldLabel>
-            <TextArea
-              rows={3}
-              value={sessionDraft.description}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, description: e.target.value })}
-            />
+            <TextArea rows={3} {...sessionForm.register('description')} />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Başlangıç</FieldLabel>
-            <DatePicker
-              value={sessionDraft.startTime}
-              onChange={(startTime) => setSessionDraft({ ...sessionDraft, startTime })}
+            <Controller
+              control={sessionForm.control}
+              name="startTime"
+              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
             />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Bitiş</FieldLabel>
-            <DatePicker
-              value={sessionDraft.endTime}
-              onChange={(endTime) => setSessionDraft({ ...sessionDraft, endTime })}
+            <Controller
+              control={sessionForm.control}
+              name="endTime"
+              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
             />
           </label>
           <label className="block space-y-1">
             <FieldLabel>Tür</FieldLabel>
-            <Select
-              value={sessionDraft.sessionType}
-              onChange={(e) => setSessionDraft({ ...sessionDraft, sessionType: e.target.value })}
-            >
+            <Select {...sessionForm.register('sessionType')}>
               {SESSION_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {sessionTypeLabel(type)}
@@ -752,7 +853,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               Sil
             </button>
           ) : null}
-          <SaveButton>Kaydet</SaveButton>
+          <SaveButton disabled={sessionForm.formState.isSubmitting}>
+            {sessionForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+          </SaveButton>
         </form>
       </Drawer>
       <Drawer
@@ -779,29 +882,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       />
       <Drawer
         open={checkInSession !== null}
-        onClose={() => setCheckInSession(null)}
+        onClose={() => {
+          deskForm.reset();
+          setCheckInSession(null);
+        }}
         title={checkInSession ? `${checkInSession.title} · Katıldı` : 'Katıldı'}
       >
         {checkInSession ? (
           <form
             className="space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
+            noValidate
+            onSubmit={deskForm.handleSubmit(async (desk) => {
               try {
-                const ticket = resolveDoorTicket({
-                  tickets,
-                  people: personById,
-                  personId: deskPersonId,
-                  email: deskEmail,
+                const created = await ticketsApi.resolveAndCheckIn(checkInSession.id, {
+                  personId: desk.personId || undefined,
+                  query: desk.email.trim(),
                 });
-                if (!ticket) {
-                  setError('Bilet bulunamadı');
-                  return;
-                }
-                const created = await ticketsApi.checkIn(ticket.id, checkInSession.id);
                 setDeskNote(
                   checkInSuccessLine({
-                    name: doorTicketName(ticket, personById),
+                    name: created.personName,
                     sessionTitle: checkInSession.title,
                     createdAt: created.createdAt,
                   }),
@@ -811,20 +910,40 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               } catch (err) {
                 setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
               }
-            }}
+            })}
           >
             {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
-            <PersonPick valueId={deskPersonId} onChange={setDeskPersonId} />
+            <DoorAttendeePick
+              eventId={event.id}
+              valueKey={deskPersonId || deskQuery}
+              onPick={(attendee) => {
+                deskForm.setValue('personId', attendee.personId ?? '', { shouldValidate: true });
+                deskForm.setValue(
+                  'email',
+                  attendee.personId ? '' : attendee.email || attendee.name,
+                  { shouldValidate: true },
+                );
+              }}
+            />
             <label className="block space-y-1">
               <FieldLabel>Ad veya e-posta</FieldLabel>
               <Field
                 type="text"
                 placeholder="Ad veya e-posta"
-                value={deskEmail}
-                onChange={(e) => setDeskEmail(e.target.value)}
+                {...deskForm.register('email', {
+                  onChange: () => deskForm.setValue('personId', ''),
+                })}
+                aria-invalid={Boolean(deskForm.formState.errors.email)}
               />
+              {deskForm.formState.errors.email ? (
+                <span role="alert" className="text-2xs text-red-300">
+                  {deskForm.formState.errors.email.message}
+                </span>
+              ) : null}
             </label>
-            <SaveButton disabled={!deskPersonId && !deskEmail.trim()}>Katıldı</SaveButton>
+            <SaveButton disabled={deskForm.formState.isSubmitting}>
+              {deskForm.formState.isSubmitting ? 'Yazılıyor…' : 'Katıldı'}
+            </SaveButton>
           </form>
         ) : null}
       </Drawer>

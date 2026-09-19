@@ -48,6 +48,18 @@ describe('resolveDoorTicket', () => {
     );
   });
 
+  it('does not resolve a partial or ambiguous typed name', () => {
+    const duplicate: Ticket = {
+      ...guest,
+      id: 't-guest-2',
+      guestEmail: 'ada.duplicate@example.com',
+    };
+    expect(resolveDoorTicket({ tickets: [member, guest], people, email: 'Ada' })).toBeUndefined();
+    expect(
+      resolveDoorTicket({ tickets: [member, guest, duplicate], people, email: 'Ada Lovelace' }),
+    ).toBeUndefined();
+  });
+
   it('does not throw when a roster person is missing email', () => {
     const sparse = new Map<string, Person>([
       ['u1', { id: 'u1', firstName: 'Grace', lastName: 'Hopper' } as Person],
@@ -72,10 +84,8 @@ describe('checkInSuccessLine', () => {
 });
 
 describe('hitWhen', () => {
-  it('prefers createdAt and falls back to time', () => {
+  it('uses the canonical createdAt field', () => {
     expect(hitWhen({ createdAt: '2026-09-19T08:05:00.000Z' })).toBe('2026-09-19T08:05:00.000Z');
-    expect(hitWhen({ time: '2026-09-19T08:05:00.000Z' })).toBe('2026-09-19T08:05:00.000Z');
-    expect(hitWhen({})).toBe('');
   });
 });
 

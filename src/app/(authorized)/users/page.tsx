@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -18,17 +21,35 @@ import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { useAuth } from '@/context/AuthContext';
+import { isPrivileged } from '@/lib/auth/groups';
+
+const createUserSchema = z.object({
+  firstName: z.string().trim(),
+  lastName: z.string().trim(),
+  email: z.string().trim().email('Geçerli bir e-posta girin.'),
+});
+
+type CreateUserForm = z.infer<typeof createUserSchema>;
 
 export default function UsersPage() {
+  const { user } = useAuth();
+  const privileged = isPrivileged(user?.groups ?? []);
   const [users, setUsers] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const {
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateUserForm>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: { firstName: '', lastName: '', email: '' },
+  });
 
   async function load(q: string) {
     try {
@@ -61,14 +82,18 @@ export default function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Kullanıcılar"
-        description="Üye ekle. Grup ve roller kişi kartında."
+        description={
+          privileged ? 'Üye ekle. Grup ve roller kişi kartında.' : 'Üye dizinini görüntüle.'
+        }
         actions={
-          <ActionButton
-            icon={Plus}
-            variant="primary"
-            label="Kullanıcı ekle"
-            onClick={() => setCreating(true)}
-          />
+          privileged ? (
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Kullanıcı ekle"
+              onClick={() => setCreating(true)}
+            />
+          ) : undefined
         }
       />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
@@ -89,7 +114,7 @@ export default function UsersPage() {
             query,
           }),
         })}
-        emptyDescription="Üye ekle veya aramayı temizle."
+        emptyDescription={privileged ? 'Üye ekle veya aramayı temizle.' : 'Aramayı temizle.'}
       >
         {paged.slice.map((u) => {
           const name = `${u.firstName} ${u.lastName}`.trim();
@@ -106,38 +131,50 @@ export default function UsersPage() {
         })}
       </ListPanel>
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
-      <Drawer open={creating} onClose={() => setCreating(false)} title="Kullanıcı ekle">
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await identityApi.createUser({ email, firstName, lastName });
-              setEmail('');
-              setFirstName('');
-              setLastName('');
-              setCreating(false);
-              await load(query);
-            } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
-            }
+      {privileged ? (
+        <Drawer
+          open={creating}
+          onClose={() => {
+            setCreating(false);
+            reset();
           }}
+          title="Kullanıcı ekle"
         >
-          <label className="block space-y-1">
-            <FieldLabel>Ad</FieldLabel>
-            <Field value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Soyad</FieldLabel>
-            <Field value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>E-posta</FieldLabel>
-            <Field type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <SaveButton>Kaydet</SaveButton>
-        </form>
-      </Drawer>
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={handleSubmit(async (values) => {
+              try {
+                await identityApi.createUser(values);
+                reset();
+                setCreating(false);
+                await load(query);
+              } catch (err) {
+                setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+              }
+            })}
+          >
+            <label className="block space-y-1">
+              <FieldLabel>Ad</FieldLabel>
+              <Field {...register('firstName')} />
+            </label>
+            <label className="block space-y-1">
+              <FieldLabel>Soyad</FieldLabel>
+              <Field {...register('lastName')} />
+            </label>
+            <div className="space-y-1">
+              <label className="block space-y-1">
+                <FieldLabel>E-posta</FieldLabel>
+                <Field type="email" aria-invalid={Boolean(errors.email)} {...register('email')} />
+              </label>
+              {errors.email ? <p className="text-xs text-red-300">{errors.email.message}</p> : null}
+            </div>
+            <SaveButton disabled={isSubmitting}>
+              {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+            </SaveButton>
+          </form>
+        </Drawer>
+      ) : null}
     </div>
   );
 }

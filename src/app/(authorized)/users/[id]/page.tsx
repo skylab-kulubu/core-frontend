@@ -113,58 +113,68 @@ export default function UserDetailPage() {
               }
             : undefined
         }
-        onAddGroup={() => void openGroups()}
-        onAddRole={() => void openRoles()}
-        onRemoveRole={async (role) => {
-          await identityApi.removeExtraRole(card.id, role);
-          await load();
-        }}
+        onAddGroup={privileged ? () => void openGroups() : undefined}
+        onAddRole={privileged ? () => void openRoles() : undefined}
+        onRemoveRole={
+          privileged
+            ? async (role) => {
+                await identityApi.removeExtraRole(card.id, role);
+                await load();
+              }
+            : undefined
+        }
       />
-      <SaveButton
-        type="button"
-        onClick={async () => {
-          await identityApi.logoutUser(card.id);
-        }}
-      >
-        <LogOut className="h-4 w-4" />
-        Oturumları kapat
-      </SaveButton>
-      <PickerDrawer
-        open={groupOpen}
-        onClose={() => setGroupOpen(false)}
-        title="Grup ekle"
-        query={groupQuery}
-        onQuery={setGroupQuery}
-        placeholder="Grup yolu veya adı"
-        loading={pickerLoading}
-        failed={pickerFailed}
-        options={groupOptions}
-        emptyMessage="Grup yok"
-        onPick={async (groupId) => {
-          await identityApi.addMember(groupId, card.id);
-          setGroupOpen(false);
-          await load();
-        }}
-      />
-      <PickerDrawer
-        open={roleOpen}
-        onClose={() => setRoleOpen(false)}
-        title="Rol ekle"
-        query={roleQuery}
-        onQuery={setRoleQuery}
-        placeholder="Client veya rol"
-        loading={pickerLoading}
-        failed={pickerFailed}
-        options={roleOptions}
-        emptyMessage="Rol yok"
-        onPick={async (id) => {
-          const role = catalog.find((row) => roleKey(row) === id);
-          if (!role) return;
-          await identityApi.addExtraRole(card.id, role);
-          setRoleOpen(false);
-          await load();
-        }}
-      />
+      {privileged ? (
+        <SaveButton
+          type="button"
+          onClick={async () => {
+            await identityApi.logoutUser(card.id);
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          Oturumları kapat
+        </SaveButton>
+      ) : null}
+      {privileged ? (
+        <PickerDrawer
+          open={groupOpen}
+          onClose={() => setGroupOpen(false)}
+          title="Grup ekle"
+          query={groupQuery}
+          onQuery={setGroupQuery}
+          placeholder="Grup yolu veya adı"
+          loading={pickerLoading}
+          failed={pickerFailed}
+          options={groupOptions}
+          emptyMessage="Grup yok"
+          onPick={async (groupId) => {
+            await identityApi.addMember(groupId, card.id);
+            setGroupOpen(false);
+            await load();
+          }}
+        />
+      ) : null}
+      {privileged ? (
+        <PickerDrawer
+          open={roleOpen}
+          onClose={() => setRoleOpen(false)}
+          title="Rol ekle"
+          query={roleQuery}
+          onQuery={setRoleQuery}
+          placeholder="Client veya rol"
+          loading={pickerLoading}
+          failed={pickerFailed}
+          options={roleOptions}
+          emptyMessage="Rol yok"
+          onPick={async (id) => {
+            const role = catalog.find((row) => roleKey(row) === id);
+            if (!role) return;
+            await identityApi.addExtraRole(card.id, role);
+            setRoleOpen(false);
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

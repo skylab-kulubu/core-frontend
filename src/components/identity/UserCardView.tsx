@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, X } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -19,6 +22,18 @@ function dash(value: string | undefined): string {
   const text = (value ?? '').trim();
   return text || '—';
 }
+
+const profileSchema = z.object({
+  firstName: z.string().trim(),
+  lastName: z.string().trim(),
+  university: z.string().trim(),
+  faculty: z.string().trim(),
+  department: z.string().trim(),
+  linkedin: z.string().trim(),
+  phone: z.string().trim(),
+});
+
+type ProfileForm = z.infer<typeof profileSchema>;
 
 export function UserCardView({
   card,
@@ -39,7 +54,7 @@ export function UserCardView({
   const inheritedRoles = card.inheritedRoles ?? [];
   const extraRoles = card.extraRoles ?? [];
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim();
-  const [profile, setProfile] = useState({
+  const profileDefaults = {
     firstName: card.firstName ?? '',
     lastName: card.lastName ?? '',
     university: card.university ?? '',
@@ -47,19 +62,20 @@ export function UserCardView({
     department: card.department ?? '',
     linkedin: card.linkedin ?? '',
     phone: card.phone ?? '',
+  };
+  const {
+    register,
+    reset,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<ProfileForm>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: profileDefaults,
   });
 
   useEffect(() => {
-    setProfile({
-      firstName: card.firstName ?? '',
-      lastName: card.lastName ?? '',
-      university: card.university ?? '',
-      faculty: card.faculty ?? '',
-      department: card.department ?? '',
-      linkedin: card.linkedin ?? '',
-      phone: card.phone ?? '',
-    });
-  }, [card]);
+    reset(profileDefaults);
+  }, [card, reset]);
 
   return (
     <div className="space-y-6">
@@ -78,8 +94,8 @@ export function UserCardView({
         {canEditProfile ? (
           <form
             className="grid max-w-md gap-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
+            noValidate
+            onSubmit={handleSubmit(async (profile) => {
               const patch: UserProfilePatch = {
                 firstName: profile.firstName,
                 lastName: profile.lastName,
@@ -92,56 +108,35 @@ export function UserCardView({
                 patch.phone = profile.phone;
               }
               await onSaveProfile?.(patch);
-            }}
+            })}
           >
             <label className="block space-y-1">
               <FieldLabel>Ad</FieldLabel>
-              <Field
-                value={profile.firstName}
-                onChange={(e) => setProfile({ ...profile, firstName: e.target.value })}
-              />
+              <Field {...register('firstName')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>Soyad</FieldLabel>
-              <Field
-                value={profile.lastName}
-                onChange={(e) => setProfile({ ...profile, lastName: e.target.value })}
-              />
+              <Field {...register('lastName')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>Üniversite</FieldLabel>
-              <Field
-                value={profile.university}
-                onChange={(e) => setProfile({ ...profile, university: e.target.value })}
-              />
+              <Field {...register('university')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>Fakülte</FieldLabel>
-              <Field
-                value={profile.faculty}
-                onChange={(e) => setProfile({ ...profile, faculty: e.target.value })}
-              />
+              <Field {...register('faculty')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>Bölüm</FieldLabel>
-              <Field
-                value={profile.department}
-                onChange={(e) => setProfile({ ...profile, department: e.target.value })}
-              />
+              <Field {...register('department')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>LinkedIn</FieldLabel>
-              <Field
-                value={profile.linkedin}
-                onChange={(e) => setProfile({ ...profile, linkedin: e.target.value })}
-              />
+              <Field {...register('linkedin')} />
             </label>
             <label className="block space-y-1">
               <FieldLabel>Telefon</FieldLabel>
-              <Field
-                value={profile.phone}
-                onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-              />
+              <Field {...register('phone')} />
             </label>
             {card.studentCardUid ? (
               <label className="block space-y-1">
@@ -149,7 +144,9 @@ export function UserCardView({
                 <Field value={card.studentCardUid} readOnly />
               </label>
             ) : null}
-            <SaveButton>Kaydet</SaveButton>
+            <SaveButton disabled={isSubmitting}>
+              {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+            </SaveButton>
           </form>
         ) : (
           <dl className="grid max-w-md gap-3">

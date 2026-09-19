@@ -1,4 +1,5 @@
 import { coreFetch } from './core';
+import type { Person } from './identity';
 
 export type CheckIn = {
   id: string;
@@ -8,12 +9,45 @@ export type CheckIn = {
   createdAt: string;
 };
 
+export type DoorEvent = {
+  id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  location: string;
+  ownerTeam: string;
+  coverImageUrl?: string;
+  active: boolean;
+  ranked: boolean;
+};
+
+export type DoorCheckIn = {
+  id: string;
+  sessionId: string;
+  eventDayId: string;
+  personName: string;
+  createdAt: string;
+};
+
+export type DoorActivity = {
+  total: number;
+  items: DoorCheckIn[];
+};
+
+export type DoorAttendee = {
+  personId?: string;
+  name: string;
+  email: string;
+};
+
+export type TicketOwner = Pick<Person, 'id' | 'email' | 'firstName' | 'lastName'>;
+
 export type Ticket = {
   id: string;
   eventId: string;
   ticketType: 'REGISTERED' | 'GUEST' | string;
   ownerId?: string;
-  owner?: { id?: string; email?: string; firstName?: string; lastName?: string };
+  owner?: TicketOwner;
   guestFirstName?: string;
   guestLastName?: string;
   guestEmail?: string;
@@ -40,6 +74,19 @@ export type GuestApplyBody = {
 };
 
 export const ticketsApi = {
+  listDoorEvents: () => coreFetch<DoorEvent[]>('/v1/door/events'),
+  searchDoorAttendees: (eventId: string, query: string) => {
+    const params = new URLSearchParams({ q: query.trim() });
+    return coreFetch<DoorAttendee[]>(
+      `/v1/events/${encodeURIComponent(eventId)}/door-attendees?${params.toString()}`,
+    );
+  },
+  listAssignableUsers: (eventId: string, query: string) => {
+    const params = new URLSearchParams({ q: query.trim() });
+    return coreFetch<Person[]>(
+      `/v1/events/${encodeURIComponent(eventId)}/assignable-users?${params.toString()}`,
+    );
+  },
   listByEvent: (eventId: string) =>
     coreFetch<Ticket[]>(`/v1/events/${encodeURIComponent(eventId)}/tickets`),
   list: (query: { email?: string; userId?: string }) => {
@@ -73,4 +120,11 @@ export const ticketsApi = {
       `/v1/tickets/${encodeURIComponent(ticketId)}/sessions/${encodeURIComponent(sessionId)}/check-in`,
       { method: 'POST' },
     ),
+  resolveAndCheckIn: (sessionId: string, target: { personId?: string; query?: string }) =>
+    coreFetch<DoorCheckIn>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-in/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(target),
+    }),
+  doorActivity: (sessionId: string) =>
+    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`),
 };

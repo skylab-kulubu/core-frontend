@@ -9,7 +9,7 @@ import {
 } from '@/lib/auth/groups';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
-import { ticketsApi } from '@/lib/api/tickets';
+import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { mediaApi } from '@/lib/api/media';
 import { urlsApi, shortQrFileName, shortQrUrl } from '@/lib/api/urls';
 import { identityApi } from '@/lib/api/identity';
@@ -23,6 +23,7 @@ import {
   canDeskCheckIn,
   canListEventTickets,
   ticketApplicantLabel,
+  ticketOwnerPeople,
 } from '@/lib/tickets-ui';
 
 function jsonRes(body: unknown, status = 200): Response {
@@ -44,8 +45,8 @@ describe('url access from JWT client roles', () => {
     expect(canUseUrls(['/UYELER/ARGE/WEBLAB'], ['url:create'])).toBe(true);
     expect(canModerateUrls(['/UYELER/ARGE/WEBLAB'], ['url:create'])).toBe(false);
   });
-  it('skylapp:moderator can moderate', () => {
-    expect(canModerateUrls(['/UYELER/ARGE/WEBLAB'], ['skylapp:moderator'])).toBe(true);
+  it('ignores legacy skylapp moderator roles', () => {
+    expect(canModerateUrls(['/UYELER/ARGE/WEBLAB'], ['skylapp:moderator'])).toBe(false);
   });
 });
 
@@ -105,6 +106,27 @@ describe('event write policy', () => {
       ),
     ).toBe('Ada Lovelace · ada@example.com');
   });
+  it('hydrates registered applicant labels from ticket owner summaries', () => {
+    const rows: Ticket[] = [
+      {
+        id: 't1',
+        eventId: 'e1',
+        ticketType: 'REGISTERED',
+        ownerId: 'u1',
+        owner: {
+          id: 'u1',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+        },
+        createdAt: '2026-09-19T08:05:00Z',
+        updatedAt: '2026-09-19T08:05:00Z',
+      },
+    ];
+    expect(ticketApplicantLabel(rows[0], ticketOwnerPeople(rows))).toBe(
+      'Ada Lovelace · ada@example.com',
+    );
+  });
   it('GECEKODU member can write the event but cannot desk check-in on the hub', () => {
     const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
     expect(canWriteEvent(gece, 'GECEKODU', 'update')).toBe(true);
@@ -112,6 +134,11 @@ describe('event write policy', () => {
     expect(canDeskCheckIn(gece, 'GECEKODU')).toBe(false);
     expect(canDeskCheckIn(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'], 'GECEKODU')).toBe(true);
     expect(canDeskCheckIn(['/UYELER/YK'], 'GECEKODU')).toBe(true);
+  });
+  it('assigned door staff can desk check-in only for their assigned event', () => {
+    const member = ['/UYELER/ARGE/WEBLAB'];
+    expect(canDeskCheckIn(member, 'GECEKODU', 'staff-1', ['staff-1'])).toBe(true);
+    expect(canDeskCheckIn(member, 'GECEKODU', 'staff-1', ['staff-2'])).toBe(false);
   });
   it('apply-for-other is Ticket Assign, not write-event', () => {
     const gece = ['/UYELER/ORGANIZASYON/GECEKODU'];
@@ -313,6 +340,25 @@ describe('scheduling clients speak RFC 7807 resources', () => {
     });
     const urls = (global.fetch as jest.Mock).mock.calls.map((call) => String(call[0]));
     expect(urls.some((url) => url.includes('/v1/events/e1/mail-list'))).toBe(true);
+  });
+
+  it('sends selected ticket ids when syncing a targeted event mail list', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes('/api/auth/token')) return jsonRes({ token: 't' });
+      return jsonRes({
+        mailListId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        recipientCount: 1,
+      });
+    }) as typeof fetch;
+
+    await eventsApi.syncMailList('e1', ['t-guest']);
+
+    const request = calls.find(({ url }) => url.includes('/mail-list'));
+    expect(request?.init?.method).toBe('POST');
+    expect(request?.init?.body).toBe(JSON.stringify({ ticketIds: ['t-guest'] }));
   });
 
   it('media list is a resource array', async () => {

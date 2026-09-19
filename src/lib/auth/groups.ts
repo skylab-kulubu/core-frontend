@@ -68,6 +68,15 @@ export function canCheckInForTeam(groups: readonly string[], ownerTeam: string):
   return ownerLevels(groups, ownerTeam).includes('LEADER');
 }
 
+export function canCheckInForEvent(
+  groups: readonly string[],
+  ownerTeam: string,
+  userId: string | undefined,
+  doorStaffIds: readonly string[] = [],
+): boolean {
+  return canCheckInForTeam(groups, ownerTeam) || (!!userId && doorStaffIds.includes(userId));
+}
+
 export function canManageCompetitors(groups: readonly string[], ownerTeam: string): boolean {
   if (isPrivileged(groups)) return true;
   return ownerLevels(groups, ownerTeam).includes('LEADER');
@@ -82,28 +91,21 @@ export function extractResourceRoles(payload: Record<string, unknown> | null): s
   const ra = payload.resource_access;
   if (!ra || typeof ra !== 'object') return [];
   const clients = ra as Record<string, unknown>;
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const client of ['core', 'skylapp'] as const) {
-    const entry = clients[client];
-    if (!entry || typeof entry !== 'object') continue;
-    const raw = (entry as Record<string, unknown>).roles;
-    if (!Array.isArray(raw)) continue;
-    for (const role of raw) {
-      if (typeof role !== 'string' || !role || seen.has(role)) continue;
-      seen.add(role);
-      out.push(role);
-    }
-  }
-  return out;
+  const entry = clients.core;
+  if (!entry || typeof entry !== 'object') return [];
+  const raw = (entry as Record<string, unknown>).roles;
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(raw.filter((role): role is string => typeof role === 'string' && role.length > 0)),
+  ];
 }
 
 export function canUseUrls(groups: readonly string[], roles: readonly string[]): boolean {
   if (isPrivileged(groups)) return true;
-  return roles.some((role) => role.startsWith('url:') || role.startsWith('skylapp:'));
+  return roles.some((role) => role.startsWith('url:'));
 }
 
 export function canModerateUrls(groups: readonly string[], roles: readonly string[]): boolean {
   if (isPrivileged(groups)) return true;
-  return roles.includes('url:moderator') || roles.includes('skylapp:moderator');
+  return roles.includes('url:moderator');
 }

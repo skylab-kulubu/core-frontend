@@ -48,4 +48,31 @@ describe('User detail page', () => {
     expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
     expect(screen.queryByText('Beklenmeyen bir hata oluştu')).not.toBeInTheDocument();
   });
+
+  it('keeps users:read cards read-only', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: {
+        id: 'reader',
+        username: 'reader',
+        email: 'reader@example.com',
+        firstName: 'Read',
+        lastName: 'Only',
+        roles: ['users:read'],
+        groups: ['/SERVICES/FORMS'],
+      },
+    });
+    (identityApi.getUser as jest.Mock).mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      email: 'ada@example.com',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    });
+    render(<UserDetailPage />);
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: 'Grup ekle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Oturumları kapat/ })).not.toBeInTheDocument();
+  });
 });

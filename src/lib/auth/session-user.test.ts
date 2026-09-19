@@ -27,7 +27,7 @@ describe('sessionUserFromAccessToken', () => {
     });
   });
 
-  it('reads url roles from core and skylapp resource_access', () => {
+  it('reads authorization roles only from the core resource server', () => {
     const token = unsignedJwt({
       sub: '11111111-1111-1111-1111-111111111111',
       email: 'yk@example.com',
@@ -40,7 +40,7 @@ describe('sessionUserFromAccessToken', () => {
         skylapp: { roles: ['skylapp:access', 'url:create'] },
       },
     });
-    expect(sessionUserFromAccessToken(token)?.roles).toEqual(['url:create', 'skylapp:access']);
+    expect(sessionUserFromAccessToken(token)?.roles).toEqual(['url:create']);
   });
 
   it('returns null without sub', () => {
