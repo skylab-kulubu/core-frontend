@@ -1,10 +1,14 @@
-const OAUTH2_AUTH_URL = 'https://e.yildizskylab.com/realms/e-skylab/protocol/openid-connect/auth';
-const OAUTH2_TOKEN_URL = 'https://e.yildizskylab.com/realms/e-skylab/protocol/openid-connect/token';
-const OAUTH2_LOGOUT_URL =
-  'https://e.yildizskylab.com/realms/e-skylab/protocol/openid-connect/logout';
+function oauthIssuer(): string {
+  return (process.env.OAUTH2_ISSUER || '').replace(/\/+$/, '');
+}
+
+function oauthEndpoint(path: string): string {
+  const issuer = oauthIssuer();
+  return issuer ? `${issuer}/protocol/openid-connect/${path}` : '';
+}
 
 function oauthClientId(): string {
-  return process.env.OAUTH2_CLIENT_ID || process.env.NEXT_PUBLIC_OAUTH2_CLIENT_ID || '';
+  return process.env.OAUTH2_CLIENT_ID || '';
 }
 
 function oauthClientSecret(): string | undefined {
@@ -12,37 +16,39 @@ function oauthClientSecret(): string | undefined {
 }
 
 function oauthRedirectUri(): string {
-  return (
-    process.env.OAUTH2_REDIRECT_URI ||
-    process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI ||
-    'http://localhost:3000/api/auth/callback'
-  );
+  return process.env.OAUTH2_REDIRECT_URI || '';
 }
 
 export function getOAuth2AuthUrl(state?: string): string {
   const clientId = oauthClientId();
-  if (!clientId) {
+  const redirectUri = oauthRedirectUri();
+  const authUrl = oauthEndpoint('auth');
+  if (!clientId || !redirectUri || !authUrl) {
     return '/login?error=config_missing';
   }
 
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: oauthRedirectUri(),
+    redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'openid profile email',
     ...(state && { state }),
   });
 
-  return `${OAUTH2_AUTH_URL}?${params.toString()}`;
+  return `${authUrl}?${params.toString()}`;
 }
 
 export function getOAuth2LogoutUrl(postLogoutRedirectUri?: string): string {
+  const logoutUrl = oauthEndpoint('logout');
+  if (!logoutUrl || !oauthClientId()) {
+    return '/login?error=config_missing';
+  }
   const params = new URLSearchParams({
     client_id: oauthClientId(),
     ...(postLogoutRedirectUri && { post_logout_redirect_uri: postLogoutRedirectUri }),
   });
 
-  return `${OAUTH2_LOGOUT_URL}?${params.toString()}`;
+  return `${logoutUrl}?${params.toString()}`;
 }
 
 export async function exchangeCodeForToken(
@@ -51,6 +57,10 @@ export async function exchangeCodeForToken(
   const clientId = oauthClientId();
   const redirectUri = oauthRedirectUri();
   const clientSecret = oauthClientSecret();
+  const tokenUrl = oauthEndpoint('token');
+  if (!clientId || !redirectUri || !tokenUrl) {
+    throw new Error('OAuth2 configuration is incomplete');
+  }
   const bodyParams = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
@@ -62,7 +72,7 @@ export async function exchangeCodeForToken(
     bodyParams.append('client_secret', clientSecret);
   }
 
-  const response = await fetch(OAUTH2_TOKEN_URL, {
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: bodyParams,
@@ -93,6 +103,10 @@ export async function refreshAccessToken(
 ): Promise<{ access_token: string; refresh_token: string }> {
   const clientId = oauthClientId();
   const clientSecret = oauthClientSecret();
+  const tokenUrl = oauthEndpoint('token');
+  if (!clientId || !tokenUrl) {
+    throw new Error('OAuth2 configuration is incomplete');
+  }
   const bodyParams = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
@@ -103,7 +117,7 @@ export async function refreshAccessToken(
     bodyParams.append('client_secret', clientSecret);
   }
 
-  const response = await fetch(OAUTH2_TOKEN_URL, {
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: bodyParams,

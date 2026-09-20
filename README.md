@@ -55,13 +55,14 @@ pnpm start
 `/.env.local` örneği:
 ```env
 NEXT_PUBLIC_API_URL=https://api.yildizskylab.com
-OAUTH2_AUTH_URL=...           # oauth yetkilendirme endpointi
-OAUTH2_TOKEN_URL=...          # oauth token endpointi
+NEXT_PUBLIC_CMS_URL=https://api.yildizskylab.com/api
+OAUTH2_ISSUER=https://e.yildizskylab.com/realms/e-skylab
 OAUTH2_CLIENT_ID=...
 OAUTH2_CLIENT_SECRET=...
 OAUTH2_REDIRECT_URI=http://localhost:3000/api/auth/callback
+APP_URL=http://localhost:3000
 ```
-- Prod ortamında `OAUTH2_REDIRECT_URI` `https://admin-skylab.vercel.app/api/auth/callback` olmalıdır.
+- Sandbox ortamında `OAUTH2_ISSUER` değeri `https://e.yildizskylab.com/realms/e-skylab-sandbox` olmalıdır.
 
 ## Komutlar
 - `pnpm dev`: Geliştirme
