@@ -19,7 +19,7 @@ function oauthRedirectUri(): string {
   return process.env.OAUTH2_REDIRECT_URI || '';
 }
 
-export function getOAuth2AuthUrl(state?: string): string {
+export function getOAuth2AuthUrl(state: string, codeChallenge: string): string {
   const clientId = oauthClientId();
   const redirectUri = oauthRedirectUri();
   const authUrl = oauthEndpoint('auth');
@@ -32,7 +32,9 @@ export function getOAuth2AuthUrl(state?: string): string {
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'openid profile email',
-    ...(state && { state }),
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
   return `${authUrl}?${params.toString()}`;
@@ -53,6 +55,7 @@ export function getOAuth2LogoutUrl(postLogoutRedirectUri?: string): string {
 
 export async function exchangeCodeForToken(
   code: string,
+  codeVerifier: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
   const clientId = oauthClientId();
   const redirectUri = oauthRedirectUri();
@@ -66,6 +69,7 @@ export async function exchangeCodeForToken(
     code,
     client_id: clientId,
     redirect_uri: redirectUri,
+    code_verifier: codeVerifier,
   });
 
   if (clientSecret) {
