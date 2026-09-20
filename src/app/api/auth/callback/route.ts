@@ -2,11 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForToken } from '@/lib/auth/oauth2';
 import { authCookieSecure } from '@/lib/auth/cookie-secure';
 import { cookies } from 'next/headers';
+import {
+  oauthStateMatches,
+  OAUTH_CODE_VERIFIER_COOKIE,
+  OAUTH_STATE_COOKIE,
+} from '@/lib/auth/oauth-transaction';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const state = searchParams.get('state');
+  const cookieStore = await cookies();
+  const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
+  const codeVerifier = cookieStore.get(OAUTH_CODE_VERIFIER_COOKIE)?.value;
+  const transactionCookieOptions = {
+    httpOnly: true,
+    secure: authCookieSecure(),
+    sameSite: 'lax' as const,
+    maxAge: 0,
+    expires: new Date(0),
+    path: '/api/auth',
+  };
+  cookieStore.set(OAUTH_STATE_COOKIE, '', transactionCookieOptions);
+  cookieStore.set(OAUTH_CODE_VERIFIER_COOKIE, '', transactionCookieOptions);
 
   if (error) {
     console.error('OAuth error:', error);
@@ -18,8 +37,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=no_code', request.url));
   }
 
+  if (!oauthStateMatches(state, expectedState)) {
+    console.error('OAuth state validation failed');
+    return NextResponse.redirect(new URL('/login?error=invalid_state', request.url));
+  }
+
+  if (!codeVerifier) {
+    console.error('OAuth PKCE verifier is missing');
+    return NextResponse.redirect(new URL('/login?error=missing_code_verifier', request.url));
+  }
+
   try {
-    const { access_token, refresh_token } = await exchangeCodeForToken(code);
+    const { access_token, refresh_token } = await exchangeCodeForToken(code, codeVerifier);
 
     console.log('✅ OAuth callback: Token exchange başarılı');
     console.log('Token uzunlukları:', {
@@ -28,8 +57,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Next.js 15'te cookies() async olmalı
-    const cookieStore = await cookies();
-
     const secure = authCookieSecure();
     cookieStore.set('auth_token', access_token, {
       httpOnly: true,
