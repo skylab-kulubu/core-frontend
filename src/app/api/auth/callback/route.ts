@@ -59,9 +59,8 @@ export async function GET(request: NextRequest) {
     // Redirect URL'ini belirle
     // Docker/Proxy arkasında request.url localhost olabilir, bu yüzden env var'dan almayı dene
     let baseUrl = request.nextUrl.origin;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
-    const redirectUri =
-      process.env.OAUTH2_REDIRECT_URI || process.env.NEXT_PUBLIC_OAUTH2_REDIRECT_URI;
+    const appUrl = process.env.APP_URL;
+    const redirectUri = process.env.OAUTH2_REDIRECT_URI;
 
     if (appUrl) {
       baseUrl = appUrl;
