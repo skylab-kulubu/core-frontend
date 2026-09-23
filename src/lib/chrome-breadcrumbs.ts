@@ -14,6 +14,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/competitors/new': 'Yeni yarışmacı',
   '/media': 'Medya',
   '/urls': 'Kısa URL',
+  '/handoff-targets': "SkyApp'ten geçiş",
 };
 
 export type ChromeCrumb = Readonly<{ href: string; label: string }>;

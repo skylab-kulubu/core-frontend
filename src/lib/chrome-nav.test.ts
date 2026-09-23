@@ -82,4 +82,16 @@ describe('buildSidebarNavigation', () => {
     if (events?.kind !== 'group') throw new Error('event group missing');
     expect(events.children.map((item) => item.href)).toEqual(['/events', '/events?view=calendar']);
   });
+
+  it('offers SkyApp handoff settings only to the ADMIN group', () => {
+    const admin = buildSidebarNavigation({ ...privileged, id: 'admin', groups: ['/ADMIN'] });
+    const system = admin.find((node) => node.label === 'Sistem');
+    if (system?.kind !== 'group') throw new Error('system group missing');
+    expect(system.children).toEqual([{ href: '/handoff-targets', label: "SkyApp'ten geçiş" }]);
+
+    for (const groups of [['/UYELER/YK'], ['/UYELER/DK'], ['/UYELER/ARGE/WEBLAB/LIDERLER']]) {
+      const nodes = buildSidebarNavigation({ ...privileged, id: 'other', groups });
+      expect(nodes.map((node) => node.label)).not.toContain('Sistem');
+    }
+  });
 });

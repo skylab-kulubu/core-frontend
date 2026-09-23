@@ -1,4 +1,5 @@
 import {
+  canManageHandoffTargets,
   canUseCertificates,
   canUseUrls,
   canWriteEvent,
@@ -76,6 +77,11 @@ const NAVIGATION_LINKS: ReadonlyArray<
     href: '/certificates',
     label: 'Sertifikalar',
     visibleWhen: ({ groups, roles }) => canUseCertificates(groups, roles),
+  },
+  {
+    href: '/handoff-targets',
+    label: "SkyApp'ten geçiş",
+    visibleWhen: ({ groups }) => canManageHandoffTargets(groups),
   },
 ];
 
@@ -209,6 +215,14 @@ export function buildSidebarNavigation(
       id: 'certificates',
       label: 'Sertifikalar',
       children: certificateChildren,
+    });
+  }
+  if (allowed.has('/handoff-targets')) {
+    nodes.push({
+      kind: 'group',
+      id: 'system',
+      label: 'Sistem',
+      children: [{ href: '/handoff-targets', label: "SkyApp'ten geçiş" }],
     });
   }
   return nodes;

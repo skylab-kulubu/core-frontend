@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
+  ArrowRightLeft,
   CalendarDays,
   Award,
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   QrCode,
+  Settings2,
   Trophy,
   Users,
   UsersRound,
@@ -55,6 +57,7 @@ const NAV_ICON = {
   '/certificates/defaults': Award,
   '/certificates/issued': Award,
   '/certificates/jobs': Award,
+  '/handoff-targets': ArrowRightLeft,
 } as const;
 
 const GROUP_ICON = {
@@ -63,6 +66,7 @@ const GROUP_ICON = {
   club: UsersRound,
   content: Newspaper,
   certificates: Award,
+  system: Settings2,
 } as const;
 
 type SidebarProps = Readonly<{

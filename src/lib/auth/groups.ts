@@ -16,6 +16,15 @@ export function isPrivileged(groups: readonly string[]): boolean {
   return groups.some((g) => /\/(ADMIN|YK|DK)(\/|$)/.test(g));
 }
 
+/**
+ * Who sees the SkyApp handoff settings. Keycloak's sky-handoff admin API is the real gate
+ * (realm super admin, 403 otherwise); this only decides where the page is offered, and
+ * `/ADMIN` is the narrowest group superadmin already treats as an administrator.
+ */
+export function canManageHandoffTargets(groups: readonly string[]): boolean {
+  return groups.some((g) => /\/ADMIN(\/|$)/.test(g));
+}
+
 export function isLeader(groups: readonly string[]): boolean {
   return groups.some((g) => /\/(LIDERLER|KOORDINATORLER)(\/|$)/.test(g));
 }

@@ -27,4 +27,10 @@ describe('chromeCrumbs', () => {
       { href: '/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/tickets', label: 'Başvuranlar' },
     ]);
   });
+
+  it('labels the SkyApp handoff settings', () => {
+    expect(chromeCrumbs('/handoff-targets')).toEqual([
+      { href: '/handoff-targets', label: "SkyApp'ten geçiş" },
+    ]);
+  });
 });
