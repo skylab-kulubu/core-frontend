@@ -7,6 +7,8 @@ const handoffTargetSchema = z.object({
   clientId: z.string().min(1),
   name: unset(z.string()),
   rootUrl: unset(z.string()),
+  /** Keycloak's own verdict on the origin rule; absent from older answers. */
+  originAllowed: unset(z.boolean()),
   enabled: unset(z.boolean()),
   signInPath: unset(z.string()),
   returnParam: unset(z.string()),
@@ -30,10 +32,24 @@ export function parseHandoffTarget(body: unknown): HandoffTarget | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** The admin API's target list, or `null` when the answer does not have its shape. */
+const handoffTargetListSchema = z.union([
+  // Keycloak answers `GET /v1/admin/targets` with `{"targets": [...]}`.
+  z.object({ targets: z.array(handoffTargetSchema) }).transform((body) => body.targets),
+  z.array(handoffTargetSchema),
+]);
+
+/**
+ * The admin API's target list, or `null` when the answer does not have its shape. Clients
+ * whose root URL may become a target come first, each group ordered by client id.
+ */
 export function parseHandoffTargets(body: unknown): HandoffTarget[] | null {
-  const parsed = z.array(handoffTargetSchema).safeParse(body);
-  return parsed.success ? parsed.data : null;
+  const parsed = handoffTargetListSchema.safeParse(body);
+  if (!parsed.success) return null;
+  return [...parsed.data].sort(
+    (a, b) =>
+      Number(Boolean(b.originAllowed)) - Number(Boolean(a.originAllowed)) ||
+      a.clientId.localeCompare(b.clientId),
+  );
 }
 
 /** Keeps exactly the three writable fields, or `null` when the body does not have their shape. */

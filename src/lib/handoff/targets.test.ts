@@ -1,4 +1,4 @@
-import { handoffTargetErrors } from '@/lib/handoff/targets';
+import { handoffTargetErrors, parseHandoffTargets } from '@/lib/handoff/targets';
 
 const FORMS_ROOT = 'https://forms.yildizskylab.com';
 
@@ -85,5 +85,60 @@ describe('handoffTargetErrors', () => {
     const input = { enabled: true, signInPath: '/auth/signin', returnParam: 'callbackUrl' };
     expect(handoffTargetErrors(input, 'https://yildizskylab.com')).toEqual({});
     expect(handoffTargetErrors(input, 'https://my.yildizskylab.com/')).toEqual({});
+  });
+});
+
+describe('parseHandoffTargets', () => {
+  const skyforms = {
+    clientId: 'skyforms',
+    name: '',
+    rootUrl: 'https://forms.yildizskylab.com',
+    originAllowed: true,
+    clientEnabled: true,
+    enabled: false,
+    signInPath: null,
+    returnParam: null,
+  };
+  const broker = {
+    ...skyforms,
+    clientId: 'broker',
+    name: '${client_broker}',
+    rootUrl: null,
+    originAllowed: false,
+  };
+  const accountCenter = {
+    ...skyforms,
+    clientId: 'account-center',
+    rootUrl: 'https://my.yildizskylab.com',
+  };
+
+  it('reads the list inside the targets envelope that Keycloak answers with', () => {
+    const targets = parseHandoffTargets({ targets: [skyforms] });
+    expect(targets).toEqual([
+      expect.objectContaining({
+        clientId: 'skyforms',
+        rootUrl: 'https://forms.yildizskylab.com',
+        enabled: false,
+      }),
+    ]);
+  });
+
+  it('still reads a bare list', () => {
+    expect(parseHandoffTargets([skyforms])?.map((target) => target.clientId)).toEqual(['skyforms']);
+  });
+
+  it('lists the clients that may become targets first, each group by client id', () => {
+    const targets = parseHandoffTargets({ targets: [broker, skyforms, accountCenter] });
+    expect(targets?.map((target) => target.clientId)).toEqual([
+      'account-center',
+      'skyforms',
+      'broker',
+    ]);
+  });
+
+  it('refuses anything else', () => {
+    expect(parseHandoffTargets({ items: [skyforms] })).toBeNull();
+    expect(parseHandoffTargets({ targets: [{ name: 'no id' }] })).toBeNull();
+    expect(parseHandoffTargets(null)).toBeNull();
   });
 });

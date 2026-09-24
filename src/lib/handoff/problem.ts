@@ -34,6 +34,12 @@ export function problemResponse(status: number, detail: string): NextResponse {
   return relayProblem({ type: 'about:blank', title: TITLES[status] ?? 'Error', status, detail });
 }
 
+/** The sky-handoff admin API names the offending field by `code`; the form shows it there. */
+const FIELD_BY_CODE: Record<string, string> = {
+  invalid_sign_in_path: 'signInPath',
+  invalid_return_param: 'returnParam',
+};
+
 /** Reads an RFC 7807 body, keeping only the documented members. */
 export function asProblem(body: unknown, status: number): HandoffProblem | null {
   if (!body || typeof body !== 'object') return null;
@@ -46,5 +52,7 @@ export function asProblem(body: unknown, status: number): HandoffProblem | null 
     detail: raw.detail,
   };
   if (typeof raw.field === 'string' && raw.field) problem.field = raw.field;
+  else if (typeof raw.code === 'string' && FIELD_BY_CODE[raw.code])
+    problem.field = FIELD_BY_CODE[raw.code];
   return problem;
 }

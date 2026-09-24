@@ -90,9 +90,19 @@ describe('handoffTargetsApi', () => {
   });
 
   it('refuses a list that is not a list', async () => {
-    global.fetch = jest.fn(async () => Response.json({ targets: [] })) as typeof fetch;
+    global.fetch = jest.fn(async () => Response.json({ items: [] })) as typeof fetch;
 
     await expect(handoffTargetsApi.list()).rejects.toBeInstanceOf(HandoffProblemError);
+  });
+
+  it("reads Keycloak's targets envelope", async () => {
+    global.fetch = jest.fn(async () =>
+      Response.json({ targets: [{ clientId: 'skyforms', originAllowed: true, enabled: false }] }),
+    ) as typeof fetch;
+
+    await expect(handoffTargetsApi.list()).resolves.toEqual([
+      expect.objectContaining({ clientId: 'skyforms', originAllowed: true, enabled: false }),
+    ]);
   });
 
   it('reads omitted attributes as unset and refuses a target without a client id', async () => {
@@ -104,6 +114,7 @@ describe('handoffTargetsApi', () => {
         clientId: 'skyforms',
         name: 'SkyForms',
         rootUrl: null,
+        originAllowed: null,
         enabled: true,
         signInPath: null,
         returnParam: null,
