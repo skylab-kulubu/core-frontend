@@ -102,6 +102,21 @@ export async function exchangeCodeForToken(
   };
 }
 
+/**
+ * Keycloak refused the refresh token itself (OAuth `invalid_grant`: expired, revoked, or its
+ * session ended), so the stored session cannot come back. Any other refresh failure (Keycloak
+ * unreachable, a 5xx) says nothing about the session and must not end it.
+ */
+export class RefreshTokenRejectedError extends Error {}
+
+function isInvalidGrant(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { error?: unknown }).error === 'invalid_grant';
+  } catch {
+    return false;
+  }
+}
+
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<{ access_token: string; refresh_token: string }> {
@@ -134,7 +149,9 @@ export async function refreshAccessToken(
       statusText: response.statusText,
       body: errorText,
     });
-    throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+    const message = `Token refresh failed: ${response.status} - ${errorText}`;
+    if (isInvalidGrant(errorText)) throw new RefreshTokenRejectedError(message);
+    throw new Error(message);
   }
 
   const data = await response.json();

@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { GlobalErrorMessenger } from '@/components/common/GlobalErrorMessenger';
 import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
 import { AuthProvider } from '@/context/AuthContext';
-import { getTokenFromCookies } from '@/lib/auth/token';
+import { readSessionAccessToken, readSessionRefreshToken } from '@/lib/auth/session-cookies';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
 import type { UserDto } from '@/types/api';
 
@@ -16,8 +16,8 @@ export default async function AuthorizedLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const token = getTokenFromCookies(cookieStore);
-  const refreshToken = cookieStore.get('refresh_token')?.value;
+  const token = readSessionAccessToken(cookieStore);
+  const refreshToken = readSessionRefreshToken(cookieStore);
 
   if (!token && !refreshToken) {
     redirect('/login');

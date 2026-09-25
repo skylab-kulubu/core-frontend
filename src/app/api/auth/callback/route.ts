@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForToken } from '@/lib/auth/oauth2';
-import { authCookieSecure } from '@/lib/auth/cookie-secure';
 import { cookies } from 'next/headers';
 import {
+  clearOAuthTransactionCookies,
   oauthStateMatches,
-  OAUTH_CODE_VERIFIER_COOKIE,
-  OAUTH_STATE_COOKIE,
+  readOAuthTransactionCookies,
 } from '@/lib/auth/oauth-transaction';
+import { expireLegacySessionCookies, writeSessionCookies } from '@/lib/auth/session-cookies';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -14,18 +14,8 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
   const state = searchParams.get('state');
   const cookieStore = await cookies();
-  const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
-  const codeVerifier = cookieStore.get(OAUTH_CODE_VERIFIER_COOKIE)?.value;
-  const transactionCookieOptions = {
-    httpOnly: true,
-    secure: authCookieSecure(),
-    sameSite: 'lax' as const,
-    maxAge: 0,
-    expires: new Date(0),
-    path: '/api/auth',
-  };
-  cookieStore.set(OAUTH_STATE_COOKIE, '', transactionCookieOptions);
-  cookieStore.set(OAUTH_CODE_VERIFIER_COOKIE, '', transactionCookieOptions);
+  const { state: expectedState, codeVerifier } = readOAuthTransactionCookies(cookieStore);
+  clearOAuthTransactionCookies(cookieStore);
 
   if (error) {
     console.error('OAuth error:', error);
@@ -56,30 +46,8 @@ export async function GET(request: NextRequest) {
       refresh_token: refresh_token?.length,
     });
 
-    // Next.js 15'te cookies() async olmalı
-    const secure = authCookieSecure();
-    cookieStore.set('auth_token', access_token, {
-      httpOnly: true,
-      secure,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
-    cookieStore.set('access_token', access_token, {
-      httpOnly: true,
-      secure,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
-    });
-
-    cookieStore.set('refresh_token', refresh_token, {
-      httpOnly: true,
-      secure,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30,
-      path: '/',
-    });
+    writeSessionCookies(cookieStore, access_token, refresh_token);
+    expireLegacySessionCookies(cookieStore);
 
     console.log("✅ OAuth callback: Cookie'ler set edildi, dashboard'a yönlendiriliyor");
 

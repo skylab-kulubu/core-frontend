@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { GET } from '@/app/api/handoff-targets/route';
+import { saveEnv } from '@/test/server/env';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -100,6 +101,21 @@ describe('GET /api/handoff-targets', () => {
     expect(await response.json()).toMatchObject({
       status: 401,
       detail: 'Oturumun sona ermiş. Yeniden giriş yap.',
+    });
+  });
+
+  describe('with Secure (__Host-) session cookies', () => {
+    afterEach(saveEnv('AUTH_COOKIE_SECURE'));
+
+    it('answers 401 without calling Keycloak when only a legacy unprefixed session cookie is present', async () => {
+      process.env.AUTH_COOKIE_SECURE = 'true';
+      signedIn({ auth_token: accessToken(), refresh_token: 'refresh-1' });
+      const seen = fakeKeycloak(() => Response.json([]));
+
+      const response = await GET();
+
+      expect(seen).toHaveLength(0);
+      expect(response.status).toBe(401);
     });
   });
 
