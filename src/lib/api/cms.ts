@@ -1,4 +1,4 @@
-import { ProblemError } from './core';
+import { problemFromResponse } from './core';
 
 export type NewsData = {
   title: string;
@@ -40,17 +40,6 @@ async function bearer(): Promise<string | null> {
   return body.token ?? null;
 }
 
-function problemTitle(status: number, text: string): string {
-  try {
-    const body = JSON.parse(text) as { title?: string; detail?: string };
-    if (body.title) return body.title;
-    if (body.detail) return body.detail;
-  } catch {
-    return `HTTP ${status}`;
-  }
-  return `HTTP ${status}`;
-}
-
 export async function cmsFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -70,7 +59,7 @@ export async function cmsFetch<T>(
   }
   const text = await res.text();
   if (!res.ok) {
-    throw new ProblemError(res.status, problemTitle(res.status, text));
+    throw problemFromResponse(res.status, text);
   }
   if (!text) return undefined as T;
   return JSON.parse(text) as T;

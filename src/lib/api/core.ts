@@ -3,15 +3,55 @@ export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhos
   '',
 );
 
+/** What a problem+json answer says beyond its status and title. */
+export type ProblemDetails = {
+  /** Core's stable, snake_case problem code, such as `media_too_large`. */
+  code?: string;
+  detail?: string;
+  /** The problem's extension fields, such as `maxBytes` or `retryAfterSeconds`. */
+  fields?: Record<string, unknown>;
+};
+
+const STANDARD_PROBLEM_FIELDS = new Set(['type', 'title', 'status', 'detail', 'instance', 'code']);
+
 export class ProblemError extends Error {
   status: number;
   title: string;
+  code?: string;
+  detail?: string;
+  fields: Record<string, unknown>;
 
-  constructor(status: number, title: string) {
+  constructor(status: number, title: string, details: ProblemDetails = {}) {
     super(title);
     this.status = status;
     this.title = title;
+    this.code = details.code;
+    this.detail = details.detail;
+    this.fields = details.fields ?? {};
   }
+}
+
+/**
+ * The error for a failed response whose body is `text`: a problem+json body
+ * gives its title (or, without one, its detail), code, detail and extension
+ * fields; any other body gives `HTTP <status>`.
+ */
+export function problemFromResponse(status: number, text: string): ProblemError {
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      body = parsed as Record<string, unknown>;
+    }
+  } catch {}
+  const code = typeof body.code === 'string' ? body.code : undefined;
+  const detail = typeof body.detail === 'string' ? body.detail : undefined;
+  const title = (typeof body.title === 'string' && body.title) || detail || `HTTP ${status}`;
+  const fields: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(body)) {
+    if (!STANDARD_PROBLEM_FIELDS.has(name)) fields[name] = value;
+  }
+  return new ProblemError(status, title, { code, detail, fields });
 }
 
 async function bearer(): Promise<string | null> {
@@ -38,12 +78,7 @@ export async function coreFetch<T>(path: string, init: RequestInit = {}): Promis
   }
   const text = await res.text();
   if (!res.ok) {
-    let title = `HTTP ${res.status}`;
-    try {
-      const body = JSON.parse(text) as { title?: string };
-      if (body.title) title = body.title;
-    } catch {}
-    throw new ProblemError(res.status, title);
+    throw problemFromResponse(res.status, text);
   }
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
@@ -59,12 +94,7 @@ export async function coreFetchBlob(path: string, init: RequestInit = {}): Promi
     headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
   });
   if (!res.ok) {
-    let title = `HTTP ${res.status}`;
-    try {
-      const body = JSON.parse(await res.text()) as { title?: string };
-      if (body.title) title = body.title;
-    } catch {}
-    throw new ProblemError(res.status, title);
+    throw problemFromResponse(res.status, await res.text());
   }
   return res.blob();
 }

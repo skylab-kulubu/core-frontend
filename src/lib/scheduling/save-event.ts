@@ -1,4 +1,4 @@
-import { eventsApi, type EventBody } from '@/lib/api/events';
+import { eventsApi, type CoreEvent, type EventBody } from '@/lib/api/events';
 import { urlsApi } from '@/lib/api/urls';
 import { seasonsApi } from '@/lib/api/seasons';
 import { toRfc3339 } from '@/lib/datetime-local';
@@ -32,6 +32,20 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
   };
 }
 
+/**
+ * A new Event was created but a later step of its save (season, gallery)
+ * failed. The next save must update `eventId` instead of creating it again.
+ */
+export class EventSaveIncomplete extends Error {
+  readonly eventId: string;
+
+  constructor(eventId: string, cause: unknown) {
+    super('Etkinlik oluşturuldu, ama kaydı tamamlanamadı.', { cause });
+    this.name = 'EventSaveIncomplete';
+    this.eventId = eventId;
+  }
+}
+
 export async function saveEventWithSeason(
   form: EventFormState,
   existingId?: string,
@@ -51,6 +65,16 @@ export async function saveEventWithSeason(
   const saved = existingId
     ? await eventsApi.update(existingId, body)
     : await eventsApi.create(body);
+  try {
+    await finishSave(form, saved, existingId);
+  } catch (cause) {
+    if (existingId) throw cause;
+    throw new EventSaveIncomplete(saved.id, cause);
+  }
+  return saved.id;
+}
+
+async function finishSave(form: EventFormState, saved: CoreEvent, existingId?: string) {
   if (form.seasonId) {
     await seasonsApi.assignEvent(form.seasonId, saved.id);
   }
@@ -64,5 +88,4 @@ export async function saveEventWithSeason(
   if (add.length) {
     await eventsApi.addImages(saved.id, add);
   }
-  return saved.id;
 }

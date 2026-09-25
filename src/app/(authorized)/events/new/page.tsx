@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
@@ -13,7 +14,8 @@ import { ProblemError } from '@/lib/api/core';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
-import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventFormIssue } from '@/lib/events-view';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import {
@@ -40,6 +42,9 @@ function NewEventPageContent() {
   );
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Set once an earlier save created the Event but could not finish: the
+  // next save updates it instead of creating another.
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   function persist(next: EventFormState) {
     if (typeof window === 'undefined') return;
@@ -104,7 +109,6 @@ function NewEventPageContent() {
         title="Yeni etkinlik"
         description="Kaydetmeden Skyforms’a gidilebilir; yazılanlar geri gelir."
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
       {!ready ? (
         <p className="text-sm text-neutral-500">Yükleniyor…</p>
       ) : (
@@ -118,13 +122,21 @@ function NewEventPageContent() {
               return;
             }
             setSaving(true);
+            setError(null);
             try {
-              const id = await saveEventWithSeason(form);
+              const id = await saveEventWithSeason(form, createdId ?? undefined);
               if (typeof window !== 'undefined')
                 clearEventDraft(sessionStorage, window.location.href);
               router.push(`/events/${id}`);
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+              if (err instanceof EventSaveIncomplete) {
+                setCreatedId(err.eventId);
+                setError(
+                  `Etkinlik oluşturuldu, ama kaydı tamamlanamadı: ${coreProblemMessage(err.cause, 'Kaydedilemedi')} Kaydet bu etkinliği günceller; yeni etkinlik açılmaz.`,
+                );
+              } else {
+                setError(coreProblemMessage(err, 'Oluşturulamadı'));
+              }
             } finally {
               setSaving(false);
             }
@@ -142,6 +154,18 @@ function NewEventPageContent() {
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
             onLeaveToSkyforms={() => persist(form)}
           />
+          {error ? (
+            <p role="alert" className="text-sm text-red-300">
+              {error}
+            </p>
+          ) : null}
+          {createdId ? (
+            <p className="text-2xs text-neutral-400">
+              <Link href={`/events/${createdId}`} className="text-skylab-300 hover:underline">
+                Oluşturulan etkinliği aç
+              </Link>
+            </p>
+          ) : null}
           <SaveButton disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
         </form>
       )}

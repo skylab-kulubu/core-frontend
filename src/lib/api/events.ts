@@ -51,9 +51,17 @@ export type EventBody = {
 };
 
 export const eventsApi = {
-  list: (ownerTeam?: string) => {
-    const q = ownerTeam ? `?ownerTeam=${encodeURIComponent(ownerTeam)}` : '';
-    return coreFetch<CoreEvent[]>(`/v1/events${q}`);
+  /**
+   * The current Events, or with `lifecycle` the archived (`inactive`) ones
+   * or both (`all`); core returns only the archived Events the caller may
+   * delete.
+   */
+  list: (ownerTeam?: string, lifecycle?: 'inactive' | 'all') => {
+    const query = new URLSearchParams();
+    if (ownerTeam) query.set('ownerTeam', ownerTeam);
+    if (lifecycle) query.set('lifecycle', lifecycle);
+    const q = query.toString();
+    return coreFetch<CoreEvent[]>(`/v1/events${q ? `?${q}` : ''}`);
   },
   get: (id: string) => coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`),
   create: (body: EventBody) =>

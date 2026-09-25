@@ -6,15 +6,14 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { saveClass } from '@/components/chrome/SaveButton';
-import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
-import { mediaApi, type Media } from '@/lib/api/media';
 import {
   publicMediaUrl,
   teamEventPhotos,
   type EventMediaHint,
   type TeamPhoto,
 } from '@/lib/event-media';
+import { uploadMediaBatch } from '@/lib/media-upload-batch';
 import { pickerMatch } from '@/lib/picker';
 
 const ghostClass =
@@ -42,9 +41,18 @@ export function EventMediaFields({
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [library, setLibrary] = useState<TeamPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [remaining, setRemaining] = useState<File[]>([]);
+  // When the organizer may continue the waiting files; null once they may.
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
   const [picker, setPicker] = useState<'cover' | 'gallery' | null>(null);
   const [query, setQuery] = useState('');
+  // The props of the latest render: an upload hands its Media to the form as
+  // it is when the upload ends, so edits made meanwhile survive.
+  const latest = useRef({ imageIds, onCover, onGallery });
+  useEffect(() => {
+    latest.current = { imageIds, onCover, onGallery };
+  });
 
   useEffect(() => {
     const team = ownerTeam.trim();
@@ -66,30 +74,56 @@ export function EventMediaFields({
     };
   }, [ownerTeam]);
 
-  async function uploadFiles(files: FileList | null, target: 'cover' | 'gallery') {
-    if (!files?.length) return;
+  useEffect(() => {
+    if (resumeAt === null) return;
+    const timer = window.setTimeout(() => setResumeAt(null), resumeAt - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [resumeAt]);
+
+  // What already uploaded is always handed to the Event (and attached on
+  // save). Gallery files a refusal stopped join the ones waiting for the
+  // organizer to continue, after the wait core gives when the upload limit
+  // stopped them.
+  async function uploadFiles(files: File[], target: 'cover' | 'gallery', resuming = false) {
+    if (!files.length) return;
     setUploading(true);
-    setError(null);
+    setProblems([]);
+    if (resuming) setRemaining([]);
     try {
-      const uploaded: Media[] = [];
-      for (const file of Array.from(files)) {
-        uploaded.push(await mediaApi.upload(file));
-      }
+      const { uploaded, refused, stopped } = await uploadMediaBatch(
+        files,
+        target === 'cover' ? 'event_cover' : 'event_gallery',
+      );
       const extra: Record<string, string> = {};
       for (const row of uploaded) {
         const href = publicMediaUrl(row.url);
         if (href) extra[row.id] = href;
       }
-      setPreviews((prev) => ({ ...prev, ...extra }));
-      if (target === 'cover') {
-        const first = uploaded[0];
-        if (first) onCover(first.id, extra[first.id]);
-      } else {
-        const ids = uploaded.map((row) => row.id).filter((id) => !imageIds.includes(id));
-        onGallery([...imageIds, ...ids], extra);
+      if (uploaded.length) {
+        setPreviews((prev) => ({ ...prev, ...extra }));
+        const form = latest.current;
+        if (target === 'cover') {
+          const first = uploaded[0];
+          form.onCover(first.id, extra[first.id]);
+        } else {
+          const ids = uploaded.map((row) => row.id).filter((id) => !form.imageIds.includes(id));
+          form.onGallery([...form.imageIds, ...ids], extra);
+        }
       }
-    } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Yüklenemedi');
+      const notes = refused.map(({ file, message }) => `${file.name}: ${message}`);
+      if (stopped) {
+        notes.push(stopped.message);
+        if (target === 'gallery') {
+          setRemaining((waiting) => [...waiting, ...stopped.rest]);
+          const seconds = stopped.retryAfterSeconds;
+          if (seconds !== undefined) {
+            // Only core's upload limit sets a wait; another stop keeps the running one.
+            const until = Date.now() + seconds * 1000;
+            setResumeAt((current) => Math.max(current ?? 0, until));
+          }
+        }
+      }
+      setProblems(notes);
     } finally {
       setUploading(false);
     }
@@ -136,9 +170,10 @@ export function EventMediaFields({
             ref={coverRef}
             type="file"
             accept="image/*"
+            aria-label="Kapak görseli seç"
             className="sr-only"
             onChange={(e) => {
-              void uploadFiles(e.target.files, 'cover');
+              void uploadFiles(Array.from(e.target.files ?? []), 'cover');
               e.target.value = '';
             }}
           />
@@ -194,9 +229,10 @@ export function EventMediaFields({
             type="file"
             accept="image/*"
             multiple
+            aria-label="Galeri görselleri seç"
             className="sr-only"
             onChange={(e) => {
-              void uploadFiles(e.target.files, 'gallery');
+              void uploadFiles(Array.from(e.target.files ?? []), 'gallery');
               e.target.value = '';
             }}
           />
@@ -223,7 +259,22 @@ export function EventMediaFields({
           </button>
         </div>
       </div>
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {problems.map((problem, index) => (
+        <p key={index} className="text-sm text-red-300">
+          {problem}
+        </p>
+      ))}
+      {remaining.length ? (
+        <button
+          type="button"
+          className={ghostClass}
+          disabled={uploading || resumeAt !== null}
+          onClick={() => void uploadFiles(remaining, 'gallery', true)}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          Kalan {remaining.length} görseli yükle
+        </button>
+      ) : null}
       <PickerDrawer
         open={picker !== null}
         onClose={() => setPicker(null)}

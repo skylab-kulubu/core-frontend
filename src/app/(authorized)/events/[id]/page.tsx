@@ -70,6 +70,7 @@ import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import { publicMediaUrl } from '@/lib/event-media';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { openEventMail } from '@/lib/event-mail';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { publicShortUrl } from '@/lib/api/urls';
@@ -143,6 +144,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // A save the edit drawer refused, shown in the drawer where the organizer is.
+  const [editError, setEditError] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -232,7 +235,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           clearEventDraft(sessionStorage, window.location.href);
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
         } catch (err) {
-          setError(err instanceof ProblemError ? err.title : 'Form adresi kaydedilemedi');
+          setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
         }
       }
       const dayRows = await eventDaysApi.listByEvent(id);
@@ -656,11 +659,19 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           ))
         )}
       </div>
-      <Drawer open={editing} onClose={() => setEditing(false)} title="Etkinliği düzenle">
+      <Drawer
+        open={editing}
+        onClose={() => {
+          setEditing(false);
+          setEditError(null);
+        }}
+        title="Etkinliği düzenle"
+      >
         <form
           className="space-y-3"
           noValidate
           onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
+            setEditError(null);
             try {
               await saveEventWithSeason(eventForm, event.id);
               if (typeof window !== 'undefined') {
@@ -669,7 +680,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               setEditing(false);
               await load();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+              setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
             }
           })}
         >
@@ -697,6 +708,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           />
           {eventEditForm.formState.errors.event ? (
             <p className="text-2xs text-red-300">{eventEditForm.formState.errors.event.message}</p>
+          ) : null}
+          {editError ? (
+            <p role="alert" className="text-sm text-red-300">
+              {editError}
+            </p>
           ) : null}
           <SaveButton disabled={eventEditForm.formState.isSubmitting}>
             {eventEditForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}

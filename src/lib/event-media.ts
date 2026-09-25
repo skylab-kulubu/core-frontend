@@ -66,3 +66,23 @@ export function teamEventPhotos(events: EventWithPhotos[], ownerTeam: string): T
   }
   return photos;
 }
+
+/**
+ * The Owner teams whose Events use each Media, as cover or gallery photo,
+ * keyed by Media id. Core's Media list does not carry an Owner team, so the
+ * Media screen reads it from the Events.
+ */
+export function mediaOwnerTeams(events: EventWithPhotos[]): Record<string, string[]> {
+  const teams: Record<string, string[]> = {};
+  for (const event of events) {
+    const team = (event.ownerTeam ?? '').trim();
+    if (!team) continue;
+    const ids = [event.coverImageId, ...(event.images ?? []).map((image) => image.id)];
+    for (const id of ids) {
+      if (!id) continue;
+      const known = (teams[id] ??= []);
+      if (!known.includes(team)) known.push(team);
+    }
+  }
+  return teams;
+}

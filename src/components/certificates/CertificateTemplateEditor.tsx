@@ -31,6 +31,7 @@ import {
 } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -418,6 +419,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     setSelectedId(element.id);
   }
 
+  // TODO(media redesign ticket 06): upload the sertifika şablon görseli with the
+  // `certificate_asset` purpose once private Media storage ships. Until then
+  // core refuses that purpose with `private_media_disabled`, so it goes up
+  // without a purpose (legacy), which also still takes the SVG backgrounds
+  // `certificate_asset` will not.
   async function uploadBackground(file?: File) {
     if (!file || !canEdit) return;
     setBusy(true);
@@ -432,7 +438,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.',
       );
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Arka plan yüklenemedi');
+      setError(coreProblemMessage(cause, 'Arka plan yüklenemedi'));
     } finally {
       setBusy(false);
     }
@@ -442,11 +448,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     if (!file || !selected || !canEdit) return;
     setBusy(true);
     try {
+      // No purpose yet: see the ticket 06 TODO on uploadBackground.
       const media = await mediaApi.upload(file);
       updateElement(selected.id, { kind: 'image', mediaId: media.id, fit: 'contain' });
       setImageUrls((current) => ({ ...current, [media.id]: publicMediaUrl(media.url) }));
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Görsel yüklenemedi');
+      setError(coreProblemMessage(cause, 'Görsel yüklenemedi'));
     } finally {
       setBusy(false);
     }
@@ -468,7 +475,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       if (!savedId) router.replace(`/certificates/templates/${template.id}`);
       return template.id;
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Şablon kaydedilemedi');
+      setError(coreProblemMessage(cause, 'Şablon kaydedilemedi'));
       return undefined;
     } finally {
       setBusy(false);
@@ -483,7 +490,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       const version = await certificatesApi.publishTemplate(id);
       setMessage(`Sürüm ${version.version} yayınlandı. Yeni işler bu sürümü kullanacak.`);
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Şablon yayınlanamadı');
+      setError(coreProblemMessage(cause, 'Şablon yayınlanamadı'));
     } finally {
       setBusy(false);
     }

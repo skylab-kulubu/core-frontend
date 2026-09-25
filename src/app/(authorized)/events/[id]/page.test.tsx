@@ -9,6 +9,8 @@ import { identityApi } from '@/lib/api/identity';
 import { teamsApi } from '@/lib/api/teams';
 import { ticketsApi } from '@/lib/api/tickets';
 import { sessionsApi } from '@/lib/api/sessions';
+import { ProblemError } from '@/lib/api/core';
+import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useAuth } from '@/context/AuthContext';
 import type { UserDto } from '@/types/api';
 
@@ -71,6 +73,11 @@ jest.mock('@/lib/api/teams', () => ({
 
 jest.mock('@/lib/api/seasons', () => ({
   seasonsApi: { list: jest.fn() },
+}));
+
+jest.mock('@/lib/scheduling/save-event', () => ({
+  ...jest.requireActual('@/lib/scheduling/save-event'),
+  saveEventWithSeason: jest.fn(),
 }));
 
 const event = {
@@ -312,6 +319,31 @@ describe('Event hub apply-for-other', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Düzenle' }));
     expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
+  });
+
+  it('shows a refused save inside the edit drawer', async () => {
+    const user = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: authUser(['/UYELER/YK']),
+    });
+    (saveEventWithSeason as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(422, 'Unprocessable Content', {
+        code: 'media_purpose_mismatch',
+        fields: { mediaId: 'g1', role: 'event_cover', purpose: 'event_gallery' },
+      }),
+    );
+    await renderHub();
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu dosya Etkinlik galerisi için yüklenmiş; etkinlik kapağı olarak kullanılamaz. Dosyayı bu alan için yeniden yükle.',
+    );
   });
 
   it.each([

@@ -6,6 +6,7 @@ import {
   emptyCertificateDraft,
 } from '@/components/certificates/CertificateTemplateEditor';
 import { certificatesApi } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
 
 const mockReplace = jest.fn();
@@ -155,5 +156,27 @@ describe('CertificateTemplateEditor', () => {
     expect(mediaApi.upload).toHaveBeenCalledWith(pdf);
     expect(await screen.findByText(/PDF arka planı hazır/i)).toBeInTheDocument();
     expect(screen.getByTitle('PDF arka plan önizlemesi')).toBeInTheDocument();
+  });
+
+  it('explains a save core refused for its Media in Turkish', async () => {
+    const user = userEvent.setup();
+    (certificatesApi.updateTemplate as jest.Mock).mockRejectedValue(
+      new ProblemError(422, 'Unprocessable Content', {
+        code: 'media_not_linkable',
+        detail:
+          'The Media does not exist, is archived or purged, or expired before anything used it.',
+        fields: { mediaId: 'bg-1', role: 'certificate_asset' },
+      }),
+    );
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+
+    expect(
+      await screen.findByText(
+        'Seçilen dosya artık kullanılamıyor: silinmiş, arşivlenmiş ya da kaydedilmeden süresi dolmuş. Dosyayı yeniden yükle.',
+      ),
+    ).toBeInTheDocument();
   });
 });
