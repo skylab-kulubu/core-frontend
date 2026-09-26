@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { NewsForm } from '../../NewsForm';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
-import { newsApi, type NewsItem } from '@/lib/api/cms';
+import { newsApi, newsProblemMessage, type NewsItem } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
 
 export default function EditAnnouncementPage() {
@@ -20,6 +20,7 @@ export default function EditAnnouncementPage() {
   const privileged = isPrivileged(user?.groups ?? []);
   const [item, setItem] = useState<NewsItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -59,16 +60,18 @@ export default function EditAnnouncementPage() {
             icon={Trash2}
             label="Sil"
             onClick={async () => {
+              setRemoveError(null);
               try {
-                await newsApi.remove(item.slug);
+                await newsApi.remove(item.slug, item.version);
                 router.push('/announcements');
               } catch (err) {
-                setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                setRemoveError(newsProblemMessage(err, 'Silinemedi'));
               }
             }}
           />
         }
       />
+      {removeError ? <p className="text-sm text-red-300">{removeError}</p> : null}
       <NewsForm
         key={item.slug}
         initial={item.data}
@@ -80,7 +83,7 @@ export default function EditAnnouncementPage() {
             await newsApi.update(item.slug, data, item.version);
             router.push('/announcements');
           } catch (err) {
-            throw err instanceof ProblemError ? err : new Error('Güncellenemedi');
+            throw new Error(newsProblemMessage(err, 'Güncellenemedi'));
           } finally {
             setPending(false);
           }
