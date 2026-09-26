@@ -21,7 +21,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - id: tags
         run: |
-          img=ghcr.io/skylab-kulubu/superadmin
+          img=ghcr.io/skylab-kulubu/core-frontend
           sha='${{ github.sha }}'
           ref='${{ github.ref_name }}'
           if [ "$ref" = production ]; then

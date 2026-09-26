@@ -28,8 +28,7 @@ Next.js 16.0.1 (App Router, Turbopack) ile geliştirilmiş Skylab yönetim panel
   - `lib/api/client.ts`: Genel API istemcisi
   - `lib/api/server-client.ts`: Sunucu tarafı fetch wrapper’ı (cookie/token yönetimi)
   - `lib/auth/oauth2.ts`: OAuth2 URL üretimi, token alma/yenileme
-- `src/components`: Form ve UI bileşenleri (ör. `components/forms/Form.tsx` RHF+Zod)
-- `backend_datalari/`: Backend referans dökümantasyonu (gerekirse frontend düzeyinde uyarlanır)
+- `src/components`: Form ve UI bileşenleri
 
 ## Hızlı Başlangıç
 
@@ -108,7 +107,7 @@ APP_URL=http://localhost:3000
 - Tüm istekler `NEXT_PUBLIC_API_URL` üzerinden backend’e yönlenir.
 - İstisna: "SkyApp'ten geçiş" (`/handoff-targets`) core'a gitmez. Tarayıcı yalnız `/api/handoff-targets` route handler'larını çağırır; bunlar httpOnly çerezdeki yönetici access token'ıyla (süresi dolmuşsa yenileyerek) Keycloak'ın `sky-handoff` yönetim uçlarına gider; bu sayfa token'ı tarayıcıya taşımaz. Yetkiyi Keycloak denetler (realm süper yöneticisi değilse 403 → sayfa gizlenir); menüde yalnız `/ADMIN` grubuna görünür.
 - İstemci tarafında `lib/api/client.ts`, sunucu tarafında `lib/api/server-client.ts` kullanılır.
-- Bazı uçlar form-data / blob ister (örn. QR kod). `lib/api/qr-codes.ts` header normalizasyonu içerir.
+- Bazı uçlar form-data / blob ister (örn. QR kod).
 
 ## Dağıtım ve Domain
 
