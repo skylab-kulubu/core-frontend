@@ -1,5 +1,5 @@
 import { filterSidebarNavForUser } from '@/lib/navigation/sidebar-nav';
-import { cmsBaseUrl, newsApi } from '@/lib/api/cms';
+import { cmsBaseUrl, newsApi, newsProblemMessage } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
 import type { UserDto } from '@/types/api';
 
@@ -72,7 +72,7 @@ describe('News writes go to CMS, not core', () => {
     expect(cmsBaseUrl()).not.toContain('api.yildizskylab.com');
   });
 
-  it('create posts JSON to /cms/collections/News with the user token', async () => {
+  it('create posts JSON to /cms/collections/news with the user token', async () => {
     const calls: { method: string; url: string; body: string; auth: string }[] = [];
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -89,7 +89,7 @@ describe('News writes go to CMS, not core', () => {
       return jsonRes(
         {
           id: '11111111-1111-1111-1111-111111111111',
-          collectionKey: 'News',
+          collectionKey: 'news',
           slug: 'onemli-duyuru',
           data: { title: 'Önemli duyuru', body: 'Merhaba' },
           version: 1,
@@ -105,7 +105,7 @@ describe('News writes go to CMS, not core', () => {
     expect(created.data).toEqual({ title: 'Önemli duyuru', body: 'Merhaba' });
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('POST');
-    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/News`);
+    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/news`);
     expect(calls[0].url).not.toContain(coreHost);
     expect(calls[0].url).not.toContain('/api/announcements');
     expect(calls[0].auth).toBe('Bearer privileged-jwt');
@@ -114,17 +114,17 @@ describe('News writes go to CMS, not core', () => {
     });
   });
 
-  it('edit puts JSON to CMS slug, not core patch', async () => {
-    const calls: { method: string; url: string }[] = [];
+  it('edit puts the data and the version it read to the CMS slug, not core patch', async () => {
+    const calls: { method: string; url: string; body: string }[] = [];
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/api/auth/token')) {
         return jsonRes({ token: 'privileged-jwt' });
       }
-      calls.push({ method: init?.method ?? 'GET', url });
+      calls.push({ method: init?.method ?? 'GET', url, body: String(init?.body ?? '') });
       return jsonRes({
         id: '11111111-1111-1111-1111-111111111111',
-        collectionKey: 'News',
+        collectionKey: 'news',
         slug: 'onemli-duyuru',
         data: { title: 'Güncel', body: 'Yeni gövde' },
         version: 2,
@@ -135,13 +135,17 @@ describe('News writes go to CMS, not core', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('PUT');
-    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/News/onemli-duyuru`);
+    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/news/onemli-duyuru`);
     expect(calls[0].url).not.toContain(coreHost);
     expect(calls[0].url).not.toContain('/api/announcements');
     expect(calls[0].url).not.toContain('/v1/');
+    expect(JSON.parse(calls[0].body)).toEqual({
+      data: { title: 'Güncel', body: 'Yeni gövde' },
+      version: 1,
+    });
   });
 
-  it('delete goes to CMS slug, not core', async () => {
+  it('delete archives the CMS slug at the version it read, not core', async () => {
     const calls: { method: string; url: string }[] = [];
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -149,15 +153,21 @@ describe('News writes go to CMS, not core', () => {
         return jsonRes({ token: 'privileged-jwt' });
       }
       calls.push({ method: init?.method ?? 'GET', url });
-      return jsonRes('', 204);
+      return jsonRes({ collectionKey: 'news', slug: 'onemli-duyuru', version: 3, references: 0 });
     }) as typeof fetch;
 
-    await newsApi.remove('onemli-duyuru');
+    const archived = await newsApi.remove('onemli-duyuru', 3);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('DELETE');
-    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/News/onemli-duyuru`);
+    expect(calls[0].url).toBe(`${cmsHost}/cms/collections/news/onemli-duyuru?version=3`);
     expect(calls[0].url).not.toContain(coreHost);
+    expect(archived).toEqual({
+      collectionKey: 'news',
+      slug: 'onemli-duyuru',
+      version: 3,
+      references: 0,
+    });
   });
 
   it('CMS problem+json becomes ProblemError', async () => {
@@ -172,5 +182,57 @@ describe('News writes go to CMS, not core', () => {
       title: 'Forbidden',
       status: 403,
     });
+  });
+});
+
+describe('A refused News write is explained in Turkish', () => {
+  function cmsAnswers(status: number, body: unknown) {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/auth/token')) return jsonRes({ token: 'privileged-jwt' });
+      return jsonRes(body, status);
+    }) as typeof fetch;
+  }
+
+  it('a stale version asks the editor to reload before trying again', async () => {
+    cmsAnswers(409, {
+      title: 'Conflict',
+      status: 409,
+      detail: "Version conflict on 'news/onemli-duyuru'. Expected 2, got 1.",
+      instance: '/cms/collections/news/onemli-duyuru',
+      conflicts: [{ path: 'news/onemli-duyuru', expected: 2, provided: 1 }],
+    });
+
+    const error = await newsApi
+      .update('onemli-duyuru', { title: 'Güncel', body: 'Yeni gövde' }, 1)
+      .catch((err: unknown) => err);
+
+    expect(newsProblemMessage(error, 'Güncellenemedi')).toBe(
+      'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Son hâlini görmek için sayfayı yenile, sonra tekrar dene.',
+    );
+  });
+
+  it('an item someone already deleted says so instead of asking for a reload', async () => {
+    cmsAnswers(409, {
+      title: 'Conflict',
+      status: 409,
+      detail: "Item 'news/onemli-duyuru' is archived; restore it before writing to it.",
+      instance: '/cms/collections/news/onemli-duyuru',
+      reason: 'archived',
+      version: 3,
+    });
+
+    const error = await newsApi.remove('onemli-duyuru', 3).catch((err: unknown) => err);
+
+    expect(newsProblemMessage(error, 'Silinemedi')).toBe(
+      'Bu duyuru bu arada başka biri tarafından silindi.',
+    );
+  });
+
+  it('other refusals keep their title, and a network failure the fallback', async () => {
+    cmsAnswers(403, { title: 'Forbidden', status: 403, detail: "User cannot edit 'news/x'." });
+    const refused = await newsApi.remove('x', 1).catch((err: unknown) => err);
+
+    expect(newsProblemMessage(refused, 'Silinemedi')).toBe('Forbidden');
+    expect(newsProblemMessage(new TypeError('Failed to fetch'), 'Silinemedi')).toBe('Silinemedi');
   });
 });
