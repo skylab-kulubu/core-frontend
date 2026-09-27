@@ -9,7 +9,7 @@ type EventWorkspaceNavProps = {
 };
 
 const localLink =
-  'focus-visible:ring-skylab-400/40 rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-100 focus-visible:ring-2 focus-visible:outline-none';
+  'focus-visible:ring-skylab-400/40 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:outline-none';
 
 export function EventWorkspaceNav({
   eventId,
@@ -21,7 +21,7 @@ export function EventWorkspaceNav({
   return (
     <nav
       aria-label="Etkinlik çalışma alanı"
-      className="sticky top-14 z-20 -mx-2 flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-neutral-900/90 p-1.5 shadow-lg shadow-black/10 backdrop-blur md:top-0"
+      className="border-border bg-background/90 sticky top-14 z-20 -mx-2 flex flex-wrap items-center gap-1 rounded-lg border p-1.5 shadow-lg shadow-black/10 backdrop-blur md:top-0"
     >
       <a className={localLink} href="#overview">
         Özet

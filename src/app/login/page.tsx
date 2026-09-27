@@ -8,8 +8,8 @@ const LOGIN_START = '/api/auth/login';
 
 function LoginShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-neutral-950 px-4">
-      <div className="w-full max-w-md rounded-xl border border-white/5 bg-neutral-900 p-6 text-center">
+    <div className="bg-sidebar flex min-h-dvh items-center justify-center px-4">
+      <div className="border-border-subtle bg-background w-full max-w-md rounded-xl border p-6 text-center">
         {children}
       </div>
     </div>
@@ -44,9 +44,9 @@ function LoginContent() {
     return (
       <LoginShell>
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Giriş hatası</h1>
-        <p className="mb-4 text-sm text-neutral-300">{message}</p>
+        <p className="text-secondary-foreground mb-4 text-sm">{message}</p>
         {details ? (
-          <p className="mb-4 break-all rounded-md border border-white/10 bg-white/3 p-3 text-left text-xs text-neutral-400">
+          <p className="border-border bg-card text-muted-foreground mb-4 rounded-md border p-3 text-left text-xs break-all">
             {details}
           </p>
         ) : null}
@@ -63,7 +63,7 @@ function LoginContent() {
           <button
             type="button"
             onClick={() => router.push('/login')}
-            className="text-2xs h-8 rounded-md border border-white/10 px-3 font-medium text-neutral-400"
+            className="text-2xs border-border text-muted-foreground h-8 rounded-md border px-3 font-medium"
           >
             Sayfayı yenile
           </button>
@@ -87,7 +87,9 @@ function LoginContent() {
     return (
       <LoginShell>
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Çıkış yapıldı</h1>
-        <p className="mb-4 text-sm text-neutral-400">Tekrar girmek için aşağıdaki düğmeye bas.</p>
+        <p className="text-muted-foreground mb-4 text-sm">
+          Tekrar girmek için aşağıdaki düğmeye bas.
+        </p>
         <SaveButton type="button" onClick={() => void handleLogin()}>
           Giriş yap
         </SaveButton>
@@ -98,7 +100,7 @@ function LoginContent() {
   return (
     <LoginShell>
       <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Yönlendiriliyor…</h1>
-      <p className="text-sm text-neutral-500">Giriş sayfasına gidiyorsun.</p>
+      <p className="text-subtle-foreground text-sm">Giriş sayfasına gidiyorsun.</p>
     </LoginShell>
   );
 }

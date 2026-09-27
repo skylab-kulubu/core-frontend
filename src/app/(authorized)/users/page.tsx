@@ -96,7 +96,7 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
@@ -167,7 +167,9 @@ export default function UsersPage() {
                 <FieldLabel>E-posta</FieldLabel>
                 <Field type="email" aria-invalid={Boolean(errors.email)} {...register('email')} />
               </label>
-              {errors.email ? <p className="text-xs text-red-300">{errors.email.message}</p> : null}
+              {errors.email ? (
+                <p className="text-destructive text-xs">{errors.email.message}</p>
+              ) : null}
             </div>
             <SaveButton disabled={isSubmitting}>
               {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}

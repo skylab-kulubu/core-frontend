@@ -25,7 +25,7 @@ import {
 } from '@/lib/tickets-ui';
 
 const PAGE_SIZE = 10;
-const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-neutral-600';
+const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-faint-foreground';
 type RosterSort = 'name' | 'createdAt' | 'status';
 type RosterDensity = 'dense' | 'comfortable';
 type PersistedRosterState = {
@@ -288,7 +288,7 @@ export function ApplicantRoster({
             <button
               type="button"
               onClick={() => setQuery('')}
-              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+              className="text-2xs border-border bg-card text-secondary-foreground hover:bg-accent rounded-full border px-2.5 py-1"
             >
               Arama: {query.trim()} ×
             </button>
@@ -297,7 +297,7 @@ export function ApplicantRoster({
             <button
               type="button"
               onClick={() => setTicketType('all')}
-              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+              className="text-2xs border-border bg-card text-secondary-foreground hover:bg-accent rounded-full border px-2.5 py-1"
             >
               Tür: {ticketType === 'GUEST' ? 'Misafir' : 'Üye'} ×
             </button>
@@ -306,7 +306,7 @@ export function ApplicantRoster({
             <button
               type="button"
               onClick={() => setStatus('all')}
-              className="text-2xs rounded-full border border-white/10 bg-white/3 px-2.5 py-1 text-neutral-300 hover:bg-white/5"
+              className="text-2xs border-border bg-card text-secondary-foreground hover:bg-accent rounded-full border px-2.5 py-1"
             >
               Durum: {status === 'checked-in' ? 'Giriş yaptı' : 'Kayıtlı'} ×
             </button>
@@ -314,7 +314,7 @@ export function ApplicantRoster({
           <button
             type="button"
             onClick={clearFilters}
-            className="text-2xs text-skylab-300 rounded-md px-2 py-1 hover:bg-white/5"
+            className="text-2xs text-skylab-300 hover:bg-accent rounded-md px-2 py-1"
           >
             Tümünü temizle
           </button>
@@ -326,7 +326,9 @@ export function ApplicantRoster({
           aria-label="Seçim özeti"
           className="border-skylab-400/20 bg-skylab-500/5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
         >
-          <span className="text-xs font-medium text-neutral-200">{selected.size} kişi seçildi</span>
+          <span className="text-secondary-foreground text-xs font-medium">
+            {selected.size} kişi seçildi
+          </span>
           {onMailSelected ? (
             <ActionButton
               icon={Mail}
@@ -337,7 +339,7 @@ export function ApplicantRoster({
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-2xs ml-auto rounded-md px-2 py-1 text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+            className="text-2xs text-muted-foreground hover:bg-accent hover:text-foreground ml-auto rounded-md px-2 py-1"
           >
             Seçimi temizle
           </button>
@@ -362,8 +364,8 @@ export function ApplicantRoster({
         }
       >
         <table className="w-full table-fixed border-collapse">
-          <thead className="sticky top-0 z-10 bg-neutral-900">
-            <tr className="border-b border-white/10">
+          <thead className="bg-background sticky top-0 z-10">
+            <tr className="border-border border-b">
               {onMailSelected ? (
                 <th scope="col" className="w-10 px-3 pb-2">
                   <span className="sr-only">Seç</span>
@@ -413,14 +415,14 @@ export function ApplicantRoster({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-border-subtle divide-y">
             {slice.map((ticket) => {
               const row = ticketRosterRow(ticket, people, event);
               const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
               const typeKind = ticketTypeStatus(row.ticketType);
               const statusKind = ticketCheckInStatus(row.status === 'checked-in');
               return (
-                <tr key={ticket.id} className="group/row transition-colors hover:bg-white/3">
+                <tr key={ticket.id} className="group/row hover:bg-card transition-colors">
                   {onMailSelected ? (
                     <td className={`w-10 px-3 align-middle ${rowPadding}`}>
                       <input
@@ -441,10 +443,10 @@ export function ApplicantRoster({
                       <StatusDot kind={statusKind} title={row.statusLabel} />
                       <Avatar name={row.name} email={row.email} size="md" />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-neutral-200 transition-colors group-hover/row:text-neutral-50">
+                        <span className="text-secondary-foreground group-hover/row:text-foreground-strong block truncate text-sm font-medium transition-colors">
                           {row.name}
                         </span>
-                        <span className="text-3xs mt-0.5 block truncate text-neutral-500">
+                        <span className="text-3xs text-subtle-foreground mt-0.5 block truncate">
                           {row.email || '—'}
                         </span>
                       </span>
@@ -456,12 +458,12 @@ export function ApplicantRoster({
                     <StatusChip kind={typeKind} />
                   </td>
                   <td
-                    className={`text-2xs hidden w-28 truncate text-neutral-400 md:table-cell ${rowPadding}`}
+                    className={`text-2xs text-muted-foreground hidden w-28 truncate md:table-cell ${rowPadding}`}
                   >
                     {row.sourceFormLabel}
                   </td>
                   <td
-                    className={`text-2xs hidden w-24 text-center text-neutral-500 tabular-nums lg:table-cell ${rowPadding}`}
+                    className={`text-2xs text-subtle-foreground hidden w-24 text-center tabular-nums lg:table-cell ${rowPadding}`}
                   >
                     {row.createdAtLabel}
                   </td>
@@ -488,7 +490,7 @@ export function ApplicantRoster({
                       <Link
                         href={href}
                         aria-label="Kaydı aç"
-                        className="group-hover/row:text-skylab-300 inline-flex h-6 w-6 items-center justify-center text-neutral-400"
+                        className="group-hover/row:text-skylab-300 text-muted-foreground inline-flex h-6 w-6 items-center justify-center"
                       >
                         <ChevronRight className="h-4 w-4 transition-transform group-hover/row:translate-x-0.5" />
                       </Link>

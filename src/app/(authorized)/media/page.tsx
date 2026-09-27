@@ -143,9 +143,9 @@ export default function MediaPage() {
           </>
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {teamsFailed ? (
-        <p className="text-sm text-amber-200">
+        <p className="text-warning text-sm">
           Sahip ekipler okunamadı; ekip bilgisi ve ekip filtresi eksik.
         </p>
       ) : null}
@@ -215,7 +215,7 @@ export default function MediaPage() {
                   <img
                     src={href}
                     alt=""
-                    className="h-9 w-9 rounded-lg border border-white/10 object-cover"
+                    className="border-border h-9 w-9 rounded-lg border object-cover"
                   />
                 ) : undefined
               }

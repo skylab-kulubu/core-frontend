@@ -145,7 +145,7 @@ export default function DashboardPage() {
             href: '/users',
             label: 'Kullanıcılar',
             state: users,
-            dot: 'bg-neutral-500',
+            dot: 'bg-subtle-foreground',
           },
           {
             href: '/announcements',
@@ -159,7 +159,7 @@ export default function DashboardPage() {
       href: '/events',
       label: 'Etkinlikler',
       state: events,
-      dot: 'bg-neutral-500',
+      dot: 'bg-subtle-foreground',
     },
     {
       href: '/events',
@@ -171,7 +171,7 @@ export default function DashboardPage() {
       href: '/events',
       label: 'Başvurular',
       state: applicants,
-      dot: 'bg-amber-400 shadow-[0_0_6px] shadow-amber-400/40',
+      dot: 'bg-warning shadow-[0_0_6px] shadow-warning/40',
     },
   ];
 
@@ -206,7 +206,7 @@ export default function DashboardPage() {
       <div className="grid gap-8 lg:grid-cols-2">
         <div>
           {eventsError ? (
-            <p className="text-sm text-red-300">{eventsError}</p>
+            <p className="text-destructive text-sm">{eventsError}</p>
           ) : (
             <BarChart
               title="Son altı ay etkinlik"
@@ -217,7 +217,7 @@ export default function DashboardPage() {
         </div>
         <div>
           {sessionsError ? (
-            <p className="text-sm text-red-300">{sessionsError}</p>
+            <p className="text-destructive text-sm">{sessionsError}</p>
           ) : (
             <HorizontalBars
               title="Oturumlar etkinliğe göre"

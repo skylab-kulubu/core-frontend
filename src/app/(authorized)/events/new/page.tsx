@@ -99,7 +99,9 @@ function NewEventPageContent() {
 
   if (!canCreate) {
     return (
-      <p className="text-sm text-red-300">Yeni etkinlik yalnızca ekip lideri veya YK içindir.</p>
+      <p className="text-destructive text-sm">
+        Yeni etkinlik yalnızca ekip lideri veya YK içindir.
+      </p>
     );
   }
 
@@ -110,7 +112,7 @@ function NewEventPageContent() {
         description="Kaydetmeden Skyforms’a gidilebilir; yazılanlar geri gelir."
       />
       {!ready ? (
-        <p className="text-sm text-neutral-500">Yükleniyor…</p>
+        <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
       ) : (
         <form
           className="space-y-3"
@@ -155,12 +157,12 @@ function NewEventPageContent() {
             onLeaveToSkyforms={() => persist(form)}
           />
           {error ? (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-destructive text-sm">
               {error}
             </p>
           ) : null}
           {createdId ? (
-            <p className="text-2xs text-neutral-400">
+            <p className="text-2xs text-muted-foreground">
               <Link href={`/events/${createdId}`} className="text-skylab-300 hover:underline">
                 Oluşturulan etkinliği aç
               </Link>
@@ -175,7 +177,7 @@ function NewEventPageContent() {
 
 export default function NewEventPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
+    <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
       <NewEventPageContent />
     </Suspense>
   );

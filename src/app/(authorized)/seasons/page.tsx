@@ -100,7 +100,7 @@ export default function SeasonsPage() {
           ) : undefined
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar query={query} onQuery={setQuery} placeholder="Sezon adı" searchLabel="Sezon ara">
         <FilterPills
           ariaLabel="Sezon durumu"
@@ -233,7 +233,7 @@ export default function SeasonsPage() {
           {editingId ? (
             <button
               type="button"
-              className="h-8 rounded-md border border-red-400/30 px-3 text-xs text-red-300"
+              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
               onClick={async () => {
                 try {
                   await seasonsApi.delete(editingId);

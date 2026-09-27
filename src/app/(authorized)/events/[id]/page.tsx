@@ -362,7 +362,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         canSeeCertificates={canCertificates}
       />
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
@@ -379,11 +379,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           className="h-40 w-full rounded-lg object-cover"
         />
       ) : null}
-      <p className="text-sm whitespace-pre-wrap text-neutral-400">{event.description || '—'}</p>
+      <p className="text-muted-foreground text-sm whitespace-pre-wrap">
+        {event.description || '—'}
+      </p>
       {user ? (
-        <div className="space-y-2 rounded-lg border border-white/10 p-3">
-          <p className="text-sm text-neutral-200">Üye kaydı</p>
-          <p className="text-3xs text-neutral-500">
+        <div className="border-border space-y-2 rounded-lg border p-3">
+          <p className="text-secondary-foreground text-sm">Üye kaydı</p>
+          <p className="text-3xs text-subtle-foreground">
             Giriş yapmış kişiler public forma düşmez. Ticket hesabınla yazılır.
           </p>
           {myTicket ? (
@@ -415,7 +417,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             </SaveButton>
           )}
           {event.formAlias || event.formUrl ? (
-            <p className="text-3xs text-neutral-500">
+            <p className="text-3xs text-subtle-foreground">
               Misafir başvurusu (hesabı olmayanlar):{' '}
               <a
                 className="text-skylab-300 hover:text-skylab-200"
@@ -568,11 +570,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           />
         ) : (
           days.map((day) => (
-            <div key={day.id} className="overflow-hidden rounded-lg border border-white/10">
+            <div key={day.id} className="border-border overflow-hidden rounded-lg border">
               <div className="flex items-center justify-between px-3 py-2">
                 <div>
-                  <p className="text-sm text-neutral-200">{day.name}</p>
-                  <p className="text-3xs text-neutral-500">
+                  <p className="text-secondary-foreground text-sm">{day.name}</p>
+                  <p className="text-3xs text-subtle-foreground">
                     {day.startDate ? new Date(day.startDate).toLocaleString('tr-TR') : '—'}
                   </p>
                 </div>
@@ -591,7 +593,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   />
                 ) : null}
               </div>
-              <div className="border-t border-white/5">
+              <div className="border-border-subtle border-t">
                 <ListPanel
                   framed={false}
                   status={listStatus({
@@ -707,10 +709,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           />
           {eventEditForm.formState.errors.event ? (
-            <p className="text-2xs text-red-300">{eventEditForm.formState.errors.event.message}</p>
+            <p className="text-2xs text-destructive">
+              {eventEditForm.formState.errors.event.message}
+            </p>
           ) : null}
           {editError ? (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-destructive text-sm">
               {editError}
             </p>
           ) : null}
@@ -753,7 +757,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               aria-invalid={Boolean(dayForm.formState.errors.name)}
             />
             {dayForm.formState.errors.name ? (
-              <span className="text-2xs text-red-300">{dayForm.formState.errors.name.message}</span>
+              <span className="text-2xs text-destructive">
+                {dayForm.formState.errors.name.message}
+              </span>
             ) : null}
           </label>
           <label className="block space-y-1">
@@ -827,7 +833,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               ))}
             </Select>
             {sessionForm.formState.errors.eventDayId ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {sessionForm.formState.errors.eventDayId.message}
               </span>
             ) : null}
@@ -839,7 +845,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               aria-invalid={Boolean(sessionForm.formState.errors.title)}
             />
             {sessionForm.formState.errors.title ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {sessionForm.formState.errors.title.message}
               </span>
             ) : null}
@@ -851,7 +857,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               aria-invalid={Boolean(sessionForm.formState.errors.speakerName)}
             />
             {sessionForm.formState.errors.speakerName ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {sessionForm.formState.errors.speakerName.message}
               </span>
             ) : null}
@@ -893,7 +899,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           {editingSessionId ? (
             <button
               type="button"
-              className="h-8 rounded-md border border-red-400/30 px-3 text-xs text-red-300"
+              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
               onClick={async () => {
                 try {
                   await sessionsApi.delete(editingSessionId);
@@ -990,7 +996,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 aria-invalid={Boolean(deskForm.formState.errors.email)}
               />
               {deskForm.formState.errors.email ? (
-                <span role="alert" className="text-2xs text-red-300">
+                <span role="alert" className="text-2xs text-destructive">
                   {deskForm.formState.errors.email.message}
                 </span>
               ) : null}

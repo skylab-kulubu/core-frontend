@@ -102,7 +102,7 @@ export function EventCertificatesPanel({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-white/10 p-5 text-sm text-neutral-500">
+      <div className="border-border text-subtle-foreground rounded-xl border p-5 text-sm">
         Sertifika alanı yükleniyor…
       </div>
     );
@@ -111,7 +111,7 @@ export function EventCertificatesPanel({
   return (
     <div className="space-y-5">
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
@@ -130,22 +130,24 @@ export function EventCertificatesPanel({
               ['Başarısız', summary.failedCount],
               ['İptal', summary.revokedCount],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-white/10 bg-neutral-950/40 p-3">
-                <p className="text-3xs tracking-[.16em] text-neutral-500 uppercase">{label}</p>
-                <p className="mt-1 text-2xl font-semibold text-neutral-100">{value}</p>
+              <div key={label} className="border-border bg-sidebar/40 rounded-lg border p-3">
+                <p className="text-3xs text-subtle-foreground tracking-[.16em] uppercase">
+                  {label}
+                </p>
+                <p className="text-foreground mt-1 text-2xl font-semibold">{value}</p>
               </div>
             ))}
           </div>
-          <div className="grid gap-4 rounded-xl border border-white/10 bg-neutral-950/40 p-4 lg:grid-cols-[1fr_auto]">
+          <div className="border-border bg-sidebar/40 grid gap-4 rounded-xl border p-4 lg:grid-cols-[1fr_auto]">
             <div>
-              <p className="text-sm font-semibold text-neutral-100">
+              <p className="text-foreground text-sm font-semibold">
                 {summary.resolution.template.name}
               </p>
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="text-subtle-foreground mt-1 text-xs">
                 {sourceLabel(summary.resolution.source, ownerTeam)} · v
                 {summary.resolution.version.version}
               </p>
-              <p className="mt-3 text-xs text-neutral-400">
+              <p className="text-muted-foreground mt-3 text-xs">
                 Katılım kuralı:{' '}
                 {attendanceRule === 'ratio'
                   ? `%${Math.round((attendanceRatio ?? 0) * 100)} oturum`
@@ -153,7 +155,7 @@ export function EventCertificatesPanel({
                     ? 'En az bir oturum'
                     : 'Sertifika yok'}
               </p>
-              <p className="mt-1 text-xs text-neutral-500">
+              <p className="text-subtle-foreground mt-1 text-xs">
                 {summary.attendanceFinalizedAt
                   ? `Katılım ${new Date(summary.attendanceFinalizedAt).toLocaleString('tr-TR')} tarihinde kapatıldı.`
                   : eventActive
@@ -210,10 +212,12 @@ export function EventCertificatesPanel({
       ) : null}
 
       {canBind || canIssue ? (
-        <div className="grid gap-4 rounded-xl border border-white/10 p-4 lg:grid-cols-2">
+        <div className="border-border grid gap-4 rounded-xl border p-4 lg:grid-cols-2">
           {canBind ? (
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-neutral-200">Etkinliğe özel şablon</p>
+              <p className="text-secondary-foreground text-sm font-semibold">
+                Etkinliğe özel şablon
+              </p>
               <label className="block space-y-1.5">
                 <FieldLabel>Yayınlanmış şablon</FieldLabel>
                 <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
@@ -250,7 +254,7 @@ export function EventCertificatesPanel({
                 {summary?.resolution.source === 'event' ? (
                   <button
                     type="button"
-                    className="h-8 rounded-md border border-white/10 px-3 text-xs text-neutral-300 hover:bg-white/5"
+                    className="border-border text-secondary-foreground hover:bg-accent h-8 rounded-md border px-3 text-xs"
                     onClick={async () => {
                       setBusy(true);
                       try {
@@ -274,7 +278,9 @@ export function EventCertificatesPanel({
           ) : null}
           {canIssue ? (
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-neutral-200">Manuel sertifika ver</p>
+              <p className="text-secondary-foreground text-sm font-semibold">
+                Manuel sertifika ver
+              </p>
               <label className="block space-y-1.5">
                 <FieldLabel>Katılımcı</FieldLabel>
                 <Select value={ticketId} onChange={(event) => setTicketId(event.target.value)}>
@@ -314,7 +320,7 @@ export function EventCertificatesPanel({
 
       {canReadIssued ? (
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-neutral-200">Verilen sertifikalar</p>
+          <p className="text-secondary-foreground text-sm font-semibold">Verilen sertifikalar</p>
           <ListPanel
             status={listStatus({
               loading: false,

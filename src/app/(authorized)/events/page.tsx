@@ -113,7 +113,7 @@ function EventsPageContent() {
           </div>
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={(value) => {
@@ -140,7 +140,7 @@ function EventsPageContent() {
       </ListToolbar>
       {calendar ? (
         loading ? (
-          <p className="text-sm text-neutral-500">Yükleniyor…</p>
+          <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
         ) : (
           <EventCalendar events={filtered} />
         )
@@ -190,7 +190,7 @@ function EventsPageContent() {
 
 export default function EventsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
+    <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
       <EventsPageContent />
     </Suspense>
   );
