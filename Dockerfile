@@ -6,6 +6,30 @@ ENV HUSKY=0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
+# The skylcn-ui playground, served under /playground until the club wiki takes
+# it over. Pinned to a skylcn-ui commit: bump SKYLCN_UI_REF to update it; to
+# remove it, drop this stage, its COPY line below and the rewrites in next.config.ts.
+FROM --platform=linux/amd64 node:22-alpine AS playground
+WORKDIR /src
+RUN apk add --no-cache git && corepack enable
+ARG SKYLCN_UI_REF=cd97bacc38670be9e0535d29c3e231204429efd0
+ARG NEXT_PUBLIC_ADMIN_URL
+ARG NEXT_PUBLIC_FORMS_ADMIN_URL
+ARG NEXT_PUBLIC_MAIL_URL
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_DOCS_HOST=admin \
+    NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL \
+    NEXT_PUBLIC_FORMS_ADMIN_URL=$NEXT_PUBLIC_FORMS_ADMIN_URL \
+    NEXT_PUBLIC_MAIL_URL=$NEXT_PUBLIC_MAIL_URL
+RUN git init -q ui && cd ui \
+    && git fetch -q --depth 1 https://github.com/skylab-kulubu/skylcn-ui.git "$SKYLCN_UI_REF" \
+    && git checkout -q FETCH_HEAD \
+    && pnpm install --frozen-lockfile \
+    && pnpm --filter @skylab-kulubu/skylcn-ui build \
+    && pnpm --filter docs build \
+    && mkdir -p /out/playground-assets \
+    && mv apps/docs/out/playground apps/docs/out/playground.html apps/docs/out/playground.txt /out/ \
+    && mv apps/docs/out/_next /out/playground-assets/_next
+
 FROM --platform=linux/amd64 node:22-alpine AS builder
 WORKDIR /app
 RUN corepack enable
@@ -36,6 +60,7 @@ FROM --platform=linux/amd64 node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=builder /app/public ./public
+COPY --from=playground /out ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 EXPOSE 3000
