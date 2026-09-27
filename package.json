@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@skylab-kulubu/skylcn-ui": "file:../skylcn-ui/packages/skylcn-ui",
     "lucide-react": "^1.46.0",
     "next": "16.1.0",
     "react": "19.2.3",
@@ -76,6 +77,10 @@
     "typescript-eslint": "^8.50.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["msw", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "msw",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }
