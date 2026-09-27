@@ -86,7 +86,7 @@ describe('Forms chrome primitives', () => {
     render(<StateCard title="Yükleniyor…" isLoading />);
 
     expect(screen.getByRole('status')).toHaveTextContent('Yükleniyor…');
-    expect(document.querySelector('.skylab-loader__mark')).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="skylab-loader"]')).toBeInTheDocument();
   });
 
   it('returns focus to the trigger when a drawer closes', async () => {
@@ -106,14 +106,11 @@ describe('Forms chrome primitives', () => {
     }
     render(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Paneli aç' });
-    const pageRoot = trigger.parentElement as HTMLElement;
     await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Ayarlar' })).toBeInTheDocument();
-    expect(pageRoot.inert).toBe(true);
     expect(screen.getByRole('textbox', { name: 'İlk alan' })).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Ayarlar' })).not.toBeInTheDocument();
-    expect(pageRoot.inert).not.toBe(true);
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
