@@ -18,7 +18,7 @@ import {
   useTheme,
   type ThemePreference,
 } from '@skylab-kulubu/skylcn-ui';
-import { LogOut, Palette } from 'lucide-react';
+import { FlaskConical, LogOut, Palette } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { clubRoleLabel, displayPersonName } from '@/lib/chrome-role';
@@ -31,7 +31,11 @@ import {
 } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
 
-const CONSOLES = clubConsoleLinks().map((app) => ({ ...app, icon: CONSOLE_ICON[app.id] }));
+const CONSOLES = [
+  ...clubConsoleLinks().map((app) => ({ ...app, icon: CONSOLE_ICON[app.id] })),
+  // The skylcn-ui playground served from this app until the club wiki takes it over
+  { id: 'playground', label: 'Playground', href: '/playground', icon: FlaskConical },
+];
 
 export function AdminSidebar({
   user,
