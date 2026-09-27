@@ -553,12 +553,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   return (
     <div className="space-y-5">
       {!canEdit ? (
-        <p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">
+        <p className="border-warning/30 bg-warning/5 text-warning rounded-md border p-3 text-xs">
           Bu şablon salt okunur. Önizleyebilirsin; yeni sürüm yayınlamak için şablon yönetim yetkisi
           gerekir.
         </p>
       ) : null}
-      <div className="grid gap-3 rounded-xl border border-white/10 bg-neutral-950/40 p-4 lg:grid-cols-4">
+      <div className="border-border bg-sidebar/40 grid gap-3 rounded-xl border p-4 lg:grid-cols-4">
         <label className="space-y-1.5 lg:col-span-2">
           <FieldLabel>Şablon adı</FieldLabel>
           <Field
@@ -614,10 +614,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         {externalSource ? (
           <div className="border-skylab-400/15 bg-skylab-500/5 space-y-4 rounded-lg border p-4 lg:col-span-4">
             <div>
-              <p className="text-sm font-semibold text-neutral-100">
-                {sourceName} tasarımını bağla
-              </p>
-              <p className="mt-1 text-xs leading-5 text-neutral-400">
+              <p className="text-foreground text-sm font-semibold">{sourceName} tasarımını bağla</p>
+              <p className="text-muted-foreground mt-1 text-xs leading-5">
                 {sourceName} bağlantısı tasarımı otomatik olarak içe aktarmaz. Bağlantı, özgün
                 tasarımı daha sonra tekrar açabilmen için saklanır. Sertifikada görünmesi için
                 tasarımı dışa aktarıp aşağıdan yüklemelisin.
@@ -625,8 +623,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
-                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
+                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   1 · Düzenleme bağlantısı
                 </p>
                 <label className="block space-y-1.5">
@@ -649,27 +647,27 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                     <ExternalLink className="h-3.5 w-3.5" /> {sourceName}&apos;da düzenle
                   </a>
                 ) : (
-                  <p className="text-3xs text-neutral-500">
+                  <p className="text-3xs text-subtle-foreground">
                     İsteğe bağlı; paylaşılabilir düzenleme bağlantısını yapıştır.
                   </p>
                 )}
               </div>
 
-              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
-                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
+                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   2 · Tasarımı dışa aktar
                 </p>
-                <p className="text-xs leading-5 text-neutral-300">
+                <p className="text-secondary-foreground text-xs leading-5">
                   {sourceName}&apos;da PNG, JPG, SVG veya tek sayfalık PDF olarak indir. Katılımcı
                   adı, etkinlik adı ve QR için tasarımda boş alan bırak.
                 </p>
               </div>
 
-              <div className="space-y-2 rounded-lg border border-white/8 bg-black/10 p-3">
-                <p className="text-3xs font-semibold tracking-[0.16em] text-neutral-500 uppercase">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
+                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   3 · Export dosyasını yükle
                 </p>
-                <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200 hover:bg-white/5">
+                <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs">
                   <ImagePlus className="h-4 w-4" /> {sourceName} exportunu yükle
                   <input
                     className="sr-only"
@@ -680,7 +678,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   />
                 </label>
                 <p
-                  className={`text-3xs ${backgroundUrl ? 'text-emerald-300' : 'text-neutral-500'}`}
+                  className={`text-3xs ${backgroundUrl ? 'text-success' : 'text-subtle-foreground'}`}
                 >
                   {backgroundUrl
                     ? backgroundIsPDF
@@ -689,7 +687,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                     : 'Henüz bir export dosyası yüklenmedi.'}
                 </p>
                 {backgroundIsPDF ? (
-                  <p className="text-3xs leading-4 text-neutral-500">
+                  <p className="text-3xs text-subtle-foreground leading-4">
                     PDF&apos;in kendi öğeleri kilitli tabandır; SKY LAB metinleri, görselleri ve QR
                     katmanları ayrı ayrı düzenlenir.
                   </p>
@@ -697,7 +695,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               </div>
             </div>
 
-            <details className="text-3xs text-neutral-500">
+            <details className="text-3xs text-subtle-foreground">
               <summary className="cursor-pointer select-none">Gelişmiş kaynak bilgileri</summary>
               <label className="mt-2 block max-w-md space-y-1.5">
                 <FieldLabel>Kaynak kimliği</FieldLabel>
@@ -711,8 +709,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             </details>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-black/10 p-3 lg:col-span-4">
-            <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200 hover:bg-white/5">
+          <div className="border-border bg-muted flex flex-wrap items-center gap-3 rounded-lg border p-3 lg:col-span-4">
+            <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs">
               <ImagePlus className="h-4 w-4" /> Arka plan görseli yükle
               <input
                 className="sr-only"
@@ -722,7 +720,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 onChange={(event) => void uploadBackground(event.target.files?.[0])}
               />
             </label>
-            <span className="text-3xs text-neutral-500">
+            <span className="text-3xs text-subtle-foreground">
               PNG/JPG/SVG veya tek sayfalık PDF yükleyebilir ya da boş tuvalle devam edebilirsin.
             </span>
           </div>
@@ -730,28 +728,31 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
-        <aside className="space-y-3 rounded-xl border border-white/10 bg-neutral-950/40 p-3">
-          <p className="text-xs font-semibold text-neutral-200">Katman ekle</p>
+        <aside
+          aria-label="Katman ekle"
+          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+        >
+          <p className="text-secondary-foreground text-xs font-semibold">Katman ekle</p>
           {(Object.keys(ELEMENT_LABELS) as CertificateElementKind[]).map((kind) => (
             <button
               key={kind}
               type="button"
               onClick={() => addElement(kind)}
               disabled={!canEdit}
-              className="flex w-full items-center gap-2 rounded-md border border-white/5 px-2.5 py-2 text-left text-xs text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+              className="border-border-subtle text-muted-foreground hover:bg-accent hover:text-foreground flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left text-xs"
             >
               <Plus className="h-3.5 w-3.5" /> {ELEMENT_LABELS[kind]}
             </button>
           ))}
-          <div className="border-t border-white/10 pt-3">
-            <p className="mb-2 text-xs font-semibold text-neutral-200">Katmanlar</p>
+          <div className="border-border border-t pt-3">
+            <p className="text-secondary-foreground mb-2 text-xs font-semibold">Katmanlar</p>
             <div className="space-y-1">
               {draft.layout.elements.map((element) => (
                 <button
                   key={element.id}
                   type="button"
                   onClick={() => setSelectedId(element.id)}
-                  className={`w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${selectedId === element.id ? 'bg-skylab-500/15 text-skylab-300' : 'text-neutral-500 hover:bg-white/5'}`}
+                  className={`w-full truncate rounded-md px-2 py-1.5 text-left text-xs ${selectedId === element.id ? 'bg-skylab-500/15 text-skylab-300' : 'text-subtle-foreground hover:bg-accent'}`}
                 >
                   {ELEMENT_LABELS[element.kind]} {element.locked ? '· kilitli' : ''}
                 </button>
@@ -760,7 +761,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           </div>
         </aside>
 
-        <section className="min-w-0 overflow-auto rounded-xl border border-white/10 bg-neutral-950/60 p-4">
+        <section className="border-border bg-sidebar/60 min-w-0 overflow-auto rounded-xl border p-4">
           <div
             ref={canvasRef}
             className="relative mx-auto w-full max-w-[1123px] overflow-hidden bg-white shadow-2xl"
@@ -830,14 +831,17 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               );
             })}
           </div>
-          <p className="text-3xs mt-3 text-center text-neutral-500">
+          <p className="text-3xs text-subtle-foreground mt-3 text-center">
             Katmanı seçip sürükle. Kesin ölçüler sağ panelden değişir. PDF seçilen sayfa ölçüsünde
             üretilir.
           </p>
         </section>
 
-        <aside className="space-y-3 rounded-xl border border-white/10 bg-neutral-950/40 p-3">
-          <p className="text-xs font-semibold text-neutral-200">Özellikler</p>
+        <aside
+          aria-label="Özellikler"
+          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+        >
+          <p className="text-secondary-foreground text-xs font-semibold">Özellikler</p>
           {selected ? (
             <>
               <div className="grid grid-cols-4 gap-1">
@@ -881,7 +885,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                     key={alignment}
                     type="button"
                     disabled={!canEdit || selected.locked}
-                    className="text-3xs h-7 rounded border border-white/10 px-1 text-neutral-400 hover:bg-white/5 disabled:opacity-40"
+                    className="text-3xs border-border text-muted-foreground hover:bg-accent h-7 rounded border px-1 disabled:opacity-40"
                     onClick={() => alignElement(selected, alignment)}
                   >
                     {label}
@@ -1059,7 +1063,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               ) : null}
               {selected.kind === 'image' ? (
                 <>
-                  <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-white/10 px-3 text-xs text-neutral-200">
+                  <label className="border-border text-secondary-foreground inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs">
                     <ImagePlus className="h-4 w-4" /> Görsel yükle
                     <input
                       className="sr-only"
@@ -1170,7 +1174,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               {!['recipientName', 'eventName', 'verificationQr'].includes(selected.kind) ? (
                 <button
                   type="button"
-                  className="flex h-8 w-full items-center justify-center gap-2 rounded-md border border-red-500/20 text-xs text-red-300 hover:bg-red-500/10"
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-xs"
                   onClick={() => {
                     deleteElement(selected);
                   }}
@@ -1178,17 +1182,17 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   <Trash2 className="h-4 w-4" /> Katmanı sil
                 </button>
               ) : (
-                <p className="text-3xs text-neutral-500">
+                <p className="text-3xs text-subtle-foreground">
                   Bu alan geçerli sertifika için zorunludur.
                 </p>
               )}
             </>
           ) : (
-            <p className="text-xs leading-relaxed text-neutral-500">
+            <p className="text-subtle-foreground text-xs leading-relaxed">
               Düzenlemek için bir katman seç.
             </p>
           )}
-          <label className="block space-y-1 border-t border-white/10 pt-3">
+          <label className="border-border block space-y-1 border-t pt-3">
             <FieldLabel>Arka plan rengi</FieldLabel>
             <Field
               disabled={!canEdit}
@@ -1201,7 +1205,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       </div>
 
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}

@@ -71,7 +71,7 @@ export function DoorAttendeePick({
         <button
           type="button"
           aria-label="Katılımcı bul"
-          className="focus:border-skylab-400/50 h-8 w-full rounded-md border border-white/10 bg-white/3 px-3 text-left text-xs text-neutral-100"
+          className="focus:border-skylab-400/50 border-border bg-card text-foreground h-8 w-full rounded-md border px-3 text-left text-xs"
           onClick={() => {
             setQuery('');
             setOpen(true);

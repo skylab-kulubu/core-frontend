@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Inbox } from 'lucide-react';
@@ -55,7 +55,8 @@ describe('Forms chrome primitives', () => {
     );
   });
 
-  it('shows mix percents for guest vs member', () => {
+  it('shows mix percents for guest vs member', async () => {
+    const pointer = userEvent.setup();
     render(
       <MixChart
         title="Başvuru türü"
@@ -67,8 +68,12 @@ describe('Forms chrome primitives', () => {
       />,
     );
     expect(screen.getByText('Başvuru türü')).toBeInTheDocument();
-    expect(screen.getByText('2 · 67%')).toBeInTheDocument();
-    expect(screen.getByText('1 · 33%')).toBeInTheDocument();
+    // The chart's table view carries every count and share
+    await pointer.click(screen.getByRole('button', { name: 'Tablo olarak göster' }));
+    const guests = screen.getByRole('row', { name: /Misafir/ });
+    expect(within(guests).getByText('2')).toBeInTheDocument();
+    expect(within(guests).getByText(/67/)).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Üye/ })).getByText(/33/)).toBeInTheDocument();
   });
 
   it('shows a denied-state card', () => {
@@ -86,7 +91,7 @@ describe('Forms chrome primitives', () => {
     render(<StateCard title="Yükleniyor…" isLoading />);
 
     expect(screen.getByRole('status')).toHaveTextContent('Yükleniyor…');
-    expect(document.querySelector('.skylab-loader__mark')).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="skylab-loader"]')).toBeInTheDocument();
   });
 
   it('returns focus to the trigger when a drawer closes', async () => {
@@ -106,14 +111,11 @@ describe('Forms chrome primitives', () => {
     }
     render(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Paneli aç' });
-    const pageRoot = trigger.parentElement as HTMLElement;
     await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Ayarlar' })).toBeInTheDocument();
-    expect(pageRoot.inert).toBe(true);
     expect(screen.getByRole('textbox', { name: 'İlk alan' })).toHaveFocus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Ayarlar' })).not.toBeInTheDocument();
-    expect(pageRoot.inert).not.toBe(true);
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 });

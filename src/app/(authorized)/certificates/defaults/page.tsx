@@ -75,11 +75,11 @@ export default function CertificateDefaultsPage() {
         description="Çözüm sırası: etkinliğe özel şablon → sahip ekip varsayılanı → SKY LAB varsayılanı."
       />
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
-      <div className="max-w-2xl space-y-4 rounded-xl border border-white/10 bg-neutral-950/40 p-5">
+      <div className="border-border bg-sidebar/40 max-w-2xl space-y-4 rounded-xl border p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5">
             <FieldLabel>Kapsam</FieldLabel>
@@ -152,7 +152,7 @@ export default function CertificateDefaultsPage() {
           <button
             type="button"
             disabled={saving}
-            className="h-8 rounded-md border border-red-500/20 px-3 text-xs text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-xs disabled:opacity-50"
             onClick={async () => {
               if (!window.confirm(`${team} varsayılanını kaldırmak istediğine emin misin?`)) return;
               setSaving(true);
