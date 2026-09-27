@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Inbox } from 'lucide-react';
@@ -55,7 +55,8 @@ describe('Forms chrome primitives', () => {
     );
   });
 
-  it('shows mix percents for guest vs member', () => {
+  it('shows mix percents for guest vs member', async () => {
+    const pointer = userEvent.setup();
     render(
       <MixChart
         title="Başvuru türü"
@@ -67,8 +68,12 @@ describe('Forms chrome primitives', () => {
       />,
     );
     expect(screen.getByText('Başvuru türü')).toBeInTheDocument();
-    expect(screen.getByText('2 · 67%')).toBeInTheDocument();
-    expect(screen.getByText('1 · 33%')).toBeInTheDocument();
+    // The chart's table view carries every count and share
+    await pointer.click(screen.getByRole('button', { name: 'Tablo olarak göster' }));
+    const guests = screen.getByRole('row', { name: /Misafir/ });
+    expect(within(guests).getByText('2')).toBeInTheDocument();
+    expect(within(guests).getByText(/67/)).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Üye/ })).getByText(/33/)).toBeInTheDocument();
   });
 
   it('shows a denied-state card', () => {

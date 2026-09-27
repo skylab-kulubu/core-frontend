@@ -1,10 +1,4 @@
-import {
-  mixPercents,
-  ticketCheckInMix,
-  ticketMix,
-  topClickUrls,
-  upcomingEvents,
-} from './panel-charts';
+import { ticketCheckInMix, ticketMix, topClickUrls, upcomingEvents } from './panel-charts';
 
 describe('ticketMix', () => {
   it('splits guest vs member even when one side is empty', () => {
@@ -65,22 +59,5 @@ describe('upcomingEvents', () => {
         2,
       ).map((row) => row.id),
     ).toEqual(['next', 'later']);
-  });
-});
-
-describe('mixPercents', () => {
-  it('turns counts into whole percents that sum to 100', () => {
-    expect(
-      mixPercents([
-        { label: 'Misafir', count: 2 },
-        { label: 'Üye', count: 1 },
-      ]),
-    ).toEqual([
-      { label: 'Misafir', count: 2, percent: 67 },
-      { label: 'Üye', count: 1, percent: 33 },
-    ]);
-    expect(mixPercents([{ label: 'Boş', count: 0 }])).toEqual([
-      { label: 'Boş', count: 0, percent: 0 },
-    ]);
   });
 });

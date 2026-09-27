@@ -1,14 +1,12 @@
 'use client';
 
+import { BarList } from '@skylab-kulubu/skylcn-ui';
+import { BarChart as Bars, DonutChart } from '@skylab-kulubu/skylcn-ui/charts';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { NamedCount } from '@/lib/ozet-stats';
-import { mixPercents } from '@/lib/panel-charts';
 
-const MIX_TONES = ['bg-skylab-500', 'bg-warning', 'bg-success', 'bg-muted-foreground'] as const;
-
-const MIX_COLORS = ['#e0c8e5', '#fbbf24', '#34d399', '#a3a3a3'] as const;
-
+/** A small column chart of counts per label, such as events per month. */
 export function BarChart({
   title,
   data,
@@ -18,34 +16,20 @@ export function BarChart({
   data: readonly NamedCount[];
   empty: string;
 }) {
-  const max = Math.max(0, ...data.map((row) => row.count));
   return (
-    <div>
-      <h2 className="text-2xs text-subtle-foreground mb-3 font-medium tracking-[0.18em] uppercase">
-        {title}
-      </h2>
-      {max === 0 ? (
-        <p className="text-3xs text-subtle-foreground py-6 text-center">{empty}</p>
-      ) : (
-        <div className="flex h-24 items-end gap-1.5">
-          {data.map((row) => (
-            <div key={row.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <div
-                className="bg-skylab-500/45 w-full rounded-sm"
-                style={{ height: `${Math.max(8, (row.count / max) * 100)}%` }}
-                title={`${row.label}: ${row.count}`}
-              />
-              <span className="text-4xs text-subtle-foreground max-w-full truncate">
-                {row.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <Bars
+      title={<PanelTitle>{title}</PanelTitle>}
+      framed={false}
+      compact
+      data={data.map((row) => ({ label: row.label, count: row.count }))}
+      x="label"
+      series={{ count: { label: title } }}
+      emptyMessage={empty}
+    />
   );
 }
 
+/** Counts per label as horizontal bars, longest first as given. */
 export function HorizontalBars({
   title,
   data,
@@ -55,36 +39,24 @@ export function HorizontalBars({
   data: readonly NamedCount[];
   empty: string;
 }) {
-  const max = Math.max(0, ...data.map((row) => row.count));
+  const hasData = data.some((row) => row.count > 0);
   return (
     <div>
-      <h2 className="text-2xs text-subtle-foreground mb-3 font-medium tracking-[0.18em] uppercase">
-        {title}
-      </h2>
-      {data.length === 0 || max === 0 ? (
-        <p className="text-3xs text-subtle-foreground py-6 text-center">{empty}</p>
+      <PanelTitle>{title}</PanelTitle>
+      {hasData ? (
+        <BarList
+          className="mt-3"
+          max={Math.max(...data.map((row) => row.count))}
+          items={data.map((row) => ({ key: row.label, label: row.label, value: row.count }))}
+        />
       ) : (
-        <ul className="space-y-2">
-          {data.map((row) => (
-            <li key={row.label} className="space-y-1">
-              <div className="text-3xs text-muted-foreground flex items-baseline justify-between gap-2">
-                <span className="truncate">{row.label}</span>
-                <span className="text-secondary-foreground tabular-nums">{row.count}</span>
-              </div>
-              <div className="bg-accent h-1.5 overflow-hidden rounded-full">
-                <div
-                  className="bg-skylab-500/70 h-full rounded-full"
-                  style={{ width: `${(row.count / max) * 100}%` }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <p className="text-3xs text-subtle-foreground py-6 text-center">{empty}</p>
       )}
     </div>
   );
 }
 
+/** How a whole splits into a few parts, such as guests and members. */
 export function MixChart({
   title,
   data,
@@ -94,52 +66,22 @@ export function MixChart({
   data: readonly NamedCount[];
   empty: string;
 }) {
-  const total = data.reduce((sum, row) => sum + row.count, 0);
-  const slices = mixPercents(data);
-  const gradient = slices
-    .reduce<{ parts: string[]; cursor: number }>(
-      (acc, row, index) => {
-        const next = acc.cursor + row.percent;
-        acc.parts.push(`${MIX_COLORS[index % MIX_COLORS.length]} ${acc.cursor}% ${next}%`);
-        acc.cursor = next;
-        return acc;
-      },
-      { parts: [], cursor: 0 },
-    )
-    .parts.join(', ');
   return (
-    <div>
-      <h2 className="text-2xs text-subtle-foreground mb-3 font-medium tracking-[0.18em] uppercase">
-        {title}
-      </h2>
-      {total === 0 ? (
-        <p className="text-3xs text-subtle-foreground py-6 text-center">{empty}</p>
-      ) : (
-        <div className="flex items-center gap-4">
-          <div
-            className="size-20 shrink-0 rounded-full"
-            style={{ background: `conic-gradient(${gradient})` }}
-            aria-hidden
-          />
-          <ul className="min-w-0 space-y-1.5">
-            {slices.map((row, index) => (
-              <li
-                key={row.label}
-                className="text-2xs text-muted-foreground flex items-center gap-2"
-              >
-                <span
-                  className={`size-1.5 shrink-0 rounded-full ${MIX_TONES[index % MIX_TONES.length]}`}
-                />
-                <span className="truncate">{row.label}</span>
-                <span className="text-secondary-foreground ml-auto tabular-nums">
-                  {row.count} · {row.percent}%
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    <DonutChart
+      title={<PanelTitle>{title}</PanelTitle>}
+      framed={false}
+      height={160}
+      data={data.map((row) => ({ key: row.label, label: row.label, value: row.count }))}
+      emptyMessage={empty}
+    />
+  );
+}
+
+function PanelTitle({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-2xs tracking-label text-subtle-foreground font-medium uppercase">
+      {children}
+    </span>
   );
 }
 
