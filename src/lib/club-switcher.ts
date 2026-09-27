@@ -28,6 +28,11 @@ function clubConsoles(): ClubSwitcherLink[] {
   ];
 }
 
+/** Every club console, this one included, for the switcher in the sidebar brand. */
+export function clubConsoleLinks(): ClubSwitcherLink[] {
+  return clubConsoles();
+}
+
 export function clubSwitcherLinks(current: ClubConsole): ClubSwitcherLink[] {
   return clubConsoles().filter((app) => app.id !== current);
 }
