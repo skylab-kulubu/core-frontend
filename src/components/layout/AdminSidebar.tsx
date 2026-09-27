@@ -3,15 +3,22 @@
 import {
   MenuItem,
   MenuLabel,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
   SidebarBrand,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarItem,
   SidebarUser,
+  useTheme,
+  type ThemePreference,
 } from '@skylab-kulubu/skylcn-ui';
-import { LogOut } from 'lucide-react';
+import { LogOut, Palette } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { clubRoleLabel, displayPersonName } from '@/lib/chrome-role';
@@ -38,6 +45,7 @@ export function AdminSidebar({
   const nodes = buildSidebarNavigation(user, navigationContext);
   const active = (href: string) => isNavActive(pathname, search, href);
   const name = displayPersonName(user.firstName, user.lastName, user.username);
+  const { theme, setTheme } = useTheme();
 
   return (
     <>
@@ -86,6 +94,19 @@ export function AdminSidebar({
           menu={
             <>
               {user.email ? <MenuLabel>{user.email}</MenuLabel> : null}
+              <MenuSub>
+                <MenuSubTrigger icon={Palette}>Tema</MenuSubTrigger>
+                <MenuSubContent>
+                  <MenuRadioGroup
+                    value={theme}
+                    onValueChange={(value) => setTheme(value as ThemePreference)}
+                  >
+                    <MenuRadioItem value="dark">Koyu</MenuRadioItem>
+                    <MenuRadioItem value="light">Açık</MenuRadioItem>
+                    <MenuRadioItem value="system">Sistem</MenuRadioItem>
+                  </MenuRadioGroup>
+                </MenuSubContent>
+              </MenuSub>
               <MenuSeparator />
               <MenuItem icon={LogOut} destructive onClick={() => void performClientLogout()}>
                 Çıkış yap

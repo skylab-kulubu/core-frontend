@@ -623,7 +623,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <div className="border-border space-y-2 rounded-lg border bg-black/10 p-3">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
                 <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   1 · Düzenleme bağlantısı
                 </p>
@@ -653,7 +653,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 )}
               </div>
 
-              <div className="border-border space-y-2 rounded-lg border bg-black/10 p-3">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
                 <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   2 · Tasarımı dışa aktar
                 </p>
@@ -663,7 +663,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 </p>
               </div>
 
-              <div className="border-border space-y-2 rounded-lg border bg-black/10 p-3">
+              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
                 <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
                   3 · Export dosyasını yükle
                 </p>
@@ -709,7 +709,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             </details>
           </div>
         ) : (
-          <div className="border-border flex flex-wrap items-center gap-3 rounded-lg border bg-black/10 p-3 lg:col-span-4">
+          <div className="border-border bg-muted flex flex-wrap items-center gap-3 rounded-lg border p-3 lg:col-span-4">
             <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs">
               <ImagePlus className="h-4 w-4" /> Arka plan görseli yükle
               <input
@@ -728,7 +728,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
-        <aside className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3">
+        <aside
+          aria-label="Katman ekle"
+          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+        >
           <p className="text-secondary-foreground text-xs font-semibold">Katman ekle</p>
           {(Object.keys(ELEMENT_LABELS) as CertificateElementKind[]).map((kind) => (
             <button
@@ -834,7 +837,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           </p>
         </section>
 
-        <aside className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3">
+        <aside
+          aria-label="Özellikler"
+          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+        >
           <p className="text-secondary-foreground text-xs font-semibold">Özellikler</p>
           {selected ? (
             <>

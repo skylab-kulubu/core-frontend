@@ -8,11 +8,11 @@ const LOGIN_START = '/api/auth/login';
 
 function LoginShell({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-sidebar flex min-h-dvh items-center justify-center px-4">
+    <main className="bg-sidebar flex min-h-dvh items-center justify-center px-4">
       <div className="border-border-subtle bg-background w-full max-w-md rounded-xl border p-6 text-center">
         {children}
       </div>
-    </div>
+    </main>
   );
 }
 

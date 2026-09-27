@@ -114,6 +114,8 @@ export default function MediaPage() {
             <input
               ref={fileRef}
               type="file"
+              aria-label="Yüklenecek dosya"
+              tabIndex={-1}
               className="sr-only"
               onChange={async (e) => {
                 const file = e.target.files?.[0];
