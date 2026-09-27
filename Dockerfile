@@ -2,7 +2,8 @@ FROM --platform=linux/amd64 node:22-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 ENV HUSKY=0
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml carries the install policy (allowed builds, release-age exceptions)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM --platform=linux/amd64 node:22-alpine AS builder
