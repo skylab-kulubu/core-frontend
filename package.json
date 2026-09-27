@@ -2,6 +2,7 @@
   "name": "core-frontend",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.28.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -76,12 +77,5 @@
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "msw",
-      "sharp",
-      "unrs-resolver"
-    ]
   }
 }
