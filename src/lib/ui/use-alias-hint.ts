@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { urlsApi, type AliasAvailability } from '@/lib/api/urls';
-import { aliasHint, shouldCheckAlias, type AliasHint } from '@/lib/short-links';
+import { aliasHint, shouldCheckAlias, type AliasHint, type AliasHintMode } from '@/lib/short-links';
 
 /** How long typing must pause before the alias is checked. */
 export const ALIAS_CHECK_DELAY_MS = 350;
 
 /**
  * The hint for a typed alias, from core's availability check after a pause in
- * typing. Only the latest typed value counts; an empty alias, the link's own
- * alias while editing, or a failed check give no hint.
+ * typing. Only the latest value counts; an empty alias, the link's own alias
+ * (`currentAlias`), or a failed check give no hint.
  */
 export function useAliasHint(
   value: string,
-  mode: 'create' | 'edit',
+  mode: AliasHintMode,
   currentAlias?: string,
 ): AliasHint | null {
   const alias = value.trim();
