@@ -1,21 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
+import { FilterPills } from '@/components/chrome/ListToolbar';
 import { HorizontalBars } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StateCard } from '@/components/chrome/StateCard';
+import { AliasHint, useAliasHint } from '@/components/urls/AliasHint';
 import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import {
   asHitList,
+  hitChannel,
   hitUserLabel,
   hitWhen,
   publicShortUrl,
@@ -30,6 +33,12 @@ import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
+import {
+  isManagedRefusal,
+  managedRefusalMessage,
+  SOURCE_FILTERS,
+  type SourceFilter,
+} from '@/lib/short-links';
 import { useAuth } from '@/context/AuthContext';
 
 export default function UrlsPage() {
@@ -52,28 +61,54 @@ export default function UrlsPage() {
   const [hitsError, setHitsError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
+  const [source, setSource] = useState<SourceFilter>('all');
+  const [notice, setNotice] = useState<string | null>(null);
+  const aliasHint = useAliasHint(alias, 'create');
+  const editAliasHint = useAliasHint(editing ? editAlias : '', 'edit', editing?.alias);
+  // Only the latest load may fill the lists, so a slow answer for an older filter is dropped
+  const loadSeq = useRef(0);
 
   const load = useCallback(async () => {
     if (!allowed) return;
+    const seq = ++loadSeq.current;
     try {
-      const mineRows = await urlsApi.listMine();
+      const mineRows = await urlsApi.listMine(source);
+      if (seq !== loadSeq.current) return;
       setMine(mineRows);
       if (moderate) {
-        setAll(await urlsApi.listAll());
+        const allRows = await urlsApi.listAll(source);
+        if (seq !== loadSeq.current) return;
+        setAll(allRows);
       } else {
         setAll([]);
       }
       setError(null);
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setError(err instanceof ProblemError ? err.title : 'URL’ler yüklenemedi');
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
-  }, [allowed, moderate]);
+  }, [allowed, moderate, source]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const removeRow = async (row: ShortUrl) => {
+    setNotice(null);
+    try {
+      await urlsApi.remove(row.id);
+      await load();
+    } catch (err) {
+      if (isManagedRefusal(err)) {
+        setNotice(managedRefusalMessage(row));
+        await load();
+        return;
+      }
+      setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+    }
+  };
 
   if (!allowed) {
     return (
@@ -96,11 +131,13 @@ export default function UrlsPage() {
         description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {notice ? <p className="text-warning text-sm">{notice}</p> : null}
       <form
         className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!target.trim()) return;
+          if (!target.trim() || aliasHint?.blocks) return;
+          setNotice(null);
           setPending(true);
           try {
             await urlsApi.create({
@@ -128,12 +165,28 @@ export default function UrlsPage() {
         </label>
         <label className="block w-40 space-y-1">
           <FieldLabel>Kısa ad</FieldLabel>
-          <Field value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="opsiyonel" />
+          <Field
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            placeholder="opsiyonel"
+            aria-describedby="alias-hint"
+          />
         </label>
-        <SaveButton disabled={pending} className="self-end">
+        <SaveButton disabled={pending || Boolean(aliasHint?.blocks)} className="self-end">
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
+        <AliasHint id="alias-hint" hint={aliasHint} className="basis-full" />
       </form>
+      <FilterPills
+        ariaLabel="Kaynak"
+        value={source}
+        onChange={(next) => {
+          if (next === source) return;
+          setSource(next);
+          setLoading(true);
+        }}
+        options={SOURCE_FILTERS}
+      />
       {moderate ? (
         <HorizontalBars
           title="En çok tıklanan"
@@ -147,6 +200,8 @@ export default function UrlsPage() {
         failed={Boolean(error)}
         items={mine}
         showClicks={moderate}
+        canDisableManaged={moderate}
+        filtered={source !== 'all'}
         onEdit={(row) => {
           setEditing(row);
           setEditTarget(row.url);
@@ -167,14 +222,7 @@ export default function UrlsPage() {
               }
             : undefined
         }
-        onDelete={async (row) => {
-          try {
-            await urlsApi.remove(row.id);
-            await load();
-          } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-          }
-        }}
+        onDelete={removeRow}
       />
       {moderate ? (
         <UrlList
@@ -183,6 +231,8 @@ export default function UrlsPage() {
           failed={Boolean(error)}
           items={all}
           showClicks
+          canDisableManaged
+          filtered={source !== 'all'}
           onEdit={(row) => {
             setEditing(row);
             setEditTarget(row.url);
@@ -199,14 +249,7 @@ export default function UrlsPage() {
               setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
             }
           }}
-          onDelete={async (row) => {
-            try {
-              await urlsApi.remove(row.id);
-              await load();
-            } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-            }
-          }}
+          onDelete={removeRow}
         />
       ) : null}
       <Drawer open={qrRow !== null} onClose={() => setQrRow(null)} title="QR">
@@ -239,7 +282,7 @@ export default function UrlsPage() {
                 <ListItem
                   key={`${hitWhen(hit)}-${hit.ip}-${index}`}
                   title={formatApplicantWhen(hitWhen(hit))}
-                  subtitle={`${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
+                  subtitle={`${hitChannel(hit)}${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
                 />
               ))}
             </ListPanel>
@@ -252,6 +295,8 @@ export default function UrlsPage() {
             className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (editAliasHint?.blocks) return;
+              setNotice(null);
               try {
                 await urlsApi.update(editing.id, {
                   url: editTarget.trim(),
@@ -260,6 +305,12 @@ export default function UrlsPage() {
                 setEditing(null);
                 await load();
               } catch (err) {
+                if (isManagedRefusal(err)) {
+                  setEditing(null);
+                  setNotice(managedRefusalMessage(editing));
+                  await load();
+                  return;
+                }
                 setError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
               }
             }}
@@ -275,9 +326,15 @@ export default function UrlsPage() {
             </label>
             <label className="block space-y-1">
               <FieldLabel>Kısa ad</FieldLabel>
-              <Field value={editAlias} onChange={(e) => setEditAlias(e.target.value)} required />
+              <Field
+                value={editAlias}
+                onChange={(e) => setEditAlias(e.target.value)}
+                aria-describedby="edit-alias-hint"
+                required
+              />
             </label>
-            <SaveButton>Kaydet</SaveButton>
+            <AliasHint id="edit-alias-hint" hint={editAliasHint} />
+            <SaveButton disabled={Boolean(editAliasHint?.blocks)}>Kaydet</SaveButton>
           </form>
         ) : null}
       </Drawer>
