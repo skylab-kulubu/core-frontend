@@ -98,8 +98,8 @@ describe('alias availability', () => {
     });
   });
 
-  it('blocks an invalid or reserved alias, in both modes', () => {
-    for (const mode of ['create', 'edit'] as const) {
+  it('blocks an invalid or reserved alias, in every mode', () => {
+    for (const mode of ['create', 'edit', 'eventForm'] as const) {
       expect(aliasHint({ alias: '-x', available: false, reason: 'invalid' }, mode)).toEqual({
         tone: 'error',
         text: 'Geçersiz ad: harf ya da rakamla başlar; harf, rakam, - ve _; en fazla 64 karakter',
@@ -123,6 +123,14 @@ describe('alias availability', () => {
     expect(aliasHint(taken, 'edit')).toEqual({
       tone: 'warning',
       text: 'Bu ad kullanılıyor (eski adlar da dolu sayılır)',
+      blocks: false,
+    });
+  });
+
+  it('warns that an Event form keeps its own link when the alias is another page’s', () => {
+    expect(aliasHint({ alias: 'old', available: false, reason: 'taken' }, 'eventForm')).toEqual({
+      tone: 'warning',
+      text: 'Bu ad kullanılıyor. Formun kendi linki değilse etkinlik bu ada bağlanmaz; form kendi linkini korur.',
       blocks: false,
     });
   });

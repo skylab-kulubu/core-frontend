@@ -221,16 +221,24 @@ describe('event editor draft', () => {
           url: 'https://apply.example.test',
           alias: 'skydays2026',
           urlId: 'u1',
-          savedAlias: 'skydays2026',
-          savedUrl: 'https://apply.example.test',
+          saved: { alias: 'skydays2026', url: 'https://apply.example.test' },
         },
       ],
     });
     expect(readEventDraft(storage, returnTo)?.formSlots[0]).toMatchObject({
       urlId: 'u1',
-      savedAlias: 'skydays2026',
-      savedUrl: 'https://apply.example.test',
+      saved: { alias: 'skydays2026', url: 'https://apply.example.test' },
     });
+  });
+
+  it('drops a malformed saved link from the draft', () => {
+    const storage = memoryStorage();
+    const returnTo = 'https://admin.yildizskylab.com/events/new';
+    storage.setItem(
+      eventDraftStorageKey(returnTo),
+      JSON.stringify({ formSlots: [{ key: 'apply', saved: { alias: 7 } }] }),
+    );
+    expect(readEventDraft(storage, returnTo)?.formSlots[0].saved).toBeUndefined();
   });
 
   it('stores a reserved Event id on a new editor so Skyforms can keep it before save', () => {

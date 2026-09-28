@@ -1,5 +1,6 @@
 import { ProblemError } from '@/lib/api/core';
-import type { ShortUrl, ShortUrlBody } from '@/lib/api/urls';
+import type { ShortUrl, ShortUrlBody, urlsApi } from '@/lib/api/urls';
+import { isManaged, isManagedRefusal } from '@/lib/short-links';
 
 export type EventFormMode = 'external' | 'skyforms';
 
@@ -18,12 +19,13 @@ export type EventFormSlot = {
   /** The Short link the panel created for this slot while editing. */
   urlId?: string;
   /**
-   * The alias and address the slot had when its Event was loaded: its link
-   * already exists under that alias, so saving them again creates nothing.
+   * The alias and address the slot had when its Event was loaded: the link
+   * the Event already has, which a re-save must keep rather than duplicate.
    */
-  savedAlias?: string;
-  savedUrl?: string;
+  saved?: SavedSlotLink;
 };
+
+export type SavedSlotLink = { alias: string; url: string };
 
 export const APPLY_SLOT_KEY = 'apply';
 export const APPLY_SLOT_LABEL = 'Başvuru formu';
@@ -255,7 +257,7 @@ export function slotsFromEvent(
 
 function rememberSavedLink(slot: EventFormSlot): EventFormSlot {
   if (!slot.alias) return slot;
-  return { ...slot, savedAlias: slot.alias, savedUrl: slot.url };
+  return { ...slot, saved: { alias: slot.alias, url: slot.url } };
 }
 
 /**
@@ -267,27 +269,55 @@ export function namesSkyformsForm(url: string, origin?: string): boolean {
   return skyformsFormId(url.trim(), origin) !== null;
 }
 
-/** The skyl.app alias a slot asks for: the typed one, else the readable default. */
-export function slotAlias(
-  slot: Pick<EventFormSlot, 'key' | 'label' | 'alias'>,
+/** What a slot adds to its Event's name in titles and aliases: nothing for başvuru, else its label. */
+export function slotExtra(slot: Pick<EventFormSlot, 'key' | 'label'>): string {
+  return slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+}
+
+/** The slot's readable default alias (ekip-ad+year), hyphenated for skyl.app. */
+export function defaultSlotAlias(
+  slot: Pick<EventFormSlot, 'key' | 'label'>,
   ownerTeam: string,
   name: string,
   year: number,
 ): string {
-  const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+  const extra = slotExtra(slot);
   return shortAliasFromSlug(
-    slot.alias.trim() ||
-      humanFormAlias(ownerTeam, name, year, extra) ||
-      slugYearAlias(name, year, extra),
+    humanFormAlias(ownerTeam, name, year, extra) || slugYearAlias(name, year, extra),
   );
+}
+
+/**
+ * Whether the slot still carries the alias it was loaded with although it
+ * now names another Skyforms Form. That alias is a link to the old page, so
+ * core would refuse it for the new Form; the slot takes the default instead.
+ */
+export function savedAliasIsStale(slot: EventFormSlot): boolean {
+  if (!slot.saved || slot.alias.trim() !== slot.saved.alias) return false;
+  const formId = skyformsFormId(slot.url.trim());
+  return formId !== null && formId !== skyformsFormId(slot.saved.url.trim());
+}
+
+/**
+ * The skyl.app alias the slot is saved with: the typed one, else (or when it
+ * is a stale saved alias) the readable default.
+ */
+export function slotAlias(
+  slot: EventFormSlot,
+  ownerTeam: string,
+  name: string,
+  year: number,
+): string {
+  const typed = savedAliasIsStale(slot) ? '' : shortAliasFromSlug(slot.alias.trim());
+  return typed || defaultSlotAlias(slot, ownerTeam, name, year);
 }
 
 /** Whether the slot still names the link it was loaded with: same alias, same address. */
 export function keepsSavedLink(slot: EventFormSlot, alias: string): boolean {
   return (
-    Boolean(slot.savedAlias) &&
-    alias === slot.savedAlias &&
-    slot.url.trim() === (slot.savedUrl ?? '').trim()
+    slot.saved !== undefined &&
+    alias === slot.saved.alias &&
+    slot.url.trim() === slot.saved.url.trim()
   );
 }
 
@@ -342,42 +372,121 @@ export async function createAliasWithRetry(
   throw last instanceof Error ? last : new ProblemError(409, 'Conflict');
 }
 
+/** The Short link calls a slot's link needs; `urlsApi` in the app. */
+export type SlotLinkApi = Pick<typeof urlsApi, 'create' | 'update' | 'listMine'>;
+
 /**
- * The slots as the Event is saved with them. A Skyforms Form's slot only gets
- * its alias (core creates or binds the link on save); an external slot gets a
- * new link unless it already has one: created while editing, or the one it
- * was loaded with.
+ * What making a slot's link gave. `linked`: the link now exists under the
+ * alias (created, renamed or pointed at the slot's address). `exists`: the
+ * Event's link was already there. `createdOnSave`: a Skyforms Form's link,
+ * which core makes when the Event is saved. `appliedOnSave`: core refused a
+ * rename because an Event or a Form manages the link.
+ */
+export type SlotLinkResult =
+  | { status: 'linked'; alias: string; urlId: string }
+  | { status: 'exists' | 'createdOnSave' | 'appliedOnSave'; alias: string };
+
+/**
+ * Makes the slot's link under `alias` where the panel owns it. A Skyforms
+ * Form's link is left to core. An external slot renames the link it created
+ * while editing; keeps the Event's link, creating it once if it went missing;
+ * moves the Event's personal link when only the address changed; and
+ * otherwise creates a new link, numbered when the alias is taken.
+ */
+export async function linkSlot(
+  slot: EventFormSlot,
+  alias: string,
+  year: number,
+  api: SlotLinkApi,
+): Promise<SlotLinkResult> {
+  const url = slot.url.trim();
+  if (namesSkyformsForm(url)) {
+    return { status: keepsSavedLink(slot, alias) ? 'exists' : 'createdOnSave', alias };
+  }
+  try {
+    if (slot.urlId) return linked(await api.update(slot.urlId, { url, alias }));
+    if (slot.saved?.alias === alias) {
+      if (keepsSavedLink(slot, alias)) return await recreateSavedLink(api, url, alias);
+      const moved = await moveSavedLink(api, url, alias);
+      if (moved) return moved;
+    }
+    return linked(await createAliasWithRetry((body) => api.create(body), url, alias, year));
+  } catch (err) {
+    if (isManagedRefusal(err)) return { status: 'appliedOnSave', alias };
+    throw err;
+  }
+}
+
+function linked(row: ShortUrl): SlotLinkResult {
+  return { status: 'linked', alias: row.alias, urlId: row.id };
+}
+
+/** Asks for the Event's own alias once, never a numbered one; 409 means it is there. */
+async function recreateSavedLink(
+  api: SlotLinkApi,
+  url: string,
+  alias: string,
+): Promise<SlotLinkResult> {
+  try {
+    return linked(await api.create({ url, alias }));
+  } catch (err) {
+    if (err instanceof ProblemError && err.status === 409) return { status: 'exists', alias };
+    throw err;
+  }
+}
+
+/**
+ * Points the caller's personal link under the Event's alias at the slot's new
+ * address. Null when there is no such link or moving it fails, so the caller
+ * creates a new one; a managed refusal is passed on.
+ */
+async function moveSavedLink(
+  api: SlotLinkApi,
+  url: string,
+  alias: string,
+): Promise<SlotLinkResult | null> {
+  const rows = await api.listMine().catch(() => [] as ShortUrl[]);
+  const row = existingShortFor('', alias, rows);
+  if (!row || isManaged(row)) return null;
+  try {
+    return linked(await api.update(row.id, { url, alias }));
+  } catch (err) {
+    if (isManagedRefusal(err)) throw err;
+    return null;
+  }
+}
+
+/**
+ * The slots as the Event is saved with them: each with the alias it is saved
+ * under, and the id of the link the save made for it. A slot with a link made
+ * while editing keeps it; a failed link leaves the alias as it is.
  */
 export async function attachFormAliases(
   slots: EventFormSlot[],
   name: string,
   startLocal: string,
-  create: (body: ShortUrlBody) => Promise<ShortUrl>,
+  api: SlotLinkApi,
   ownerTeam = '',
-  origin?: string,
 ): Promise<EventFormSlot[]> {
   const year = aliasYear(startLocal);
   const out: EventFormSlot[] = [];
   for (const slot of slots) {
     const url = slot.url.trim();
-    if (url && namesSkyformsForm(url, origin)) {
-      out.push({ ...slot, url, alias: slotAlias(slot, ownerTeam, name, year) });
+    const next = { ...slot, url };
+    if (!url || (slot.urlId && !namesSkyformsForm(url))) {
+      out.push(next);
       continue;
     }
-    if (!url || slot.urlId) {
-      out.push({ ...slot, url });
-      continue;
-    }
-    const alias = slotAlias(slot, ownerTeam, name, year);
-    if (keepsSavedLink(slot, alias)) {
-      out.push({ ...slot, url, alias });
-      continue;
-    }
+    const alias = slotAlias(next, ownerTeam, name, year);
     try {
-      const row = await createAliasWithRetry(create, url, alias, year);
-      out.push({ ...slot, url, alias: row.alias, urlId: row.id });
+      const result = await linkSlot(next, alias, year, api);
+      out.push({
+        ...next,
+        alias: result.alias,
+        ...(result.status === 'linked' ? { urlId: result.urlId } : {}),
+      });
     } catch {
-      out.push({ ...slot, url, alias });
+      out.push({ ...next, alias });
     }
   }
   return out;

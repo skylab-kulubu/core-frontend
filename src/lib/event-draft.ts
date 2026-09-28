@@ -9,6 +9,7 @@ import {
   slotsFromEvent,
   withFormSlot,
   type EventFormSlot,
+  type SavedSlotLink,
 } from '@/lib/event-forms';
 
 export const EVENT_DRAFT_PREFIX = 'superadmin:eventDraft';
@@ -182,7 +183,11 @@ function normalizeSlot(slot: Partial<EventFormSlot> | null | undefined): EventFo
     url: typeof slot?.url === 'string' ? slot.url : '',
     alias: typeof slot?.alias === 'string' ? slot.alias : '',
     urlId: typeof slot?.urlId === 'string' ? slot.urlId : undefined,
-    savedAlias: typeof slot?.savedAlias === 'string' ? slot.savedAlias : undefined,
-    savedUrl: typeof slot?.savedUrl === 'string' ? slot.savedUrl : undefined,
+    saved: normalizeSavedLink(slot?.saved),
   };
+}
+
+function normalizeSavedLink(saved: Partial<SavedSlotLink> | null | undefined) {
+  if (typeof saved?.alias !== 'string' || typeof saved.url !== 'string') return undefined;
+  return { alias: saved.alias, url: saved.url };
 }

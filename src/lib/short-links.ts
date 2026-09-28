@@ -88,14 +88,24 @@ export function shouldCheckAlias(value: string, currentAlias?: string): boolean 
 
 export type AliasHint = { tone: 'ok' | 'warning' | 'error'; text: string; blocks: boolean };
 
+/**
+ * What the alias is for: a new link, a rename of a link, or the alias an
+ * Event gives a Skyforms Form (core binds it when the Event is saved).
+ */
+export type AliasHintMode = 'create' | 'edit' | 'eventForm';
+
 const TAKEN = 'Bu ad kullanılıyor (eski adlar da dolu sayılır)';
+const EVENT_FORM_TAKEN =
+  'Bu ad kullanılıyor. Formun kendi linki değilse etkinlik bu ada bağlanmaz; form kendi linkini korur.';
 
 /**
  * The one-line hint for an availability answer. While editing, `taken` only
  * warns: core reports the link's own Retired aliases as taken, yet lets the
- * link take one back, so the save decides.
+ * link take one back, so the save decides. For an Event's Form it only warns
+ * too: the taken link may be the Form's own, which the Event takes over, and
+ * otherwise core leaves the Form its own link without failing the save.
  */
-export function aliasHint(result: AliasAvailability, mode: 'create' | 'edit'): AliasHint | null {
+export function aliasHint(result: AliasAvailability, mode: AliasHintMode): AliasHint | null {
   if (result.available) return { tone: 'ok', text: 'Uygun', blocks: false };
   switch (result.reason) {
     case 'invalid':
@@ -107,6 +117,7 @@ export function aliasHint(result: AliasAvailability, mode: 'create' | 'edit'): A
     case 'reserved':
       return { tone: 'error', text: 'Bu ad ayrılmış', blocks: true };
     case 'taken':
+      if (mode === 'eventForm') return { tone: 'warning', text: EVENT_FORM_TAKEN, blocks: false };
       return mode === 'edit'
         ? { tone: 'warning', text: TAKEN, blocks: false }
         : { tone: 'error', text: TAKEN, blocks: true };

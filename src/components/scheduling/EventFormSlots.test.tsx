@@ -10,7 +10,7 @@ jest.mock('@/lib/api/urls', () => {
   const actual = jest.requireActual('@/lib/api/urls') as typeof import('@/lib/api/urls');
   return {
     ...actual,
-    urlsApi: { availability: jest.fn(), create: jest.fn(), update: jest.fn() },
+    urlsApi: { availability: jest.fn(), create: jest.fn(), update: jest.fn(), listMine: jest.fn() },
   };
 });
 
@@ -25,6 +25,10 @@ const CREATE_SHORT = { name: 'Kısa link oluştur' };
 const create = urlsApi.create as jest.Mock;
 const update = urlsApi.update as jest.Mock;
 const availability = urlsApi.availability as jest.Mock;
+const listMine = urlsApi.listMine as jest.Mock;
+
+const SKYFORMS_TAKEN =
+  'Bu ad kullanılıyor. Formun kendi linki değilse etkinlik bu ada bağlanmaz; form kendi linkini korur.';
 
 /** Core refusing a generic rename because an Event or a Form manages the link. */
 const managed = () => new ProblemError(409, 'Conflict', { code: 'managed' });
@@ -75,16 +79,27 @@ describe('EventFormSlots short links', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     availability.mockResolvedValue({ alias: 'x', available: true });
+    listMine.mockResolvedValue([]);
+  });
+
+  it('suggests the alias core will be given, hyphenated for skyl.app', () => {
+    renderSlot({ ...emptyApplySlot(), url: 'https://apply.example.test' });
+
+    expect(screen.getByLabelText('Kısa adres')).toHaveAttribute(
+      'placeholder',
+      'gecekodu-skydays2026',
+    );
   });
 
   it('fills a Skyforms slot’s alias and leaves its link to the Event save', async () => {
     const typist = userEvent.setup();
     renderSlot({ ...emptyApplySlot(), mode: 'skyforms', url: SKYFORMS_URL });
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
 
     await typist.click(screen.getByRole('button', CREATE_SHORT));
 
-    expect(screen.getByLabelText('Kısa adres')).toHaveValue('gecekodu-skydays2026');
-    expect(screen.getByText('Kısa link etkinlik kaydedilince oluşur')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Kısa adres')).toHaveValue('gecekodu-skydays2026');
+    expect(screen.getByRole('status')).toHaveTextContent('Kısa link etkinlik kaydedilince oluşur');
     expect(create).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
@@ -98,16 +113,15 @@ describe('EventFormSlots short links', () => {
       url: SKYFORMS_URL,
       alias: 'yeni.ad',
       urlId: 'u1',
-      savedAlias: 'gecekodu-skydays2026',
-      savedUrl: SKYFORMS_URL,
+      saved: { alias: 'gecekodu-skydays2026', url: SKYFORMS_URL },
     });
 
     await typist.click(screen.getByRole('button', CREATE_SHORT));
 
+    expect(await screen.findByText('Kısa link etkinlik kaydedilince oluşur')).toBeInTheDocument();
     expect(screen.queryByText('Conflict')).not.toBeInTheDocument();
     expect(update).not.toHaveBeenCalled();
     expect(lastSlot()?.alias).toBe('yeni-ad');
-    expect(screen.getByText('Kısa link etkinlik kaydedilince oluşur')).toBeInTheDocument();
   });
 
   it('says an event-managed link takes its new alias when the Event is saved', async () => {
@@ -148,21 +162,67 @@ describe('EventFormSlots short links', () => {
     expect(await screen.findByText('Conflict')).toBeInTheDocument();
   });
 
-  it('creates no second link for the alias an external slot was loaded with', async () => {
+  it('asks once for the link an external slot was loaded with, and says it exists', async () => {
     const typist = userEvent.setup();
+    create.mockRejectedValue(new ProblemError(409, 'Conflict'));
     renderSlot({
       ...emptyApplySlot(),
       url: 'https://apply.example.test',
       alias: 'skydays2026',
-      savedAlias: 'skydays2026',
-      savedUrl: 'https://apply.example.test',
+      saved: { alias: 'skydays2026', url: 'https://apply.example.test' },
     });
 
     await typist.click(screen.getByRole('button', CREATE_SHORT));
 
-    expect(create).not.toHaveBeenCalled();
+    expect(await screen.findByText('Kısa link zaten var')).toBeInTheDocument();
+    expect(create.mock.calls).toEqual([
+      [{ url: 'https://apply.example.test', alias: 'skydays2026' }],
+    ]);
     expect(screen.getByLabelText('Kısa adres')).toHaveValue('skydays2026');
-    expect(screen.getByText('Kısa link zaten var')).toBeInTheDocument();
+    expect(screen.queryByText('Conflict')).not.toBeInTheDocument();
+  });
+
+  it('points the existing link somewhere new when only an external slot’s URL changed', async () => {
+    const typist = userEvent.setup();
+    listMine.mockResolvedValue([
+      link({ id: 'u-old', alias: 'skydays2026', url: 'https://apply.example.test' }),
+    ]);
+    update.mockImplementation(async (id, body) => link({ id, ...body }));
+    const { lastSlot } = renderSlot({
+      ...emptyApplySlot(),
+      url: 'https://apply2.example.test',
+      alias: 'skydays2026',
+      saved: { alias: 'skydays2026', url: 'https://apply.example.test' },
+    });
+
+    await typist.click(screen.getByRole('button', CREATE_SHORT));
+
+    expect(update).toHaveBeenCalledWith('u-old', {
+      url: 'https://apply2.example.test',
+      alias: 'skydays2026',
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(lastSlot()).toMatchObject({ alias: 'skydays2026', urlId: 'u-old' });
+  });
+
+  it('gives a slot switched to a Skyforms form the readable default alias', async () => {
+    const typist = userEvent.setup();
+    const { lastSlot } = renderSlot({
+      ...emptyApplySlot(),
+      url: 'https://apply.example.test',
+      alias: 'skydays',
+      saved: { alias: 'skydays', url: 'https://apply.example.test' },
+    });
+
+    const address = screen.getByLabelText('Form adresi');
+    await typist.clear(address);
+    await typist.type(address, SKYFORMS_URL);
+    await typist.tab();
+
+    expect(await screen.findByText('Kısa link etkinlik kaydedilince oluşur')).toBeInTheDocument();
+    expect(lastSlot()).toMatchObject({ url: SKYFORMS_URL, alias: 'gecekodu-skydays2026' });
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('creates a link for a new alias on an external slot', async () => {
@@ -172,8 +232,7 @@ describe('EventFormSlots short links', () => {
       ...emptyApplySlot(),
       url: 'https://apply.example.test',
       alias: 'skydays-final',
-      savedAlias: 'skydays2026',
-      savedUrl: 'https://apply.example.test',
+      saved: { alias: 'skydays2026', url: 'https://apply.example.test' },
     });
 
     await typist.click(screen.getByRole('button', CREATE_SHORT));
@@ -208,8 +267,7 @@ describe('EventFormSlots short links', () => {
         mode: 'skyforms',
         url: SKYFORMS_URL,
         alias: 'gecekodu-skydays2026',
-        savedAlias: 'gecekodu-skydays2026',
-        savedUrl: SKYFORMS_URL,
+        saved: { alias: 'gecekodu-skydays2026', url: SKYFORMS_URL },
       });
       await settle();
       expect(availability).not.toHaveBeenCalled();
@@ -220,10 +278,38 @@ describe('EventFormSlots short links', () => {
       await settle();
 
       expect(availability).toHaveBeenLastCalledWith('gecekodu-kamp');
-      expect(
-        await screen.findByText('Bu ad kullanılıyor (eski adlar da dolu sayılır)'),
-      ).toHaveClass('text-warning');
+      expect(await screen.findByText(SKYFORMS_TAKEN)).toHaveClass('text-warning');
       expect(screen.getByRole('button', CREATE_SHORT)).toBeEnabled();
+    });
+
+    it('checks the default alias of a Skyforms slot whose field is empty', async () => {
+      renderSlot({ ...emptyApplySlot(), mode: 'skyforms', url: SKYFORMS_URL });
+      await settle();
+
+      expect(availability).toHaveBeenCalledWith('gecekodu-skydays2026');
+    });
+
+    it('checks the saved alias again once the slot names a Skyforms form', async () => {
+      const typist = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      availability.mockResolvedValue({
+        alias: 'gecekodu-skydays2026',
+        available: false,
+        reason: 'taken',
+      });
+      renderSlot({
+        ...emptyApplySlot(),
+        url: 'https://apply.example.test',
+        alias: 'gecekodu-skydays2026',
+        saved: { alias: 'gecekodu-skydays2026', url: 'https://apply.example.test' },
+      });
+
+      const address = screen.getByLabelText('Form adresi');
+      await typist.clear(address);
+      await typist.type(address, SKYFORMS_URL);
+      await settle();
+
+      expect(availability).toHaveBeenLastCalledWith('gecekodu-skydays2026');
+      expect(await screen.findByText(SKYFORMS_TAKEN)).toBeInTheDocument();
     });
   });
 });
