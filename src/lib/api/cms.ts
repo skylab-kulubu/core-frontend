@@ -1,4 +1,4 @@
-import { problemFromResponse } from './core';
+import { ProblemError, problemFromResponse } from './core';
 
 export type NewsData = {
   title: string;
@@ -26,7 +26,16 @@ export type NewsPage = {
   limit: number;
 };
 
-const NEWS_COLLECTION = '/cms/collections/News';
+/** What inscribed answers a delete with: the item is archived, not erased. */
+export type NewsArchived = {
+  collectionKey: string;
+  slug: string;
+  version: number;
+  references: number;
+};
+
+/** inscribed collection keys are lowercase; `News` answers 404. */
+const NEWS_COLLECTION = '/cms/collections/news';
 
 export function cmsBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_CMS_URL || 'http://localhost:5000').replace(/\/+$/, '');
@@ -86,6 +95,23 @@ export const newsApi = {
       { method: 'PUT', body: JSON.stringify({ data, version }) },
       token,
     ),
-  remove: (slug: string, token?: string | null) =>
-    cmsFetch<void>(newsPath(slug), { method: 'DELETE' }, token),
+  remove: (slug: string, version: number, token?: string | null) =>
+    cmsFetch<NewsArchived>(`${newsPath(slug)}?version=${version}`, { method: 'DELETE' }, token),
 };
+
+/**
+ * A Turkish sentence for a refused News write. inscribed answers 409 when the
+ * version the editor read is no longer current, or with `reason: "archived"`
+ * when the item was deleted meanwhile; anything else keeps its problem title,
+ * and a non-problem error the caller's fallback.
+ */
+export function newsProblemMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof ProblemError)) return fallback;
+  if (error.status === 409) {
+    if (error.fields.reason === 'archived') {
+      return 'Bu duyuru bu arada başka biri tarafından silindi.';
+    }
+    return 'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Son hâlini görmek için sayfayı yenile, sonra tekrar dene.';
+  }
+  return error.title;
+}
