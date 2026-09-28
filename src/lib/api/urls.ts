@@ -1,6 +1,5 @@
 import { CORE_API_URL, coreFetch } from './core';
 import { qrLogoQuery } from '@/lib/qr-url';
-import { sourceQuery, type SourceFilter } from '@/lib/short-links';
 
 export type ShortUrl = {
   id: string;
@@ -8,9 +7,9 @@ export type ShortUrl = {
   url: string;
   clickCount: number;
   createdBy?: string;
-  /** Set when a form owns the link; event links carry their form too. */
+  /** Set on a Form link: the link belongs to that Form. */
   formId?: string | null;
-  /** Set when an event owns the link. */
+  /** Set while an Event names the link's Form; the Event then decides its alias. */
   eventId?: string | null;
   label?: string;
   disabledAt?: string;
@@ -18,6 +17,12 @@ export type ShortUrl = {
   createdAt: string;
   updatedAt: string;
 };
+
+/** Who manages a Short link; also the values of the list endpoints' `?source=`. */
+export type LinkKind = 'personal' | 'form' | 'event';
+
+/** A list filter: every link, or one kind. */
+export type LinkKindFilter = 'all' | LinkKind;
 
 /** Core's answer to `GET /v1/urls/availability`; reason is invalid, reserved or taken. */
 export type AliasAvailability = {
@@ -78,10 +83,9 @@ export function hitUserLabel(hit: Pick<ShortUrlHit, 'userId'>): string {
   return '—';
 }
 
-/** The hit's utm source (instagram, qr…) as a subtitle prefix, or nothing without one. */
-export function hitChannel(hit: Pick<ShortUrlHit, 'utm'>): string {
-  const source = hit.utm?.source?.trim();
-  return source ? `${source} · ` : '';
+/** The hit's utm source (instagram, qr…), or undefined when it carried none. */
+export function hitSource(hit: Pick<ShortUrlHit, 'utm'>): string | undefined {
+  return hit.utm?.source?.trim() || undefined;
 }
 
 export function hitWhen(hit: Pick<ShortUrlHit, 'createdAt'>): string {
@@ -92,11 +96,15 @@ export function asHitList(rows: ShortUrlHit[] | null | undefined): ShortUrlHit[]
   return Array.isArray(rows) ? rows : [];
 }
 
+/** The list endpoints' kind filter; Tümü asks for every link as before. */
+function sourceQuery(kind: LinkKindFilter): string {
+  return kind === 'all' ? '' : `?source=${kind}`;
+}
+
 export const urlsApi = {
-  listMine: (source: SourceFilter = 'all') =>
-    coreFetch<ShortUrl[]>(`/v1/urls${sourceQuery(source)}`),
-  listAll: (source: SourceFilter = 'all') =>
-    coreFetch<ShortUrl[]>(`/v1/urls/all${sourceQuery(source)}`),
+  listMine: (kind: LinkKindFilter = 'all') => coreFetch<ShortUrl[]>(`/v1/urls${sourceQuery(kind)}`),
+  listAll: (kind: LinkKindFilter = 'all') =>
+    coreFetch<ShortUrl[]>(`/v1/urls/all${sourceQuery(kind)}`),
   availability: (alias: string) =>
     coreFetch<AliasAvailability>(`/v1/urls/availability?alias=${encodeURIComponent(alias)}`),
   listHits: (id: string) => coreFetch<ShortUrlHit[]>(`/v1/urls/${encodeURIComponent(id)}/hits`),

@@ -13,19 +13,13 @@ import { publicShortUrl, type ShortUrl } from '@/lib/api/urls';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import {
-  disableConfirmText,
+  deleteConfirmText,
+  isManaged,
+  linkKind,
+  linkKindLabel,
   managedNote,
-  shortUrlSource,
-  sourceLabel,
-  type ShortUrlSource,
 } from '@/lib/short-links';
-import type { StatusChipKind } from '@/lib/status-chip';
-
-const SOURCE_CHIPS: Record<ShortUrlSource, StatusChipKind> = {
-  personal: 'neutral',
-  form: 'featured',
-  event: 'member',
-};
+import { linkKindStatus } from '@/lib/status-chip';
 
 export function UrlList({
   title,
@@ -37,7 +31,7 @@ export function UrlList({
   onHits,
   onDelete,
   showClicks = false,
-  canDisableManaged = false,
+  canDeleteManaged = false,
   filtered = false,
 }: {
   title: string;
@@ -49,9 +43,9 @@ export function UrlList({
   onHits?: (row: ShortUrl) => void;
   onDelete: (row: ShortUrl) => void;
   showClicks?: boolean;
-  /** A URL moderator may disable a form or event link; others only see it. */
-  canDisableManaged?: boolean;
-  /** A source filter narrows the list, so an empty list is a non-match. */
+  /** A URL moderator may delete a managed link; others only see it. */
+  canDeleteManaged?: boolean;
+  /** A kind filter narrows the list, so an empty list is a non-match. */
   filtered?: boolean;
 }) {
   const [query, setQuery] = useState('');
@@ -61,7 +55,7 @@ export function UrlList({
   );
   const paged = paginateRows(visible, page);
   const remove = (row: ShortUrl) => {
-    const confirmText = disableConfirmText(row);
+    const confirmText = deleteConfirmText(row);
     if (confirmText && !window.confirm(confirmText)) return;
     onDelete(row);
   };
@@ -93,8 +87,10 @@ export function UrlList({
       >
         {paged.slice.map((row) => {
           const short = publicShortUrl(row.alias);
-          const source = shortUrlSource(row);
-          const managed = managedNote(row);
+          const kind = linkKind(row);
+          const managed = isManaged(row);
+          const note = managedNote(row);
+          const locked = managed && !canDeleteManaged;
           const details = [row.label?.trim(), row.url, showClicks && `${row.clickCount} tıklama`];
           return (
             <ListItem
@@ -103,10 +99,10 @@ export function UrlList({
               subtitle={details.filter(Boolean).join(' · ')}
               trailing={
                 <>
-                  <StatusChip kind={SOURCE_CHIPS[source]} label={sourceLabel(source)} />
-                  {managed ? (
+                  <StatusChip kind={linkKindStatus(kind)} label={linkKindLabel(kind)} />
+                  {note ? (
                     <span className="text-3xs text-subtle-foreground whitespace-nowrap">
-                      {managed}
+                      {note}
                     </span>
                   ) : null}
                   <ActionButton
@@ -125,15 +121,15 @@ export function UrlList({
                   <ActionButton
                     icon={Pencil}
                     label="Düzenle"
-                    title={managed ?? undefined}
-                    disabled={Boolean(managed)}
+                    title={note ?? undefined}
+                    disabled={managed}
                     onClick={() => onEdit(row)}
                   />
                   <ActionButton
                     icon={Trash2}
                     label="Sil"
-                    title={managed && !canDisableManaged ? managed : undefined}
-                    disabled={Boolean(managed) && !canDisableManaged}
+                    title={locked ? (note ?? undefined) : undefined}
+                    disabled={locked}
                     onClick={() => remove(row)}
                   />
                 </>

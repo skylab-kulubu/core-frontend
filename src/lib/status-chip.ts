@@ -1,3 +1,5 @@
+import type { LinkKind } from '@/lib/api/urls';
+
 export type StatusChipKind =
   | 'active'
   | 'passive'
@@ -77,4 +79,15 @@ export function ticketTypeStatus(type: string): StatusChipKind {
 
 export function ticketCheckInStatus(hasCheckIn: boolean): StatusChipKind {
   return hasCheckIn ? 'checked-in' : 'pending';
+}
+
+/** Every Short link kind draws the neutral chip; its label names the kind. */
+const LINK_KIND_STATUS: Record<LinkKind, StatusChipKind> = {
+  personal: 'neutral',
+  form: 'neutral',
+  event: 'neutral',
+};
+
+export function linkKindStatus(kind: LinkKind): StatusChipKind {
+  return LINK_KIND_STATUS[kind];
 }

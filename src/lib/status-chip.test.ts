@@ -1,4 +1,10 @@
-import { activeStatus, statusChip, ticketCheckInStatus, ticketTypeStatus } from './status-chip';
+import {
+  activeStatus,
+  linkKindStatus,
+  statusChip,
+  ticketCheckInStatus,
+  ticketTypeStatus,
+} from './status-chip';
 
 describe('statusChip', () => {
   it('labels active and passive with glowing dots', () => {
@@ -28,5 +34,11 @@ describe('statusChip', () => {
     expect(statusChip('winner').label).toBe('Kazanan');
     expect(activeStatus(true)).toBe('active');
     expect(activeStatus(false)).toBe('passive');
+  });
+
+  it('gives every short link kind the neutral chip, since its label says the kind', () => {
+    expect(linkKindStatus('personal')).toBe('neutral');
+    expect(linkKindStatus('form')).toBe('neutral');
+    expect(linkKindStatus('event')).toBe('neutral');
   });
 });

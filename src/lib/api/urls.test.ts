@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { urlsApi } from '@/lib/api/urls';
+import { hitSource, urlsApi } from '@/lib/api/urls';
 
 describe('urlsApi', () => {
   const realFetch = global.fetch;
@@ -37,5 +37,13 @@ describe('urlsApi', () => {
 
     expect(urls[0].pathname).toBe('/v1/urls/availability');
     expect(urls[0].searchParams.get('alias')).toBe('a b&c');
+  });
+});
+
+describe('hitSource', () => {
+  it('gives the hit’s utm source, or nothing when it carried none', () => {
+    expect(hitSource({ utm: { source: 'instagram' } })).toBe('instagram');
+    expect(hitSource({ utm: { source: ' ' } })).toBeUndefined();
+    expect(hitSource({})).toBeUndefined();
   });
 });

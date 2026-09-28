@@ -1,77 +1,79 @@
 import { ProblemError } from '@/lib/api/core';
-import type { AliasAvailability, ShortUrl } from '@/lib/api/urls';
+import type { AliasAvailability, LinkKind, LinkKindFilter, ShortUrl } from '@/lib/api/urls';
 
-/** Who manages a short link: its event, its form, or the person who made it. */
-export type ShortUrlSource = 'personal' | 'form' | 'event';
+type KindFields = Pick<ShortUrl, 'formId' | 'eventId'>;
 
-/** The list filter: every link, or one source (core's `?source=`). */
-export type SourceFilter = 'all' | ShortUrlSource;
-
-type Binding = Pick<ShortUrl, 'formId' | 'eventId'>;
-
-/** A link's source as core derives it: an event wins over a form. */
-export function shortUrlSource(row: Binding): ShortUrlSource {
+/**
+ * Who manages a Short link: a Form link an Event names is event-managed (the
+ * Event decides its alias), any other Form link is form-managed, and the rest
+ * are personal.
+ */
+export function linkKind(row: KindFields): LinkKind {
   if (row.eventId) return 'event';
   if (row.formId) return 'form';
   return 'personal';
 }
 
-const SOURCE_LABELS: Record<ShortUrlSource, string> = {
-  personal: 'Kişisel',
-  form: 'Form',
-  event: 'Etkinlik',
+type LinkKindCopy = {
+  label: string;
+  /** Where a managed link is renamed and retargeted; null for a personal link. */
+  note: string | null;
+  /** What a URL moderator confirms before deleting a managed link; null for a personal link. */
+  deleteConfirm: string | null;
 };
 
-export function sourceLabel(source: ShortUrlSource): string {
-  return SOURCE_LABELS[source];
+const LINK_KINDS: Record<LinkKind, LinkKindCopy> = {
+  personal: { label: 'Kişisel', note: null, deleteConfirm: null },
+  form: {
+    label: 'Form',
+    note: 'Forms’ta yönetiliyor',
+    deleteConfirm:
+      'Bu link bir formun linki; silersen form linksiz kalır. Silmek istediğine emin misin?',
+  },
+  event: {
+    label: 'Etkinlik',
+    note: 'Etkinlikte yönetiliyor',
+    deleteConfirm:
+      'Bu link bir etkinliğin form linki; silersen etkinlik linksiz kalır. Silmek istediğine emin misin?',
+  },
+};
+
+export function linkKindLabel(kind: LinkKind): string {
+  return LINK_KINDS[kind].label;
 }
 
-export const SOURCE_FILTERS: ReadonlyArray<{ value: SourceFilter; label: string }> = [
+/** The list filter: every link, or one kind. */
+export const LINK_KIND_FILTERS: ReadonlyArray<{ value: LinkKindFilter; label: string }> = [
   { value: 'all', label: 'Tümü' },
-  { value: 'personal', label: SOURCE_LABELS.personal },
-  { value: 'form', label: SOURCE_LABELS.form },
-  { value: 'event', label: SOURCE_LABELS.event },
+  { value: 'personal', label: LINK_KINDS.personal.label },
+  { value: 'form', label: LINK_KINDS.form.label },
+  { value: 'event', label: LINK_KINDS.event.label },
 ];
 
-/** The list query for a filter; Tümü asks for every link as before. */
-export function sourceQuery(filter: SourceFilter): string {
-  return filter === 'all' ? '' : `?source=${filter}`;
+/** Whether a Form or an Event manages the link, so the generic list may not rename it. */
+export function isManaged(row: KindFields): boolean {
+  return linkKind(row) !== 'personal';
 }
 
-const MANAGED_NOTES: Record<Exclude<ShortUrlSource, 'personal'>, string> = {
-  form: 'Forms’ta yönetiliyor',
-  event: 'Etkinlikte yönetiliyor',
-};
-
-/** Where a bound link is renamed and retargeted; null for a personal link. */
-export function managedNote(row: Binding): string | null {
-  const source = shortUrlSource(row);
-  return source === 'personal' ? null : MANAGED_NOTES[source];
+export function managedNote(row: KindFields): string | null {
+  return LINK_KINDS[linkKind(row)].note;
 }
 
-/** Whether core refused a change because a form or an event owns the link. */
+export function deleteConfirmText(row: KindFields): string | null {
+  return LINK_KINDS[linkKind(row)].deleteConfirm;
+}
+
+/** Whether core refused a change because a Form or an Event manages the link. */
 export function isManagedRefusal(error: unknown): boolean {
   return error instanceof ProblemError && error.status === 409 && error.code === 'managed';
 }
 
 /**
  * The message for a managed refusal. A stale list may still show the link as
- * personal, so that case names both owners.
+ * personal, so that case names both managers.
  */
-export function managedRefusalMessage(row: Binding): string {
+export function managedRefusalMessage(row: KindFields): string {
   return managedNote(row) ?? 'Forms’ta ya da etkinlikte yönetiliyor';
-}
-
-/** What a moderator confirms before disabling a bound link; null for a personal link. */
-export function disableConfirmText(row: Binding): string | null {
-  switch (shortUrlSource(row)) {
-    case 'form':
-      return 'Bu link bir forma bağlı. Silersen form linksiz kalır. Silinsin mi?';
-    case 'event':
-      return 'Bu link bir etkinliğe bağlı. Silersen etkinlik linksiz kalır. Silinsin mi?';
-    default:
-      return null;
-  }
 }
 
 /**
@@ -90,8 +92,8 @@ const TAKEN = 'Bu ad kullanılıyor (eski adlar da dolu sayılır)';
 
 /**
  * The one-line hint for an availability answer. While editing, `taken` only
- * warns: core reports the link's own old aliases as taken, yet lets the link
- * take one back, so the save decides.
+ * warns: core reports the link's own Retired aliases as taken, yet lets the
+ * link take one back, so the save decides.
  */
 export function aliasHint(result: AliasAvailability, mode: 'create' | 'edit'): AliasHint | null {
   if (result.available) return { tone: 'ok', text: 'Uygun', blocks: false };

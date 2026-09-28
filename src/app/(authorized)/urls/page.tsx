@@ -11,14 +11,14 @@ import { HorizontalBars } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StateCard } from '@/components/chrome/StateCard';
-import { AliasHint, useAliasHint } from '@/components/urls/AliasHint';
+import { AliasHint } from '@/components/urls/AliasHint';
 import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProblemError } from '@/lib/api/core';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import {
   asHitList,
-  hitChannel,
+  hitSource,
   hitUserLabel,
   hitWhen,
   publicShortUrl,
@@ -26,6 +26,7 @@ import {
   shortQrPath,
   shortQrUrl,
   urlsApi,
+  type LinkKindFilter,
   type ShortUrl,
   type ShortUrlHit,
 } from '@/lib/api/urls';
@@ -33,12 +34,8 @@ import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
-import {
-  isManagedRefusal,
-  managedRefusalMessage,
-  SOURCE_FILTERS,
-  type SourceFilter,
-} from '@/lib/short-links';
+import { isManagedRefusal, LINK_KIND_FILTERS, managedRefusalMessage } from '@/lib/short-links';
+import { useAliasHint } from '@/lib/ui/use-alias-hint';
 import { useAuth } from '@/context/AuthContext';
 
 export default function UrlsPage() {
@@ -61,39 +58,61 @@ export default function UrlsPage() {
   const [hitsError, setHitsError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
-  const [source, setSource] = useState<SourceFilter>('all');
+  const [kindFilter, setKindFilter] = useState<LinkKindFilter>('all');
   const [notice, setNotice] = useState<string | null>(null);
   const aliasHint = useAliasHint(alias, 'create');
   const editAliasHint = useAliasHint(editing ? editAlias : '', 'edit', editing?.alias);
-  // Only the latest load may fill the lists, so a slow answer for an older filter is dropped
+  // Read when a load starts, so a reload after a change uses the filter chosen meanwhile
+  const kindFilterRef = useRef<LinkKindFilter>('all');
+  // Only the latest load fills the lists, so a slow answer for an older filter is dropped
   const loadSeq = useRef(0);
 
-  const load = useCallback(async () => {
-    if (!allowed) return;
-    const seq = ++loadSeq.current;
-    try {
-      const mineRows = await urlsApi.listMine(source);
-      if (seq !== loadSeq.current) return;
-      setMine(mineRows);
-      if (moderate) {
-        const allRows = await urlsApi.listAll(source);
+  /**
+   * Loads both lists for the current filter. The latest load also sets the
+   * notice: the managed message it was asked to announce, or none, so a notice
+   * lasts until the next reload.
+   */
+  const load = useCallback(
+    async (announce: string | null = null) => {
+      if (!allowed) return;
+      const seq = ++loadSeq.current;
+      const kind = kindFilterRef.current;
+      try {
+        const mineRows = await urlsApi.listMine(kind);
         if (seq !== loadSeq.current) return;
-        setAll(allRows);
-      } else {
-        setAll([]);
+        setMine(mineRows);
+        if (moderate) {
+          const allRows = await urlsApi.listAll(kind);
+          if (seq !== loadSeq.current) return;
+          setAll(allRows);
+        } else {
+          setAll([]);
+        }
+        setError(null);
+      } catch (err) {
+        if (seq !== loadSeq.current) return;
+        setError(err instanceof ProblemError ? err.title : 'URL’ler yüklenemedi');
+      } finally {
+        if (seq === loadSeq.current) {
+          setLoading(false);
+          setNotice(announce);
+        }
       }
-      setError(null);
-    } catch (err) {
-      if (seq !== loadSeq.current) return;
-      setError(err instanceof ProblemError ? err.title : 'URL’ler yüklenemedi');
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, [allowed, moderate, source]);
+    },
+    [allowed, moderate],
+  );
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, kindFilter]);
+
+  /** Answers a managed refusal: closes the editor and reloads with the managed message. */
+  const explainManagedRefusal = async (err: unknown, row: ShortUrl): Promise<boolean> => {
+    if (!isManagedRefusal(err)) return false;
+    setEditing(null);
+    await load(managedRefusalMessage(row));
+    return true;
+  };
 
   const removeRow = async (row: ShortUrl) => {
     setNotice(null);
@@ -101,11 +120,7 @@ export default function UrlsPage() {
       await urlsApi.remove(row.id);
       await load();
     } catch (err) {
-      if (isManagedRefusal(err)) {
-        setNotice(managedRefusalMessage(row));
-        await load();
-        return;
-      }
+      if (await explainManagedRefusal(err, row)) return;
       setError(err instanceof ProblemError ? err.title : 'Silinemedi');
     }
   };
@@ -131,7 +146,11 @@ export default function UrlsPage() {
         description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {notice ? <p className="text-warning text-sm">{notice}</p> : null}
+      {notice ? (
+        <p role="status" className="text-warning text-sm">
+          {notice}
+        </p>
+      ) : null}
       <form
         className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
@@ -178,14 +197,16 @@ export default function UrlsPage() {
         <AliasHint id="alias-hint" hint={aliasHint} className="basis-full" />
       </form>
       <FilterPills
-        ariaLabel="Kaynak"
-        value={source}
+        ariaLabel="Link türü"
+        value={kindFilter}
         onChange={(next) => {
-          if (next === source) return;
-          setSource(next);
+          if (next === kindFilter) return;
+          kindFilterRef.current = next;
+          setKindFilter(next);
           setLoading(true);
+          setNotice(null);
         }}
-        options={SOURCE_FILTERS}
+        options={LINK_KIND_FILTERS}
       />
       {moderate ? (
         <HorizontalBars
@@ -200,8 +221,8 @@ export default function UrlsPage() {
         failed={Boolean(error)}
         items={mine}
         showClicks={moderate}
-        canDisableManaged={moderate}
-        filtered={source !== 'all'}
+        canDeleteManaged={moderate}
+        filtered={kindFilter !== 'all'}
         onEdit={(row) => {
           setEditing(row);
           setEditTarget(row.url);
@@ -231,8 +252,8 @@ export default function UrlsPage() {
           failed={Boolean(error)}
           items={all}
           showClicks
-          canDisableManaged
-          filtered={source !== 'all'}
+          canDeleteManaged
+          filtered={kindFilter !== 'all'}
           onEdit={(row) => {
             setEditing(row);
             setEditTarget(row.url);
@@ -282,7 +303,15 @@ export default function UrlsPage() {
                 <ListItem
                   key={`${hitWhen(hit)}-${hit.ip}-${index}`}
                   title={formatApplicantWhen(hitWhen(hit))}
-                  subtitle={`${hitChannel(hit)}${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
+                  subtitle={[
+                    hitSource(hit),
+                    hit.ip,
+                    hit.userAgent,
+                    hit.referer || '—',
+                    hitUserLabel(hit),
+                  ]
+                    .filter((part) => part !== undefined)
+                    .join(' · ')}
                 />
               ))}
             </ListPanel>
@@ -305,12 +334,7 @@ export default function UrlsPage() {
                 setEditing(null);
                 await load();
               } catch (err) {
-                if (isManagedRefusal(err)) {
-                  setEditing(null);
-                  setNotice(managedRefusalMessage(editing));
-                  await load();
-                  return;
-                }
+                if (await explainManagedRefusal(err, editing)) return;
                 setError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
               }
             }}

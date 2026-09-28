@@ -71,7 +71,7 @@ describe('UrlList', () => {
     expect(screen.getByRole('button', { name: 'Tıklamalar' })).toBeInTheDocument();
   });
 
-  it('shows each row’s source as a badge, and its label when it has one', () => {
+  it('shows each row’s kind as a badge, and its label when it has one', () => {
     render(
       <UrlList
         title="Tümü"
@@ -98,7 +98,7 @@ describe('UrlList', () => {
     expect(handlers.onDelete).toHaveBeenCalledWith(row);
   });
 
-  it('makes a bound row read-only here and says where it is managed', () => {
+  it('makes a managed row read-only here and says where it is managed', () => {
     render(
       <UrlList
         title="Linklerim"
@@ -116,7 +116,7 @@ describe('UrlList', () => {
     expect(event.getByText('Etkinlikte yönetiliyor')).toBeInTheDocument();
   });
 
-  it('does not let a non-moderator disable a bound row', () => {
+  it('does not let a non-moderator delete a managed row', () => {
     render(
       <UrlList
         title="Linklerim"
@@ -131,7 +131,7 @@ describe('UrlList', () => {
     }
   });
 
-  it('lets a moderator disable a bound row after confirming the form keeps no link', async () => {
+  it('lets a moderator delete a managed row after confirming the form keeps no link', async () => {
     const clicker = userEvent.setup();
     const confirm = jest.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
     render(
@@ -140,7 +140,7 @@ describe('UrlList', () => {
         items={[formRow, eventRow]}
         loading={false}
         failed={false}
-        canDisableManaged
+        canDeleteManaged
         {...handlers}
       />,
     );
@@ -148,14 +148,18 @@ describe('UrlList', () => {
     expect(remove).toBeEnabled();
 
     await clicker.click(remove);
-    expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/form linksiz kalır/));
+    expect(confirm).toHaveBeenLastCalledWith(
+      expect.stringMatching(/form linksiz kalır.*emin misin\?$/),
+    );
     expect(handlers.onDelete).not.toHaveBeenCalled();
 
     await clicker.click(remove);
     expect(handlers.onDelete).toHaveBeenCalledWith(formRow);
 
     await clicker.click(within(rowOf('gecekodu')).getByRole('button', { name: 'Sil' }));
-    expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/etkinlik linksiz kalır/));
+    expect(confirm).toHaveBeenLastCalledWith(
+      expect.stringMatching(/etkinlik linksiz kalır.*emin misin\?$/),
+    );
     expect(handlers.onDelete).toHaveBeenLastCalledWith(eventRow);
     confirm.mockRestore();
   });

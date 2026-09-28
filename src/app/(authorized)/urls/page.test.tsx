@@ -183,21 +183,21 @@ const creator = () => user({ roles: ['url:create'], groups: ['/UYELER/ARGE/WEBLA
 const moderator = () => user({ roles: ['url:moderator'], groups: ['/UYELER/ARGE/WEBLAB'] });
 const managed = () => new ProblemError(409, 'Conflict', { code: 'managed' });
 
-describe('Kısa URL source filter', () => {
+describe('Kısa URL kind filter', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
     (urlsApi.listAll as jest.Mock).mockResolvedValue([short]);
   });
 
-  it('lists every link with Tümü, and asks both lists for the chosen source', async () => {
+  it('lists every link with Tümü, and asks both lists for the chosen kind', async () => {
     const clicker = userEvent.setup();
     (useAuth as jest.Mock).mockReturnValue({ user: moderator() });
     render(<UrlsPage />);
     await waitFor(() => expect(urlsApi.listAll).toHaveBeenCalled());
     expect(urlsApi.listMine).toHaveBeenLastCalledWith('all');
     expect(urlsApi.listAll).toHaveBeenLastCalledWith('all');
-    const filter = screen.getByRole('group', { name: 'Kaynak' });
+    const filter = screen.getByRole('group', { name: 'Link türü' });
     expect(within(filter).getByRole('button', { name: 'Tümü' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -218,10 +218,32 @@ describe('Kısa URL source filter', () => {
     (useAuth as jest.Mock).mockReturnValue({ user: creator() });
     render(<UrlsPage />);
     await screen.findByText(/skyl\.app\/hack/);
-    const filter = screen.getByRole('group', { name: 'Kaynak' });
+    const filter = screen.getByRole('group', { name: 'Link türü' });
     await clicker.click(within(filter).getByRole('button', { name: 'Tümü' }));
     expect(screen.getByText(/skyl\.app\/hack/)).toBeInTheDocument();
     expect(urlsApi.listMine).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads after a change with the filter chosen while it was pending', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockImplementation(async (kind: string) =>
+      kind === 'form' ? [formRow] : [short],
+    );
+    const removal = deferred<void>();
+    (urlsApi.remove as jest.Mock).mockReturnValue(removal.promise);
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    await clicker.click(within(filter).getByRole('button', { name: 'Form' }));
+    await screen.findByText(/skyl\.app\/basvuru/);
+
+    await act(async () => removal.resolve());
+
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(3));
+    expect(urlsApi.listMine).toHaveBeenLastCalledWith('form');
+    expect(screen.getByText(/skyl\.app\/basvuru/)).toBeInTheDocument();
+    expect(screen.queryByText(/skyl\.app\/hack/)).not.toBeInTheDocument();
   });
 
   it('shows only the answer for the latest filter', async () => {
@@ -234,7 +256,7 @@ describe('Kısa URL source filter', () => {
     (urlsApi.listMine as jest.Mock)
       .mockReturnValueOnce(forms.promise)
       .mockReturnValueOnce(events.promise);
-    const filter = screen.getByRole('group', { name: 'Kaynak' });
+    const filter = screen.getByRole('group', { name: 'Link türü' });
     await clicker.click(within(filter).getByRole('button', { name: 'Form' }));
     await clicker.click(within(filter).getByRole('button', { name: 'Etkinlik' }));
 
@@ -261,7 +283,9 @@ describe('Kısa URL managed refusals', () => {
     (urlsApi.listMine as jest.Mock).mockResolvedValue([formRow]);
     await clicker.click(await screen.findByRole('button', { name: 'Kaydet' }));
 
-    expect(await screen.findByText('Forms’ta ya da etkinlikte yönetiliyor')).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Forms’ta ya da etkinlikte yönetiliyor',
+    );
     expect(screen.queryByText('Conflict')).not.toBeInTheDocument();
     expect(urlsApi.listMine).toHaveBeenCalledTimes(2);
     expect(await screen.findByText(/skyl\.app\/basvuru/)).toBeInTheDocument();
@@ -274,9 +298,38 @@ describe('Kısa URL managed refusals', () => {
     render(<UrlsPage />);
     await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
 
-    expect(await screen.findByText('Forms’ta ya da etkinlikte yönetiliyor')).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Forms’ta ya da etkinlikte yönetiliyor',
+    );
     expect(screen.queryByText('Conflict')).not.toBeInTheDocument();
     await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
+  });
+
+  it('clears the managed notice when the filter changes', async () => {
+    const clicker = userEvent.setup();
+    (urlsApi.remove as jest.Mock).mockRejectedValue(managed());
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    await screen.findByRole('status');
+
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    await clicker.click(within(filter).getByRole('button', { name: 'Kişisel' }));
+
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenLastCalledWith('personal'));
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+  });
+
+  it('clears the managed notice after a later successful reload', async () => {
+    const clicker = userEvent.setup();
+    (urlsApi.remove as jest.Mock).mockRejectedValueOnce(managed()).mockResolvedValueOnce(undefined);
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    await screen.findByRole('status');
+
+    await clicker.click(screen.getByRole('button', { name: 'Sil' }));
+
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(3));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('still shows any other refusal by its title', async () => {
