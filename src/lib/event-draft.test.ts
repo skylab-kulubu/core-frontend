@@ -210,6 +210,29 @@ describe('event editor draft', () => {
     expect(restored.location).toBe('YTÜ');
   });
 
+  it('keeps the link each slot already has in the draft', () => {
+    const storage = memoryStorage();
+    const returnTo = 'https://admin.yildizskylab.com/events/new';
+    writeEventDraft(storage, returnTo, {
+      ...emptyEventForm('GECEKODU'),
+      formSlots: [
+        {
+          ...emptyApplySlot(),
+          url: 'https://apply.example.test',
+          alias: 'skydays2026',
+          urlId: 'u1',
+          savedAlias: 'skydays2026',
+          savedUrl: 'https://apply.example.test',
+        },
+      ],
+    });
+    expect(readEventDraft(storage, returnTo)?.formSlots[0]).toMatchObject({
+      urlId: 'u1',
+      savedAlias: 'skydays2026',
+      savedUrl: 'https://apply.example.test',
+    });
+  });
+
   it('stores a reserved Event id on a new editor so Skyforms can keep it before save', () => {
     const storage = memoryStorage();
     const reserved = '11111111-1111-4111-8111-111111111111';

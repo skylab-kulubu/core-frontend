@@ -182,5 +182,7 @@ function normalizeSlot(slot: Partial<EventFormSlot> | null | undefined): EventFo
     url: typeof slot?.url === 'string' ? slot.url : '',
     alias: typeof slot?.alias === 'string' ? slot.alias : '',
     urlId: typeof slot?.urlId === 'string' ? slot.urlId : undefined,
+    savedAlias: typeof slot?.savedAlias === 'string' ? slot.savedAlias : undefined,
+    savedUrl: typeof slot?.savedUrl === 'string' ? slot.savedUrl : undefined,
   };
 }

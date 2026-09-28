@@ -22,8 +22,10 @@ import {
   slugYearAlias,
   slotsFromEvent,
   withFormSlot,
+  type EventFormSlot,
 } from './event-forms';
 import { ProblemError } from './api/core';
+import type { ShortUrl, ShortUrlBody } from './api/urls';
 
 describe('event form slots', () => {
   it('keeps başvuru as the first slot', () => {
@@ -204,5 +206,123 @@ describe('event form slots', () => {
     );
     expect(seen[0]).toBe('skydays2026');
     expect(row.alias).toBe('skydays2026-2026');
+  });
+});
+
+describe('form short links when an Event is saved', () => {
+  const FORM_ID = '22222222-2222-4222-8222-222222222222';
+  const SKYFORMS_URL = `https://forms.yildizskylab.com/${FORM_ID}`;
+
+  /** A saved Event: a Skyforms başvuru form and an external CTF form, both with their links. */
+  const savedEvent = {
+    formUrl: SKYFORMS_URL,
+    formAlias: 'gecekodu-skydays2026',
+    extraFormUrls: [{ label: 'CTF', url: 'https://ctf.example.test', alias: 'skydays-ctf2026' }],
+  };
+
+  /** Core's `POST /v1/urls`: 409 for an alias that already exists, else a new link. */
+  function coreCreate(existing: string[]) {
+    return jest.fn(async (body: ShortUrlBody): Promise<ShortUrl> => {
+      if (existing.includes(body.alias ?? '')) throw new ProblemError(409, 'Conflict');
+      return {
+        id: 'u-new',
+        alias: body.alias ?? 'x',
+        url: body.url,
+        clickCount: 0,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      };
+    });
+  }
+
+  function save(slots: EventFormSlot[], create: ReturnType<typeof coreCreate>) {
+    return attachFormAliases(slots, 'SkyDays', '2026-05-01T09:00', create, 'GECEKODU');
+  }
+
+  it('remembers the link each slot was loaded with', () => {
+    const [apply, ctf] = slotsFromEvent(savedEvent);
+    expect(apply).toMatchObject({ savedAlias: 'gecekodu-skydays2026', savedUrl: SKYFORMS_URL });
+    expect(ctf).toMatchObject({
+      savedAlias: 'skydays-ctf2026',
+      savedUrl: 'https://ctf.example.test',
+    });
+    const [bare] = slotsFromEvent({ formUrl: 'https://apply.example.test' });
+    expect(bare.savedAlias).toBeUndefined();
+  });
+
+  it('re-saving a loaded Event creates no link and keeps its aliases', async () => {
+    const create = coreCreate(['gecekodu-skydays2026', 'skydays-ctf2026']);
+
+    const slots = await save(slotsFromEvent(savedEvent), create);
+
+    expect(persistableFormFields(slots)).toEqual({
+      formUrl: SKYFORMS_URL,
+      formAlias: 'gecekodu-skydays2026',
+      extraFormUrls: [{ label: 'CTF', url: 'https://ctf.example.test', alias: 'skydays-ctf2026' }],
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('only names the alias of a Skyforms form; core creates its link with the Event', async () => {
+    const create = coreCreate([]);
+
+    const slots = await save(
+      [
+        { ...emptyApplySlot(), mode: 'skyforms', url: SKYFORMS_URL },
+        {
+          ...extraFormSlot('CTF', 'extra-ctf'),
+          mode: 'skyforms',
+          url: 'https://forms.yildizskylab.com/33333333-3333-4333-8333-333333333333',
+          alias: 'gecekodu.ctf final',
+        },
+      ],
+      create,
+    );
+
+    expect(create).not.toHaveBeenCalled();
+    expect(slots[0]).toMatchObject({ url: SKYFORMS_URL, alias: 'gecekodu-skydays2026' });
+    expect(slots[0].urlId).toBeUndefined();
+    expect(slots[1].alias).toBe('gecekodu-ctf-final');
+  });
+
+  it('creates a link for a new alias on an external slot', async () => {
+    const create = coreCreate(['gecekodu-skydays2026', 'skydays-ctf2026']);
+    const [apply, ctf] = slotsFromEvent(savedEvent);
+
+    const slots = await save([apply, { ...ctf, alias: 'ctf-final' }], create);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ url: 'https://ctf.example.test', alias: 'ctf-final' });
+    expect(slots[1]).toMatchObject({ alias: 'ctf-final', urlId: 'u-new' });
+    expect(slots[0].alias).toBe('gecekodu-skydays2026');
+  });
+
+  it('creates a link when an external slot points somewhere new under its old alias', async () => {
+    const create = coreCreate(['skydays-ctf2026']);
+    const [apply, ctf] = slotsFromEvent(savedEvent);
+
+    const slots = await save([apply, { ...ctf, url: 'https://ctf2.example.test' }], create);
+
+    expect(create).toHaveBeenCalledWith({
+      url: 'https://ctf2.example.test',
+      alias: 'skydays-ctf2026',
+    });
+    expect(slots[1]).toMatchObject({
+      url: 'https://ctf2.example.test',
+      alias: 'skydays-ctf2026-2026',
+      urlId: 'u-new',
+    });
+  });
+
+  it('keeps creating links for a new Event with an external form', async () => {
+    const create = coreCreate([]);
+
+    const slots = await save([{ ...emptyApplySlot(), url: 'https://apply.example.test' }], create);
+
+    expect(create).toHaveBeenCalledWith({
+      url: 'https://apply.example.test',
+      alias: 'gecekodu-skydays2026',
+    });
+    expect(slots[0]).toMatchObject({ alias: 'gecekodu-skydays2026', urlId: 'u-new' });
   });
 });

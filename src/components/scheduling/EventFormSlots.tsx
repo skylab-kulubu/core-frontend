@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Switch } from '@/components/chrome/Switch';
+import { AliasHint } from '@/components/urls/AliasHint';
 import { ProblemError } from '@/lib/api/core';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
@@ -16,17 +17,25 @@ import {
   extraFormSlot,
   formsAdminOrigin,
   humanFormAlias,
+  keepsSavedLink,
+  namesSkyformsForm,
   skyformsCreateHref,
   skyformsEditHref,
   skyformsFormId,
   shortAliasFromSlug,
-  slugYearAlias,
+  slotAlias,
   aliasYear,
   eventFormTitle,
   createAliasWithRetry,
   type EventFormMode,
   type EventFormSlot,
 } from '@/lib/event-forms';
+import { isManagedRefusal } from '@/lib/short-links';
+import { useAliasHint } from '@/lib/ui/use-alias-hint';
+
+const CREATED_ON_SAVE = 'Kısa link etkinlik kaydedilince oluşur';
+const APPLIED_ON_SAVE = 'Kısa link etkinlik kaydedilince uygulanır';
+const LINK_EXISTS = 'Kısa link zaten var';
 
 type EventFormSlotsProps = {
   slots: EventFormSlot[];
@@ -52,6 +61,7 @@ export function EventFormSlots({
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ key: string; text: string } | null>(null);
   const [gates, setGates] = useState<Record<string, FormGate | 'loading'>>({});
   const year = aliasYear(startLocal);
   const origin = formsAdminOrigin();
@@ -120,32 +130,47 @@ export function EventFormSlots({
     onChange(slots.map((slot) => (slot.key === key ? { ...slot, ...partial } : slot)));
   }
 
+  /** A typed change: the slot's last notice may no longer hold. */
+  function editSlot(key: string, partial: Partial<EventFormSlot>) {
+    if (notice?.key === key) setNotice(null);
+    patchSlot(key, partial);
+  }
+
   function addSlot(label: string) {
     const trimmed = label.trim();
     if (!trimmed) return;
     onChange([...slots, extraFormSlot(trimmed)]);
   }
 
+  /**
+   * Fills the slot's alias and makes its link where the panel owns it: a
+   * Skyforms Form's link is created or renamed by core when the Event is
+   * saved, and a link the slot was loaded with already exists.
+   */
   async function createShort(slot: EventFormSlot) {
     const url = slot.url.trim();
     if (!url) return;
-    const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
-    const alias = shortAliasFromSlug(
-      slot.alias.trim() ||
-        humanFormAlias(ownerTeam, eventName, year, extra) ||
-        slugYearAlias(eventName, year, extra),
-    );
-    setPendingKey(slot.key);
+    const alias = slotAlias(slot, ownerTeam, eventName, year);
+    const exists = keepsSavedLink(slot, alias);
     setError(null);
+    setNotice(null);
+    if (exists || namesSkyformsForm(url, origin)) {
+      patchSlot(slot.key, { alias });
+      setNotice({ key: slot.key, text: exists ? LINK_EXISTS : CREATED_ON_SAVE });
+      return;
+    }
+    setPendingKey(slot.key);
     try {
-      if (slot.urlId) {
-        const row = await urlsApi.update(slot.urlId, { url, alias });
-        patchSlot(slot.key, { alias: row.alias, urlId: row.id });
-      } else {
-        const row = await createAliasWithRetry((body) => urlsApi.create(body), url, alias, year);
-        patchSlot(slot.key, { alias: row.alias, urlId: row.id });
-      }
+      const row = slot.urlId
+        ? await urlsApi.update(slot.urlId, { url, alias })
+        : await createAliasWithRetry((body) => urlsApi.create(body), url, alias, year);
+      patchSlot(slot.key, { alias: row.alias, urlId: row.id });
     } catch (err) {
+      if (isManagedRefusal(err)) {
+        patchSlot(slot.key, { alias });
+        setNotice({ key: slot.key, text: APPLIED_ON_SAVE });
+        return;
+      }
       setError(err instanceof ProblemError ? err.title : 'Kısa link oluşturulamadı');
       if (!slot.alias.trim()) patchSlot(slot.key, { alias });
     } finally {
@@ -253,7 +278,7 @@ export function EventFormSlots({
               type="url"
               value={slot.url}
               placeholder={slot.mode === 'skyforms' ? 'Skyforms form URL' : 'https://'}
-              onChange={(e) => patchSlot(slot.key, { url: e.target.value })}
+              onChange={(e) => editSlot(slot.key, { url: e.target.value })}
               onBlur={() => {
                 if (slot.url.trim() && !slot.alias.trim() && !slot.urlId) {
                   void createShort({
@@ -269,19 +294,17 @@ export function EventFormSlots({
               }}
             />
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Kısa adres</FieldLabel>
-            <Field
-              value={slot.alias}
-              placeholder={humanFormAlias(
-                ownerTeam,
-                eventName,
-                aliasYear(startLocal),
-                slot.key === APPLY_SLOT_KEY ? '' : slot.label,
-              )}
-              onChange={(e) => patchSlot(slot.key, { alias: e.target.value })}
-            />
-          </label>
+          <SlotAliasField
+            slot={slot}
+            placeholder={humanFormAlias(
+              ownerTeam,
+              eventName,
+              aliasYear(startLocal),
+              slot.key === APPLY_SLOT_KEY ? '' : slot.label,
+            )}
+            checkAvailability={namesSkyformsForm(slot.url, origin)}
+            onAlias={(alias) => editSlot(slot.key, { alias })}
+          />
           {slot.alias ? (
             <p className="text-3xs text-subtle-foreground">
               {publicShortUrl(shortAliasFromSlug(slot.alias))}
@@ -294,6 +317,11 @@ export function EventFormSlots({
           >
             {pendingKey === slot.key ? 'Oluşturuluyor…' : 'Kısa link oluştur'}
           </SaveButton>
+          {notice?.key === slot.key ? (
+            <p role="status" className="text-3xs text-subtle-foreground">
+              {notice.text}
+            </p>
+          ) : null}
         </div>
       ))}
       <div className="space-y-2">
@@ -326,6 +354,44 @@ export function EventFormSlots({
       </div>
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>
+  );
+}
+
+/**
+ * The slot's alias field. For a Skyforms Form it shows core's availability
+ * answer as a hint only: `taken` may be the Form's own current link, which
+ * the Event takes over on save, so nothing here blocks the save.
+ */
+function SlotAliasField({
+  slot,
+  placeholder,
+  checkAvailability,
+  onAlias,
+}: {
+  slot: EventFormSlot;
+  placeholder: string;
+  checkAvailability: boolean;
+  onAlias: (alias: string) => void;
+}) {
+  const hintId = useId();
+  const hint = useAliasHint(
+    checkAvailability ? shortAliasFromSlug(slot.alias) : '',
+    'edit',
+    slot.savedAlias,
+  );
+  return (
+    <>
+      <label className="block space-y-1">
+        <FieldLabel>Kısa adres</FieldLabel>
+        <Field
+          value={slot.alias}
+          placeholder={placeholder}
+          aria-describedby={checkAvailability ? hintId : undefined}
+          onChange={(e) => onAlias(e.target.value)}
+        />
+      </label>
+      {checkAvailability ? <AliasHint id={hintId} hint={hint} /> : null}
+    </>
   );
 }
 
