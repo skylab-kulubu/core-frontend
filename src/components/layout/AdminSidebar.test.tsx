@@ -77,6 +77,32 @@ describe('AdminSidebar', () => {
     expect(screen.getByRole('menuitem', { name: /Mail/ })).toBeInTheDocument();
   });
 
+  describe('playground link', () => {
+    const original = process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND;
+
+    afterEach(() => {
+      if (original === undefined) delete process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND;
+      else process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND = original;
+    });
+
+    it('is left out of the console switcher unless the playground is built in', async () => {
+      delete process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND;
+      const pointer = userEvent.setup();
+      renderSidebar();
+      await pointer.click(screen.getByRole('button', { name: 'Kulüp konsolları' }));
+      expect(await screen.findByRole('menuitem', { name: /Forms/ })).toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: /Playground/ })).not.toBeInTheDocument();
+    });
+
+    it('is offered when the image is built with the playground', async () => {
+      process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND = 'true';
+      const pointer = userEvent.setup();
+      renderSidebar();
+      await pointer.click(screen.getByRole('button', { name: 'Kulüp konsolları' }));
+      expect(await screen.findByRole('menuitem', { name: /Playground/ })).toBeInTheDocument();
+    });
+  });
+
   it('opens the events group and keeps the others closed at first', () => {
     renderSidebar();
     expect(screen.getByRole('button', { name: 'Etkinlikler' })).toHaveAttribute(

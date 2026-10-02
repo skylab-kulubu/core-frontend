@@ -31,11 +31,16 @@ import {
 } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
 
-const CONSOLES = [
-  ...clubConsoleLinks().map((app) => ({ ...app, icon: CONSOLE_ICON[app.id] })),
-  // The skylcn-ui playground served from this app until the club wiki takes it over
-  { id: 'playground', label: 'Playground', href: '/playground', icon: FlaskConical },
-];
+function consoles() {
+  return [
+    ...clubConsoleLinks().map((app) => ({ ...app, icon: CONSOLE_ICON[app.id] })),
+    // The skylcn-ui playground, only when the image is built with it
+    // (NEXT_PUBLIC_INCLUDE_PLAYGROUND=true, see the Dockerfile)
+    ...(process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND === 'true'
+      ? [{ id: 'playground', label: 'Playground', href: '/playground', icon: FlaskConical }]
+      : []),
+  ];
+}
 
 export function AdminSidebar({
   user,
@@ -53,7 +58,7 @@ export function AdminSidebar({
 
   return (
     <>
-      <SidebarBrand name="SKY LAB" subtitle="Yönetim" consoles={CONSOLES} current="admin" />
+      <SidebarBrand name="SKY LAB" subtitle="Yönetim" consoles={consoles()} current="admin" />
       <SidebarContent>
         <div className="flex flex-col gap-1">
           {nodes.map((node) =>

@@ -74,6 +74,12 @@ APP_URL=http://localhost:3000
 - Sandbox ortamında `OAUTH2_ISSUER` değeri `https://e.yildizskylab.com/realms/e-skylab-sandbox` olmalıdır.
 - `OAUTH2_ISSUER` aynı zamanda "SkyApp'ten geçiş" sayfasının Keycloak adresidir: sunucu tarafı `${OAUTH2_ISSUER}/sky-handoff/v1/admin/targets` uçlarını çağırır. Ek değişken gerekmez.
 
+### Playground (skylcn-ui dokümantasyonu)
+
+- Docker imajı, `NEXT_PUBLIC_INCLUDE_PLAYGROUND=true` build-arg'ı verilmedikçe skylcn-ui playground'ını içermez (varsayılan `false`): kenar çubuğunda "Playground" girdisi çıkmaz, `/playground` yönlendirilmez, Dockerfile'ın playground aşaması hiç çalışmaz.
+- Playground ayrı bir bağımlılık ağacıyla build edilir ve panelle aynı origin'den servis edilir; admin access token'ı o origin'deki JS'e açık olduğu için production imajında kapalıdır (ADR 0055: dokümantasyon GitHub Pages'te yayımlanır). `.github/workflows/ghcr.yml` bayrağı yalnız sandbox (`main`) build'inde `true` yapar.
+- Yerelde imajda denemek için: `docker build --build-arg NEXT_PUBLIC_INCLUDE_PLAYGROUND=true ...` (diğer `NEXT_PUBLIC_*` build-arg'larıyla birlikte).
+
 ## Komutlar
 
 - `pnpm dev`: Geliştirme
