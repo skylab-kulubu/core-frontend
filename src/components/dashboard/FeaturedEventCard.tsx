@@ -3,8 +3,7 @@
 import { Badge, Button, Card, Progress, Sparkline, StateCard } from '@skylab-kulubu/skylcn-ui';
 import { CalendarPlus, DoorOpen, Ticket as TicketIcon } from 'lucide-react';
 import Link from 'next/link';
-import type { Ticket } from '@/lib/api/tickets';
-import { applicationsByDay, checkedIn, type FeaturedEvent } from '@/lib/dashboard/insights';
+import type { EventStat } from '@/lib/api/dashboard';
 import { publicMediaUrl } from '@/lib/event-media';
 import { fromNow, longDate } from './format';
 
@@ -13,19 +12,17 @@ import { fromNow, longDate } from './format';
  * how applications are coming in, and on the day how many are through the door.
  */
 export function FeaturedEventCard({
-  featured,
-  tickets,
+  stat,
   loading,
   canCreate,
   className,
 }: {
-  featured: FeaturedEvent | null;
-  tickets: readonly Ticket[];
+  stat: EventStat | null;
   loading: boolean;
   canCreate: boolean;
   className?: string;
 }) {
-  if (loading || !featured) {
+  if (loading || !stat) {
     return (
       <Card className={className}>
         <StateCard
@@ -43,9 +40,10 @@ export function FeaturedEventCard({
     );
   }
 
-  const { event, live } = featured;
-  const count = tickets.length;
-  const trend = applicationsByDay(tickets, 14);
+  const event = stat;
+  const live = stat.live;
+  const count = stat.applications;
+  const trend = stat.dailyApplications;
   const lastWeek = trend.slice(-7).reduce((sum, n) => sum + n, 0);
   const href = `/events/${encodeURIComponent(event.id)}`;
 
@@ -98,7 +96,7 @@ export function FeaturedEventCard({
         {live ? (
           <Progress
             label="Kapıdan giren"
-            value={count ? checkedIn(tickets) : 0}
+            value={count ? stat.checkedIn : 0}
             max={Math.max(count, 1)}
           />
         ) : (
