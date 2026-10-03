@@ -74,7 +74,19 @@ describe('AdminSidebar', () => {
     renderSidebar();
     await pointer.click(screen.getByRole('button', { name: 'Kulüp konsolları' }));
     expect(await screen.findByRole('menuitem', { name: /Forms/ })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /Mail/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Mail/ })).toHaveTextContent(
+      'Toplu e-posta ve listeler',
+    );
+  });
+
+  it('links the account center from the profile menu', async () => {
+    const pointer = userEvent.setup();
+    renderSidebar();
+    await pointer.click(screen.getByRole('button', { name: 'Deniz Aydın' }));
+    expect(await screen.findByRole('menuitem', { name: 'Hesap merkezi' })).toHaveAttribute(
+      'href',
+      'https://my.yildizskylab.com',
+    );
   });
 
   describe('playground link', () => {

@@ -3,6 +3,7 @@
 import {
   MenuItem,
   MenuLabel,
+  MenuLinkItem,
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator,
@@ -18,13 +19,13 @@ import {
   useTheme,
   type ThemePreference,
 } from '@skylab-kulubu/skylcn-ui';
-import { FlaskConical, LogOut, Palette } from 'lucide-react';
+import { FlaskConical, LogOut, Palette, UserRound } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { clubRoleLabel, displayPersonName } from '@/lib/chrome-role';
-import { clubConsoleLinks } from '@/lib/club-switcher';
+import { accountCenterUrl, clubConsoleLinks } from '@/lib/club-switcher';
 import { isNavActive } from '@/lib/navigation/nav-active';
-import { CONSOLE_ICON, groupIcon, navIcon } from '@/lib/navigation/nav-icons';
+import { CONSOLE_DESCRIPTION, CONSOLE_ICON, groupIcon, navIcon } from '@/lib/navigation/nav-icons';
 import {
   buildSidebarNavigation,
   type SidebarNavigationContext,
@@ -33,11 +34,23 @@ import type { UserDto } from '@/types/api';
 
 function consoles() {
   return [
-    ...clubConsoleLinks().map((app) => ({ ...app, icon: CONSOLE_ICON[app.id] })),
+    ...clubConsoleLinks().map((app) => ({
+      ...app,
+      icon: CONSOLE_ICON[app.id],
+      description: CONSOLE_DESCRIPTION[app.id],
+    })),
     // The skylcn-ui playground, only when the image is built with it
     // (NEXT_PUBLIC_INCLUDE_PLAYGROUND=true, see the Dockerfile)
     ...(process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND === 'true'
-      ? [{ id: 'playground', label: 'Playground', href: '/playground', icon: FlaskConical }]
+      ? [
+          {
+            id: 'playground',
+            label: 'Playground',
+            href: '/playground',
+            icon: FlaskConical,
+            description: CONSOLE_DESCRIPTION.playground,
+          },
+        ]
       : []),
   ];
 }
@@ -103,6 +116,9 @@ export function AdminSidebar({
           menu={
             <>
               {user.email ? <MenuLabel>{user.email}</MenuLabel> : null}
+              <MenuLinkItem href={accountCenterUrl()} icon={UserRound}>
+                Hesap merkezi
+              </MenuLinkItem>
               <MenuSub>
                 <MenuSubTrigger icon={Palette}>Tema</MenuSubTrigger>
                 <MenuSubContent>

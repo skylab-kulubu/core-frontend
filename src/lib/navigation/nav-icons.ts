@@ -69,6 +69,14 @@ const GROUP_ICON: Record<string, LucideIcon> = {
   system: Settings2,
 };
 
+/** One line under each console's name in the switcher. */
+export const CONSOLE_DESCRIPTION: Record<string, string> = {
+  admin: 'Üyeler, etkinlikler, duyurular',
+  forms: 'Formlar ve başvurular',
+  mail: 'Toplu e-posta ve listeler',
+  playground: 'Bileşenler gerçek senaryolarda',
+};
+
 export const CONSOLE_ICON: Record<string, LucideIcon> = {
   admin: ShieldCheck,
   forms: ClipboardList,
