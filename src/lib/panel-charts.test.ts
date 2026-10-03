@@ -1,4 +1,4 @@
-import { ticketCheckInMix, ticketMix, topClickUrls, upcomingEvents } from './panel-charts';
+import { ticketCheckInMix, ticketMix, topClickUrls } from './panel-charts';
 
 describe('ticketMix', () => {
   it('splits guest vs member even when one side is empty', () => {
@@ -41,23 +41,5 @@ describe('topClickUrls', () => {
       { label: 'ctf', count: 40 },
       { label: 'jam', count: 12 },
     ]);
-  });
-});
-
-describe('upcomingEvents', () => {
-  it('keeps future dated events soonest first', () => {
-    const now = new Date('2026-09-19T12:00:00+03:00');
-    expect(
-      upcomingEvents(
-        [
-          { id: 'past', name: 'Eski', startDate: '2026-01-01T10:00:00+03:00' },
-          { id: 'later', name: 'Sonra', startDate: '2026-11-01T10:00:00+03:00' },
-          { id: 'next', name: 'Yakın', startDate: '2026-10-01T10:00:00+03:00' },
-          { id: 'none', name: 'Tarihsiz' },
-        ],
-        now,
-        2,
-      ).map((row) => row.id),
-    ).toEqual(['next', 'later']);
   });
 });

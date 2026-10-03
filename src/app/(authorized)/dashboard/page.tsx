@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, StatCard } from '@skylab-kulubu/skylcn-ui';
+import { Card, Notice, StatCard } from '@skylab-kulubu/skylcn-ui';
 import { AreaChart } from '@skylab-kulubu/skylcn-ui/charts';
 import {
   CalendarDays,
@@ -15,98 +15,85 @@ import { useEffect, useState } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { BarChart, HorizontalBars, MixChart, SectionHeading } from '@/components/chrome/PanelChart';
-import { AttentionCard } from '@/components/dashboard/AttentionCard';
-import { DashboardGreeting } from '@/components/dashboard/DashboardGreeting';
-import { fromNow } from '@/components/dashboard/format';
-import { FeaturedEventCard } from '@/components/dashboard/FeaturedEventCard';
-import { GithubActivitySection } from '@/components/dashboard/GithubActivitySection';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { AttentionCard } from '@/components/dashboard/AttentionCard';
+import { DashboardGreeting } from '@/components/dashboard/DashboardGreeting';
+import { FeaturedEventCard } from '@/components/dashboard/FeaturedEventCard';
+import { fromNow } from '@/components/dashboard/format';
+import { GithubActivitySection } from '@/components/dashboard/GithubActivitySection';
+import { MembersSection } from '@/components/dashboard/MembersSection';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
-import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { identityApi } from '@/lib/api/identity';
+import { dashboardApi, type DashboardSummary, type EventStat } from '@/lib/api/dashboard';
 import { sessionsApi, type SessionRow } from '@/lib/api/sessions';
-import { ticketsApi, type Ticket } from '@/lib/api/tickets';
-import { isLeader, isPrivileged } from '@/lib/auth/groups';
-import { eventListSubtitle } from '@/lib/events-view';
+import { isPrivileged } from '@/lib/auth/groups';
+import {
+  attentionItems,
+  featuredEvent,
+  monthCounts,
+  upcomingStats,
+} from '@/lib/dashboard/insights';
 import { listStatus } from '@/lib/list-status';
 import {
   displayCount,
   errorCount,
-  eventsByMonth,
   okCount,
   sessionsByEvent,
   type CountState,
 } from '@/lib/ozet-stats';
-import { applicationsByDay, attentionItems, featuredEvent } from '@/lib/dashboard/insights';
-import { ticketMix, upcomingEvents } from '@/lib/panel-charts';
 import { activeStatus } from '@/lib/status-chip';
 
 const LOADING: CountState = { kind: 'loading' };
 
-function failState(err: unknown): CountState {
-  return errorCount(err instanceof ProblemError ? err.title : 'Özet yüklenemedi');
+type SummaryState =
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ok'; summary: DashboardSummary };
+
+function eventSubtitle(stat: EventStat): string {
+  const date = stat.startDate
+    ? new Date(stat.startDate).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
+  return [stat.ownerTeam, stat.location, date].filter(Boolean).join(' · ');
 }
+
+const sum = (stats: readonly EventStat[], pick: (stat: EventStat) => number) =>
+  stats.reduce((total, stat) => total + pick(stat), 0);
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const groups = user?.groups ?? [];
-  const privileged = isPrivileged(groups);
-  const leader = isLeader(groups);
-  const [users, setUsers] = useState<CountState>(LOADING);
+  const privileged = isPrivileged(user?.groups ?? []);
+  const [state, setState] = useState<SummaryState>({ kind: 'loading' });
   const [news, setNews] = useState<CountState>(LOADING);
-  const [events, setEvents] = useState<CountState>(LOADING);
   const [sessions, setSessions] = useState<CountState>(LOADING);
-  const [applicants, setApplicants] = useState<CountState>(LOADING);
-  const [eventRows, setEventRows] = useState<CoreEvent[]>([]);
   const [sessionRows, setSessionRows] = useState<SessionRow[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [ticketsByEvent, setTicketsByEvent] = useState<ReadonlyMap<string, Ticket[]>>(new Map());
-  const [eventsError, setEventsError] = useState<string | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setEvents(LOADING);
-      setSessions(LOADING);
-      setApplicants(LOADING);
-      setEventsError(null);
-      setSessionsError(null);
-      if (privileged) {
-        setUsers(LOADING);
-        setNews(LOADING);
-      }
+      setState({ kind: 'loading' });
+      let summary: DashboardSummary;
       try {
-        const rows = await eventsApi.list();
+        summary = await dashboardApi.summary();
         if (cancelled) return;
-        setEventRows(rows);
-        setEvents(okCount(rows.length));
-        const current = featuredEvent(rows);
-        const sample = upcomingEvents(rows, new Date(), 8);
-        const pool = [
-          ...(current && !sample.includes(current.event) ? [current.event] : []),
-          ...(sample.length ? sample : rows.slice(0, 8)),
-        ];
-        const nested = await Promise.all(
-          pool.map((event) => ticketsApi.listByEvent(event.id).catch(() => [] as Ticket[])),
-        );
-        if (cancelled) return;
-        const flat = nested.flat();
-        setTickets(flat);
-        setTicketsByEvent(new Map(pool.map((event, index) => [event.id, nested[index] ?? []])));
-        setApplicants(okCount(flat.length));
+        setState({ kind: 'ok', summary });
       } catch (err) {
-        if (cancelled) return;
-        setEventRows([]);
-        setTickets([]);
-        setTicketsByEvent(new Map());
-        setEvents(failState(err));
-        setApplicants(failState(err));
-        setEventsError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
+        if (!cancelled) {
+          setState({
+            kind: 'error',
+            message: err instanceof ProblemError ? err.title : 'Özet yüklenemedi',
+          });
+        }
+        return;
       }
+      if (summary.ownerTeams.length === 0) return;
       try {
         const rows = await sessionsApi.listAll();
         if (cancelled) return;
@@ -115,23 +102,17 @@ export default function DashboardPage() {
       } catch (err) {
         if (cancelled) return;
         setSessionRows([]);
-        setSessions(failState(err));
+        setSessions(errorCount(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi'));
         setSessionsError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi');
       }
       if (privileged) {
         try {
-          const people = await identityApi.listUsers();
-          if (!cancelled) setUsers(okCount(people.length));
-        } catch (err) {
-          if (!cancelled) setUsers(failState(err));
-        }
-        try {
           const page = await newsApi.list({ limit: 100 });
-          if (!cancelled) {
+          if (!cancelled)
             setNews(okCount((page.items ?? []).filter((item) => Boolean(item.slug)).length));
-          }
         } catch (err) {
-          if (!cancelled) setNews(failState(err));
+          if (!cancelled)
+            setNews(errorCount(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'));
         }
       }
     }
@@ -141,11 +122,18 @@ export default function DashboardPage() {
     };
   }, [privileged, user?.id]);
 
-  if (!privileged && !leader) {
+  const summary = state.kind === 'ok' ? state.summary : null;
+  // Core decides what each person may see; with nothing in scope there is no dashboard for them
+  if (
+    summary &&
+    summary.ownerTeams.length === 0 &&
+    !summary.members &&
+    !summary.membersUnavailable
+  ) {
     return (
       <StateCard
         title="Bu özet paneli yetkili üyelere açık."
-        description="YK, kurul veya ekip lideri rolü gerekir."
+        description="Bir ekibin etkinliklerini yöneten ya da üyeleri görebilen kişiler içindir."
         Icon={ShieldAlert}
         tone="warning"
       />
@@ -153,35 +141,51 @@ export default function DashboardPage() {
   }
 
   const now = new Date();
-  const soon = upcomingEvents(eventRows, now);
-  const featured = featuredEvent(eventRows, now);
-  const featuredTickets = featured ? (ticketsByEvent.get(featured.event.id) ?? []) : [];
-  const loadingEvents = events.kind === 'loading';
-  const daily = applicationsByDay(tickets, 30, now);
+  const loading = state.kind === 'loading';
+  const stats = summary?.eventStats ?? [];
+  const upcoming = upcomingStats(stats, now);
+  const current = stats.filter((stat) => stat.live || upcoming.includes(stat));
+  const featured = featuredEvent(stats, now);
+  const attention = attentionItems(stats, now);
   const firstName = user?.firstName?.trim();
-  const attention = attentionItems(eventRows, ticketsByEvent, now);
-  const summary = loadingEvents
+  const daily = summary?.applications.daily ?? [];
+  const teams = summary?.ownerTeams ?? [];
+  const greeting = loading
     ? 'Kulübün durumu yükleniyor…'
     : [
         featured
           ? featured.live
-            ? `${featured.event.name} şu an sürüyor.`
-            : `Sıradaki etkinlik ${featured.event.name}, ${fromNow(featured.event.startDate ?? '', now)}.`
+            ? `${featured.name} şu an sürüyor.`
+            : `Sıradaki etkinlik ${featured.name}, ${fromNow(featured.startDate ?? '', now)}.`
           : 'Planlanmış bir etkinlik yok.',
         attention.length
           ? `${attention.length} etkinlikte eksik var.`
           : 'Önümüzdeki etkinliklerde eksik görünmüyor.',
       ].join(' ');
+
+  const summaryCount = (value: number | undefined): CountState =>
+    state.kind === 'loading'
+      ? LOADING
+      : state.kind === 'error'
+        ? errorCount(state.message)
+        : okCount(value ?? 0);
+
   const cards = [
-    ...(privileged
+    ...(summary?.members || summary?.membersUnavailable
       ? [
           {
             href: '/users',
-            label: 'Kullanıcılar',
-            state: users,
+            label: 'Aktif üye',
+            state: summary.members
+              ? okCount(summary.members.active)
+              : errorCount('Şu an okunamıyor'),
             icon: Users,
-            hint: 'Kayıtlı hesap',
+            hint: 'Kayıtlı ve etkin',
           },
+        ]
+      : []),
+    ...(privileged
+      ? [
           {
             href: '/announcements',
             label: 'Duyurular',
@@ -194,9 +198,9 @@ export default function DashboardPage() {
     {
       href: '/events',
       label: 'Etkinlikler',
-      state: events,
+      state: summaryCount(summary?.events.total),
       icon: CalendarDays,
-      hint: 'Tüm dönemler',
+      hint: summary ? `${summary.events.upcoming} yaklaşan` : 'Tüm dönemler',
     },
     {
       href: '/events',
@@ -208,27 +212,34 @@ export default function DashboardPage() {
     {
       href: '/events',
       label: 'Başvurular',
-      state: applicants,
+      state: summaryCount(sum(current, (stat) => stat.applications)),
       icon: TicketIcon,
-      hint: 'Yaklaşan etkinliklerde',
-      trend: daily.slice(-14),
+      hint: 'Yaklaşan ve süren etkinliklerde',
+      trend: daily.slice(-14).map((day) => day.count),
     },
   ];
 
   return (
     <div className="flex flex-col gap-8">
-      <DashboardGreeting firstName={firstName} now={now} summary={summary} />
+      <DashboardGreeting firstName={firstName} now={now} summary={greeting} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-3">
-        <FeaturedEventCard
-          className="lg:col-span-2"
-          featured={featured}
-          tickets={featuredTickets}
-          loading={loadingEvents}
-          canCreate
-        />
-        <AttentionCard items={attention} loading={loadingEvents} />
-      </div>
+      {state.kind === 'error' ? (
+        <Notice tone="danger" title="Özet yüklenemedi">
+          {state.message}
+        </Notice>
+      ) : null}
+
+      {teams.length ? (
+        <div className="grid items-start gap-4 lg:grid-cols-3">
+          <FeaturedEventCard
+            className="lg:col-span-2"
+            stat={featured}
+            loading={loading}
+            canCreate
+          />
+          <AttentionCard items={attention} loading={loading} />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {cards.map((card) => (
@@ -251,82 +262,95 @@ export default function DashboardPage() {
 
       <GithubActivitySection />
 
-      <section aria-labelledby="events-and-applications" className="flex flex-col gap-4">
-        <h2 id="events-and-applications" className="text-foreground text-base font-semibold">
-          Etkinlikler ve başvurular
-        </h2>
-        <div className="grid gap-4 xl:grid-cols-3">
-          <AreaChart
-            className="xl:col-span-2"
-            title="Başvurular"
-            description="Yaklaşan etkinliklere son 30 günde gelenler"
-            data={daily.map((count, index) => ({
-              day: new Date(
-                now.getTime() - (daily.length - 1 - index) * 86400000,
-              ).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
-              count,
-            }))}
-            x="day"
-            series={{ count: { label: 'Başvuru' } }}
-            loading={loadingEvents}
-            emptyMessage="Bu dönemde başvuru yok"
-          />
-          <Card className="p-4">
-            <MixChart
-              title="Misafir / üye"
-              data={ticketMix(tickets)}
-              empty="Yaklaşan etkinlikte başvuru yok"
+      {teams.length ? (
+        <section aria-labelledby="events-and-applications" className="flex flex-col gap-4">
+          <h2 id="events-and-applications" className="text-foreground text-base font-semibold">
+            Etkinlikler ve başvurular
+          </h2>
+          <div className="grid gap-4 xl:grid-cols-3">
+            <AreaChart
+              className="xl:col-span-2"
+              title="Başvurular"
+              description={
+                privileged || teams.length > 3
+                  ? 'Son 30 günde gelen bütün başvurular'
+                  : `${teams.join(', ')} etkinliklerine son 30 günde gelenler`
+              }
+              data={daily.map((day) => ({
+                day: new Date(`${day.date}T12:00:00`).toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'short',
+                }),
+                count: day.count,
+              }))}
+              x="day"
+              series={{ count: { label: 'Başvuru' } }}
+              loading={loading}
+              emptyMessage="Bu dönemde başvuru yok"
             />
-          </Card>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-4">
-            {eventsError ? (
-              <p className="text-destructive text-sm">{eventsError}</p>
-            ) : (
+            <Card className="p-4">
+              <MixChart
+                title="Misafir / üye"
+                data={[
+                  { label: 'Misafir', count: sum(current, (stat) => stat.guests) },
+                  { label: 'Üye', count: sum(current, (stat) => stat.members) },
+                ]}
+                empty="Yaklaşan etkinlikte başvuru yok"
+              />
+            </Card>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="p-4">
               <BarChart
                 title="Son altı ay etkinlik"
-                data={eventsByMonth(eventRows)}
+                data={monthCounts(summary?.events.byMonth ?? [])}
                 empty="Bu aralıkta etkinlik tarihi yok"
               />
-            )}
-          </Card>
-          <Card className="p-4">
-            {sessionsError ? (
-              <p className="text-destructive text-sm">{sessionsError}</p>
-            ) : (
-              <HorizontalBars
-                title="Oturumlar etkinliğe göre"
-                data={sessionsByEvent(sessionRows)}
-                empty="Oturum dağılımı yok"
-              />
-            )}
-          </Card>
-        </div>
-      </section>
+            </Card>
+            <Card className="p-4">
+              {sessionsError ? (
+                <p className="text-destructive text-sm">{sessionsError}</p>
+              ) : (
+                <HorizontalBars
+                  title="Oturumlar etkinliğe göre"
+                  data={sessionsByEvent(sessionRows)}
+                  empty="Oturum dağılımı yok"
+                />
+              )}
+            </Card>
+          </div>
+        </section>
+      ) : null}
 
-      <section className="flex flex-col gap-3">
-        <SectionHeading title="Yaklaşan etkinlikler" meta={`${soon.length} kayıt`} />
-        <ListPanel
-          status={listStatus({
-            loading: loadingEvents,
-            failed: Boolean(eventsError),
-            rowCount: soon.length,
-            emptyMessage: 'Yaklaşan etkinlik yok',
-          })}
-          emptyDescription="Tarihi gelmiş etkinlikler burada durur."
-        >
-          {soon.map((event) => (
-            <ListItem
-              key={event.id}
-              href={`/events/${event.id}`}
-              title={event.name}
-              subtitle={eventListSubtitle(event)}
-              trailing={<StatusChip kind={activeStatus(event.active)} />}
-            />
-          ))}
-        </ListPanel>
-      </section>
+      <MembersSection
+        members={summary?.members ?? null}
+        unavailable={summary?.membersUnavailable}
+      />
+
+      {teams.length ? (
+        <section className="flex flex-col gap-3">
+          <SectionHeading title="Yaklaşan etkinlikler" meta={`${upcoming.length} kayıt`} />
+          <ListPanel
+            status={listStatus({
+              loading,
+              failed: state.kind === 'error',
+              rowCount: upcoming.length,
+              emptyMessage: 'Yaklaşan etkinlik yok',
+            })}
+            emptyDescription="Tarihi gelmiş etkinlikler burada durur."
+          >
+            {upcoming.map((stat) => (
+              <ListItem
+                key={stat.id}
+                href={`/events/${stat.id}`}
+                title={stat.name}
+                subtitle={eventSubtitle(stat)}
+                trailing={<StatusChip kind={activeStatus(stat.active)} />}
+              />
+            ))}
+          </ListPanel>
+        </section>
+      ) : null}
     </div>
   );
 }

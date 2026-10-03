@@ -38,19 +38,3 @@ export function topClickUrls(
     .slice(0, limit)
     .map((row) => ({ label: row.alias, count: row.clickCount }));
 }
-
-export function upcomingEvents<T extends { startDate?: string }>(
-  events: readonly T[],
-  now = new Date(),
-  limit = 5,
-): T[] {
-  const ts = now.getTime();
-  return [...events]
-    .filter((event) => {
-      if (!event.startDate) return false;
-      const start = Date.parse(event.startDate);
-      return !Number.isNaN(start) && start > ts;
-    })
-    .sort((a, b) => Date.parse(a.startDate ?? '') - Date.parse(b.startDate ?? ''))
-    .slice(0, limit);
-}

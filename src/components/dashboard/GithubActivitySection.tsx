@@ -61,6 +61,16 @@ export function GithubActivitySection() {
   const { totals } = data;
   const change = delta(totals.commits, totals.commitsPrevious);
   const top = data.repositories.slice(0, 6);
+  const hidden = totals.privateRepositories;
+  const notes = [
+    hidden?.active
+      ? `Toplamlara ${hidden.active} özel repodaki ${number.format(hidden.commits)} commit de dahil.`
+      : null,
+    data.stale ? 'GitHub şu an okunamadı; son alınan veriler gösteriliyor.' : null,
+    data.truncated
+      ? 'GitHub yanıtı kısaltıldı; sayılar gerçekte biraz daha yüksek olabilir.'
+      : null,
+  ].filter(Boolean);
 
   return (
     <section aria-labelledby="club-development" className="flex flex-col gap-4">
@@ -93,11 +103,8 @@ export function GithubActivitySection() {
         <StatCard label="Açık PR" value={totals.openPullRequests} icon={GitPullRequest} />
         <StatCard label="Aktif katkıcı" value={totals.activeContributors} icon={Users} />
       </div>
-      {totals.privateRepositories.active > 0 ? (
-        <p className="text-2xs text-subtle-foreground -mt-2">
-          Toplamlara {totals.privateRepositories.active} özel repodaki{' '}
-          {number.format(totals.privateRepositories.commits)} commit de dahil.
-        </p>
+      {notes.length ? (
+        <p className="text-2xs text-subtle-foreground -mt-2">{notes.join(' ')}</p>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-5">
