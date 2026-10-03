@@ -30,7 +30,7 @@ export function TicketDetailView({
             {field.href ? (
               <a
                 href={field.href}
-                className="text-skylab-300 hover:text-skylab-200"
+                className="text-skylab-300 hover:text-foreground"
                 target={field.href.startsWith('/') ? undefined : '_blank'}
                 rel={field.href.startsWith('/') ? undefined : 'noreferrer'}
               >
