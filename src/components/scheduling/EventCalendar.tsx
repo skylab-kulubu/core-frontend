@@ -92,7 +92,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                 <span
                   className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs ${
                     isSelected
-                      ? 'bg-skylab-500/30 text-skylab-200'
+                      ? 'bg-skylab-500/30 text-skylab-300'
                       : isToday
                         ? 'text-skylab-300 ring-skylab-400/40 ring-1'
                         : 'text-secondary-foreground'
@@ -103,7 +103,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                 {rows.slice(0, CHIP_MAX).map((event) => (
                   <span
                     key={event.id}
-                    className="bg-skylab-500/20 text-skylab-200 truncate rounded px-1 py-0.5 text-[10px] leading-4"
+                    className="bg-skylab-500/20 text-skylab-300 truncate rounded px-1 py-0.5 text-[10px] leading-4"
                   >
                     {event.name}
                   </span>

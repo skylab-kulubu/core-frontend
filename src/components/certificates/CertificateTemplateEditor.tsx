@@ -639,7 +639,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 </label>
                 {draft.sourceEditUrl ? (
                   <a
-                    className="text-skylab-300 hover:text-skylab-200 inline-flex items-center gap-1.5 text-xs"
+                    className="text-skylab-300 hover:text-foreground inline-flex items-center gap-1.5 text-xs"
                     href={draft.sourceEditUrl}
                     target="_blank"
                     rel="noreferrer"

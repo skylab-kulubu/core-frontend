@@ -420,7 +420,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             <p className="text-3xs text-subtle-foreground">
               Misafir başvurusu (hesabı olmayanlar):{' '}
               <a
-                className="text-skylab-300 hover:text-skylab-200"
+                className="text-skylab-300 hover:text-foreground"
                 href={event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}
                 target="_blank"
                 rel="noreferrer"
