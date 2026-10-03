@@ -1,10 +1,9 @@
 'use client';
 
-import { Button, Card, StatCard } from '@skylab-kulubu/skylcn-ui';
+import { Card, StatCard } from '@skylab-kulubu/skylcn-ui';
 import { AreaChart } from '@skylab-kulubu/skylcn-ui/charts';
 import {
   CalendarDays,
-  CalendarPlus,
   Clock,
   Newspaper,
   ShieldAlert,
@@ -17,11 +16,12 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { BarChart, HorizontalBars, MixChart, SectionHeading } from '@/components/chrome/PanelChart';
 import { AttentionCard } from '@/components/dashboard/AttentionCard';
+import { DashboardGreeting } from '@/components/dashboard/DashboardGreeting';
+import { fromNow } from '@/components/dashboard/format';
 import { FeaturedEventCard } from '@/components/dashboard/FeaturedEventCard';
 import { GithubActivitySection } from '@/components/dashboard/GithubActivitySection';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
@@ -159,6 +159,19 @@ export default function DashboardPage() {
   const loadingEvents = events.kind === 'loading';
   const daily = applicationsByDay(tickets, 30, now);
   const firstName = user?.firstName?.trim();
+  const attention = attentionItems(eventRows, ticketsByEvent, now);
+  const summary = loadingEvents
+    ? 'Kulübün durumu yükleniyor…'
+    : [
+        featured
+          ? featured.live
+            ? `${featured.event.name} şu an sürüyor.`
+            : `Sıradaki etkinlik ${featured.event.name}, ${fromNow(featured.event.startDate ?? '', now)}.`
+          : 'Planlanmış bir etkinlik yok.',
+        attention.length
+          ? `${attention.length} etkinlikte eksik var.`
+          : 'Önümüzdeki etkinliklerde eksik görünmüyor.',
+      ].join(' ');
   const cards = [
     ...(privileged
       ? [
@@ -204,20 +217,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        title={firstName ? `Merhaba, ${firstName}` : 'Özet'}
-        description={now.toLocaleDateString('tr-TR', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })}
-        actions={
-          <Button variant="primary" render={<Link href="/events/new" />}>
-            <CalendarPlus /> Etkinlik oluştur
-          </Button>
-        }
-      />
+      <DashboardGreeting firstName={firstName} now={now} summary={summary} />
 
       <div className="grid items-start gap-4 lg:grid-cols-3">
         <FeaturedEventCard
@@ -227,10 +227,7 @@ export default function DashboardPage() {
           loading={loadingEvents}
           canCreate
         />
-        <AttentionCard
-          items={attentionItems(eventRows, ticketsByEvent, now)}
-          loading={loadingEvents}
-        />
+        <AttentionCard items={attention} loading={loadingEvents} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
