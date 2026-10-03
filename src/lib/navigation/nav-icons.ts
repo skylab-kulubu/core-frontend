@@ -71,10 +71,10 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 
 /** One line under each console's name in the switcher. */
 export const CONSOLE_DESCRIPTION: Record<string, string> = {
-  admin: 'Üyeler, etkinlikler, duyurular',
+  admin: 'Üyeler ve etkinlikler',
   forms: 'Formlar ve başvurular',
   mail: 'Toplu e-posta ve listeler',
-  playground: 'Bileşenler gerçek senaryolarda',
+  playground: 'Bileşen kütüphanesi',
 };
 
 export const CONSOLE_ICON: Record<string, LucideIcon> = {

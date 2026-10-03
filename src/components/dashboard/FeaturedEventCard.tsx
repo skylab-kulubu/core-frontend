@@ -4,6 +4,7 @@ import { Badge, Button, Card, Progress, Sparkline, StateCard } from '@skylab-kul
 import { CalendarPlus, DoorOpen, Ticket as TicketIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { EventStat } from '@/lib/api/dashboard';
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { publicMediaUrl } from '@/lib/event-media';
 import { fromNow, longDate } from './format';
 
@@ -22,6 +23,7 @@ export function FeaturedEventCard({
   canCreate: boolean;
   className?: string;
 }) {
+  const { open: openNewEvent } = useNewEvent();
   if (loading || !stat) {
     return (
       <Card className={className}>
@@ -31,7 +33,7 @@ export function FeaturedEventCard({
           description={loading ? undefined : 'Tarihi gelen bir etkinlik olunca burada öne çıkar.'}
         >
           {!loading && canCreate ? (
-            <Button variant="primary" render={<Link href="/events/new" />}>
+            <Button variant="primary" onClick={openNewEvent}>
               <CalendarPlus /> Etkinlik oluştur
             </Button>
           ) : null}

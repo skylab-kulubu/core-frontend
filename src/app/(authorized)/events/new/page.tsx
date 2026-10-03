@@ -24,6 +24,7 @@ import {
   restoreEventEditor,
   writeEventDraft,
 } from '@/lib/event-draft';
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { useAuth } from '@/context/AuthContext';
 
 function NewEventPageContent() {
@@ -175,10 +176,28 @@ function NewEventPageContent() {
   );
 }
 
+/**
+ * Events are created in the quick panel over any page; this address opens it
+ * over the events list. Only a return from Skyforms, carrying the form it made,
+ * comes back to the full form with the draft it left.
+ */
+function NewEventRoute() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { open } = useNewEvent();
+  const returning = Boolean(formHandoffFromSearch(searchParams));
+  useEffect(() => {
+    if (returning) return;
+    open();
+    router.replace('/events');
+  }, [returning, open, router]);
+  return returning ? <NewEventPageContent /> : null;
+}
+
 export default function NewEventPage() {
   return (
     <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
-      <NewEventPageContent />
+      <NewEventRoute />
     </Suspense>
   );
 }

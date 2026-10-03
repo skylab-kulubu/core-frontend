@@ -8,7 +8,8 @@ import { EVENT_DRAFT_PREFIX } from '@/lib/event-draft';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
 
 const mockPush = jest.fn();
-const mockSearchParams = new URLSearchParams();
+// The full form opens only on a return from Skyforms, which carries the form it made
+const mockSearchParams = new URLSearchParams({ formUrl: 'https://forms.example.com/f/gecekodu' });
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn() }),
