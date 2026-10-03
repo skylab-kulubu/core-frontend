@@ -25,6 +25,7 @@ import {
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { EventFilesPanel } from '@/components/scheduling/EventFilesPanel';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { QrPreview } from '@/components/chrome/QrPreview';
@@ -360,6 +361,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         canSeeCompetitors={canCompetitors}
         canUseDoor={canDesk}
         canSeeCertificates={canCertificates}
+        canSeeFiles={canMutate || Boolean(event.videos?.length || event.files?.length)}
       />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
@@ -431,6 +433,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           ) : null}
         </div>
       ) : null}
+      <EventFilesPanel event={event} canEdit={canMutate} onEvent={setEvent} />
       <div id="competitors" className="scroll-mt-24 space-y-3">
         <SectionHeading
           title="Yarışmacılar"
