@@ -221,7 +221,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <DashboardGreeting firstName={firstName} now={now} summary={greeting} />
+      <DashboardGreeting firstName={firstName} summary={greeting} />
 
       {state.kind === 'error' ? (
         <Notice tone="danger" title="Özet yüklenemedi">

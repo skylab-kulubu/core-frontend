@@ -3,29 +3,29 @@
 import { Button, SkylabMark } from '@skylab-kulubu/skylcn-ui';
 import { CalendarPlus } from 'lucide-react';
 import { useNewEvent } from '@/components/scheduling/NewEventProvider';
-import type { ReactNode } from 'react';
-
-function salute(hour: number): string {
-  if (hour >= 5 && hour < 11) return 'Günaydın';
-  if (hour >= 11 && hour < 17) return 'İyi günler';
-  if (hour >= 17 && hour < 22) return 'İyi akşamlar';
-  return 'İyi geceler';
-}
+import { useEffect, useState, type ReactNode } from 'react';
+import { greetingFor } from '@/lib/dashboard/daylight';
 
 /**
- * The top of the dashboard: a greeting for the time of day, the date and one
- * line on where things stand. The time comes from the reader's clock, so the
- * server's render is allowed to differ.
+ * The top of the dashboard: a greeting for the time of day, by the sun over
+ * Istanbul, the date and one line on where things stand. Both come from the
+ * reader's clock once the page runs, and stay current while it is open.
  */
 export function DashboardGreeting({
   firstName,
-  now,
   summary,
 }: {
   firstName?: string;
-  now: Date;
   summary: ReactNode;
 }) {
+  // The server's clock is not the reader's, so the greeting waits for the browser
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const { open: openNewEvent, canCreate } = useNewEvent();
   return (
     <header className="border-border bg-card relative overflow-hidden rounded-xl border px-5 py-6 sm:px-7">
@@ -35,19 +35,18 @@ export function DashboardGreeting({
       />
       <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p
-            suppressHydrationWarning
-            className="text-3xs tracking-label text-subtle-foreground font-medium uppercase"
-          >
-            {now.toLocaleDateString('tr-TR', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
+          <p className="text-3xs tracking-label text-subtle-foreground min-h-4 font-medium uppercase">
+            {now
+              ? now.toLocaleDateString('tr-TR', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })
+              : null}
           </p>
-          <h1 suppressHydrationWarning className="text-foreground mt-1.5 text-2xl font-semibold">
-            {salute(now.getHours())}
+          <h1 className="text-foreground mt-1.5 text-2xl font-semibold">
+            {now ? greetingFor(now) : 'Merhaba'}
             {firstName ? `, ${firstName}` : ''}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">{summary}</p>
