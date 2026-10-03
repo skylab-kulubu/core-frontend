@@ -82,5 +82,18 @@ export async function fetchGithubActivity(signal?: AbortSignal): Promise<GithubA
   });
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw new Error(`GitHub etkinliği alınamadı (${response.status})`);
-  return (await response.json()) as GithubActivity;
+  const body: unknown = await response.json();
+  // An answer of another shape hides the section instead of breaking the dashboard
+  const data = body as Partial<GithubActivity> | null;
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    typeof data.totals?.commits !== 'number' ||
+    !Array.isArray(data.repositories) ||
+    !Array.isArray(data.events) ||
+    typeof data.window?.days !== 'number'
+  ) {
+    throw new Error('GitHub etkinliği beklenmeyen biçimde geldi');
+  }
+  return data as GithubActivity;
 }

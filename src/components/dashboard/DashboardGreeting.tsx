@@ -2,7 +2,7 @@
 
 import { Button, SkylabMark } from '@skylab-kulubu/skylcn-ui';
 import { CalendarPlus } from 'lucide-react';
-import Link from 'next/link';
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import type { ReactNode } from 'react';
 
 function salute(hour: number): string {
@@ -26,6 +26,7 @@ export function DashboardGreeting({
   now: Date;
   summary: ReactNode;
 }) {
+  const { open: openNewEvent, canCreate } = useNewEvent();
   return (
     <header className="border-border bg-card relative overflow-hidden rounded-xl border px-5 py-6 sm:px-7">
       <SkylabMark
@@ -51,9 +52,11 @@ export function DashboardGreeting({
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">{summary}</p>
         </div>
-        <Button variant="primary" render={<Link href="/events/new" />}>
-          <CalendarPlus /> Etkinlik oluştur
-        </Button>
+        {canCreate ? (
+          <Button variant="primary" onClick={openNewEvent}>
+            <CalendarPlus /> Etkinlik oluştur
+          </Button>
+        ) : null}
       </div>
     </header>
   );
