@@ -1,19 +1,27 @@
 'use client';
 
-import { ShieldAlert } from 'lucide-react';
+import { Card, StatCard } from '@skylab-kulubu/skylcn-ui';
+import { AreaChart } from '@skylab-kulubu/skylcn-ui/charts';
+import {
+  CalendarDays,
+  Clock,
+  Newspaper,
+  ShieldAlert,
+  Ticket as TicketIcon,
+  Users,
+} from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import {
-  BarChart,
-  HorizontalBars,
-  MetricCard,
-  MixChart,
-  SectionHeading,
-} from '@/components/chrome/PanelChart';
+import { BarChart, HorizontalBars, MixChart, SectionHeading } from '@/components/chrome/PanelChart';
+import { AttentionCard } from '@/components/dashboard/AttentionCard';
+import { DashboardGreeting } from '@/components/dashboard/DashboardGreeting';
+import { fromNow } from '@/components/dashboard/format';
+import { FeaturedEventCard } from '@/components/dashboard/FeaturedEventCard';
+import { GithubActivitySection } from '@/components/dashboard/GithubActivitySection';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
@@ -27,13 +35,13 @@ import { listStatus } from '@/lib/list-status';
 import {
   displayCount,
   errorCount,
-  eventActivity,
   eventsByMonth,
   okCount,
   sessionsByEvent,
   type CountState,
 } from '@/lib/ozet-stats';
-import { ticketCheckInMix, ticketMix, upcomingEvents } from '@/lib/panel-charts';
+import { applicationsByDay, attentionItems, featuredEvent } from '@/lib/dashboard/insights';
+import { ticketMix, upcomingEvents } from '@/lib/panel-charts';
 import { activeStatus } from '@/lib/status-chip';
 
 const LOADING: CountState = { kind: 'loading' };
@@ -55,6 +63,7 @@ export default function DashboardPage() {
   const [eventRows, setEventRows] = useState<CoreEvent[]>([]);
   const [sessionRows, setSessionRows] = useState<SessionRow[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsByEvent, setTicketsByEvent] = useState<ReadonlyMap<string, Ticket[]>>(new Map());
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
@@ -75,19 +84,25 @@ export default function DashboardPage() {
         if (cancelled) return;
         setEventRows(rows);
         setEvents(okCount(rows.length));
+        const current = featuredEvent(rows);
         const sample = upcomingEvents(rows, new Date(), 8);
-        const pool = sample.length ? sample : rows.slice(0, 8);
+        const pool = [
+          ...(current && !sample.includes(current.event) ? [current.event] : []),
+          ...(sample.length ? sample : rows.slice(0, 8)),
+        ];
         const nested = await Promise.all(
           pool.map((event) => ticketsApi.listByEvent(event.id).catch(() => [] as Ticket[])),
         );
         if (cancelled) return;
         const flat = nested.flat();
         setTickets(flat);
+        setTicketsByEvent(new Map(pool.map((event, index) => [event.id, nested[index] ?? []])));
         setApplicants(okCount(flat.length));
       } catch (err) {
         if (cancelled) return;
         setEventRows([]);
         setTickets([]);
+        setTicketsByEvent(new Map());
         setEvents(failState(err));
         setApplicants(failState(err));
         setEventsError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
@@ -137,7 +152,26 @@ export default function DashboardPage() {
     );
   }
 
-  const soon = upcomingEvents(eventRows);
+  const now = new Date();
+  const soon = upcomingEvents(eventRows, now);
+  const featured = featuredEvent(eventRows, now);
+  const featuredTickets = featured ? (ticketsByEvent.get(featured.event.id) ?? []) : [];
+  const loadingEvents = events.kind === 'loading';
+  const daily = applicationsByDay(tickets, 30, now);
+  const firstName = user?.firstName?.trim();
+  const attention = attentionItems(eventRows, ticketsByEvent, now);
+  const summary = loadingEvents
+    ? 'Kulübün durumu yükleniyor…'
+    : [
+        featured
+          ? featured.live
+            ? `${featured.event.name} şu an sürüyor.`
+            : `Sıradaki etkinlik ${featured.event.name}, ${fromNow(featured.event.startDate ?? '', now)}.`
+          : 'Planlanmış bir etkinlik yok.',
+        attention.length
+          ? `${attention.length} etkinlikte eksik var.`
+          : 'Önümüzdeki etkinliklerde eksik görünmüyor.',
+      ].join(' ');
   const cards = [
     ...(privileged
       ? [
@@ -145,13 +179,15 @@ export default function DashboardPage() {
             href: '/users',
             label: 'Kullanıcılar',
             state: users,
-            dot: 'bg-subtle-foreground',
+            icon: Users,
+            hint: 'Kayıtlı hesap',
           },
           {
             href: '/announcements',
             label: 'Duyurular',
             state: news,
-            dot: 'bg-skylab-400 shadow-[0_0_6px] shadow-skylab-400/40',
+            icon: Newspaper,
+            hint: 'Yayındaki',
           },
         ]
       : []),
@@ -159,86 +195,121 @@ export default function DashboardPage() {
       href: '/events',
       label: 'Etkinlikler',
       state: events,
-      dot: 'bg-subtle-foreground',
+      icon: CalendarDays,
+      hint: 'Tüm dönemler',
     },
     {
       href: '/events',
       label: 'Oturumlar',
       state: sessions,
-      dot: 'bg-skylab-400 shadow-[0_0_6px] shadow-skylab-400/40',
+      icon: Clock,
+      hint: 'Etkinlik günlerinde',
     },
     {
       href: '/events',
       label: 'Başvurular',
       state: applicants,
-      dot: 'bg-warning shadow-[0_0_6px] shadow-warning/40',
+      icon: TicketIcon,
+      hint: 'Yaklaşan etkinliklerde',
+      trend: daily.slice(-14),
     },
   ];
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="Özet" description={user?.email} />
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+    <div className="flex flex-col gap-8">
+      <DashboardGreeting firstName={firstName} now={now} summary={summary} />
+
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <FeaturedEventCard
+          className="lg:col-span-2"
+          featured={featured}
+          tickets={featuredTickets}
+          loading={loadingEvents}
+          canCreate
+        />
+        <AttentionCard items={attention} loading={loadingEvents} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {cards.map((card) => (
-          <MetricCard
-            key={`${card.href}-${card.label}`}
+          <Link
+            key={card.label}
             href={card.href}
-            label={card.label}
-            value={displayCount(card.state)}
-            title={card.state.kind === 'error' ? card.state.message : card.label}
-            dot={card.dot}
-            error={card.state.kind === 'error'}
-          />
+            className="focus-visible:ring-ring rounded-xl outline-hidden focus-visible:ring-2"
+          >
+            <StatCard
+              className="hover:bg-accent h-full transition-colors"
+              label={card.label}
+              icon={card.icon}
+              value={card.state.kind === 'ok' ? card.state.count : displayCount(card.state)}
+              hint={card.state.kind === 'error' ? card.state.message : card.hint}
+              trend={card.state.kind === 'ok' ? card.trend : undefined}
+            />
+          </Link>
         ))}
       </div>
-      <div className="grid gap-8 lg:grid-cols-2">
-        <MixChart
-          title="Misafir / üye"
-          data={ticketMix(tickets)}
-          empty="Yaklaşan etkinlikte başvuru yok"
-        />
-        <MixChart
-          title="Kapı durumu"
-          data={ticketCheckInMix(tickets)}
-          empty="Kapı kaydı henüz yok"
-        />
-      </div>
-      <div className="grid gap-8 lg:grid-cols-2">
-        <div>
-          {eventsError ? (
-            <p className="text-destructive text-sm">{eventsError}</p>
-          ) : (
-            <BarChart
-              title="Son altı ay etkinlik"
-              data={eventsByMonth(eventRows)}
-              empty="Bu aralıkta etkinlik tarihi yok"
+
+      <GithubActivitySection />
+
+      <section aria-labelledby="events-and-applications" className="flex flex-col gap-4">
+        <h2 id="events-and-applications" className="text-foreground text-base font-semibold">
+          Etkinlikler ve başvurular
+        </h2>
+        <div className="grid gap-4 xl:grid-cols-3">
+          <AreaChart
+            className="xl:col-span-2"
+            title="Başvurular"
+            description="Yaklaşan etkinliklere son 30 günde gelenler"
+            data={daily.map((count, index) => ({
+              day: new Date(
+                now.getTime() - (daily.length - 1 - index) * 86400000,
+              ).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
+              count,
+            }))}
+            x="day"
+            series={{ count: { label: 'Başvuru' } }}
+            loading={loadingEvents}
+            emptyMessage="Bu dönemde başvuru yok"
+          />
+          <Card className="p-4">
+            <MixChart
+              title="Misafir / üye"
+              data={ticketMix(tickets)}
+              empty="Yaklaşan etkinlikte başvuru yok"
             />
-          )}
+          </Card>
         </div>
-        <div>
-          {sessionsError ? (
-            <p className="text-destructive text-sm">{sessionsError}</p>
-          ) : (
-            <HorizontalBars
-              title="Oturumlar etkinliğe göre"
-              data={sessionsByEvent(sessionRows)}
-              empty="Oturum dağılımı yok"
-            />
-          )}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="p-4">
+            {eventsError ? (
+              <p className="text-destructive text-sm">{eventsError}</p>
+            ) : (
+              <BarChart
+                title="Son altı ay etkinlik"
+                data={eventsByMonth(eventRows)}
+                empty="Bu aralıkta etkinlik tarihi yok"
+              />
+            )}
+          </Card>
+          <Card className="p-4">
+            {sessionsError ? (
+              <p className="text-destructive text-sm">{sessionsError}</p>
+            ) : (
+              <HorizontalBars
+                title="Oturumlar etkinliğe göre"
+                data={sessionsByEvent(sessionRows)}
+                empty="Oturum dağılımı yok"
+              />
+            )}
+          </Card>
         </div>
-      </div>
-      {eventsError ? null : (
-        <HorizontalBars
-          title="Etkinlik durumu"
-          data={eventActivity(eventRows)}
-          empty="Etkinlik durumu yok"
-        />
-      )}
-      <div className="space-y-3">
+      </section>
+
+      <section className="flex flex-col gap-3">
         <SectionHeading title="Yaklaşan etkinlikler" meta={`${soon.length} kayıt`} />
         <ListPanel
           status={listStatus({
-            loading: events.kind === 'loading',
+            loading: loadingEvents,
             failed: Boolean(eventsError),
             rowCount: soon.length,
             emptyMessage: 'Yaklaşan etkinlik yok',
@@ -255,7 +326,7 @@ export default function DashboardPage() {
             />
           ))}
         </ListPanel>
-      </div>
+      </section>
     </div>
   );
 }
