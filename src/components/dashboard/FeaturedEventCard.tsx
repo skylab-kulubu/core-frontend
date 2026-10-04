@@ -1,6 +1,14 @@
 'use client';
 
-import { Badge, Button, Card, Progress, Sparkline, StateCard } from '@skylab-kulubu/skylcn-ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Meter,
+  Progress,
+  Sparkline,
+  StateCard,
+} from '@skylab-kulubu/skylcn-ui';
 import { CalendarPlus, DoorOpen, Ticket as TicketIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { EventStat } from '@/lib/api/dashboard';
@@ -11,16 +19,19 @@ import { fromNow, longDate } from './format';
 /**
  * The event running now or coming next, first on the page: how full it is,
  * how applications are coming in, and on the day how many are through the door.
+ * `stacked` lays it out for a narrow column, one figure under the other.
  */
 export function FeaturedEventCard({
   stat,
   loading,
   canCreate,
+  stacked = false,
   className,
 }: {
   stat: EventStat | null;
   loading: boolean;
   canCreate: boolean;
+  stacked?: boolean;
   className?: string;
 }) {
   const { open: openNewEvent } = useNewEvent();
@@ -82,12 +93,14 @@ export function FeaturedEventCard({
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className={stacked ? 'grid gap-5' : 'grid gap-5 sm:grid-cols-2'}>
         {event.capacity > 0 ? (
-          <Progress
-            label={`Başvuru · ${count} / ${event.capacity}`}
-            value={count}
+          <Meter
+            label={`Kontenjan · ${count} / ${event.capacity}`}
+            value={Math.min(count, event.capacity)}
             max={event.capacity}
+            warnAt={0.9}
+            dangerAt={1}
           />
         ) : (
           <div>

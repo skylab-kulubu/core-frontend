@@ -1,4 +1,4 @@
-import type { EventStat, MonthCount } from '@/lib/api/dashboard';
+import type { DayCount, EventStat, MonthCount } from '@/lib/api/dashboard';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -63,4 +63,33 @@ export function monthLabel(month: string): string {
 
 export function monthCounts(months: readonly MonthCount[]): { label: string; count: number }[] {
   return months.map((row) => ({ label: monthLabel(row.month), count: row.count }));
+}
+
+export type BusiestDay = { date: string; count: number; eventName?: string };
+
+/**
+ * The day with the most applications in the window and, when it falls within
+ * the last 14 days (all that each event carries), the event that took most of them.
+ */
+export function busiestDay(
+  daily: readonly DayCount[],
+  stats: readonly EventStat[],
+): BusiestDay | null {
+  let best = -1;
+  daily.forEach((day, index) => {
+    if (day.count > 0 && (best < 0 || day.count >= daily[best].count)) best = index;
+  });
+  if (best < 0) return null;
+  const { date, count } = daily[best];
+  const daysAgo = daily.length - 1 - best;
+  let eventName: string | undefined;
+  let top = 0;
+  for (const stat of stats) {
+    const value = stat.dailyApplications[stat.dailyApplications.length - 1 - daysAgo] ?? 0;
+    if (daysAgo < stat.dailyApplications.length && value > top) {
+      top = value;
+      eventName = stat.name;
+    }
+  }
+  return { date, count, eventName };
 }
