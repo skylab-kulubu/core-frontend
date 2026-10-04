@@ -12,6 +12,7 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
 import { BarChart } from '@/components/chrome/PanelChart';
+import { profilePictureSrc } from '@/lib/profile-picture';
 import type { DashboardSummary } from '@/lib/api/dashboard';
 import { monthCounts } from '@/lib/dashboard/insights';
 import { fromNow } from './format';
@@ -70,7 +71,7 @@ export function MembersSection({
                           href={`/users/${encodeURIComponent(person.id)}`}
                           className="hover:bg-accent focus-visible:ring-ring flex items-center gap-3 rounded-md px-1 py-2 outline-hidden focus-visible:ring-2"
                         >
-                          <Avatar name={name} size="sm" />
+                          <Avatar name={name} src={profilePictureSrc(person)} size="sm" />
                           <span className="min-w-0 flex-1">
                             <span className="text-foreground block truncate text-sm">{name}</span>
                             <span className="mt-0.5 flex flex-wrap gap-1">

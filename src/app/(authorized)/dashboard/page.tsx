@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Notice, StatCard } from '@skylab-kulubu/skylcn-ui';
+import { Card, Meter, Notice, StatCard } from '@skylab-kulubu/skylcn-ui';
 import { AreaChart } from '@skylab-kulubu/skylcn-ui/charts';
 import {
   CalendarDays,
@@ -23,18 +23,23 @@ import { FeaturedEventCard } from '@/components/dashboard/FeaturedEventCard';
 import { fromNow } from '@/components/dashboard/format';
 import { GithubActivitySection } from '@/components/dashboard/GithubActivitySection';
 import { MembersSection } from '@/components/dashboard/MembersSection';
+import { SeasonWheelCard } from '@/components/dashboard/SeasonWheelCard';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
 import { dashboardApi, type DashboardSummary, type EventStat } from '@/lib/api/dashboard';
+import type { CoreEvent } from '@/lib/api/events';
+import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { sessionsApi, type SessionRow } from '@/lib/api/sessions';
 import { isPrivileged } from '@/lib/auth/groups';
 import {
   attentionItems,
+  busiestDay,
   featuredEvent,
   monthCounts,
   upcomingStats,
 } from '@/lib/dashboard/insights';
+import { currentSeason, seasonWheel } from '@/lib/dashboard/season';
 import { listStatus } from '@/lib/list-status';
 import {
   displayCount,
@@ -63,6 +68,11 @@ function eventSubtitle(stat: EventStat): string {
   return [stat.ownerTeam, stat.location, date].filter(Boolean).join(' · ');
 }
 
+type SeasonState = { season: Season; events: CoreEvent[] } | null;
+
+const dayLabel = (date: string) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+
 const sum = (stats: readonly EventStat[], pick: (stat: EventStat) => number) =>
   stats.reduce((total, stat) => total + pick(stat), 0);
 
@@ -74,6 +84,8 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<CountState>(LOADING);
   const [sessionRows, setSessionRows] = useState<SessionRow[]>([]);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
+  // Undefined while loading; null when there is no season to draw or it cannot be read
+  const [season, setSeason] = useState<SeasonState | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +106,7 @@ export default function DashboardPage() {
         return;
       }
       if (summary.ownerTeams.length === 0) return;
+      void loadSeason(summary.ownerTeams);
       try {
         const rows = await sessionsApi.listAll();
         if (cancelled) return;
@@ -114,6 +127,23 @@ export default function DashboardPage() {
           if (!cancelled)
             setNews(errorCount(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'));
         }
+      }
+    }
+    // The season ring is a nicety: when seasons cannot be read the page keeps its month chart
+    async function loadSeason(ownerTeams: string[]) {
+      try {
+        const picked = currentSeason(await seasonsApi.list());
+        if (!picked) {
+          if (!cancelled) setSeason(null);
+          return;
+        }
+        const scope = new Set(ownerTeams);
+        const events = (await seasonsApi.listEvents(picked.id)).filter(
+          (event) => privileged || scope.has(event.ownerTeam),
+        );
+        if (!cancelled) setSeason({ season: picked, events });
+      } catch {
+        if (!cancelled) setSeason(null);
       }
     }
     void load();
@@ -149,6 +179,8 @@ export default function DashboardPage() {
   const attention = attentionItems(stats, now);
   const firstName = user?.firstName?.trim();
   const daily = summary?.applications.daily ?? [];
+  const busiest = busiestDay(daily, stats);
+  const wheel = season ? seasonWheel(season.season, season.events, now) : null;
   const teams = summary?.ownerTeams ?? [];
   const greeting = loading
     ? 'Kulübün durumu yükleniyor…'
@@ -229,7 +261,15 @@ export default function DashboardPage() {
         </Notice>
       ) : null}
 
-      {teams.length ? (
+      {teams.length && season && wheel ? (
+        <div className="grid items-start gap-4 lg:grid-cols-3">
+          <SeasonWheelCard className="lg:col-span-2" season={season.season} wheel={wheel} />
+          <div className="flex flex-col gap-4">
+            <FeaturedEventCard stat={featured} loading={loading} canCreate stacked />
+            <AttentionCard items={attention} loading={loading} />
+          </div>
+        </div>
+      ) : teams.length ? (
         <div className="grid items-start gap-4 lg:grid-cols-3">
           <FeaturedEventCard
             className="lg:col-span-2"
@@ -260,8 +300,6 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <GithubActivitySection />
-
       {teams.length ? (
         <section aria-labelledby="events-and-applications" className="flex flex-col gap-4">
           <h2 id="events-and-applications" className="text-foreground text-base font-semibold">
@@ -271,11 +309,16 @@ export default function DashboardPage() {
             <AreaChart
               className="xl:col-span-2"
               title="Başvurular"
-              description={
+              description={[
                 privileged || teams.length > 3
                   ? 'Son 30 günde gelen bütün başvurular'
-                  : `${teams.join(', ')} etkinliklerine son 30 günde gelenler`
-              }
+                  : `${teams.join(', ')} etkinliklerine son 30 günde gelenler`,
+                busiest
+                  ? `En yoğun gün ${dayLabel(busiest.date)}: ${busiest.count}${busiest.eventName ? `, en çok ${busiest.eventName}` : ''}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join('. ')}
               data={daily.map((day) => ({
                 day: new Date(`${day.date}T12:00:00`).toLocaleDateString('tr-TR', {
                   day: 'numeric',
@@ -299,14 +342,42 @@ export default function DashboardPage() {
               />
             </Card>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="p-4">
-              <BarChart
-                title="Son altı ay etkinlik"
-                data={monthCounts(summary?.events.byMonth ?? [])}
-                empty="Bu aralıkta etkinlik tarihi yok"
-              />
-            </Card>
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <section className="flex flex-col gap-3">
+              <SectionHeading title="Yaklaşan etkinlikler" meta={`${upcoming.length} kayıt`} />
+              <ListPanel
+                status={listStatus({
+                  loading,
+                  failed: state.kind === 'error',
+                  rowCount: upcoming.length,
+                  emptyMessage: 'Yaklaşan etkinlik yok',
+                })}
+                emptyDescription="Tarihi gelmiş etkinlikler burada durur."
+              >
+                {upcoming.map((stat) => (
+                  <ListItem
+                    key={stat.id}
+                    href={`/events/${stat.id}`}
+                    title={stat.name}
+                    subtitle={eventSubtitle(stat)}
+                    trailing={
+                      stat.capacity > 0 ? (
+                        <Meter
+                          className="w-28"
+                          label={`${stat.applications} / ${stat.capacity}`}
+                          value={Math.min(stat.applications, stat.capacity)}
+                          max={stat.capacity}
+                          warnAt={0.9}
+                          dangerAt={1}
+                        />
+                      ) : (
+                        <StatusChip kind={activeStatus(stat.active)} />
+                      )
+                    }
+                  />
+                ))}
+              </ListPanel>
+            </section>
             <Card className="p-4">
               {sessionsError ? (
                 <p className="text-destructive text-sm">{sessionsError}</p>
@@ -319,6 +390,15 @@ export default function DashboardPage() {
               )}
             </Card>
           </div>
+          {season === null ? (
+            <Card className="p-4">
+              <BarChart
+                title="Son altı ay etkinlik"
+                data={monthCounts(summary?.events.byMonth ?? [])}
+                empty="Bu aralıkta etkinlik tarihi yok"
+              />
+            </Card>
+          ) : null}
         </section>
       ) : null}
 
@@ -327,30 +407,7 @@ export default function DashboardPage() {
         unavailable={summary?.membersUnavailable}
       />
 
-      {teams.length ? (
-        <section className="flex flex-col gap-3">
-          <SectionHeading title="Yaklaşan etkinlikler" meta={`${upcoming.length} kayıt`} />
-          <ListPanel
-            status={listStatus({
-              loading,
-              failed: state.kind === 'error',
-              rowCount: upcoming.length,
-              emptyMessage: 'Yaklaşan etkinlik yok',
-            })}
-            emptyDescription="Tarihi gelmiş etkinlikler burada durur."
-          >
-            {upcoming.map((stat) => (
-              <ListItem
-                key={stat.id}
-                href={`/events/${stat.id}`}
-                title={stat.name}
-                subtitle={eventSubtitle(stat)}
-                trailing={<StatusChip kind={activeStatus(stat.active)} />}
-              />
-            ))}
-          </ListPanel>
-        </section>
-      ) : null}
+      <GithubActivitySection />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { EventStat } from '@/lib/api/dashboard';
-import { attentionItems, featuredEvent, monthCounts, upcomingStats } from './insights';
+import { attentionItems, busiestDay, featuredEvent, monthCounts, upcomingStats } from './insights';
 
 const NOW = new Date('2026-10-03T12:00:00');
 
@@ -82,5 +82,44 @@ describe('attentionItems', () => {
 describe('monthCounts', () => {
   it('labels months in Turkish', () => {
     expect(monthCounts([{ month: '2026-10', count: 3 }])).toEqual([{ label: 'Eki', count: 3 }]);
+  });
+});
+
+describe('busiestDay', () => {
+  const days = (counts: number[]) =>
+    counts.map((count, index) => ({
+      date: `2026-10-${String(index + 1).padStart(2, '0')}`,
+      count,
+    }));
+
+  it('names the event that took most of the busiest day', () => {
+    const daily = days([0, 3, 0, 64, 10]);
+    const robotics = stat('r', '2026-10-21T10:00:00', {
+      name: 'Robotik',
+      dailyApplications: [0, 1, 0, 50, 4],
+    });
+    const jam = stat('j', '2026-10-26T10:00:00', {
+      name: 'Oyun jam',
+      dailyApplications: [0, 2, 0, 14, 6],
+    });
+    expect(busiestDay(daily, [jam, robotics])).toEqual({
+      date: '2026-10-04',
+      count: 64,
+      eventName: 'Robotik',
+    });
+  });
+
+  it('leaves the event out when the day is older than what events carry', () => {
+    const daily = days([40, 0, 0, 1]);
+    const short = stat('s', '2026-10-21T10:00:00', { dailyApplications: [0, 1] });
+    expect(busiestDay(daily, [short])).toEqual({
+      date: '2026-10-01',
+      count: 40,
+      eventName: undefined,
+    });
+  });
+
+  it('answers null for a month without applications', () => {
+    expect(busiestDay(days([0, 0, 0]), [])).toBeNull();
   });
 });

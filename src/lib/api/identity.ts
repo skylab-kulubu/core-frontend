@@ -1,3 +1,4 @@
+import type { ProfilePicture } from '@/lib/profile-picture';
 import { coreFetch } from './core';
 
 export type Group = {
@@ -7,7 +8,7 @@ export type Group = {
   attributes?: Record<string, string>;
 };
 
-export type Person = {
+export type Person = ProfilePicture & {
   id: string;
   email: string;
   firstName: string;

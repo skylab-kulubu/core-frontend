@@ -1,3 +1,4 @@
+import type { ProfilePicture } from '@/lib/profile-picture';
 import { coreFetch } from './core';
 
 /** A day ('YYYY-MM-DD') or month ('YYYY-MM') counted in Europe/Istanbul. */
@@ -26,7 +27,7 @@ export type EventStat = {
   dailyApplications: number[];
 };
 
-export type RecentJoiner = {
+export type RecentJoiner = ProfilePicture & {
   id: string;
   firstName: string;
   lastName: string;
