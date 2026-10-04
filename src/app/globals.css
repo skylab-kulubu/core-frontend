@@ -13,3 +13,13 @@
     cursor: pointer;
   }
 }
+
+/*
+ * skylcn-ui's AppShell scrolls #skylcn-main but leaves it unpositioned, so
+ * absolute children (Sparkline layers, AnimatedNumber's screen-reader copy)
+ * place against the page instead and stretch it into a second, empty scroll.
+ * Remove once AppShell positions its main itself.
+ */
+#skylcn-main {
+  position: relative;
+}
