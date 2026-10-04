@@ -53,8 +53,19 @@ export function SeasonWheelCard({
       : null;
 
   return (
-    <Card className={className}>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+    <Card className={['relative overflow-hidden', className].filter(Boolean).join(' ')}>
+      {/* A faint grid and a lilac glow behind the ring, fading out toward the edges */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_70%_75%_at_50%_50%,black_35%,transparent_100%)]"
+        style={{
+          backgroundImage:
+            'radial-gradient(closest-side, rgb(224 200 229 / 0.08), transparent), linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px)',
+          backgroundSize: '100% 100%, 32px 32px, 32px 32px',
+          backgroundPosition: 'center',
+        }}
+      />
+      <CardHeader className="relative flex flex-row flex-wrap items-start justify-between gap-2">
         <div>
           <CardTitle>Sezon</CardTitle>
           <CardDescription>
@@ -175,7 +186,7 @@ export function SeasonWheelCard({
         />
       </div>
 
-      <div className="text-muted-foreground min-h-10 px-6 pb-5 text-xs" aria-live="polite">
+      <div className="text-muted-foreground relative min-h-10 px-6 pb-5 text-xs" aria-live="polite">
         {active ? (
           <>
             <span className="text-foreground text-sm font-medium">{active.name}</span>

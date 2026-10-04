@@ -21,6 +21,7 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import { FlaskConical, LogOut, Palette, UserRound } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { profilePictureSrc } from '@/lib/profile-picture';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { clubRoleLabel, displayPersonName } from '@/lib/chrome-role';
 import { accountCenterUrl, clubConsoleLinks } from '@/lib/club-switcher';
@@ -111,6 +112,7 @@ export function AdminSidebar({
       <SidebarFooter>
         <SidebarUser
           name={name}
+          avatarSrc={profilePictureSrc(user)}
           email={user.email}
           subtitle={clubRoleLabel(user.groups ?? [])}
           menu={

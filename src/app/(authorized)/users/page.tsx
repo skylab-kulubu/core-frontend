@@ -17,6 +17,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { profilePictureSrc } from '@/lib/profile-picture';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
@@ -124,7 +125,7 @@ export default function UsersPage() {
               href={`/users/${u.id}`}
               title={name || u.email}
               subtitle={u.skyNumber || u.schoolEmail || u.email}
-              leading={<Avatar name={name} email={u.email} />}
+              leading={<Avatar name={name} email={u.email} src={profilePictureSrc(u)} />}
               trailing={u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined}
             />
           );
