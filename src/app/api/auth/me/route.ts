@@ -5,6 +5,7 @@ import { CORE_API_URL } from '@/lib/api/core';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken, RefreshTokenRejectedError } from '@/lib/auth/oauth2';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
+import { clubRoleLabel } from '@/lib/chrome-role';
 import {
   clearSessionCookies,
   readSessionAccessToken,
@@ -64,7 +65,12 @@ export async function GET() {
     }
 
     await jitShadowUser(token);
-    return NextResponse.json({ authenticated: true, user });
+    // roleLabel is the sidebar's team or role line, for the static playground that cannot work it out itself
+    return NextResponse.json({
+      authenticated: true,
+      user,
+      roleLabel: clubRoleLabel(user.groups ?? []),
+    });
   } catch {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
