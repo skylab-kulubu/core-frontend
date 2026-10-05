@@ -65,8 +65,7 @@ Yerel geliştirme **sandbox**'a karşı yapılır; production API'si ve realm'i 
 NEXT_PUBLIC_API_URL=http://localhost:3000/sandbox-api
 NEXT_PUBLIC_CMS_URL=http://localhost:3000/sandbox-api/api
 OAUTH2_ISSUER=https://e.yildizskylab.com/realms/e-skylab-sandbox
-OAUTH2_CLIENT_ID=superadmin
-OAUTH2_CLIENT_SECRET=...
+OAUTH2_CLIENT_ID=admin-local
 OAUTH2_REDIRECT_URI=http://localhost:3000/api/auth/callback
 APP_URL=http://localhost:3000
 ```
@@ -74,7 +73,8 @@ APP_URL=http://localhost:3000
 - **Dev proxy:** `pnpm dev`, `/sandbox-api/*` isteklerini `https://sandbox-api.yildizskylab.com/*` adresine iletir (`next.config.ts`; yalnız `next dev`, `next build` ve imajlar bu yönlendirmeyi içermez). Tarayıcı yalnız `localhost:3000`'e gider. Kulübün kenarı (Traefik) `http://localhost:3000` kökeninden gelen çapraz kökenli isteklere izin vermez: API adresi doğrudan `https://…yildizskylab.com` olursa tarayıcının istekleri CORS'ta durur. `pnpm dev` açılışta böyle bir adresi uyarıyla yazar.
 - Port 3000 değilse (3000 doluysa Next başka port seçer) adreslerdeki portu da değiştirin.
 - İsteğe bağlı: panodaki GitHub bölümü için `NEXT_PUBLIC_GITHUB_ACTIVITY_URL=http://localhost:3000/sandbox-api/v1/dashboard/github-activity`.
-- Giriş Keycloak'a yönlendirmedir, CORS'a takılmaz; kod-token değişimi sunucu tarafında olur. Sandbox realm'indeki `superadmin` istemcisinin geçerli dönüş adreslerinde `http://localhost:3000/api/auth/callback` bulunmalıdır. `OAUTH2_CLIENT_SECRET` bu istemcinin sandbox sırrıdır.
+- Giriş Keycloak'a yönlendirmedir, CORS'a takılmaz; kod-token değişimi sunucu tarafında olur. Yerelde sandbox realm'inin yalnız yerel geliştirme için açılmış `admin-local` istemcisi kullanılır: public (sırrı yok, giriş PKCE ile), tek dönüş adresi `http://localhost:3000/api/auth/callback`. `OAUTH2_CLIENT_SECRET` tanımlanmaz. Token'ı sandbox panelinin istemcisi `superadmin`'inkiyle aynı biçimdedir (`aud` core, forms, skycms; core ve forms rolleri, düz `roles`, tam yollu `groups`); `superadmin` localhost'a açık değildir. İstemciyi e-skylab-keycloak'taki `config/sandbox-admin-local-client.sh` kurar. Sandbox hesabınızla girersiniz; panelde ne göreceğinizi sandbox'taki gruplarınız belirler.
+- "SkyApp'ten geçiş" sayfası yerelde açılmaz: Keycloak'ın yönetim uçları yalnız panelin kendi istemcisinin token'ını kabul eder (`azp`).
 - Canlıdaki değerler (production: `https://api.yildizskylab.com`, realm `e-skylab`, istemci `admin`; sandbox: `https://sandbox-api.yildizskylab.com`) imaj build'inden (`.github/workflows/ghcr.yml`) ve Dokploy'dan gelir.
 - `OAUTH2_ISSUER` aynı zamanda "SkyApp'ten geçiş" sayfasının Keycloak adresidir: sunucu tarafı `${OAUTH2_ISSUER}/sky-handoff/v1/admin/targets` uçlarını çağırır. Ek değişken gerekmez.
 
