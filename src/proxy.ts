@@ -13,8 +13,9 @@ export function proxy(request: NextRequest) {
   }
 
   // `next dev` forwards /sandbox-api/* to the sandbox API (next.config.ts); core
-  // checks the request's own token. Production has no such path.
-  if (pathname.startsWith('/sandbox-api/')) {
+  // checks the request's own token. Only there: the build inlines NODE_ENV as
+  // production, so the image drops this branch and treats the path like any other.
+  if (process.env.NODE_ENV === 'development' && pathname.startsWith('/sandbox-api/')) {
     return NextResponse.next();
   }
 
