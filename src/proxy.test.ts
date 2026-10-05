@@ -30,4 +30,15 @@ describe('proxy', () => {
       expect(sentToLogin(visit('/dashboard', `${legacyName}=planted`))).toBe(true);
     },
   );
+
+  it('lets a request for the dev server sandbox API proxy through without a session, so core answers it', () => {
+    expect(sentToLogin(visit('/sandbox-api/v1/dashboard/github-activity', ''))).toBe(false);
+  });
+
+  it.each(['/dashboard', '/sandbox-api', '/sandbox-apis/v1/events'])(
+    'still sends %s without a session to /login',
+    (path) => {
+      expect(sentToLogin(visit(path, ''))).toBe(true);
+    },
+  );
 });

@@ -12,6 +12,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // `next dev` forwards /sandbox-api/* to the sandbox API (next.config.ts); core
+  // checks the request's own token. Production has no such path.
+  if (pathname.startsWith('/sandbox-api/')) {
+    return NextResponse.next();
+  }
+
   if (!token) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
