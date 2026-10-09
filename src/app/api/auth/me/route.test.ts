@@ -98,4 +98,56 @@ describe('GET /api/auth/me', () => {
       expect(jar.sent(name)).toEqual(expiredCookie());
     }
   });
+
+  it('answers the signed-in user with the role line the sidebar shows', async () => {
+    const jar = fakeCookieStore({
+      '__Host-auth_token': accessToken(300, {
+        given_name: 'Elif',
+        family_name: 'Yıldırım',
+        email: 'elif@example.com',
+        groups: ['/SKYLAB/WEBLAB'],
+      }),
+    });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    fakeKeycloak(() => Response.json({}));
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      authenticated: true,
+      user: { firstName: 'Elif', lastName: 'Yıldırım', email: 'elif@example.com' },
+      roleLabel: 'WEBLAB',
+    });
+  });
+
+  it("adds the caller's picture from core, preferring the small card size", async () => {
+    const jar = fakeCookieStore({ '__Host-auth_token': accessToken(600) });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    global.fetch = jest.fn(async () =>
+      Response.json({
+        profilePictureUrl: 'https://cdn.example.com/images/p',
+        profilePictureSizes: { card: { url: 'https://cdn.example.com/images/p/card.jpg' } },
+      }),
+    ) as typeof fetch;
+
+    const body = await (await GET()).json();
+
+    expect(body.authenticated).toBe(true);
+    expect(body.user.profilePictureUrl).toBe('https://cdn.example.com/images/p');
+    expect(body.user.profilePictureSizes.card.url).toBe(
+      'https://cdn.example.com/images/p/card.jpg',
+    );
+  });
+
+  it('signs the caller in without a picture when core cannot answer', async () => {
+    const jar = fakeCookieStore({ '__Host-auth_token': accessToken(600) });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    global.fetch = jest.fn(async () => new Response('', { status: 503 })) as typeof fetch;
+
+    const body = await (await GET()).json();
+
+    expect(body.authenticated).toBe(true);
+    expect(body.user.profilePictureUrl).toBeUndefined();
+  });
 });

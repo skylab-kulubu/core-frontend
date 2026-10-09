@@ -24,9 +24,9 @@ type ContactInfo = {
 };
 
 const styles = {
-  card: 'mb-6 rounded-lg border border-dark-200 bg-light p-4 text-dark',
+  card: 'mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-foreground',
   layout: 'flex items-start gap-3',
-  icon: 'text-dark text-xl',
+  icon: 'text-xl',
   title: 'font-semibold',
   description: 'text-sm',
   contactLink: 'block font-medium hover:underline',

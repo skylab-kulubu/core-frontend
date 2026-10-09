@@ -1,16 +1,19 @@
 import type { Metadata } from 'next';
-import { Space_Grotesk, Geist_Mono } from 'next/font/google';
+import { Space_Grotesk, Space_Mono } from 'next/font/google';
+import { ThemeScript } from '@skylab-kulubu/skylcn-ui';
 import './globals.css';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { Providers } from './providers';
 
-const spaceGrotesk = Space_Grotesk({
-  variable: '--font-sans-loaded',
+const sans = Space_Grotesk({
+  variable: '--skylcn-font-sans',
   subsets: ['latin', 'latin-ext'],
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+const mono = Space_Mono({
+  variable: '--skylcn-font-mono',
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '700'],
 });
 
 export const metadata: Metadata = {
@@ -24,9 +27,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">
-      <body className={`${spaceGrotesk.variable} ${geistMono.variable} antialiased`}>
-        <ErrorBoundary>{children}</ErrorBoundary>
+    <html lang="tr" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
+      <body className="antialiased">
+        <Providers>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </Providers>
       </body>
     </html>
   );

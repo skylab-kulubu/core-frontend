@@ -43,7 +43,7 @@ export default function TeamsPage() {
         title="Ekipler"
         description="Sitede görünen ekipler. Etkinlikler bu ekibe bağlanır."
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}

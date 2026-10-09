@@ -33,4 +33,11 @@ describe('chromeCrumbs', () => {
       { href: '/handoff-targets', label: "SkyApp'ten geçiş" },
     ]);
   });
+
+  it('labels the certificate pages in Turkish', () => {
+    expect(chromeCrumbs('/certificates/templates')).toEqual([
+      { href: '/certificates', label: 'Sertifikalar' },
+      { href: '/certificates/templates', label: 'Şablonlar' },
+    ]);
+  });
 });
