@@ -175,12 +175,12 @@ export function EventFormSlots({
   return (
     <div className="space-y-4">
       {slots.map((slot) => (
-        <div key={slot.key} className="space-y-2 rounded-md border border-white/10 bg-white/3 p-3">
+        <div key={slot.key} className="border-border bg-card space-y-2 rounded-md border p-3">
           <div className="flex items-center justify-between gap-2">
             {slot.key === APPLY_SLOT_KEY ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
-                <p className="text-2xs text-neutral-500">
+                <p className="text-2xs text-subtle-foreground">
                   Giriş yapmış kişiler hesaplarıyla kaydolur. Bu link hesabı olmayanlar veya hesap
                   açmak istemeyenler içindir.
                 </p>
@@ -241,7 +241,7 @@ export function EventFormSlots({
                   }
                 />
               ) : null}
-              <p className="text-3xs text-neutral-500">
+              <p className="text-3xs text-subtle-foreground">
                 Skyforms’ta kaydet, sonra etkinliğe dön. Form adresi bu alana yazılır; kısa link
                 skyl.app’den basılır. Yeni taslak açık gelir.
               </p>
@@ -283,7 +283,7 @@ export function EventFormSlots({
             />
           </label>
           {slot.alias ? (
-            <p className="text-3xs text-neutral-500">
+            <p className="text-3xs text-subtle-foreground">
               {publicShortUrl(shortAliasFromSlug(slot.alias))}
             </p>
           ) : null}
@@ -324,7 +324,7 @@ export function EventFormSlots({
           </SaveButton>
         </div>
       </div>
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>
   );
 }
@@ -343,7 +343,7 @@ function ModeRadio({
   onPick: () => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-xs text-neutral-200">
+    <label className="text-secondary-foreground flex items-center gap-2 text-xs">
       <input
         type="radio"
         name={name}

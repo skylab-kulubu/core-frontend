@@ -17,6 +17,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { profilePictureSrc } from '@/lib/profile-picture';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
@@ -96,7 +97,7 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
@@ -124,7 +125,7 @@ export default function UsersPage() {
               href={`/users/${u.id}`}
               title={name || u.email}
               subtitle={u.skyNumber || u.schoolEmail || u.email}
-              leading={<Avatar name={name} email={u.email} />}
+              leading={<Avatar name={name} email={u.email} src={profilePictureSrc(u)} />}
               trailing={u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined}
             />
           );
@@ -167,7 +168,9 @@ export default function UsersPage() {
                 <FieldLabel>E-posta</FieldLabel>
                 <Field type="email" aria-invalid={Boolean(errors.email)} {...register('email')} />
               </label>
-              {errors.email ? <p className="text-xs text-red-300">{errors.email.message}</p> : null}
+              {errors.email ? (
+                <p className="text-destructive text-xs">{errors.email.message}</p>
+              ) : null}
             </div>
             <SaveButton disabled={isSubmitting}>
               {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}

@@ -30,4 +30,35 @@ describe('proxy', () => {
       expect(sentToLogin(visit('/dashboard', `${legacyName}=planted`))).toBe(true);
     },
   );
+
+  describe('under next dev', () => {
+    afterEach(saveEnv('NODE_ENV'));
+
+    beforeEach(() => {
+      Object.assign(process.env, { NODE_ENV: 'development' });
+    });
+
+    it('lets a request for the dev server sandbox API proxy through without a session, so core answers it', () => {
+      expect(sentToLogin(visit('/sandbox-api/v1/dashboard/github-activity', ''))).toBe(false);
+    });
+
+    it.each(['/dashboard', '/sandbox-api', '/sandbox-apis/v1/events'])(
+      'still sends %s without a session to /login',
+      (path) => {
+        expect(sentToLogin(visit(path, ''))).toBe(true);
+      },
+    );
+  });
+
+  describe('in the image', () => {
+    afterEach(saveEnv('NODE_ENV'));
+
+    beforeEach(() => {
+      Object.assign(process.env, { NODE_ENV: 'production' });
+    });
+
+    it('sends /sandbox-api/ without a session to /login like any other path, since nothing forwards it there', () => {
+      expect(sentToLogin(visit('/sandbox-api/v1/dashboard/github-activity', ''))).toBe(true);
+    });
+  });
 });

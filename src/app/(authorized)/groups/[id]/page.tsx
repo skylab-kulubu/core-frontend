@@ -116,9 +116,9 @@ export default function GroupDetailPage() {
       <PageHeader
         title={group?.name ?? id}
         description={group?.path}
-        meta={<span className="text-2xs text-neutral-500">{members.length} üye</span>}
+        meta={<span className="text-2xs text-subtle-foreground">{members.length} üye</span>}
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
       {group ? (
         <GroupProfile
@@ -257,7 +257,7 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <SectionHeading title="Ekstra öznitelikler" />
-        <p className="text-3xs text-neutral-500">
+        <p className="text-3xs text-subtle-foreground">
           Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
         </p>
         <ListPanel

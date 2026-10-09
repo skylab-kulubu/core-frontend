@@ -5,6 +5,8 @@ import { CORE_API_URL } from '@/lib/api/core';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken, RefreshTokenRejectedError } from '@/lib/auth/oauth2';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
+import { clubRoleLabel } from '@/lib/chrome-role';
+import type { ProfilePicture } from '@/lib/profile-picture';
 import {
   clearSessionCookies,
   readSessionAccessToken,
@@ -26,14 +28,23 @@ function userFromAccessToken(token: string): UserDto | null {
   };
 }
 
-async function jitShadowUser(token: string): Promise<void> {
-  const base = CORE_API_URL;
+/**
+ * Reads the caller's own Core profile, which also creates their shadow on a first visit.
+ * Only the picture is taken from it; the token stays the source of everything else.
+ */
+async function ownProfilePicture(token: string): Promise<ProfilePicture> {
   try {
-    await fetch(`${base}/v1/users/me`, {
+    const response = await fetch(`${CORE_API_URL}/v1/users/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (!response.ok) return {};
+    const profile = (await response.json()) as ProfilePicture;
+    return {
+      profilePictureUrl: profile.profilePictureUrl || undefined,
+      profilePictureSizes: profile.profilePictureSizes || undefined,
+    };
   } catch {
-    return;
+    return {};
   }
 }
 
@@ -63,8 +74,17 @@ export async function GET() {
       return NextResponse.json({ authenticated: false }, { status: 401 });
     }
 
-    await jitShadowUser(token);
-    return NextResponse.json({ authenticated: true, user });
+    const picture = await ownProfilePicture(token);
+    if (picture.profilePictureUrl) {
+      user.profilePictureUrl = picture.profilePictureUrl;
+      if (picture.profilePictureSizes) user.profilePictureSizes = picture.profilePictureSizes;
+    }
+    // roleLabel is the sidebar's team or role line, for the static playground that cannot work it out itself
+    return NextResponse.json({
+      authenticated: true,
+      user,
+      roleLabel: clubRoleLabel(user.groups ?? []),
+    });
   } catch {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }

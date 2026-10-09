@@ -64,7 +64,7 @@ export default function GroupsPage() {
           />
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
@@ -122,7 +122,7 @@ export default function GroupsPage() {
             <FieldLabel>Üst grup</FieldLabel>
             <button
               type="button"
-              className="focus:border-skylab-400/50 h-8 w-full rounded-md border border-white/10 bg-white/3 px-3 text-left text-xs text-neutral-100"
+              className="focus:border-skylab-400/50 border-border bg-card text-foreground h-8 w-full rounded-md border px-3 text-left text-xs"
               onClick={() => {
                 setParentQuery('');
                 setParentOpen(true);

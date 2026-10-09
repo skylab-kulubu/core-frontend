@@ -28,6 +28,16 @@ function clubConsoles(): ClubSwitcherLink[] {
   ];
 }
 
+/** Every club console, this one included, for the switcher in the sidebar brand. */
+export function clubConsoleLinks(): ClubSwitcherLink[] {
+  return clubConsoles();
+}
+
 export function clubSwitcherLinks(current: ClubConsole): ClubSwitcherLink[] {
   return clubConsoles().filter((app) => app.id !== current);
+}
+
+/** The account center, where a person edits their own profile and sign-in. */
+export function accountCenterUrl(): string {
+  return process.env.NEXT_PUBLIC_ACCOUNT_URL ?? 'https://my.yildizskylab.com';
 }

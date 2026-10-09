@@ -1,7 +1,7 @@
 'use client';
 
+import { FilterPills as Pills, SearchInput } from '@skylab-kulubu/skylcn-ui';
 import type { ReactNode } from 'react';
-import { Field } from '@/components/chrome/Field';
 
 export function ListToolbar({
   query,
@@ -19,10 +19,10 @@ export function ListToolbar({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="max-w-sm min-w-[180px] flex-1">
-        <Field
-          type="search"
+        <SearchInput
+          compact
           value={query}
-          onChange={(e) => onQuery(e.target.value)}
+          onValueChange={onQuery}
           placeholder={placeholder}
           aria-label={searchLabel}
         />
@@ -43,32 +43,7 @@ export function FilterPills<T extends string>({
   options: ReadonlyArray<{ value: T; label: string }>;
   ariaLabel: string;
 }) {
-  return (
-    <div
-      role="group"
-      aria-label={ariaLabel}
-      className="inline-flex h-8 items-center rounded-md border border-white/10 bg-neutral-900/60 p-0.5"
-    >
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(option.value)}
-            className={`h-7 rounded px-2.5 text-xs transition-colors ${
-              active
-                ? 'bg-skylab-500/20 text-skylab-200'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+  return <Pills value={value} onValueChange={onChange} options={options} aria-label={ariaLabel} />;
 }
 
 export function ListFooterMeta({
@@ -77,11 +52,13 @@ export function ListFooterMeta({
   items: ReadonlyArray<{ label: string; value: string | number }>;
 }) {
   return (
-    <div className="text-2xs flex flex-wrap gap-x-4 gap-y-1 text-neutral-500">
+    <div className="text-2xs text-subtle-foreground flex flex-wrap gap-x-4 gap-y-1">
       {items.map((item) => (
         <span key={item.label}>
           {item.label}{' '}
-          <strong className="font-medium text-neutral-300 tabular-nums">{item.value}</strong>
+          <strong className="text-secondary-foreground font-medium tabular-nums">
+            {item.value}
+          </strong>
         </span>
       ))}
     </div>

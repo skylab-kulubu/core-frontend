@@ -83,7 +83,7 @@ export default function CertificateJobsPage() {
         </Select>
       </label>
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
@@ -136,15 +136,15 @@ export default function CertificateJobsPage() {
       </ListPanel>
       {detailLoading ? <StateCard title="İş ayrıntısı yükleniyor…" isLoading /> : null}
       {selected && !detailLoading ? (
-        <section className="space-y-3 rounded-xl border border-white/10 bg-neutral-950/40 p-4">
+        <section className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-neutral-100">İş ayrıntısı</h2>
-              <p className="text-3xs mt-1 font-mono text-neutral-500">{selected.id}</p>
+              <h2 className="text-foreground text-sm font-semibold">İş ayrıntısı</h2>
+              <p className="text-3xs text-subtle-foreground mt-1 font-mono">{selected.id}</p>
             </div>
             <button
               type="button"
-              className="h-8 rounded-md border border-white/10 px-3 text-xs text-neutral-400 hover:bg-white/5"
+              className="border-border text-muted-foreground hover:bg-accent h-8 rounded-md border px-3 text-xs"
               onClick={() => setSelected(undefined)}
             >
               Kapat

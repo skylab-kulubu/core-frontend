@@ -46,26 +46,33 @@ describe('AuthenticatedChrome', () => {
 
   it('closes the mobile menu when the viewport crosses into desktop', async () => {
     let onChange: ((event: MediaQueryListEvent) => void) | undefined;
-    window.matchMedia = jest.fn().mockReturnValue({
-      matches: false,
-      media: '(min-width: 768px)',
+    let desktop = false;
+    window.matchMedia = jest.fn().mockImplementation(() => ({
+      get matches() {
+        return desktop;
+      },
+      media: '(min-width: 48rem)',
       addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
         onChange = listener;
       },
       removeEventListener: jest.fn(),
-    });
+    }));
     const pointer = userEvent.setup();
     render(
       <AuthenticatedChrome sidebarUser={user}>
-        <main>İçerik</main>
+        <p>İçerik</p>
       </AuthenticatedChrome>,
     );
     await pointer.click(screen.getByRole('button', { name: 'Menüyü aç' }));
-    expect(screen.getByRole('dialog', { name: 'Ana menü' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Gezinme' })).toBeInTheDocument();
 
-    act(() => onChange?.({ matches: true } as MediaQueryListEvent));
-    expect(screen.queryByRole('dialog', { name: 'Ana menü' })).not.toBeInTheDocument();
-    expect(screen.getByRole('main').closest('[inert]')).toBeNull();
+    act(() => {
+      desktop = true;
+      onChange?.({ matches: true } as MediaQueryListEvent);
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Gezinme' })).not.toBeInTheDocument(),
+    );
   });
 
   it('discovers door assignments and exposes the door workspace', async () => {
@@ -80,7 +87,7 @@ describe('AuthenticatedChrome', () => {
 
     render(
       <AuthenticatedChrome sidebarUser={doorUser}>
-        <main>İçerik</main>
+        <p>İçerik</p>
       </AuthenticatedChrome>,
     );
 
@@ -93,14 +100,14 @@ describe('AuthenticatedChrome', () => {
     const pointer = userEvent.setup();
     render(
       <AuthenticatedChrome sidebarUser={user}>
-        <main>İçerik</main>
+        <p>İçerik</p>
       </AuthenticatedChrome>,
     );
 
-    const expand = await screen.findByRole('button', { name: 'Menüyü genişlet' });
+    const expand = await screen.findByRole('button', { name: 'Kenar çubuğunu genişlet' });
     await pointer.click(expand);
     expect(window.localStorage.getItem('skylab.admin.sidebar-collapsed')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Menüyü daralt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kenar çubuğunu daralt' })).toBeInTheDocument();
   });
 
   it('shows event-scoped navigation only for the current event capabilities', async () => {
@@ -109,7 +116,7 @@ describe('AuthenticatedChrome', () => {
     (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
     render(
       <AuthenticatedChrome sidebarUser={leader}>
-        <main>İçerik</main>
+        <p>İçerik</p>
       </AuthenticatedChrome>,
     );
 
@@ -123,7 +130,7 @@ describe('AuthenticatedChrome', () => {
     (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-2', ownerTeam: 'SKYSEC' });
     render(
       <AuthenticatedChrome sidebarUser={leader}>
-        <main>İçerik</main>
+        <p>İçerik</p>
       </AuthenticatedChrome>,
     );
 

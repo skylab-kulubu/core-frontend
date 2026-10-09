@@ -24,6 +24,7 @@ import {
   restoreEventEditor,
   writeEventDraft,
 } from '@/lib/event-draft';
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { useAuth } from '@/context/AuthContext';
 
 function NewEventPageContent() {
@@ -99,7 +100,9 @@ function NewEventPageContent() {
 
   if (!canCreate) {
     return (
-      <p className="text-sm text-red-300">Yeni etkinlik yalnızca ekip lideri veya YK içindir.</p>
+      <p className="text-destructive text-sm">
+        Yeni etkinlik yalnızca ekip lideri veya YK içindir.
+      </p>
     );
   }
 
@@ -110,7 +113,7 @@ function NewEventPageContent() {
         description="Kaydetmeden Skyforms’a gidilebilir; yazılanlar geri gelir."
       />
       {!ready ? (
-        <p className="text-sm text-neutral-500">Yükleniyor…</p>
+        <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
       ) : (
         <form
           className="space-y-3"
@@ -155,12 +158,12 @@ function NewEventPageContent() {
             onLeaveToSkyforms={() => persist(form)}
           />
           {error ? (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-destructive text-sm">
               {error}
             </p>
           ) : null}
           {createdId ? (
-            <p className="text-2xs text-neutral-400">
+            <p className="text-2xs text-muted-foreground">
               <Link href={`/events/${createdId}`} className="text-skylab-300 hover:underline">
                 Oluşturulan etkinliği aç
               </Link>
@@ -173,10 +176,28 @@ function NewEventPageContent() {
   );
 }
 
+/**
+ * Events are created in the quick panel over any page; this address opens it
+ * over the events list. Only a return from Skyforms, carrying the form it made,
+ * comes back to the full form with the draft it left.
+ */
+function NewEventRoute() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { open } = useNewEvent();
+  const returning = Boolean(formHandoffFromSearch(searchParams));
+  useEffect(() => {
+    if (returning) return;
+    open();
+    router.replace('/events');
+  }, [returning, open, router]);
+  return returning ? <NewEventPageContent /> : null;
+}
+
 export default function NewEventPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
-      <NewEventPageContent />
+    <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
+      <NewEventRoute />
     </Suspense>
   );
 }
