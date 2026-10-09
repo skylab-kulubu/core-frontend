@@ -21,6 +21,18 @@ export type DoorEvent = {
   ranked: boolean;
 };
 
+/** A short-lived QR the door shows for guests to check themselves in; token and url are secrets. */
+export type DoorQr = {
+  token: string;
+  url: string;
+  svg: string;
+  sessionId: string;
+  eventId: string;
+  issuedAt: string;
+  expiresAt: string;
+  refreshAfterSeconds: number;
+};
+
 export type DoorCheckIn = {
   id: string;
   sessionId: string;
@@ -124,6 +136,10 @@ export const ticketsApi = {
     coreFetch<DoorCheckIn>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-in/resolve`, {
       method: 'POST',
       body: JSON.stringify(target),
+    }),
+  createDoorQr: (sessionId: string) =>
+    coreFetch<DoorQr>(`/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1`, {
+      method: 'POST',
     }),
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`),

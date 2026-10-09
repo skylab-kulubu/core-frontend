@@ -16,6 +16,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
@@ -316,6 +317,7 @@ export default function QrPage() {
         </label>
         <SaveButton disabled={isSubmitting}>{isSubmitting ? 'Yazılıyor…' : 'Check-in'}</SaveButton>
       </form>
+      <GuestDoorQr sessionId={sessionId} />
       {successLine ? (
         <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
           <StatusChip kind="checked-in" />
