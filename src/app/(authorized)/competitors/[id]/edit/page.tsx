@@ -13,6 +13,7 @@ import { ProblemError } from '@/lib/api/core';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
+import { eventTabHref } from '@/lib/event-workspace';
 
 export default function EditCompetitorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -44,8 +45,8 @@ export default function EditCompetitorPage({ params }: { params: Promise<{ id: s
 
   const ownerTeam = event?.ownerTeam ?? '';
   const canManage = canManageCompetitors(groups, ownerTeam);
-  const back =
-    queryEventId || row?.eventId ? `/events/${queryEventId || row?.eventId}` : '/competitors';
+  const backEventId = queryEventId || row?.eventId;
+  const back = backEventId ? eventTabHref(backEventId, 'competition') : '/competitors';
 
   if (error) return <p className="text-destructive text-sm">{error}</p>;
   if (!row) return <p className="text-subtle-foreground text-sm">Yükleniyor…</p>;

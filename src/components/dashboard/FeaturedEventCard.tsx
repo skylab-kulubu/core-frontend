@@ -14,6 +14,7 @@ import Link from 'next/link';
 import type { EventStat } from '@/lib/api/dashboard';
 import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { publicMediaUrl } from '@/lib/event-media';
+import { eventTabHref } from '@/lib/event-workspace';
 import { fromNow, longDate } from './format';
 
 /**
@@ -129,7 +130,7 @@ export function FeaturedEventCard({
         <Button variant="primary" render={<Link href={href} />}>
           Etkinliğe git
         </Button>
-        <Button render={<Link href={`${href}#participants`} />}>
+        <Button render={<Link href={eventTabHref(event.id, 'participants')} />}>
           <TicketIcon /> Başvuranlar
         </Button>
         <Button render={<Link href={`/qr?eventId=${encodeURIComponent(event.id)}`} />}>

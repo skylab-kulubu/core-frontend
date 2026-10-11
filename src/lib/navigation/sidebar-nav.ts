@@ -6,6 +6,7 @@ import {
   isLeader,
   isPrivileged,
 } from '@/lib/auth/groups';
+import { eventTabHref } from '@/lib/event-workspace';
 import type { UserDto } from '@/types/api';
 import type { SidebarNavLink, SidebarNavNode } from '@/lib/navigation/sidebar-types';
 
@@ -139,28 +140,31 @@ export function buildSidebarNavigation(
   }
 
   if (context.activeEvent) {
-    const eventHref = `/events/${encodeURIComponent(context.activeEvent.id)}`;
+    const eventId = context.activeEvent.id;
     const activeEventChildren: SidebarNavLink[] = [
-      { href: `${eventHref}#overview`, label: 'Özet' },
-      { href: `${eventHref}#program`, label: 'Program' },
+      { href: eventTabHref(eventId), label: 'Genel bakış' },
+      { href: eventTabHref(eventId, 'program'), label: 'Program' },
     ];
     if (context.activeEvent.canSeeParticipants) {
       activeEventChildren.splice(1, 0, {
-        href: `${eventHref}#participants`,
-        label: 'Başvuranlar',
+        href: eventTabHref(eventId, 'participants'),
+        label: 'Katılımcılar',
       });
     }
     if (context.activeEvent.canSeeCompetitors) {
-      activeEventChildren.push({ href: `${eventHref}#competitors`, label: 'Yarışmacılar' });
+      activeEventChildren.push({ href: eventTabHref(eventId, 'competition'), label: 'Yarışma' });
     }
     if (context.activeEvent.canUseDoor) {
       activeEventChildren.push({
-        href: `/qr?eventId=${encodeURIComponent(context.activeEvent.id)}`,
+        href: `/qr?eventId=${encodeURIComponent(eventId)}`,
         label: 'Kapı',
       });
     }
     if (context.activeEvent.canSeeCertificates) {
-      activeEventChildren.push({ href: `${eventHref}#certificates`, label: 'Sertifikalar' });
+      activeEventChildren.push({
+        href: eventTabHref(eventId, 'certificates'),
+        label: 'Sertifikalar',
+      });
     }
     nodes.push({
       kind: 'group',
