@@ -41,7 +41,6 @@ export const ticketsModule = {
     searchDoorAttendees: jest.fn(),
     resolveAndCheckIn: jest.fn(),
     checkIn: jest.fn(),
-    applyMe: jest.fn(),
   },
 };
 export const identityModule = { identityApi: { listUsers: jest.fn(), getUser: jest.fn() } };
