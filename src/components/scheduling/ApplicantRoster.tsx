@@ -58,7 +58,7 @@ export function ApplicantRoster({
   people,
   event,
   mailHref,
-  doorHref = '/qr',
+  doorHref = `/qr?eventId=${encodeURIComponent(eventId)}`,
   sessions = [],
   loading = false,
   failed = false,

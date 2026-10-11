@@ -2,21 +2,39 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import { canManageCompetitors, canReadCertificates } from '@/lib/auth/groups';
-import type { SidebarNavigationContext } from '@/lib/navigation/sidebar-nav';
+import type { SidebarNavigationContext, SidebarNavLink } from '@/lib/navigation/sidebar-nav';
+import { siteEditLinks } from '@/lib/site-edit-links';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
 import type { UserDto } from '@/types/api';
 
 /**
  * What the navigation needs beyond the user's groups: whether they staff any
- * door, and what they may do in the event whose pages are open.
+ * door, which sites they may edit, and what they may do in the event whose
+ * pages are open.
  */
 export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   const pathname = usePathname();
   const [doorEventIds, setDoorEventIds] = useState<string[]>([]);
   const [activeEvent, setActiveEvent] = useState<SidebarNavigationContext['activeEvent']>();
+  const [editSites, setEditSites] = useState<SidebarNavLink[]>([]);
+
+  // core's editableSites; a failed read shows no site (the CMS decides edits anyway)
+  useEffect(() => {
+    let cancelled = false;
+    capabilitiesApi
+      .get()
+      .then((capabilities) => {
+        if (!cancelled) setEditSites(siteEditLinks(capabilities?.editableSites));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,5 +88,5 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     };
   }, [doorEventIds, pathname, user.groups, user.id, user.roles]);
 
-  return { hasDoorAssignment: doorEventIds.length > 0, activeEvent };
+  return { hasDoorAssignment: doorEventIds.length > 0, editSites, activeEvent };
 }
