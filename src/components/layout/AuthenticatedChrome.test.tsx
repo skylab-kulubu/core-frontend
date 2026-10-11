@@ -165,6 +165,31 @@ describe('AuthenticatedChrome', () => {
     );
   });
 
+  it('does not read the open event again when only its tab changes', async () => {
+    currentPathname = '/events/event-1';
+    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
+    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
+    const view = render(
+      <AuthenticatedChrome sidebarUser={leader}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
+    await act(async () => undefined);
+    const reads = (eventsApi.get as jest.Mock).mock.calls.length;
+
+    currentPathname = '/events/event-1/program';
+    view.rerender(
+      <AuthenticatedChrome sidebarUser={leader}>
+        <p>Program</p>
+      </AuthenticatedChrome>,
+    );
+
+    expect(await screen.findByText('Program', { selector: 'p' })).toBeInTheDocument();
+    await act(async () => undefined);
+    expect(eventsApi.get).toHaveBeenCalledTimes(reads);
+  });
+
   it('does not expose event tools to a leader from another owner team', async () => {
     currentPathname = '/events/event-2';
     const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };

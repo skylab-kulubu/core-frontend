@@ -49,13 +49,17 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     };
   }, [user.groups, user.id]);
 
+  // The event's tabs are routes under it; moving between them keeps the event read once
+  const eventMatch = pathname.match(/^\/events\/([^/]+)(?:\/|$)/);
+  const openEventId =
+    eventMatch?.[1] && eventMatch[1] !== 'new' ? decodeURIComponent(eventMatch[1]) : null;
+
   useEffect(() => {
-    const match = pathname.match(/^\/events\/([^/]+)(?:\/|$)/);
-    if (!match?.[1] || match[1] === 'new') {
+    if (!openEventId) {
       setActiveEvent(undefined);
       return;
     }
-    const eventId = decodeURIComponent(match[1]);
+    const eventId = openEventId;
     let cancelled = false;
     eventsApi
       .get(eventId)
@@ -86,7 +90,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     return () => {
       cancelled = true;
     };
-  }, [doorEventIds, pathname, user.groups, user.id, user.roles]);
+  }, [doorEventIds, openEventId, user.groups, user.id, user.roles]);
 
   return { hasDoorAssignment: doorEventIds.length > 0, editSites, activeEvent };
 }
