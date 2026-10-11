@@ -113,10 +113,6 @@ export const ticketsApi = {
     coreFetch<Ticket>(
       `/v1/tickets/user/${encodeURIComponent(userId)}/event/${encodeURIComponent(eventId)}`,
     ),
-  applyMe: (eventId: string) =>
-    coreFetch<Ticket>(`/v1/events/${encodeURIComponent(eventId)}/applications/me`, {
-      method: 'POST',
-    }),
   applyForOther: (eventId: string, userId: string) =>
     coreFetch<Ticket>(
       `/v1/events/${encodeURIComponent(eventId)}/applications/users/${encodeURIComponent(userId)}`,

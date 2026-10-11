@@ -57,7 +57,6 @@ describe('Event workspace layout', () => {
       'false',
     );
     expect(screen.getByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
-    expect(screen.queryByText('Üye kaydı')).not.toBeInTheDocument();
   });
 
   it('moves between tabs without loading the event again', async () => {
@@ -94,7 +93,7 @@ describe('Event workspace layout', () => {
       'true',
     );
     expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/qr?eventId=e1');
-    expect(screen.getByText('Üye kaydı')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hesabınla kaydol' })).not.toBeInTheDocument();
   });
 
   it('shows door staff only the overview, the program and the door', async () => {
