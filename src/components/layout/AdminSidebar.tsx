@@ -19,7 +19,7 @@ import {
   useTheme,
   type ThemePreference,
 } from '@skylab-kulubu/skylcn-ui';
-import { FlaskConical, LogOut, Palette, UserRound } from 'lucide-react';
+import { FlaskConical, Globe, LogOut, Palette, PenLine, UserRound } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import { performClientLogout } from '@/lib/auth/client-logout';
@@ -107,6 +107,23 @@ export function AdminSidebar({
               </SidebarGroup>
             ),
           )}
+          {navigationContext.editSites?.length ? (
+            <SidebarGroup
+              label="Siteyi düzenle"
+              icon={PenLine}
+              storageKey="skylab.admin.nav-group.edit-sites"
+            >
+              {navigationContext.editSites.map((site) => (
+                <SidebarItem
+                  key={site.href}
+                  href={site.href}
+                  label={site.label}
+                  icon={Globe}
+                  external
+                />
+              ))}
+            </SidebarGroup>
+          ) : null}
         </div>
       </SidebarContent>
       <SidebarFooter>

@@ -87,7 +87,9 @@ export default function TicketDetailPage({
             <StatusChip kind={ticketCheckInStatus(status.key === 'checked-in')} />
           </>
         }
-        actions={<ActionButton icon={QrCode} label="Kapı" href="/qr" />}
+        actions={
+          <ActionButton icon={QrCode} label="Kapı" href={`/qr?eventId=${encodeURIComponent(id)}`} />
+        }
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <TicketDetailView

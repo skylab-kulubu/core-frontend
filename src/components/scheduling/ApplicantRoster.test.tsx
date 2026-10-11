@@ -70,6 +70,13 @@ describe('ApplicantRoster', () => {
     expect(screen.queryByText(/t-guest/)).not.toBeInTheDocument();
   });
 
+  it('opens the door screen on this event', () => {
+    render(
+      <ApplicantRoster eventId="e 1" tickets={[guest]} people={people} event={{ id: 'e 1' }} />,
+    );
+    expect(screen.getByLabelText('Kapı').closest('a')).toHaveAttribute('href', '/qr?eventId=e%201');
+  });
+
   it('filters the roster by search and ticket type', async () => {
     const user = userEvent.setup();
     render(

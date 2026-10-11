@@ -16,6 +16,8 @@ const URLS_LINK: SidebarNavLink = { href: '/urls', label: 'Kısa URL' };
 
 export type SidebarNavigationContext = Readonly<{
   hasDoorAssignment?: boolean;
+  /** "Siteyi düzenle": the editor sign-in of each site the person may edit (external links). */
+  editSites?: readonly SidebarNavLink[];
   activeEvent?: Readonly<{
     id: string;
     canSeeParticipants: boolean;
