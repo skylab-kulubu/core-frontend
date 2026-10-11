@@ -29,6 +29,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
+import { eventTabFromPath, type EventTab } from '@/lib/event-workspace';
 
 const PAGE_ICON: Record<string, LucideIcon> = {
   '/dashboard': LayoutDashboard,
@@ -51,13 +52,14 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/handoff-targets': ArrowRightLeft,
 };
 
-// The current event's pages link to sections of its workspace
-const EVENT_SECTION_ICON: Record<string, LucideIcon> = {
+// The current event's pages link to the tabs of its workspace
+const EVENT_TAB_ICON: Record<EventTab, LucideIcon> = {
   overview: LayoutDashboard,
   participants: Ticket,
   program: Clock,
-  competitors: Trophy,
   certificates: Award,
+  content: Image,
+  competition: Trophy,
 };
 
 const GROUP_ICON: Record<string, LucideIcon> = {
@@ -84,8 +86,9 @@ export const CONSOLE_ICON: Record<string, LucideIcon> = {
 };
 
 export function navIcon(href: string): LucideIcon {
-  const [path, hash] = href.split('#');
-  if (hash && path.startsWith('/events/')) return EVENT_SECTION_ICON[hash] ?? ChevronRight;
+  const [path] = href.split('#');
+  const tab = eventTabFromPath(path);
+  if (tab) return EVENT_TAB_ICON[tab];
   if (path.startsWith('/qr?')) return QrCode;
   return PAGE_ICON[path] ?? ChevronRight;
 }

@@ -159,7 +159,10 @@ describe('AuthenticatedChrome', () => {
     );
 
     expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Başvuranlar' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
+      'href',
+      '/events/event-1/participants',
+    );
   });
 
   it('does not expose event tools to a leader from another owner team', async () => {

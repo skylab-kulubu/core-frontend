@@ -1,3 +1,5 @@
+import { editorReturnTo } from '@/lib/event-draft';
+import { APPLY_SLOT_KEY } from '@/lib/event-forms';
 import {
   eventTabFromAnchor,
   eventTabFromPath,
@@ -46,5 +48,15 @@ describe('event workspace routes', () => {
     expect(legacyEventAnchorHref('e1', '#overview')).toBeNull();
     expect(legacyEventAnchorHref('e1', '')).toBeNull();
     expect(legacyEventAnchorHref('e1', '#nope')).toBeNull();
+  });
+
+  it('brings Skyforms back to the event itself from whichever tab opened the editor', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(
+      editorReturnTo(`https://admin.yildizskylab.com/events/${id}/program`, APPLY_SLOT_KEY),
+    ).toBe(`https://admin.yildizskylab.com/events/${id}?formSlot=apply`);
+    expect(
+      editorReturnTo(`https://admin.yildizskylab.com/events/${id}/participants`, 'extra-ctf'),
+    ).toBe(`https://admin.yildizskylab.com/events/${id}?formSlot=extra-ctf`);
   });
 });

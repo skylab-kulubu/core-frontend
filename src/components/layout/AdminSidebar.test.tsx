@@ -150,11 +150,38 @@ describe('AdminSidebar', () => {
       'aria-expanded',
       'true',
     );
+    expect(screen.getByRole('link', { name: 'Genel bakış' })).toHaveAttribute(
+      'href',
+      '/events/event-1',
+    );
+    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
+      'href',
+      '/events/event-1/participants',
+    );
     expect(screen.getByRole('link', { name: 'Program' })).toHaveAttribute(
       'href',
-      '/events/event-1#program',
+      '/events/event-1/program',
+    );
+    expect(screen.getByRole('link', { name: 'Yarışma' })).toHaveAttribute(
+      'href',
+      '/events/event-1/competition',
     );
     expect(screen.getAllByRole('link', { name: 'Kapı' })).toHaveLength(2);
+  });
+
+  it('marks the open event tab as current, not the event overview above it', () => {
+    currentPathname = '/events/event-1/program';
+    renderSidebar({
+      activeEvent: {
+        id: 'event-1',
+        canSeeParticipants: true,
+        canSeeCompetitors: false,
+        canUseDoor: false,
+      },
+    });
+    expect(screen.getByRole('link', { name: 'Program' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Genel bakış' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Katılımcılar' })).not.toHaveAttribute('aria-current');
   });
 
   it('offers to edit only the sites the person may edit', async () => {
