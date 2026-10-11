@@ -47,8 +47,8 @@ export default function EditCompetitorPage({ params }: { params: Promise<{ id: s
   const back =
     queryEventId || row?.eventId ? `/events/${queryEventId || row?.eventId}` : '/competitors';
 
-  if (error) return <p className="text-sm text-red-300">{error}</p>;
-  if (!row) return <p className="text-sm text-neutral-500">Yükleniyor…</p>;
+  if (error) return <p className="text-destructive text-sm">{error}</p>;
+  if (!row) return <p className="text-subtle-foreground text-sm">Yükleniyor…</p>;
 
   return (
     <div className="space-y-6">
@@ -83,7 +83,7 @@ export default function EditCompetitorPage({ params }: { params: Promise<{ id: s
             <SaveButton>Kaydet</SaveButton>
             <button
               type="button"
-              className="text-2xs h-8 rounded-md border border-white/10 px-3 font-medium text-red-300"
+              className="text-2xs border-border text-destructive h-8 rounded-md border px-3 font-medium"
               onClick={async () => {
                 await competitorsApi.delete(id);
                 router.push(back);

@@ -152,28 +152,28 @@ export function UserCardView({
           <dl className="grid max-w-md gap-3">
             <div className="space-y-1">
               <FieldLabel>Üniversite</FieldLabel>
-              <p className="text-sm text-neutral-200">{dash(card.university)}</p>
+              <p className="text-secondary-foreground text-sm">{dash(card.university)}</p>
             </div>
             <div className="space-y-1">
               <FieldLabel>Fakülte</FieldLabel>
-              <p className="text-sm text-neutral-200">{dash(card.faculty)}</p>
+              <p className="text-secondary-foreground text-sm">{dash(card.faculty)}</p>
             </div>
             <div className="space-y-1">
               <FieldLabel>Bölüm</FieldLabel>
-              <p className="text-sm text-neutral-200">{dash(card.department)}</p>
+              <p className="text-secondary-foreground text-sm">{dash(card.department)}</p>
             </div>
             <div className="space-y-1">
               <FieldLabel>LinkedIn</FieldLabel>
-              <p className="text-sm text-neutral-200">{dash(card.linkedin)}</p>
+              <p className="text-secondary-foreground text-sm">{dash(card.linkedin)}</p>
             </div>
             <div className="space-y-1">
               <FieldLabel>Telefon</FieldLabel>
-              <p className="text-sm text-neutral-200">{dash(card.phone)}</p>
+              <p className="text-secondary-foreground text-sm">{dash(card.phone)}</p>
             </div>
             {card.studentCardUid ? (
               <div className="space-y-1">
                 <FieldLabel>Öğrenci kartı UID</FieldLabel>
-                <p className="text-sm text-neutral-200">{card.studentCardUid}</p>
+                <p className="text-secondary-foreground text-sm">{card.studentCardUid}</p>
               </div>
             ) : null}
           </dl>

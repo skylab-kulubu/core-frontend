@@ -54,7 +54,8 @@ export function problemFromResponse(status: number, text: string): ProblemError 
   return new ProblemError(status, title, { code, detail, fields });
 }
 
-async function bearer(): Promise<string | null> {
+/** The session's access token for core, read through this app's token route. */
+export async function bearer(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   const res = await fetch('/api/auth/token', { credentials: 'include' });
   if (!res.ok) return null;

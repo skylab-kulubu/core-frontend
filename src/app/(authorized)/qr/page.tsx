@@ -16,6 +16,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
@@ -202,12 +203,12 @@ export default function QrPage() {
     <div className="space-y-6">
       <PageHeader title="Kapı check-in" description="Kişi veya e-posta ile oturuma yaz." />
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
       {activityError ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {activityError}
         </p>
       ) : null}
@@ -269,7 +270,7 @@ export default function QrPage() {
             ))}
           </Select>
           {errors.eventId ? (
-            <span role="alert" className="text-2xs text-red-300">
+            <span role="alert" className="text-2xs text-destructive">
               {errors.eventId.message}
             </span>
           ) : null}
@@ -285,7 +286,7 @@ export default function QrPage() {
             ))}
           </Select>
           {errors.sessionId ? (
-            <span role="alert" className="text-2xs text-red-300">
+            <span role="alert" className="text-2xs text-destructive">
               {errors.sessionId.message}
             </span>
           ) : null}
@@ -309,20 +310,25 @@ export default function QrPage() {
             aria-invalid={Boolean(errors.email)}
           />
           {errors.email ? (
-            <span role="alert" className="text-2xs text-red-300">
+            <span role="alert" className="text-2xs text-destructive">
               {errors.email.message}
             </span>
           ) : null}
         </label>
         <SaveButton disabled={isSubmitting}>{isSubmitting ? 'Yazılıyor…' : 'Check-in'}</SaveButton>
       </form>
+      <GuestDoorQr sessionId={sessionId} />
       {successLine ? (
         <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
           <StatusChip kind="checked-in" />
-          <p className="text-sm text-neutral-300">{successLine}</p>
+          <p className="text-secondary-foreground text-sm">{successLine}</p>
         </div>
       ) : null}
-      <p role="status" aria-label="Canlı check-in sayısı" className="text-sm text-neutral-300">
+      <p
+        role="status"
+        aria-label="Canlı check-in sayısı"
+        className="text-secondary-foreground text-sm"
+      >
         Bu oturumda canlı toplam: {activityTotal}
       </p>
       <ListToolbar

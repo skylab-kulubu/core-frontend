@@ -1,3 +1,4 @@
+import type { EventFile, EventVideo } from './uploads';
 import { coreFetch } from './core';
 
 export type CoreEvent = {
@@ -24,6 +25,11 @@ export type CoreEvent = {
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
+  /** The Event's files and videos, in its detail only; lists carry the counts alone. */
+  files?: EventFile[];
+  videos?: EventVideo[];
+  fileCount?: number;
+  videoCount?: number;
   createdAt: string;
   updatedAt: string;
 };

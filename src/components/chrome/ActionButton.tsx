@@ -1,7 +1,9 @@
 'use client';
 
-import Link from 'next/link';
+import { IconButton } from '@skylab-kulubu/skylcn-ui';
 import type { LucideIcon } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 type ActionButtonProps = {
   href?: string;
@@ -14,48 +16,35 @@ type ActionButtonProps = {
   disabled?: boolean;
 };
 
+/** A square icon action in a toolbar or row; a link when it has `href`. */
 export function ActionButton({
   href,
   onClick,
-  icon: Icon,
+  icon = ChevronRight,
   label,
   variant = 'ghost',
-  className = '',
+  className,
   title,
   disabled,
 }: ActionButtonProps) {
-  const variantClass =
-    variant === 'primary'
-      ? 'border-skylab-400/40 bg-skylab-500/10 text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20'
-      : 'border-white/10 bg-transparent text-neutral-200 hover:border-white/20 hover:bg-white/5';
-  const buttonClass = `inline-flex h-8 w-8 items-center justify-center rounded-md border text-2xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-skylab-400/40 ${variantClass} ${className}`;
-
-  if (href) {
-    const external = /^https?:\/\//.test(href);
-    if (external) {
-      return (
-        <a href={href} className={buttonClass} aria-label={label ?? title} title={title ?? label}>
-          {Icon ? <Icon className="h-4 w-4" /> : null}
-        </a>
-      );
-    }
-    return (
-      <Link href={href} className={buttonClass} aria-label={label ?? title} title={title ?? label}>
-        {Icon ? <Icon className="h-4 w-4" /> : null}
-      </Link>
-    );
-  }
-
+  const name = label ?? title ?? '';
+  const render = href ? (
+    /^https?:\/\//.test(href) ? (
+      <a href={href} />
+    ) : (
+      <Link href={href} />
+    )
+  ) : undefined;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`${buttonClass} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
-      aria-label={label ?? title}
+    <IconButton
+      icon={icon}
+      label={name}
       title={title ?? label}
-    >
-      {Icon ? <Icon className="h-4 w-4" /> : null}
-    </button>
+      variant={variant === 'primary' ? 'primary' : 'outline'}
+      className={className}
+      disabled={disabled}
+      onClick={onClick}
+      render={render}
+    />
   );
 }

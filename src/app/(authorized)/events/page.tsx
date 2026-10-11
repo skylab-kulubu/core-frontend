@@ -1,5 +1,6 @@
 'use client';
 
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Inbox, Plus } from 'lucide-react';
@@ -29,6 +30,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 
 function EventsPageContent() {
   const router = useRouter();
+  const { open: openNewEvent } = useNewEvent();
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get('ownerTeam')?.trim() || '';
   const calendar = searchParams.get('view') === 'calendar';
@@ -107,13 +109,13 @@ function EventsPageContent() {
                 icon={Plus}
                 variant="primary"
                 label="Etkinlik ekle"
-                onClick={() => router.push('/events/new')}
+                onClick={openNewEvent}
               />
             ) : null}
           </div>
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={(value) => {
@@ -140,7 +142,7 @@ function EventsPageContent() {
       </ListToolbar>
       {calendar ? (
         loading ? (
-          <p className="text-sm text-neutral-500">Yükleniyor…</p>
+          <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
         ) : (
           <EventCalendar events={filtered} />
         )
@@ -164,7 +166,7 @@ function EventsPageContent() {
             }
             emptyAction={
               canCreate && !query && phase === 'all' ? (
-                <SaveButton type="button" onClick={() => router.push('/events/new')}>
+                <SaveButton type="button" onClick={openNewEvent}>
                   Etkinlik ekle
                 </SaveButton>
               ) : null
@@ -190,7 +192,7 @@ function EventsPageContent() {
 
 export default function EventsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
+    <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
       <EventsPageContent />
     </Suspense>
   );

@@ -118,7 +118,7 @@ export default function IssuedCertificatesPage() {
         </label>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}

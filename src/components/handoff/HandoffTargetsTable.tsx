@@ -16,7 +16,7 @@ import {
   type HandoffTargetInput,
 } from '@/lib/handoff/targets';
 
-const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-neutral-600';
+const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-faint-foreground';
 
 function targetTitle(target: HandoffTarget): string {
   const name = target.name?.trim();
@@ -59,7 +59,7 @@ function trimmed(input: HandoffTargetInput): HandoffTargetInput {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="text-3xs mt-1 leading-snug text-red-300">
+    <p id={id} className="text-3xs text-destructive mt-1 leading-snug">
       {message}
     </p>
   ) : null;
@@ -140,21 +140,23 @@ function HandoffTargetRow({ target, onSaved, onForbidden }: { target: HandoffTar
     <tr className="align-top">
       <td className="px-3 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-neutral-200">{title}</span>
+          <span className="text-secondary-foreground truncate text-sm font-medium">{title}</span>
           <StatusChip
             kind={target.enabled ? 'active' : 'neutral'}
             label={target.enabled ? 'Açık' : 'Kapalı'}
           />
         </div>
-        <p className="text-3xs mt-0.5 truncate text-neutral-500">
+        <p className="text-3xs text-subtle-foreground mt-0.5 truncate">
           {target.clientId} · {target.rootUrl || 'kök adres yok'}
         </p>
         {rowError ? (
-          <p role="alert" className="text-3xs mt-1 leading-snug text-amber-300">
+          <p role="alert" className="text-3xs text-warning mt-1 leading-snug">
             {rowError}
           </p>
         ) : !originAllowed ? (
-          <p className="text-3xs mt-1 leading-snug text-neutral-500">{ROOT_URL_OUTSIDE_DOMAIN}</p>
+          <p className="text-3xs text-subtle-foreground mt-1 leading-snug">
+            {ROOT_URL_OUTSIDE_DOMAIN}
+          </p>
         ) : null}
       </td>
       <td className="px-3 py-3">
@@ -212,14 +214,14 @@ function HandoffTargetRow({ target, onSaved, onForbidden }: { target: HandoffTar
                   setDraft(stored);
                   setProblem(null);
                 }}
-                className="text-2xs h-8 rounded-md px-2 text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+                className="text-2xs text-muted-foreground hover:bg-accent hover:text-foreground h-8 rounded-md px-2"
               >
                 Vazgeç
               </button>
             ) : null}
             <SaveButton disabled={!canSave}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
           </div>
-          {saved && !dirty ? <span className="text-3xs text-emerald-300">Kaydedildi</span> : null}
+          {saved && !dirty ? <span className="text-3xs text-success">Kaydedildi</span> : null}
         </form>
       </td>
     </tr>
@@ -246,7 +248,7 @@ export function HandoffTargetsTable({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse">
           <thead>
-            <tr className="border-b border-white/10">
+            <tr className="border-border border-b">
               <th scope="col" className={`${COLUMN_LABEL} px-3 py-2 text-left`}>
                 Site
               </th>
@@ -264,7 +266,7 @@ export function HandoffTargetsTable({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-border-subtle divide-y">
             {targets.map((target) => (
               <HandoffTargetRow
                 key={target.clientId}

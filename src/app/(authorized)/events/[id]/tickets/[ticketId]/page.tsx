@@ -89,7 +89,7 @@ export default function TicketDetailPage({
         }
         actions={<ActionButton icon={QrCode} label="Kapı" href="/qr" />}
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <TicketDetailView
         ticket={ticket}
         people={personById}

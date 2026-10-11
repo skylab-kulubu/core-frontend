@@ -40,3 +40,9 @@ yarn-error.log*
 next-env.d.ts
 
 notes/
+
+# the skylcn-ui playground, built into the image by the Dockerfile
+/public/playground/
+/public/playground.html
+/public/playground.txt
+/public/playground-assets/

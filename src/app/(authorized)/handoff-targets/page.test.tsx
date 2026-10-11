@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import HandoffTargetsPage from '@/app/(authorized)/handoff-targets/page';
@@ -55,7 +55,12 @@ describe("SkyApp'ten geçiş page", () => {
     ).toBeInTheDocument();
 
     const forms = row('SkyForms');
-    expect(within(forms).getByText(/skyforms · https:\/\/forms\.yildizskylab\.com/)).toBeVisible();
+    // The list cross-fades in from its loading state
+    await waitFor(() =>
+      expect(
+        within(forms).getByText(/skyforms · https:\/\/forms\.yildizskylab\.com/),
+      ).toBeVisible(),
+    );
     expect(within(forms).getByText('Açık')).toBeInTheDocument();
     expect(within(forms).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
     expect(within(forms).getByRole('textbox', { name: /Giriş kapısı yolu/ })).toHaveValue(

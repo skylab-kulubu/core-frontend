@@ -17,7 +17,7 @@ import { canManageCompetitors } from '@/lib/auth/groups';
 
 export default function NewCompetitorPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Yükleniyor…</p>}>
+    <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
       <NewCompetitorForm />
     </Suspense>
   );
@@ -50,7 +50,7 @@ function NewCompetitorForm() {
   return (
     <div className="space-y-6">
       <PageHeader title="Yeni yarışmacı" />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <form
         className="max-w-md space-y-3"
         onSubmit={async (e) => {
@@ -70,7 +70,7 @@ function NewCompetitorForm() {
         }}
       >
         {lockedEventId ? (
-          <p className="text-sm text-neutral-400">
+          <p className="text-muted-foreground text-sm">
             {events.find((e) => e.id === lockedEventId)?.name ?? lockedEventId}
           </p>
         ) : (

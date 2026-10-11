@@ -103,7 +103,7 @@ export default function CompetitorsPage() {
           ) : undefined
         }
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}

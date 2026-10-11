@@ -9,8 +9,8 @@ function expiresIn(seconds: number): number {
 }
 
 /** An admin's access JWT that expires `expiresInSeconds` from now (negative: already expired). */
-export function accessToken(expiresInSeconds = 300): string {
-  return unsignedJwt({ sub: 'admin-1', exp: expiresIn(expiresInSeconds) });
+export function accessToken(expiresInSeconds = 300, claims: Record<string, unknown> = {}): string {
+  return unsignedJwt({ sub: 'admin-1', exp: expiresIn(expiresInSeconds), ...claims });
 }
 
 /** A live access JWT that names no user (no `sub`), so no session can be built from it. */

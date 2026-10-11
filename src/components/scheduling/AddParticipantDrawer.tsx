@@ -65,7 +65,7 @@ export function AddParticipantDrawer({
       title="Katılımcı ekle"
     >
       <div className="space-y-6">
-        {error ? <p className="text-sm text-red-300">{error}</p> : null}
+        {error ? <p className="text-destructive text-sm">{error}</p> : null}
         <form
           className="space-y-3"
           noValidate
@@ -87,7 +87,9 @@ export function AddParticipantDrawer({
             searchPeople={(query) => ticketsApi.listAssignableUsers(eventId, query)}
           />
           {memberForm.formState.errors.personId ? (
-            <p className="text-2xs text-red-300">{memberForm.formState.errors.personId.message}</p>
+            <p className="text-2xs text-destructive">
+              {memberForm.formState.errors.personId.message}
+            </p>
           ) : null}
           <SaveButton disabled={pending || !personId}>
             {memberForm.formState.isSubmitting ? 'Yazılıyor…' : 'Üye kaydı yaz'}
@@ -121,7 +123,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.firstName)}
             />
             {guestForm.formState.errors.firstName ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {guestForm.formState.errors.firstName.message}
               </span>
             ) : null}
@@ -133,7 +135,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.lastName)}
             />
             {guestForm.formState.errors.lastName ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {guestForm.formState.errors.lastName.message}
               </span>
             ) : null}
@@ -146,7 +148,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.email)}
             />
             {guestForm.formState.errors.email ? (
-              <span className="text-2xs text-red-300">
+              <span className="text-2xs text-destructive">
                 {guestForm.formState.errors.email.message}
               </span>
             ) : null}

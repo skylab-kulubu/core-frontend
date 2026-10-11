@@ -3,6 +3,10 @@ allowBuilds:
   msw: true
   sharp: true
   unrs-resolver: true
+# The club's own packages are released through npm's staged approval, so they
+# skip pnpm's waiting period for new versions
+minimumReleaseAgeExclude:
+  - '@skylab-kulubu/*'
 onlyBuiltDependencies:
   - msw
   - sharp

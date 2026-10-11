@@ -34,45 +34,45 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-lg border border-white/10">
+      <div className="border-border overflow-hidden rounded-lg border">
         <div className="flex items-center justify-between px-3 py-2">
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-300 hover:bg-white/5"
+            className="text-secondary-foreground hover:bg-accent inline-flex h-8 w-8 items-center justify-center rounded-md"
             aria-label="Önceki ay"
             onClick={() => setCursor((cur) => shiftMonth(cur.year, cur.month, -1))}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <p className="text-sm font-medium text-neutral-100">
+          <p className="text-foreground text-sm font-medium">
             {monthTitle(cursor.year, cursor.month)}
           </p>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-300 hover:bg-white/5"
+            className="text-secondary-foreground hover:bg-accent inline-flex h-8 w-8 items-center justify-center rounded-md"
             aria-label="Sonraki ay"
             onClick={() => setCursor((cur) => shiftMonth(cur.year, cur.month, 1))}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="grid grid-cols-7 border-t border-white/5">
+        <div className="border-border-subtle grid grid-cols-7 border-t">
           {weekdayLabels().map((day) => (
             <span
               key={day}
-              className="py-2 text-center text-[10px] tracking-wide text-neutral-500 uppercase"
+              className="text-subtle-foreground py-2 text-center text-[10px] tracking-wide uppercase"
             >
               {day}
             </span>
           ))}
         </div>
-        <div className="grid grid-cols-7 border-t border-white/5">
+        <div className="border-border-subtle grid grid-cols-7 border-t">
           {cells.map((day, index) => {
             if (day === null) {
               return (
                 <div
                   key={`e-${index}`}
-                  className="min-h-[5.5rem] border-t border-r border-white/5"
+                  className="border-border-subtle min-h-[5.5rem] border-t border-r"
                 />
               );
             }
@@ -85,17 +85,17 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                 key={key}
                 type="button"
                 onClick={() => setSelectedKey(key)}
-                className={`flex min-h-[5.5rem] flex-col gap-1 border-t border-r border-white/5 p-1.5 text-left hover:bg-white/5 ${
+                className={`border-border-subtle hover:bg-accent flex min-h-[5.5rem] flex-col gap-1 border-t border-r p-1.5 text-left ${
                   isSelected ? 'bg-skylab-500/10' : ''
                 }`}
               >
                 <span
                   className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs ${
                     isSelected
-                      ? 'bg-skylab-500/30 text-skylab-200'
+                      ? 'bg-skylab-500/30 text-skylab-300'
                       : isToday
                         ? 'text-skylab-300 ring-skylab-400/40 ring-1'
-                        : 'text-neutral-300'
+                        : 'text-secondary-foreground'
                   }`}
                 >
                   {day}
@@ -103,13 +103,15 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                 {rows.slice(0, CHIP_MAX).map((event) => (
                   <span
                     key={event.id}
-                    className="bg-skylab-500/20 text-skylab-200 truncate rounded px-1 py-0.5 text-[10px] leading-4"
+                    className="bg-skylab-500/20 text-skylab-300 truncate rounded px-1 py-0.5 text-[10px] leading-4"
                   >
                     {event.name}
                   </span>
                 ))}
                 {rows.length > CHIP_MAX ? (
-                  <span className="text-[10px] text-neutral-500">+{rows.length - CHIP_MAX}</span>
+                  <span className="text-subtle-foreground text-[10px]">
+                    +{rows.length - CHIP_MAX}
+                  </span>
                 ) : null}
               </button>
             );

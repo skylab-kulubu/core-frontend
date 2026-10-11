@@ -95,7 +95,7 @@ export default function UrlsPage() {
         title="Kısa URL"
         description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
       />
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <form
         className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
@@ -212,7 +212,7 @@ export default function UrlsPage() {
       <Drawer open={qrRow !== null} onClose={() => setQrRow(null)} title="QR">
         {qrRow ? (
           <div className="space-y-3">
-            <p className="text-sm text-neutral-400">{publicShortUrl(qrRow.alias)}</p>
+            <p className="text-muted-foreground text-sm">{publicShortUrl(qrRow.alias)}</p>
             <QrPreview
               imageUrl={shortQrUrl(qrRow.alias)}
               downloadPath={shortQrPath(qrRow.alias, { size: 1024 })}
@@ -225,8 +225,8 @@ export default function UrlsPage() {
       <Drawer open={hitsRow !== null} onClose={() => setHitsRow(null)} title="Tıklamalar">
         {hitsRow ? (
           <div className="space-y-3">
-            <p className="text-sm text-neutral-400">{publicShortUrl(hitsRow.alias)}</p>
-            {hitsError ? <p className="text-sm text-red-300">{hitsError}</p> : null}
+            <p className="text-muted-foreground text-sm">{publicShortUrl(hitsRow.alias)}</p>
+            {hitsError ? <p className="text-destructive text-sm">{hitsError}</p> : null}
             <ListPanel
               status={listStatus({
                 loading: false,

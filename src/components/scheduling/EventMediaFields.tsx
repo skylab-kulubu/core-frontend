@@ -17,7 +17,7 @@ import { uploadMediaBatch } from '@/lib/media-upload-batch';
 import { pickerMatch } from '@/lib/picker';
 
 const ghostClass =
-  'inline-flex h-8 items-center gap-1.5 rounded-md border border-white/10 px-3 text-2xs font-medium text-neutral-200 hover:border-white/20 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-2xs font-medium text-secondary-foreground hover:border-border-strong hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60';
 
 type EventMediaFieldsProps = {
   ownerTeam: string;
@@ -160,7 +160,7 @@ export function EventMediaFields({
             {urls[coverImageId] ? (
               <img src={urls[coverImageId]} alt="" className="h-12 w-12 rounded-md object-cover" />
             ) : (
-              <span className="text-3xs text-neutral-500">{coverImageId}</span>
+              <span className="text-3xs text-subtle-foreground">{coverImageId}</span>
             )}
             <ActionButton icon={X} label="Kapağı kaldır" onClick={() => onCover('')} />
           </div>
@@ -209,7 +209,7 @@ export function EventMediaFields({
                 {urls[id] ? (
                   <img src={urls[id]} alt="" className="h-12 w-12 rounded-md object-cover" />
                 ) : (
-                  <span className="text-3xs block max-w-[4.5rem] truncate text-neutral-500">
+                  <span className="text-3xs text-subtle-foreground block max-w-[4.5rem] truncate">
                     {id}
                   </span>
                 )}
@@ -260,7 +260,7 @@ export function EventMediaFields({
         </div>
       </div>
       {problems.map((problem, index) => (
-        <p key={index} className="text-sm text-red-300">
+        <p key={index} className="text-destructive text-sm">
           {problem}
         </p>
       ))}

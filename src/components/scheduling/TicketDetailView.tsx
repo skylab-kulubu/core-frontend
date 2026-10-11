@@ -20,17 +20,17 @@ export function TicketDetailView({
 }) {
   const fields = ticketDetailFields(ticket, people, event, { sessions });
   return (
-    <dl className="divide-y divide-white/5 overflow-hidden rounded-lg border border-white/10">
+    <dl className="divide-border-subtle border-border divide-y overflow-hidden rounded-lg border">
       {fields.map((field, index) => (
         <div key={`${field.label}-${index}`} className="space-y-1 px-3 py-2.5">
           <dt>
             <FieldLabel>{field.label}</FieldLabel>
           </dt>
-          <dd className="text-sm break-words text-neutral-200">
+          <dd className="text-secondary-foreground text-sm break-words">
             {field.href ? (
               <a
                 href={field.href}
-                className="text-skylab-300 hover:text-skylab-200"
+                className="text-skylab-300 hover:text-foreground"
                 target={field.href.startsWith('/') ? undefined : '_blank'}
                 rel={field.href.startsWith('/') ? undefined : 'noreferrer'}
               >
