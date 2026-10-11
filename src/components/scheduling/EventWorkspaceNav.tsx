@@ -19,7 +19,8 @@ type EventWorkspaceNavProps = {
 
 /**
  * The event's tabs, each a route under /events/[id]. skylcn-ui's Tabs switch
- * panels, so every tab renders as a link and the open route picks the tab.
+ * panels, so every tab renders as a link and the open route picks the tab; the
+ * open one is also the current page, as links in a navigation bar say.
  */
 export function EventWorkspaceNav({
   eventId,
@@ -52,7 +53,12 @@ export function EventWorkspaceNav({
                 key={item.tab}
                 value={item.tab}
                 nativeButton={false}
-                render={<Link href={eventTabHref(eventId, item.tab)} />}
+                render={
+                  <Link
+                    href={eventTabHref(eventId, item.tab)}
+                    aria-current={item.tab === active ? 'page' : undefined}
+                  />
+                }
               >
                 {item.label}
               </Tab>

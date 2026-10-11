@@ -43,7 +43,11 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { openEventMail } from '@/lib/event-mail';
-import { eventTabFromPath, legacyEventAnchorHref } from '@/lib/event-workspace';
+import {
+  eventTabFromPath,
+  legacyEventAnchorHref,
+  showsCompetitionTab,
+} from '@/lib/event-workspace';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import {
@@ -349,7 +353,7 @@ export function EventWorkspace({
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
           canSeeParticipants={can.canTickets}
-          canSeeCompetitors={can.canCompetitors || competitors.length > 0}
+          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
           canUseDoor={can.canDesk}
           canSeeCertificates={can.canCertificates}
           canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}

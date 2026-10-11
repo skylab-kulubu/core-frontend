@@ -55,3 +55,14 @@ export function legacyEventAnchorHref(eventId: string, hash: string): string | n
   const tab = eventTabFromAnchor(hash);
   return tab && tab !== 'overview' ? eventTabHref(eventId, tab) : null;
 }
+
+/**
+ * Yarışma shows to whoever manages the event's competitors, and to every reader
+ * once it has some (the list was open to all on the one-page event view).
+ */
+export function showsCompetitionTab(
+  canManageCompetitors: boolean,
+  competitorCount: number,
+): boolean {
+  return canManageCompetitors || competitorCount > 0;
+}

@@ -5,6 +5,7 @@ import {
   eventTabFromPath,
   eventTabHref,
   legacyEventAnchorHref,
+  showsCompetitionTab,
 } from '@/lib/event-workspace';
 
 describe('event workspace routes', () => {
@@ -58,5 +59,11 @@ describe('event workspace routes', () => {
     expect(
       editorReturnTo(`https://admin.yildizskylab.com/events/${id}/participants`, 'extra-ctf'),
     ).toBe(`https://admin.yildizskylab.com/events/${id}?formSlot=extra-ctf`);
+  });
+
+  it('shows Yarışma to competitor managers, and to everyone once there are competitors', () => {
+    expect(showsCompetitionTab(true, 0)).toBe(true);
+    expect(showsCompetitionTab(false, 2)).toBe(true);
+    expect(showsCompetitionTab(false, 0)).toBe(false);
   });
 });

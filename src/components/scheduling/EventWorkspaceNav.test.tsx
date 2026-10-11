@@ -50,10 +50,12 @@ describe('EventWorkspaceNav', () => {
   it('marks the open tab as selected', () => {
     render(<EventWorkspaceNav eventId="e1" active="program" canSeeParticipants />);
     expect(screen.getByRole('tab', { name: 'Program' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Program' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('tab', { name: 'Genel bakış' })).toHaveAttribute(
       'aria-selected',
       'false',
     );
+    expect(screen.getByRole('tab', { name: 'Genel bakış' })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('tab', { name: 'Katılımcılar' })).toHaveAttribute(
       'aria-selected',
       'false',

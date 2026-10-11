@@ -3,9 +3,11 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { capabilitiesApi } from '@/lib/api/capabilities';
+import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import { canManageCompetitors, canReadCertificates } from '@/lib/auth/groups';
+import { showsCompetitionTab } from '@/lib/event-workspace';
 import type { SidebarNavigationContext, SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import { siteEditLinks } from '@/lib/site-edit-links';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
@@ -61,15 +63,23 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     }
     const eventId = openEventId;
     let cancelled = false;
+    const groups = user.groups ?? [];
     eventsApi
       .get(eventId)
-      .then((event) => {
+      .then(async (event) => {
+        const canManage = canManageCompetitors(groups, event.ownerTeam);
+        // Same rule as the event's tab bar; only a reader who cannot manage them needs the count
+        const competitorCount = canManage
+          ? 0
+          : (await competitorsApi.listByEvent(event.id).catch(() => [])).length;
+        return { event, canManage, competitorCount };
+      })
+      .then(({ event, canManage, competitorCount }) => {
         if (cancelled) return;
-        const groups = user.groups ?? [];
         const next = {
           id: event.id,
           canSeeParticipants: canListEventTickets(groups, event.ownerTeam, user.roles ?? []),
-          canSeeCompetitors: canManageCompetitors(groups, event.ownerTeam),
+          canSeeCompetitors: showsCompetitionTab(canManage, competitorCount),
           canUseDoor:
             canDeskCheckIn(groups, event.ownerTeam, user.id, event.doorStaffIds ?? []) ||
             doorEventIds.includes(event.id),

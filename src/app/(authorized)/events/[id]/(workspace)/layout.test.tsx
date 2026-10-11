@@ -3,8 +3,10 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import EventCompetitionPage from '@/app/(authorized)/events/[id]/(workspace)/competition/page';
+import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
 import { ProblemError } from '@/lib/api/core';
+import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
@@ -56,6 +58,28 @@ describe('Event workspace layout', () => {
     );
     expect(screen.getByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
     expect(screen.queryByText('Üye kaydı')).not.toBeInTheDocument();
+  });
+
+  it('moves between tabs without loading the event again', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    const workspace = await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    expect(await screen.findByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
+    const reads = [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
+      (call) => (call as jest.Mock).mock.calls.length,
+    );
+
+    await workspace.openTab(<EventParticipantsPage />, '/events/e1/participants');
+
+    expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Katılımcılar' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(
+      [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
+        (call) => (call as jest.Mock).mock.calls.length,
+      ),
+    ).toEqual(reads);
   });
 
   it('shows the owner-team Leader every tab the event has', async () => {

@@ -123,16 +123,29 @@ export function primeEventWorkspace() {
   seasonsModule.seasonsApi.list.mockResolvedValue([]);
 }
 
-/** Renders a tab's page inside the real /events/[id] layout, as if `pathname` were open. */
+/**
+ * Renders a tab's page inside the real /events/[id] layout, as if `pathname` were
+ * open. `openTab` then moves to another tab the way the router does: the same
+ * layout stays mounted and only the page below it changes.
+ */
 export async function renderEventTab(page: ReactNode, pathname = '/events/e1') {
-  openPath.pathname = pathname;
   const { default: EventWorkspaceLayout } =
     await import('@/app/(authorized)/events/[id]/(workspace)/layout');
-  const layout = await EventWorkspaceLayout({
-    children: page,
-    params: Promise.resolve({ id: 'e1' }),
-  });
+  const inLayout = (children: ReactNode) =>
+    EventWorkspaceLayout({ children, params: Promise.resolve({ id: 'e1' }) });
+  openPath.pathname = pathname;
+  const first = await inLayout(page);
+  let view: ReturnType<typeof render> | undefined;
   await act(async () => {
-    render(layout);
+    view = render(first);
   });
+  return {
+    async openTab(next: ReactNode, nextPathname: string) {
+      openPath.pathname = nextPathname;
+      const element = await inLayout(next);
+      await act(async () => {
+        view?.rerender(element);
+      });
+    },
+  };
 }
