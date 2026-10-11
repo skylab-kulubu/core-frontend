@@ -157,6 +157,24 @@ describe('AdminSidebar', () => {
     expect(screen.getAllByRole('link', { name: 'Kapı' })).toHaveLength(2);
   });
 
+  it('offers to edit only the sites the person may edit', async () => {
+    const pointer = userEvent.setup();
+    renderSidebar({
+      editSites: [{ href: 'https://artlab.yildizskylab.com/api/signin', label: 'ARTLAB' }],
+    });
+    await pointer.click(screen.getByRole('button', { name: 'Siteyi düzenle' }));
+    expect(screen.getByRole('link', { name: 'ARTLAB' })).toHaveAttribute(
+      'href',
+      'https://artlab.yildizskylab.com/api/signin',
+    );
+    expect(screen.queryByRole('link', { name: 'Ana site' })).not.toBeInTheDocument();
+  });
+
+  it('shows no site editing to a person who edits no site', () => {
+    renderSidebar({ editSites: [] });
+    expect(screen.queryByRole('button', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
+  });
+
   it('remembers a group the reader opened', async () => {
     const pointer = userEvent.setup();
     const first = renderSidebar();

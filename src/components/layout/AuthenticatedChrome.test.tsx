@@ -2,12 +2,17 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import type { UserDto } from '@/types/api';
 
 jest.mock('@/lib/api/tickets', () => ({
   ticketsApi: { listDoorEvents: jest.fn() },
+}));
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
 }));
 
 jest.mock('@/lib/api/events', () => ({
@@ -42,6 +47,7 @@ describe('AuthenticatedChrome', () => {
     currentPathname = '/dashboard';
     window.localStorage.clear();
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([]);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ editableSites: [] });
   });
 
   it('closes the mobile menu when the viewport crosses into desktop', async () => {
@@ -73,6 +79,38 @@ describe('AuthenticatedChrome', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Gezinme' })).not.toBeInTheDocument(),
     );
+  });
+
+  it('links the editor sign-in of each site core says the person may edit', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      editableSites: [
+        { clientId: 'frontend-artlab', name: 'ARTLAB', url: 'https://artlab.yildizskylab.com' },
+      ],
+    });
+    const pointer = userEvent.setup();
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+
+    await pointer.click(await screen.findByRole('button', { name: 'Siteyi düzenle' }));
+    expect(screen.getByRole('link', { name: 'ARTLAB' })).toHaveAttribute(
+      'href',
+      'https://artlab.yildizskylab.com/api/signin',
+    );
+  });
+
+  it('shows no site editing when core lists no site or cannot be read', async () => {
+    (capabilitiesApi.get as jest.Mock).mockRejectedValue(new Error('HTTP 503'));
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
   });
 
   it('discovers door assignments and exposes the door workspace', async () => {
