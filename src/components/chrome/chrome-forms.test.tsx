@@ -72,8 +72,10 @@ describe('Forms chrome primitives', () => {
     await pointer.click(screen.getByRole('button', { name: 'Tablo olarak göster' }));
     const guests = screen.getByRole('row', { name: /Misafir/ });
     expect(within(guests).getByText('2')).toBeInTheDocument();
-    expect(within(guests).getByText(/67/)).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /Üye/ })).getByText(/33/)).toBeInTheDocument();
+    expect(within(guests).getByText(/66[,.]7/)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('row', { name: /Üye/ })).getByText(/33[,.]3/),
+    ).toBeInTheDocument();
   });
 
   it('shows a denied-state card', () => {
