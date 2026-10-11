@@ -14,6 +14,7 @@ import { ProblemError } from '@/lib/api/core';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
+import { eventTabHref } from '@/lib/event-workspace';
 
 export default function NewCompetitorPage() {
   return (
@@ -63,7 +64,9 @@ function NewCompetitorForm() {
           const parsed = score.trim() === '' ? undefined : Number(score);
           try {
             await competitorsApi.create({ userId, eventId, score: parsed, isWinner });
-            router.push(lockedEventId ? `/events/${lockedEventId}` : '/competitors');
+            router.push(
+              lockedEventId ? eventTabHref(lockedEventId, 'competition') : '/competitors',
+            );
           } catch (err) {
             setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
           }
