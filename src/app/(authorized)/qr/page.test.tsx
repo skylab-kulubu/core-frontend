@@ -150,6 +150,29 @@ describe('Kapı check-in page', () => {
     expect(screen.getByText(/^Panel · SkyDays · /)).toBeInTheDocument();
   });
 
+  it('notes, without blocking, that the chosen session has not started yet', async () => {
+    const user = userEvent.setup();
+    const hour = 3600_000;
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      {
+        ...session,
+        startTime: new Date(Date.now() + 2 * hour).toISOString(),
+        endTime: new Date(Date.now() + 3 * hour).toISOString(),
+      },
+    ]);
+
+    render(<QrPage />);
+    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
+    expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
+      /Bu oturum henüz başlamadı \(başlangıç /,
+    );
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', expect.anything()),
+    );
+  });
+
   it('makes staff pick a session when several exist and none is running', async () => {
     const user = userEvent.setup();
     (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([

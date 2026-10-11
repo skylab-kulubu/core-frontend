@@ -13,7 +13,12 @@ import { Select } from '@/components/chrome/Select';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
-import { defaultDoorSessionId, doorSessionLabel, type DoorSession } from '@/lib/door-check-in';
+import {
+  defaultDoorSessionId,
+  doorSessionLabel,
+  doorSessionTiming,
+  type DoorSession,
+} from '@/lib/door-check-in';
 import { emptyListCopy } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
@@ -286,7 +291,7 @@ export function ApplicantRoster({
               id={attendPickerId}
               className="flex-1 sm:w-80 sm:flex-none"
               value={attendSessionId}
-              aria-describedby={`${attendPickerId}-note`}
+              aria-describedby={`${attendPickerId}-alert ${attendPickerId}-note`}
               onChange={(e) => {
                 setAttendSessionId(e.target.value);
                 setAttendNote(null);
@@ -300,15 +305,16 @@ export function ApplicantRoster({
               ))}
             </Select>
           </label>
-          <p
-            id={`${attendPickerId}-note`}
-            role={attendNote ? 'alert' : undefined}
-            className={`text-2xs ${attendNote ? 'text-destructive' : 'text-muted-foreground'}`}
-          >
-            {attendNote ??
-              (attendSession
-                ? 'Satırdaki "Katıldı" girişi bu oturuma yazar.'
-                : '"Katıldı" için önce girişin yazılacağı oturumu seçin.')}
+          {/* The live region stays in the DOM so screen readers announce the message when it fills. */}
+          <p id={`${attendPickerId}-alert`} role="alert" className="text-2xs text-destructive">
+            {attendNote}
+          </p>
+          <p id={`${attendPickerId}-note`} className="text-2xs text-muted-foreground">
+            {attendSession
+              ? ['Satırdaki "Katıldı" girişi bu oturuma yazar.', doorSessionTiming(attendSession)]
+                  .filter(Boolean)
+                  .join(' ')
+              : '"Katıldı" için önce girişin yazılacağı oturumu seçin.'}
           </p>
         </div>
       ) : null}

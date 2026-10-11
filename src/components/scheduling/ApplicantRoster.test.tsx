@@ -231,10 +231,13 @@ describe('ApplicantRoster', () => {
     const picker = screen.getByLabelText('Giriş oturumu');
     expect(picker).toHaveValue('');
     expect(screen.queryByLabelText('Oturum')).not.toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toBeEmptyDOMElement();
 
     await user.click(screen.getAllByRole('button', { name: 'Katıldı' })[0]);
     expect(onMarkAttended).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Girişin yazılacağı oturumu seçin.');
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(alert).toHaveTextContent('Girişin yazılacağı oturumu seçin.');
     expect(picker).toHaveFocus();
 
     await user.selectOptions(picker, 's2');

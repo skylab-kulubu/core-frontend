@@ -21,7 +21,12 @@ import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type DoorEvent } from '@/lib/api/tickets';
-import { checkInSuccessLine, defaultDoorSessionId, doorSessionLabel } from '@/lib/door-check-in';
+import {
+  checkInSuccessLine,
+  defaultDoorSessionId,
+  doorSessionLabel,
+  doorSessionTiming,
+} from '@/lib/door-check-in';
 import { emptyListCopy, matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 
@@ -167,6 +172,13 @@ export default function QrPage() {
     };
   }, [eventId, events, sessionId, sessions]);
 
+  const selectedSession = sessions.find((session) => session.id === sessionId);
+  // Never blocks: says why nothing is chosen, or that the chosen session is not running now.
+  const sessionNote =
+    !sessionId && sessions.length > 0
+      ? 'Girişin yazılacağı oturumu seçin: şu an süren tek bir oturum yok.'
+      : doorSessionTiming(selectedSession);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -288,9 +300,7 @@ export default function QrPage() {
                   {...field}
                   aria-invalid={Boolean(errors.sessionId)}
                   aria-describedby={
-                    errors.sessionId || (!sessionId && sessions.length > 1)
-                      ? 'door-session-note'
-                      : undefined
+                    errors.sessionId || sessionNote ? 'door-session-note' : undefined
                   }
                 >
                   <option value="">Oturum seçin</option>
@@ -307,9 +317,9 @@ export default function QrPage() {
             <p id="door-session-note" role="alert" className="text-2xs text-destructive">
               {errors.sessionId.message}
             </p>
-          ) : !sessionId && sessions.length > 1 ? (
+          ) : sessionNote ? (
             <p id="door-session-note" className="text-2xs text-muted-foreground">
-              Girişin yazılacağı oturumu seçin: şu an süren tek bir oturum yok.
+              {sessionNote}
             </p>
           ) : null}
         </div>
@@ -352,7 +362,7 @@ export default function QrPage() {
         className="text-secondary-foreground text-sm"
       >
         {sessionId
-          ? `${sessions.find((session) => session.id === sessionId)?.title ?? 'Bu oturum'} · canlı toplam: ${activityTotal}`
+          ? `${selectedSession?.title ?? 'Bu oturum'} · canlı toplam: ${activityTotal}`
           : 'Oturum seçilmedi'}
       </p>
       <ListToolbar

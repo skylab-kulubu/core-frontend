@@ -3,6 +3,7 @@ import {
   checkInSuccessLine,
   defaultDoorSessionId,
   doorSessionLabel,
+  doorSessionTiming,
   resolveDoorTicket,
 } from '@/lib/door-check-in';
 import type { Ticket } from '@/lib/api/tickets';
@@ -115,11 +116,13 @@ describe('hitUserLabel', () => {
 });
 
 describe('defaultDoorSessionId', () => {
-  const at = (hour: number, day = 12) => new Date(2026, 9, day, hour, 0, 0).toISOString();
+  // Istanbul wall-clock times, so the tests hold whatever TZ the runner uses.
+  const at = (hour: number, day = 12) =>
+    `2026-10-${day}T${String(hour).padStart(2, '0')}:00:00+03:00`;
   const opening = { id: 's1', title: 'Açılış', startTime: at(10), endTime: at(11) };
   const panel = { id: 's2', title: 'Panel', startTime: at(14), endTime: at(15) };
   const dayTwo = { id: 's3', title: 'Kapanış', startTime: at(10, 13), endTime: at(11, 13) };
-  const now = (hour: number, day = 12) => new Date(2026, 9, day, hour, 30, 0);
+  const now = (hour: number, day = 12) => new Date(at(hour, day).replace(':00:00', ':30:00'));
 
   it('picks the only session even without times', () => {
     expect(defaultDoorSessionId([{ id: 's1', title: 'Açılış' }], now(9))).toBe('s1');
@@ -150,17 +153,62 @@ describe('defaultDoorSessionId', () => {
       defaultDoorSessionId([opening, { ...panel, startTime: at(10), endTime: at(12) }], now(10)),
     ).toBe('');
   });
+
+  it('leaves the choice to the operator when the next two sessions start together', () => {
+    const otherRoom = { ...panel, id: 's4', title: 'Atölye (B salonu)' };
+    expect(defaultDoorSessionId([opening, panel, otherRoom], now(12))).toBe('');
+    expect(defaultDoorSessionId([opening, panel, otherRoom, dayTwo], now(9))).toBe('s1');
+  });
+
+  it('never defaults to a cancelled session', () => {
+    const cancelledPanel = { ...panel, cancelled: true };
+    expect(defaultDoorSessionId([opening, cancelledPanel], now(14))).toBe('s1');
+    expect(defaultDoorSessionId([{ ...opening, cancelled: true }], now(10))).toBe('');
+    expect(defaultDoorSessionId([opening, cancelledPanel, dayTwo], now(12))).toBe('');
+  });
+
+  it("decides 'today' in Istanbul, not in the device's time zone", () => {
+    // 00:30 in Istanbul on the 13th is still the 12th in UTC; the 10:00 session is today's next.
+    expect(defaultDoorSessionId([opening, dayTwo], new Date('2026-10-12T21:30:00Z'))).toBe('s3');
+    // 23:30 on the 12th in Istanbul: the 13th's session is tomorrow, not "later today".
+    expect(defaultDoorSessionId([opening, dayTwo], new Date('2026-10-12T20:30:00Z'))).toBe('');
+  });
 });
 
 describe('doorSessionLabel', () => {
-  it('adds day and start time so same-named sessions differ', () => {
+  it('adds the Istanbul day and start time so same-named sessions differ', () => {
     expect(
-      doorSessionLabel({
-        id: 's1',
-        title: 'Yoklama',
-        startTime: new Date(2026, 9, 12, 9, 5).toISOString(),
-      }),
+      doorSessionLabel({ id: 's1', title: 'Yoklama', startTime: '2026-10-12T06:05:00Z' }),
     ).toBe('Yoklama · 12 Eki 09:05');
     expect(doorSessionLabel({ id: 's2', title: 'Yoklama' })).toBe('Yoklama');
+    expect(doorSessionLabel({ id: 's3', title: 'Panel', cancelled: true })).toBe('Panel · iptal');
+  });
+});
+
+describe('doorSessionTiming', () => {
+  const session = {
+    id: 's1',
+    title: 'Panel',
+    startTime: '2026-10-12T14:00:00+03:00',
+    endTime: '2026-10-12T15:00:00+03:00',
+  };
+
+  it('says nothing while the session runs or when its times are unknown', () => {
+    expect(doorSessionTiming(session, new Date('2026-10-12T14:30:00+03:00'))).toBeNull();
+    expect(doorSessionTiming({ id: 's2', title: 'Panel' })).toBeNull();
+    expect(doorSessionTiming(undefined)).toBeNull();
+  });
+
+  it('notes a session that has not started, has ended, or was cancelled', () => {
+    expect(doorSessionTiming(session, new Date('2026-10-12T13:00:00+03:00'))).toBe(
+      'Bu oturum henüz başlamadı (başlangıç 14:00).',
+    );
+    expect(doorSessionTiming(session, new Date('2026-10-12T16:00:00+03:00'))).toBe(
+      'Bu oturum bitti (bitiş 15:00).',
+    );
+    expect(doorSessionTiming(session, new Date('2026-10-13T09:00:00+03:00'))).toBe(
+      'Bu oturum bitti (bitiş 12 Eki 15:00).',
+    );
+    expect(doorSessionTiming({ ...session, cancelled: true })).toBe('Bu oturum iptal edildi.');
   });
 });

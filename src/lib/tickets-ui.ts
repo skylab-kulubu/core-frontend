@@ -26,7 +26,7 @@ export type TicketRosterRow = {
   statusLabel: string;
 };
 
-export const MONTHS_TR = [
+const MONTHS_TR = [
   'Oca',
   'Şub',
   'Mar',
