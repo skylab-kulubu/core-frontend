@@ -1,0 +1,135 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import React from 'react';
+import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
+import { eventDaysApi } from '@/lib/api/eventDays';
+import { sessionsApi } from '@/lib/api/sessions';
+import { ticketsApi } from '@/lib/api/tickets';
+import { guestTicket, primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
+
+jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
+jest.mock('@/context/AuthContext', () => jest.requireActual('@/test/event-workspace').authModule);
+jest.mock('@/lib/api/events', () => jest.requireActual('@/test/event-workspace').eventsModule);
+jest.mock(
+  '@/lib/api/eventDays',
+  () => jest.requireActual('@/test/event-workspace').eventDaysModule,
+);
+jest.mock('@/lib/api/sessions', () =>
+  jest.requireActual('@/test/event-workspace').sessionsModule(),
+);
+jest.mock('@/lib/api/tickets', () => jest.requireActual('@/test/event-workspace').ticketsModule);
+jest.mock('@/lib/api/identity', () => jest.requireActual('@/test/event-workspace').identityModule);
+jest.mock(
+  '@/lib/api/competitors',
+  () => jest.requireActual('@/test/event-workspace').competitorsModule,
+);
+jest.mock('@/lib/api/teams', () => jest.requireActual('@/test/event-workspace').teamsModule);
+jest.mock('@/lib/api/seasons', () => jest.requireActual('@/test/event-workspace').seasonsModule);
+jest.mock('@/lib/scheduling/save-event', () =>
+  jest.requireActual('@/test/event-workspace').saveEventModule(),
+);
+
+const renderProgram = () => renderEventTab(<EventProgramPage />, '/events/e1/program');
+
+describe('Event Program tab Katıldı', () => {
+  beforeEach(primeEventWorkspace);
+
+  it('hides Katıldı for a GECEKODU member who can still write the event', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    await renderProgram();
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Katıldı' })).not.toBeInTheDocument();
+  });
+
+  it('shows Katıldı for the owner-team Leader', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    await renderProgram();
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
+    );
+  });
+
+  it('shows Katıldı for assigned door staff without exposing the roster', async () => {
+    signInAs(['/UYELER/ARGE/WEBLAB']);
+    (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([
+      { id: 'e1', name: 'GeceKodu', ownerTeam: 'GECEKODU' },
+    ]);
+
+    await renderProgram();
+
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByRole('tab', { name: 'Katılımcılar' })).not.toBeInTheDocument();
+    expect(ticketsApi.listByEvent).not.toHaveBeenCalled();
+  });
+
+  it('accepts a typed name in the Katıldı person field', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockResolvedValue({
+      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      sessionId: 's1',
+      eventDayId: 'd1',
+      personName: 'Ada Lovelace',
+      createdAt: new Date(2026, 8, 19, 9, 4, 0).toISOString(),
+    });
+    await renderProgram();
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
+    );
+    const deskButtons = screen.getAllByRole('button', { name: 'Katıldı' });
+    await user.click(deskButtons[deskButtons.length - 1]);
+    const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
+    expect(within(dialog).getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
+    const field = within(dialog).getByLabelText('Ad veya e-posta') as HTMLInputElement;
+    expect(field).toHaveAttribute('type', 'text');
+    expect(field).toHaveAttribute('placeholder', 'Ad veya e-posta');
+    await user.type(field, 'Ada Lovelace');
+    expect(field.checkValidity()).toBe(true);
+    await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
+        personId: undefined,
+        query: 'Ada Lovelace',
+      }),
+    );
+    expect(await screen.findByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
+      /Ada Lovelace · Açılış · /,
+    );
+  });
+});
+
+describe('Event Program tab days and sessions', () => {
+  beforeEach(primeEventWorkspace);
+
+  it('rejects a whitespace-only day name before calling the API', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Gün ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Gün ekle' });
+    await user.type(within(dialog).getByLabelText('Gün adı'), '   ');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(eventDaysApi.create).not.toHaveBeenCalled();
+    expect(within(dialog).getByText('Gün adı zorunlu')).toBeInTheDocument();
+  });
+
+  it('rejects a whitespace-only session title before calling the API', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturum ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Oturum ekle' });
+    await user.type(within(dialog).getByLabelText('Başlık'), '   ');
+    await user.type(within(dialog).getByLabelText('Konuşmacı'), 'Ada');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(sessionsApi.create).not.toHaveBeenCalled();
+    expect(within(dialog).getByText('Başlık zorunlu')).toBeInTheDocument();
+  });
+});
