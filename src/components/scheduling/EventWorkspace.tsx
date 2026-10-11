@@ -116,9 +116,6 @@ export type EventWorkspaceValue = EventPermissions & {
   /** The last check-in, shown under the tabs. */
   deskNote: string | null;
   setDeskNote: (note: string | null) => void;
-  /** Set once the reader registered themselves with "Hesabınla kaydol". */
-  applyNote: string | null;
-  setApplyNote: (note: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
   /** Fills the event's Skymail list (all tickets, or only these) and opens the composer. */
@@ -164,7 +161,6 @@ export function EventWorkspace({
   const [editing, setEditing] = useState(false);
   // A save the edit drawer refused, shown in the drawer where the organizer is.
   const [editError, setEditError] = useState<string | null>(null);
-  const [applyNote, setApplyNote] = useState<string | null>(null);
   const [mailing, setMailing] = useState(false);
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [doorAccess, setDoorAccess] = useState(false);
@@ -298,8 +294,6 @@ export function EventWorkspace({
     setError,
     deskNote,
     setDeskNote,
-    applyNote,
-    setApplyNote,
     reload: load,
     mailApplicants,
   };
