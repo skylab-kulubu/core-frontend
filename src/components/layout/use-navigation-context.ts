@@ -3,9 +3,11 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { capabilitiesApi } from '@/lib/api/capabilities';
+import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import { canManageCompetitors, canReadCertificates } from '@/lib/auth/groups';
+import { showsCompetitionTab } from '@/lib/event-workspace';
 import type { SidebarNavigationContext, SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import { siteEditLinks } from '@/lib/site-edit-links';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
@@ -49,23 +51,35 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     };
   }, [user.groups, user.id]);
 
+  // The event's tabs are routes under it; moving between them keeps the event read once
+  const eventMatch = pathname.match(/^\/events\/([^/]+)(?:\/|$)/);
+  const openEventId =
+    eventMatch?.[1] && eventMatch[1] !== 'new' ? decodeURIComponent(eventMatch[1]) : null;
+
   useEffect(() => {
-    const match = pathname.match(/^\/events\/([^/]+)(?:\/|$)/);
-    if (!match?.[1] || match[1] === 'new') {
+    if (!openEventId) {
       setActiveEvent(undefined);
       return;
     }
-    const eventId = decodeURIComponent(match[1]);
+    const eventId = openEventId;
     let cancelled = false;
+    const groups = user.groups ?? [];
     eventsApi
       .get(eventId)
-      .then((event) => {
+      .then(async (event) => {
+        const canManage = canManageCompetitors(groups, event.ownerTeam);
+        // Same rule as the event's tab bar; only a reader who cannot manage them needs the count
+        const competitorCount = canManage
+          ? 0
+          : (await competitorsApi.listByEvent(event.id).catch(() => [])).length;
+        return { event, canManage, competitorCount };
+      })
+      .then(({ event, canManage, competitorCount }) => {
         if (cancelled) return;
-        const groups = user.groups ?? [];
         const next = {
           id: event.id,
           canSeeParticipants: canListEventTickets(groups, event.ownerTeam, user.roles ?? []),
-          canSeeCompetitors: canManageCompetitors(groups, event.ownerTeam),
+          canSeeCompetitors: showsCompetitionTab(canManage, competitorCount),
           canUseDoor:
             canDeskCheckIn(groups, event.ownerTeam, user.id, event.doorStaffIds ?? []) ||
             doorEventIds.includes(event.id),
@@ -86,7 +100,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     return () => {
       cancelled = true;
     };
-  }, [doorEventIds, pathname, user.groups, user.id, user.roles]);
+  }, [doorEventIds, openEventId, user.groups, user.id, user.roles]);
 
   return { hasDoorAssignment: doorEventIds.length > 0, editSites, activeEvent };
 }

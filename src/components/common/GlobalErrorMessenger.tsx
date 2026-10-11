@@ -15,40 +15,14 @@ type MessageAction =
   | { type: 'show'; payload: { kind: ErrorKind; message: string | null } }
   | { type: 'reset' };
 
-type ContactInfo = {
-  icon: string;
-  title: string;
-  instruction: string;
-  name: string;
-  phone: string;
-};
-
 const styles = {
   card: 'mb-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-foreground',
   layout: 'flex items-start gap-3',
   icon: 'text-xl',
   title: 'font-semibold',
   description: 'text-sm',
-  contactLink: 'block font-medium hover:underline',
   detail: 'mt-1 text-xs opacity-70',
 } as const;
-
-const ERROR_CONTACTS: Record<ErrorKind, ContactInfo> = {
-  backend: {
-    icon: '⚠️',
-    title: 'Backend sorunu tespit edildi.',
-    instruction: 'Lütfen hemen backend developerı açana kadar arayın.',
-    name: 'Yusuf Açmacı',
-    phone: '+90 552 491 35 25',
-  },
-  frontend: {
-    icon: '🐞',
-    title: 'Frontend sorunu tespit edildi.',
-    instruction: 'Lütfen 15.00-23.00 arasında frontend developera WhatsApp üzerinden haber verin.',
-    name: 'Yusuf Ersel Kara',
-    phone: '+90 505 006 71 11',
-  },
-};
 
 const INITIAL_STATE: MessageState = {
   visible: false,
@@ -117,10 +91,6 @@ function extractMessage(reason: unknown): string | null {
   return null;
 }
 
-function formatPhoneHref(phone: string) {
-  return `tel:${phone.replace(/\s+/g, '')}`;
-}
-
 function createCustomErrorListener(
   kind: ErrorKind,
   dispatch: Dispatch<MessageAction>,
@@ -186,21 +156,13 @@ export function GlobalErrorMessenger() {
     return null;
   }
 
-  const contact = ERROR_CONTACTS[state.kind];
-
   return (
     <div className={styles.card}>
       <div className={styles.layout}>
-        <div className={styles.icon}>{contact.icon}</div>
+        <div className={styles.icon}>⚠️</div>
         <div className="flex-1">
-          <div className={styles.title}>{contact.title}</div>
-          <div className={styles.description}>
-            {contact.instruction}
-            <a className={styles.contactLink} href={formatPhoneHref(contact.phone)}>
-              <span className="block">{contact.name}</span>
-              {contact.phone}
-            </a>
-          </div>
+          <div className={styles.title}>Beklenmeyen bir hata oluştu</div>
+          <div className={styles.description}>Sayfayı yenileyip tekrar dene.</div>
           {state.lastMessage ? (
             <div className={styles.detail}>Detay: {state.lastMessage}</div>
           ) : null}
