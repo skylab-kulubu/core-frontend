@@ -46,7 +46,7 @@ export default function EventParticipantsPage() {
         tickets={tickets}
         people={personById}
         event={event}
-        sessions={sessions.map((session) => ({ id: session.id, title: session.title }))}
+        sessions={sessions}
         onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
         onMailSelected={(recipients) =>
           void mailApplicants(recipients.map((recipient) => recipient.ticketId))

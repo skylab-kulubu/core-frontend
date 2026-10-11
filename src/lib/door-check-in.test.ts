@@ -1,5 +1,10 @@
 import { asHitList, hitUserLabel, hitWhen } from '@/lib/api/urls';
-import { checkInSuccessLine, resolveDoorTicket } from '@/lib/door-check-in';
+import {
+  checkInSuccessLine,
+  defaultDoorSessionId,
+  doorSessionLabel,
+  resolveDoorTicket,
+} from '@/lib/door-check-in';
 import type { Ticket } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
 
@@ -106,5 +111,56 @@ describe('hitUserLabel', () => {
     expect(hitUserLabel({ userId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' })).toBe(
       'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
+  });
+});
+
+describe('defaultDoorSessionId', () => {
+  const at = (hour: number, day = 12) => new Date(2026, 9, day, hour, 0, 0).toISOString();
+  const opening = { id: 's1', title: 'Açılış', startTime: at(10), endTime: at(11) };
+  const panel = { id: 's2', title: 'Panel', startTime: at(14), endTime: at(15) };
+  const dayTwo = { id: 's3', title: 'Kapanış', startTime: at(10, 13), endTime: at(11, 13) };
+  const now = (hour: number, day = 12) => new Date(2026, 9, day, hour, 30, 0);
+
+  it('picks the only session even without times', () => {
+    expect(defaultDoorSessionId([{ id: 's1', title: 'Açılış' }], now(9))).toBe('s1');
+  });
+
+  it('picks the session running now, not the first one', () => {
+    expect(defaultDoorSessionId([opening, panel, dayTwo], now(14))).toBe('s2');
+  });
+
+  it("picks today's next session between sessions", () => {
+    expect(defaultDoorSessionId([dayTwo, panel, opening], now(9))).toBe('s1');
+    expect(defaultDoorSessionId([opening, panel, dayTwo], now(12))).toBe('s2');
+  });
+
+  it('leaves the choice to the operator when nothing runs now or later today', () => {
+    expect(defaultDoorSessionId([opening, panel, dayTwo], now(16))).toBe('');
+    expect(defaultDoorSessionId([opening, panel, dayTwo], now(9, 11))).toBe('');
+    expect(
+      defaultDoorSessionId([
+        { id: 's1', title: 'Açılış' },
+        { id: 's2', title: 'Panel' },
+      ]),
+    ).toBe('');
+  });
+
+  it('leaves the choice to the operator when two sessions run at once', () => {
+    expect(
+      defaultDoorSessionId([opening, { ...panel, startTime: at(10), endTime: at(12) }], now(10)),
+    ).toBe('');
+  });
+});
+
+describe('doorSessionLabel', () => {
+  it('adds day and start time so same-named sessions differ', () => {
+    expect(
+      doorSessionLabel({
+        id: 's1',
+        title: 'Yoklama',
+        startTime: new Date(2026, 9, 12, 9, 5).toISOString(),
+      }),
+    ).toBe('Yoklama · 12 Eki 09:05');
+    expect(doorSessionLabel({ id: 's2', title: 'Yoklama' })).toBe('Yoklama');
   });
 });

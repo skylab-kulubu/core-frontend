@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, ChevronRight, Mail, Plus, QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
+import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListFooterMeta, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
@@ -12,6 +13,7 @@ import { Select } from '@/components/chrome/Select';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
+import { defaultDoorSessionId, doorSessionLabel, type DoorSession } from '@/lib/door-check-in';
 import { emptyListCopy } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
@@ -42,7 +44,7 @@ type ApplicantRosterProps = {
   tickets: Ticket[];
   people: Map<string, Person>;
   event?: TicketSourceEvent | null;
-  sessions?: readonly { id: string; title: string }[];
+  sessions?: readonly DoorSession[];
   mailHref?: string;
   doorHref?: string;
   loading?: boolean;
@@ -71,13 +73,22 @@ export function ApplicantRoster({
   const [status, setStatus] = useState<ApplicantRosterFilter['status']>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [attendSessionId, setAttendSessionId] = useState(sessions[0]?.id ?? '');
+  const [attendSessionId, setAttendSessionId] = useState(() => defaultDoorSessionId(sessions));
+  const [attendNote, setAttendNote] = useState<string | null>(null);
+  const attendPickerId = useId();
+  const attendSession = sessions.find((session) => session.id === attendSessionId);
   const [sort, setSort] = useState<{ key: RosterSort; direction: 'ascending' | 'descending' }>({
     key: 'createdAt',
     direction: 'descending',
   });
   const [density, setDensity] = useState<RosterDensity>('dense');
   const [restoredEventId, setRestoredEventId] = useState('');
+
+  useEffect(() => {
+    setAttendSessionId((current) =>
+      sessions.some((session) => session.id === current) ? current : defaultDoorSessionId(sessions),
+    );
+  }, [sessions]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('skylab.admin.roster-density');
@@ -236,21 +247,6 @@ export function ApplicantRoster({
           <option value="registered">Kayıtlı</option>
           <option value="checked-in">Giriş yaptı</option>
         </Select>
-        {onMarkAttended && sessions.length > 0 ? (
-          <Select
-            aria-label="Oturum"
-            className="w-40 shrink-0"
-            value={attendSessionId}
-            onChange={(e) => setAttendSessionId(e.target.value)}
-          >
-            <option value="">Oturum</option>
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.title}
-              </option>
-            ))}
-          </Select>
-        ) : null}
         <Select
           aria-label="Satır yoğunluğu"
           className="w-32 shrink-0"
@@ -282,6 +278,40 @@ export function ApplicantRoster({
         ) : null}
         <ActionButton icon={QrCode} label="Kapı" href={doorHref} />
       </ListToolbar>
+      {onMarkAttended && sessions.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <label className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+            <FieldLabel>Giriş oturumu</FieldLabel>
+            <Select
+              id={attendPickerId}
+              className="flex-1 sm:w-80 sm:flex-none"
+              value={attendSessionId}
+              aria-describedby={`${attendPickerId}-note`}
+              onChange={(e) => {
+                setAttendSessionId(e.target.value);
+                setAttendNote(null);
+              }}
+            >
+              <option value="">Oturum seçin</option>
+              {sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {doorSessionLabel(session)}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <p
+            id={`${attendPickerId}-note`}
+            role={attendNote ? 'alert' : undefined}
+            className={`text-2xs ${attendNote ? 'text-destructive' : 'text-muted-foreground'}`}
+          >
+            {attendNote ??
+              (attendSession
+                ? 'Satırdaki "Katıldı" girişi bu oturuma yazar.'
+                : '"Katıldı" için önce girişin yazılacağı oturumu seçin.')}
+          </p>
+        </div>
+      ) : null}
       {filteredEmpty ? (
         <div aria-label="Aktif filtreler" className="flex flex-wrap items-center gap-2">
           {query.trim() ? (
@@ -479,11 +509,15 @@ export function ApplicantRoster({
                       {onMarkAttended ? (
                         <ActionButton
                           icon={CheckCircle2}
-                          label="Katıldı"
-                          disabled={!attendSessionId}
+                          label={attendSession ? `Katıldı · ${attendSession.title}` : 'Katıldı'}
+                          disabled={sessions.length === 0}
                           onClick={() => {
-                            if (!attendSessionId) return;
-                            onMarkAttended(ticket, attendSessionId);
+                            if (!attendSession) {
+                              setAttendNote('Girişin yazılacağı oturumu seçin.');
+                              document.getElementById(attendPickerId)?.focus();
+                              return;
+                            }
+                            onMarkAttended(ticket, attendSession.id);
                           }}
                         />
                       ) : null}

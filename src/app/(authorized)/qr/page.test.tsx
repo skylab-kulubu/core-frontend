@@ -93,7 +93,7 @@ describe('Kapı check-in page', () => {
   it('checks in by person or email and labels success as name · session · time', async () => {
     const user = userEvent.setup();
     render(<QrPage />);
-    await waitFor(() => expect(screen.getByLabelText('Ad veya e-posta')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     expect(screen.queryByPlaceholderText('Bilet kimliği')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
@@ -109,6 +109,73 @@ describe('Kapı check-in page', () => {
       /Ada Lovelace · Açılış · /,
     );
     expect(screen.queryByText(/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/)).not.toBeInTheDocument();
+  });
+
+  it('shows the running session as selected and checks in to that same session', async () => {
+    const user = userEvent.setup();
+    const hour = 3600_000;
+    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { ...session, startTime: iso(-3 * hour), endTime: iso(-2 * hour) },
+      { ...session, id: 's2', title: 'Panel', startTime: iso(-hour), endTime: iso(hour) },
+    ]);
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockResolvedValue({
+      id: 'ci-2',
+      sessionId: 's2',
+      eventDayId: 'd1',
+      personName: 'Ada Lovelace',
+      createdAt: new Date().toISOString(),
+    });
+
+    render(<QrPage />);
+    const picker = await screen.findByLabelText('Oturum');
+    await waitFor(() => expect(picker).toHaveValue('s2'));
+    expect(within(picker).getByRole('option', { selected: true })).toHaveTextContent('Panel');
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith(
+        (picker as HTMLSelectElement).value,
+        {
+          personId: undefined,
+          query: 'ada@example.com',
+        },
+      ),
+    );
+    expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', expect.anything());
+    expect(screen.getByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
+      /Ada Lovelace · Panel · /,
+    );
+    expect(screen.getByText(/^Panel · SkyDays · /)).toBeInTheDocument();
+  });
+
+  it('makes staff pick a session when several exist and none is running', async () => {
+    const user = userEvent.setup();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      session,
+      { ...session, id: 's2', title: 'Panel' },
+    ]);
+
+    render(<QrPage />);
+    await screen.findByRole('option', { name: 'Panel' });
+    const picker = screen.getByLabelText('Oturum');
+    expect(picker).toHaveValue('');
+    expect(screen.getByText(/şu an süren tek bir oturum yok/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+
+    expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Girişin yazılacağı oturumu seçin');
+
+    await user.selectOptions(picker, 's2');
+    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', {
+        personId: undefined,
+        query: 'ada@example.com',
+      }),
+    );
   });
 
   it('accepts a typed name in the person field', async () => {
