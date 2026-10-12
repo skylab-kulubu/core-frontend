@@ -48,7 +48,13 @@ describe('OAuth logout route', () => {
     const response = await POST(new NextRequest('http://localhost:3000/api/auth/logout'));
 
     expect(response.status).toBe(200);
-    expect(jar.sentNames()).toEqual(['access_token', 'auth_token', 'refresh_token', 'token']);
+    expect(jar.sentNames()).toEqual([
+      'access_token',
+      'auth_token',
+      'refresh_token',
+      'session_auth_time',
+      'token',
+    ]);
     for (const name of jar.sentNames()) {
       expect(jar.sent(name)).toEqual(expiredCookie({ secure: false }));
     }

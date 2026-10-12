@@ -7,6 +7,7 @@ import {
   expiredCookie,
   fakeCookieStore,
 } from '@/test/server/cookie-store';
+import { freezeClock, PAST_THE_LIMIT, signedInAgo } from '@/test/server/clock';
 import { saveEnv } from '@/test/server/env';
 import { accessToken, accessTokenWithoutUser } from '@/test/server/jwt';
 
@@ -30,6 +31,7 @@ describe('GET /api/auth/me', () => {
     process.env.AUTH_COOKIE_SECURE = 'true';
     process.env.OAUTH2_ISSUER = 'https://e.yildizskylab.com/realms/e-skylab';
     process.env.OAUTH2_CLIENT_ID = 'superadmin';
+    freezeClock();
   });
 
   afterEach(() => {
@@ -39,6 +41,7 @@ describe('GET /api/auth/me', () => {
 
   it('expires the session cookies, current and legacy, when Keycloak rejects the refresh token', async () => {
     const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(3600),
       '__Host-auth_token': accessToken(-60),
       '__Host-refresh_token': 'revoked-refresh',
       auth_token: 'old-access',
@@ -67,6 +70,7 @@ describe('GET /api/auth/me', () => {
     'keeps the session cookies when Keycloak %s, since the refresh token may still be valid',
     async (_name, keycloakAnswer) => {
       const jar = fakeCookieStore({
+        '__Host-session_auth_time': signedInAgo(3600),
         '__Host-auth_token': accessToken(-60),
         '__Host-refresh_token': 'refresh-1',
       });
@@ -82,6 +86,7 @@ describe('GET /api/auth/me', () => {
 
   it('expires the session cookies, current and legacy, when the session names no user', async () => {
     const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(3600),
       '__Host-auth_token': accessTokenWithoutUser(),
       '__Host-refresh_token': 'refresh-1',
       auth_token: 'old-access',
@@ -101,6 +106,7 @@ describe('GET /api/auth/me', () => {
 
   it('answers the signed-in user with the role line the sidebar shows', async () => {
     const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(3600),
       '__Host-auth_token': accessToken(300, {
         given_name: 'Elif',
         family_name: 'Yıldırım',
@@ -122,7 +128,10 @@ describe('GET /api/auth/me', () => {
   });
 
   it("adds the caller's picture from core, preferring the small card size", async () => {
-    const jar = fakeCookieStore({ '__Host-auth_token': accessToken(600) });
+    const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(3600),
+      '__Host-auth_token': accessToken(600),
+    });
     (cookies as jest.Mock).mockResolvedValue(jar.store);
     global.fetch = jest.fn(async () =>
       Response.json({
@@ -141,7 +150,10 @@ describe('GET /api/auth/me', () => {
   });
 
   it('signs the caller in without a picture when core cannot answer', async () => {
-    const jar = fakeCookieStore({ '__Host-auth_token': accessToken(600) });
+    const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(3600),
+      '__Host-auth_token': accessToken(600),
+    });
     (cookies as jest.Mock).mockResolvedValue(jar.store);
     global.fetch = jest.fn(async () => new Response('', { status: 503 })) as typeof fetch;
 
@@ -149,5 +161,22 @@ describe('GET /api/auth/me', () => {
 
     expect(body.authenticated).toBe(true);
     expect(body.user.profilePictureUrl).toBeUndefined();
+  });
+
+  it('ends a session signed in more than 8 hours ago, without refreshing it', async () => {
+    const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(PAST_THE_LIMIT),
+      '__Host-auth_token': accessToken(-60),
+      '__Host-refresh_token': 'refresh-1',
+    });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    fakeKeycloak(() => Response.json({ access_token: accessToken(), refresh_token: 'refresh-2' }));
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ authenticated: false });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
   });
 });

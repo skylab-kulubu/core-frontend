@@ -1,3 +1,4 @@
+import { authTimeIsFresh, sessionSecondsLeft } from '@/lib/auth/auth-age';
 import {
   authCookieName,
   authCookieOptions,
@@ -10,15 +11,18 @@ import {
  * Base names of the session cookies; `authCookieName` adds `__Host-` when cookies are Secure.
  * `auth_token` and `access_token` carry the same access token. The pair predates this module
  * (older code read either name) and is kept for compatibility, so the prefix is the only change.
+ * `session_auth_time` holds when the admin signed in at Keycloak (the ID token's `auth_time`), which
+ * bounds the session (see `auth-age.ts`).
  */
 const SESSION_COOKIE_BASE_NAMES = {
   authToken: 'auth_token',
   accessToken: 'access_token',
   refreshToken: 'refresh_token',
+  authTime: 'session_auth_time',
 } as const;
 
-/** Read by older builds but never issued; only ever cleared. */
-const READ_ONLY_LEGACY_BASE_NAMES = ['token'];
+/** The names the session used before the `__Host-` prefix; `token` was read but never issued. */
+const LEGACY_BASE_NAMES = ['auth_token', 'access_token', 'refresh_token', 'token'];
 
 /** The admin session's cookie names (see `authCookieName` for why they carry `__Host-`). */
 export function sessionCookieNames() {
@@ -26,15 +30,14 @@ export function sessionCookieNames() {
     authToken: authCookieName(SESSION_COOKIE_BASE_NAMES.authToken),
     accessToken: authCookieName(SESSION_COOKIE_BASE_NAMES.accessToken),
     refreshToken: authCookieName(SESSION_COOKIE_BASE_NAMES.refreshToken),
+    authTime: authCookieName(SESSION_COOKIE_BASE_NAMES.authTime),
   };
 }
 
 /** Names the session used before the `__Host-` prefix that differ from today's names. */
 function legacySessionCookieNames(): string[] {
   const current = new Set(Object.values(sessionCookieNames()));
-  return [...Object.values(SESSION_COOKIE_BASE_NAMES), ...READ_ONLY_LEGACY_BASE_NAMES].filter(
-    (name) => !current.has(name),
-  );
+  return LEGACY_BASE_NAMES.filter((name) => !current.has(name));
 }
 
 /**
@@ -51,20 +54,43 @@ export function readSessionRefreshToken(cookies: CookieReader): string | null {
   return cookies.get(sessionCookieNames().refreshToken)?.value || null;
 }
 
-const ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
-const REFRESH_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+/** When the session's admin signed in at Keycloak (epoch seconds), or `null` when unknown. */
+export function readSessionAuthTime(cookies: CookieReader): number | null {
+  const value = cookies.get(sessionCookieNames().authTime)?.value;
+  return value && /^\d{1,12}$/.test(value) ? Number(value) : null;
+}
 
-/** Stores a (new or refreshed) session: the access token under both names, and the refresh token. */
+/**
+ * The session's sign-in time while it is within the panel's limit (8 hours, `auth-age.ts`), else
+ * `null`. A session past the limit, or one without a sign-in time (started before the limit
+ * existed), is ended here: its cookies are expired so no later request refreshes it either.
+ */
+export function freshSessionAuthTime(cookies: CookieReader & CookieWriter): number | null {
+  const authTime = readSessionAuthTime(cookies);
+  if (authTimeIsFresh(authTime)) return authTime;
+  if (readSessionAccessToken(cookies) || readSessionRefreshToken(cookies)) {
+    clearSessionCookies(cookies);
+  }
+  return null;
+}
+
+/**
+ * Stores a new or refreshed session: the access token under both names, the refresh token, and the
+ * sign-in time. Every cookie lives only as long as the sign-in is accepted, counted from `authTime`,
+ * so a refresh rotates the tokens without extending the session.
+ */
 export function writeSessionCookies(
   cookies: CookieWriter,
   accessToken: string,
   refreshToken: string,
+  authTime: number,
 ): void {
   const names = sessionCookieNames();
-  const accessTokenOptions = authCookieOptions(ACCESS_TOKEN_MAX_AGE_SECONDS);
-  cookies.set(names.authToken, accessToken, accessTokenOptions);
-  cookies.set(names.accessToken, accessToken, accessTokenOptions);
-  cookies.set(names.refreshToken, refreshToken, authCookieOptions(REFRESH_TOKEN_MAX_AGE_SECONDS));
+  const options = authCookieOptions(Math.max(0, sessionSecondsLeft(authTime)));
+  cookies.set(names.authToken, accessToken, options);
+  cookies.set(names.accessToken, accessToken, options);
+  cookies.set(names.refreshToken, refreshToken, options);
+  cookies.set(names.authTime, String(authTime), options);
 }
 
 /**

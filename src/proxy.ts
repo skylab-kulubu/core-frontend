@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { readSessionAccessToken } from '@/lib/auth/session-cookies';
+import { authTimeIsFresh } from '@/lib/auth/auth-age';
+import { readSessionAccessToken, readSessionAuthTime } from '@/lib/auth/session-cookies';
 
 export function proxy(request: NextRequest) {
   const token = readSessionAccessToken(request.cookies);
@@ -19,7 +20,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!token) {
+  // No session, or one whose sign-in is older than the panel accepts (auth-age.ts): /login sends
+  // the admin on to Keycloak, which asks them to sign in again.
+  if (!token || !authTimeIsFresh(readSessionAuthTime(request.cookies))) {
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
     }

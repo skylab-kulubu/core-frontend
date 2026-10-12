@@ -9,6 +9,7 @@ import { clubRoleLabel } from '@/lib/chrome-role';
 import type { ProfilePicture } from '@/lib/profile-picture';
 import {
   clearSessionCookies,
+  freshSessionAuthTime,
   readSessionAccessToken,
   readSessionRefreshToken,
   writeSessionCookies,
@@ -51,6 +52,11 @@ async function ownProfilePicture(token: string): Promise<ProfilePicture> {
 export async function GET() {
   try {
     const cookieStore = await cookies();
+    // A session past the panel's sign-in limit ends here, whatever its tokens say.
+    const authTime = freshSessionAuthTime(cookieStore);
+    if (authTime == null) {
+      return NextResponse.json({ authenticated: false }, { status: 401 });
+    }
     let token = readSessionAccessToken(cookieStore);
 
     if (!token || isJwtExpired(token)) {
@@ -61,7 +67,7 @@ export async function GET() {
       try {
         const refreshed = await refreshAccessToken(refreshToken);
         token = refreshed.access_token;
-        writeSessionCookies(cookieStore, refreshed.access_token, refreshed.refresh_token);
+        writeSessionCookies(cookieStore, refreshed.access_token, refreshed.refresh_token, authTime);
       } catch (error) {
         if (error instanceof RefreshTokenRejectedError) clearSessionCookies(cookieStore);
         return NextResponse.json({ authenticated: false }, { status: 401 });

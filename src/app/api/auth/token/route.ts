@@ -4,6 +4,7 @@ import { isJwtExpired } from '@/lib/auth/jwt-expiry';
 import { refreshAccessToken, RefreshTokenRejectedError } from '@/lib/auth/oauth2';
 import {
   clearSessionCookies,
+  freshSessionAuthTime,
   readSessionAccessToken,
   readSessionRefreshToken,
   writeSessionCookies,
@@ -12,6 +13,11 @@ import {
 export async function GET() {
   try {
     const cookieStore = await cookies();
+    // A session past the panel's sign-in limit ends here, whatever its tokens say.
+    const authTime = freshSessionAuthTime(cookieStore);
+    if (authTime == null) {
+      return NextResponse.json({ token: null }, { status: 401 });
+    }
     const token = readSessionAccessToken(cookieStore);
 
     if (token && !isJwtExpired(token)) {
@@ -26,7 +32,7 @@ export async function GET() {
 
     try {
       const { access_token, refresh_token } = await refreshAccessToken(refreshToken);
-      writeSessionCookies(cookieStore, access_token, refresh_token);
+      writeSessionCookies(cookieStore, access_token, refresh_token, authTime);
       return NextResponse.json({ token: access_token });
     } catch (error) {
       if (error instanceof RefreshTokenRejectedError) clearSessionCookies(cookieStore);

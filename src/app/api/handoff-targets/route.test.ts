@@ -31,7 +31,12 @@ function fakeKeycloak(handler: KeycloakHandler): Request[] {
   return seen;
 }
 
-function signedIn(values: Record<string, string>) {
+/** A session (plain cookie names: these tests run without Secure) signed in a minute ago. */
+function signedIn(cookieValues: Record<string, string>) {
+  const values: Record<string, string> = {
+    session_auth_time: String(Math.floor(Date.now() / 1000) - 60),
+    ...cookieValues,
+  };
   const set = jest.fn();
   (cookies as jest.Mock).mockResolvedValue({
     get: (name: string) => (name in values ? { name, value: values[name] } : undefined),
@@ -102,6 +107,20 @@ describe('GET /api/handoff-targets', () => {
       status: 401,
       detail: 'Oturumun sona ermiş. Yeniden giriş yap.',
     });
+  });
+
+  it('answers 401 without calling Keycloak when the sign-in is more than 8 hours old', async () => {
+    signedIn({
+      auth_token: accessToken(),
+      refresh_token: 'refresh-1',
+      session_auth_time: String(Math.floor(Date.now() / 1000) - 9 * 3600),
+    });
+    const seen = fakeKeycloak(() => Response.json([]));
+
+    const response = await GET();
+
+    expect(seen).toHaveLength(0);
+    expect(response.status).toBe(401);
   });
 
   describe('with Secure (__Host-) session cookies', () => {

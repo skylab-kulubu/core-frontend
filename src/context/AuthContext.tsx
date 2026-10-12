@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type { UserDto } from '@/types/api';
 import { useRouter, usePathname } from 'next/navigation';
+import { useSessionDeadline } from '@/lib/auth/use-session-deadline';
 
 interface AuthContextType {
   user: UserDto | null;
@@ -25,7 +26,12 @@ const AUTH_USER_STORAGE_KEY = 'auth_user';
 let memoryUserCache: UserDto | null = null;
 let memoryAuthBootstrapped = false;
 
-type AuthProviderProps = Readonly<{ children: ReactNode; initialUser?: UserDto }>;
+type AuthProviderProps = Readonly<{
+  children: ReactNode;
+  initialUser?: UserDto;
+  /** Seconds until the session's sign-in is too old for the panel; the page then signs in again. */
+  sessionExpiresIn?: number;
+}>;
 
 function readCachedUser(): UserDto | null {
   if (typeof window === 'undefined') return null;
@@ -38,7 +44,8 @@ function readCachedUser(): UserDto | null {
   }
 }
 
-export function AuthProvider({ children, initialUser }: AuthProviderProps) {
+export function AuthProvider({ children, initialUser, sessionExpiresIn }: AuthProviderProps) {
+  useSessionDeadline(sessionExpiresIn);
   const [user, setUser] = useState<UserDto | null>(() => initialUser ?? memoryUserCache ?? null);
   const [loading, setLoading] = useState(() => {
     const boot = !!(initialUser ?? memoryUserCache ?? readCachedUser());

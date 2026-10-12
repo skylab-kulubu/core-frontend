@@ -50,4 +50,16 @@ describe('OAuth login route', () => {
       value: expect.stringMatching(/^[\w-]{43,128}$/),
     });
   });
+
+  it('asks Keycloak for a sign-in at most 8 hours old (max_age), however long its SSO session lives', async () => {
+    process.env.OAUTH2_ISSUER = 'https://e.yildizskylab.com/realms/e-skylab';
+    process.env.OAUTH2_CLIENT_ID = 'superadmin';
+    process.env.OAUTH2_REDIRECT_URI = 'https://admin.yildizskylab.com/api/auth/callback';
+
+    const response = await GET(new Request('https://admin.yildizskylab.com/api/auth/login'));
+
+    const location = new URL(response.headers.get('location')!);
+    expect(location.pathname).toBe('/realms/e-skylab/protocol/openid-connect/auth');
+    expect(location.searchParams.get('max_age')).toBe('28800');
+  });
 });
