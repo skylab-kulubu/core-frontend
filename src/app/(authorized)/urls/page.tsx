@@ -31,6 +31,7 @@ import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function UrlsPage() {
@@ -55,6 +56,7 @@ export default function UrlsPage() {
   const [editAlias, setEditAlias] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   const load = useCallback(async () => {
     if (!allowed) return;
@@ -77,6 +79,30 @@ export default function UrlsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  function askDelete(row: ShortUrl) {
+    confirm({
+      title: `${publicShortUrl(row.alias)} silinsin mi?`,
+      description: `Link çalışmayı bırakır; tıklayan sayfa bulunamadı görür. ${UNDO_HINT}`,
+      actionLabel: 'Linki sil',
+      onConfirm: async () => {
+        try {
+          await urlsApi.remove(row.id);
+          notify.undoable(
+            'Kısa link silindi',
+            async () => {
+              await urlsApi.restore(row.id);
+              void load();
+            },
+            'Kısa link geri alındı',
+          );
+          await load();
+        } catch (err) {
+          setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+        }
+      },
+    });
+  }
 
   if (!allowed) {
     return (
@@ -176,15 +202,7 @@ export default function UrlsPage() {
               }
             : undefined
         }
-        onDelete={async (row) => {
-          try {
-            await urlsApi.remove(row.id);
-            notify.success('Kısa link silindi');
-            await load();
-          } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-          }
-        }}
+        onDelete={askDelete}
       />
       {moderate ? (
         <UrlList
@@ -210,17 +228,10 @@ export default function UrlsPage() {
               setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
             }
           }}
-          onDelete={async (row) => {
-            try {
-              await urlsApi.remove(row.id);
-              notify.success('Kısa link silindi');
-              await load();
-            } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-            }
-          }}
+          onDelete={askDelete}
         />
       ) : null}
+      {confirmDialog}
       <Drawer open={qrRow !== null} onClose={() => setQrRow(null)} title="QR">
         {qrRow ? (
           <div className="space-y-3">

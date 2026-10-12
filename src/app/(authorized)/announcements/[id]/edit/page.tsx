@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, newsProblemMessage, type NewsItem } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function EditAnnouncementPage() {
@@ -24,6 +25,7 @@ export default function EditAnnouncementPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     if (!privileged || !slug) return;
@@ -61,19 +63,27 @@ export default function EditAnnouncementPage() {
           <ActionButton
             icon={Trash2}
             label="Sil"
-            onClick={async () => {
-              setRemoveError(null);
-              try {
-                await newsApi.remove(item.slug, item.version);
-                notify.success('Duyuru silindi');
-                router.push('/announcements');
-              } catch (err) {
-                setRemoveError(newsProblemMessage(err, 'Silinemedi'));
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: `"${item.data?.title || item.slug}" duyurusu silinsin mi?`,
+                description: 'Duyuru sitede ve duyuru listesinde görünmez olur.',
+                actionLabel: 'Duyuruyu sil',
+                onConfirm: async () => {
+                  setRemoveError(null);
+                  try {
+                    await newsApi.remove(item.slug, item.version);
+                    notify.success('Duyuru silindi');
+                    router.push('/announcements');
+                  } catch (err) {
+                    setRemoveError(newsProblemMessage(err, 'Silinemedi'));
+                  }
+                },
+              })
+            }
           />
         }
       />
+      {confirmDialog}
       {removeError ? (
         <p role="alert" className="text-sm text-red-300">
           {removeError}

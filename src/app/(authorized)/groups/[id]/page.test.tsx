@@ -90,6 +90,12 @@ describe('Group detail feedback', () => {
     (identityApi.removeMember as jest.Mock).mockResolvedValue(undefined);
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Çıkar' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: 'Bora D GECEKODU grubundan çıkarılsın mı?',
+    });
+    expect(confirm).toHaveTextContent('e-posta');
+    expect(identityApi.removeMember).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Gruptan çıkar' }));
     await waitFor(() => expect(identityApi.removeMember).toHaveBeenCalledWith('g1', 'u-bora'));
     expect(await screen.findByText('Üye çıkarıldı')).toBeInTheDocument();
   });

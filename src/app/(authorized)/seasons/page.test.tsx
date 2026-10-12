@@ -27,6 +27,7 @@ jest.mock('@/lib/api/seasons', () => ({
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    restore: jest.fn(),
     assignEvent: jest.fn(),
   },
 }));
@@ -61,14 +62,25 @@ describe('Seasons page', () => {
     expect(screen.getByText('2026-2027')).toBeInTheDocument();
   });
 
-  it('says the season was deleted', async () => {
+  it('asks before deleting the season, then offers Geri al', async () => {
     const user = userEvent.setup();
     (seasonsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    (seasonsApi.restore as jest.Mock).mockResolvedValue(season);
     render(<SeasonsPage />);
     await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: '"2026-2027" sezonu silinsin mi?',
+    });
+    expect(seasonsApi.delete).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Sezonu sil' }));
     await waitFor(() => expect(seasonsApi.delete).toHaveBeenCalledWith('s1'));
     expect(await screen.findByText('Sezon silindi')).toBeInTheDocument();
+    await waitFor(() => expect(seasonsApi.list).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('button', { name: 'Geri al' }));
+    await waitFor(() => expect(seasonsApi.restore).toHaveBeenCalledWith('s1'));
+    expect(await screen.findByText('Sezon geri alındı')).toBeInTheDocument();
+    await waitFor(() => expect(seasonsApi.list).toHaveBeenCalledTimes(3));
   });
 });

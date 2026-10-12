@@ -181,7 +181,62 @@ describe('Event Program tab days and sessions', () => {
     await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
     dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: '"Açılış" oturumu silinsin mi?',
+    });
+    await user.click(within(confirm).getByRole('button', { name: 'Oturumu sil' }));
     expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
+  });
+
+  it('asks before deleting a day and does nothing on Vazgeç', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Günü sil' }));
+    const confirm = await screen.findByRole('alertdialog', { name: '"Gün 1" günü silinsin mi?' });
+    await waitFor(() =>
+      expect(within(confirm).getByRole('button', { name: 'Vazgeç' })).toHaveFocus(),
+    );
+    await user.click(within(confirm).getByRole('button', { name: 'Vazgeç' }));
+    expect(eventDaysApi.delete).not.toHaveBeenCalled();
+  });
+
+  it('deletes a day after confirming and brings it back with Geri al', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (eventDaysApi.delete as jest.Mock).mockResolvedValue(undefined);
+    (eventDaysApi.restore as jest.Mock).mockResolvedValue({ id: 'd1' });
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Günü sil' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Günü sil' }));
+    await waitFor(() => expect(eventDaysApi.delete).toHaveBeenCalledWith('d1'));
+    expect(await screen.findByText('Gün silindi')).toBeInTheDocument();
+    await waitFor(() => expect(eventDaysApi.listByEvent).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('button', { name: 'Geri al' }));
+    await waitFor(() => expect(eventDaysApi.restore).toHaveBeenCalledWith('d1'));
+    expect(await screen.findByText('Gün geri alındı')).toBeInTheDocument();
+    // The program is read again, so the restored day shows without a page reload
+    await waitFor(() => expect(eventDaysApi.listByEvent).toHaveBeenCalledTimes(3));
+  });
+
+  it('brings a deleted session back with Geri al', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    (sessionsApi.restore as jest.Mock).mockResolvedValue({});
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Oturumu sil' }),
+    );
+    await waitFor(() => expect(eventDaysApi.listSessions).toHaveBeenCalledTimes(2));
+    await user.click(await screen.findByRole('button', { name: 'Geri al' }));
+    await waitFor(() => expect(sessionsApi.restore).toHaveBeenCalledWith('s1'));
+    expect(await screen.findByText('Oturum geri alındı')).toBeInTheDocument();
+    await waitFor(() => expect(eventDaysApi.listSessions).toHaveBeenCalledTimes(3));
   });
 
   it('shows a check-in error inside the Katıldı drawer', async () => {

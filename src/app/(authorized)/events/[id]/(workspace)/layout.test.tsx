@@ -191,16 +191,23 @@ describe('Event workspace layout', () => {
     expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
   });
 
-  it('says the event was deleted', async () => {
+  it('asks before deleting the event, then offers Geri al that reopens it', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
-    jest.spyOn(window, 'confirm').mockReturnValue(true);
     (eventsApi.delete as jest.Mock).mockResolvedValueOnce(undefined);
+    (eventsApi.restore as jest.Mock).mockResolvedValueOnce({ id: 'e1' });
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
     await screen.findByRole('heading', { name: 'GeceKodu' });
     await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog', { name: '"GeceKodu" silinsin mi?' });
+    expect(eventsApi.delete).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Etkinliği sil' }));
     await waitFor(() => expect(workspaceRouter.push).toHaveBeenCalledWith('/events'));
     expect(await screen.findByText('Etkinlik silindi')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Geri al' }));
+    await waitFor(() => expect(eventsApi.restore).toHaveBeenCalledWith('e1'));
+    expect(await screen.findByText('Etkinlik geri alındı')).toBeInTheDocument();
+    expect(workspaceRouter.push).toHaveBeenLastCalledWith('/events/e1');
   });
 
   it('shows a refused save inside the edit drawer', async () => {

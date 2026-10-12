@@ -51,6 +51,7 @@ import {
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import {
   canAssignEventTicket,
@@ -167,6 +168,7 @@ export function EventWorkspace({
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [doorAccess, setDoorAccess] = useState(false);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
   const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
@@ -336,16 +338,29 @@ export function EventWorkspace({
                 <ActionButton
                   icon={Trash2}
                   label="Sil"
-                  onClick={async () => {
-                    if (!window.confirm('Bu etkinliği silmek istediğine emin misin?')) return;
-                    try {
-                      await eventsApi.delete(event.id);
-                      notify.success('Etkinlik silindi');
-                      router.push('/events');
-                    } catch (err) {
-                      setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-                    }
-                  }}
+                  onClick={() =>
+                    confirm({
+                      title: `"${event.name}" silinsin mi?`,
+                      description: `Etkinlik listeden kalkar. ${UNDO_HINT}`,
+                      actionLabel: 'Etkinliği sil',
+                      onConfirm: async () => {
+                        try {
+                          await eventsApi.delete(event.id);
+                          notify.undoable(
+                            'Etkinlik silindi',
+                            async () => {
+                              await eventsApi.restore(event.id);
+                              router.push(`/events/${encodeURIComponent(event.id)}`);
+                            },
+                            'Etkinlik geri alındı',
+                          );
+                          router.push('/events');
+                        } catch (err) {
+                          setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                        }
+                      },
+                    })
+                  }
                 />
               ) : null}
             </>
@@ -372,6 +387,7 @@ export function EventWorkspace({
           </p>
         ) : null}
         {children}
+        {confirmDialog}
         <Drawer
           open={editing}
           onClose={() => {

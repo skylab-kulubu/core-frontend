@@ -28,6 +28,11 @@ export const competitorsApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/competitors/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Brings back a competitor its delete withdrew (Geri al). */
+  reinstate: (id: string) =>
+    coreFetch<Competitor>(`/v1/competitors/${encodeURIComponent(id)}/reinstate`, {
+      method: 'POST',
+    }),
   listByEvent: (eventId: string) =>
     coreFetch<Competitor[]>(`/v1/events/${encodeURIComponent(eventId)}/competitors`),
 };

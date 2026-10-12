@@ -23,6 +23,7 @@ import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function GroupDetailPage() {
@@ -46,6 +47,7 @@ export default function GroupDetailPage() {
   const memberSearch = usePersonSearch(memberOpen, memberQuery);
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   async function load() {
     try {
@@ -170,15 +172,23 @@ export default function GroupDetailPage() {
                   <ActionButton
                     icon={X}
                     label="Çıkar"
-                    onClick={async () => {
-                      try {
-                        await identityApi.removeMember(id, m.id);
-                        notify.success('Üye çıkarıldı');
-                        await load();
-                      } catch (err) {
-                        setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
-                      }
-                    }}
+                    onClick={() =>
+                      confirm({
+                        title: `${`${m.firstName} ${m.lastName}`.trim() || m.email} ${group?.name ?? ''} grubundan çıkarılsın mı?`,
+                        description:
+                          'Kişi bu grubun rollerini ve erişimlerini kaybeder. Grup bir ekibin grubuysa kişiye e-postayla bildirilir.',
+                        actionLabel: 'Gruptan çıkar',
+                        onConfirm: async () => {
+                          try {
+                            await identityApi.removeMember(id, m.id);
+                            notify.success('Üye çıkarıldı');
+                            await load();
+                          } catch (err) {
+                            setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
+                          }
+                        },
+                      })
+                    }
                   />
                 }
               />
@@ -229,18 +239,25 @@ export default function GroupDetailPage() {
                 <ActionButton
                   icon={X}
                   label="Kaldır"
-                  onClick={async () => {
-                    try {
-                      await identityApi.setGroupRoles(
-                        id,
-                        roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                      );
-                      notify.success('Rol kaldırıldı');
-                      await load();
-                    } catch (err) {
-                      setError(err instanceof ProblemError ? err.title : 'Rol kaldırılamadı');
-                    }
-                  }}
+                  onClick={() =>
+                    confirm({
+                      title: `${r.role} rolü ${group?.name ?? ''} grubundan kaldırılsın mı?`,
+                      description: 'Grubun bütün üyeleri bu rolü kaybeder.',
+                      actionLabel: 'Rolü kaldır',
+                      onConfirm: async () => {
+                        try {
+                          await identityApi.setGroupRoles(
+                            id,
+                            roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                          );
+                          notify.success('Rol kaldırıldı');
+                          await load();
+                        } catch (err) {
+                          setError(err instanceof ProblemError ? err.title : 'Rol kaldırılamadı');
+                        }
+                      },
+                    })
+                  }
                 />
               }
             />
@@ -270,17 +287,26 @@ export default function GroupDetailPage() {
                 <ActionButton
                   icon={X}
                   label="Kaldır"
-                  onClick={async () => {
-                    try {
-                      const next = { ...(group?.attributes ?? {}) };
-                      delete next[k];
-                      await identityApi.updateGroup(id, { attributes: next });
-                      notify.success('Öznitelik kaldırıldı');
-                      await load();
-                    } catch (err) {
-                      setError(err instanceof ProblemError ? err.title : 'Öznitelik kaldırılamadı');
-                    }
-                  }}
+                  onClick={() =>
+                    confirm({
+                      title: `${k} özniteliği kaldırılsın mı?`,
+                      description: `Değeri (${v}) gruptan silinir.`,
+                      actionLabel: 'Özniteliği kaldır',
+                      onConfirm: async () => {
+                        try {
+                          const next = { ...(group?.attributes ?? {}) };
+                          delete next[k];
+                          await identityApi.updateGroup(id, { attributes: next });
+                          notify.success('Öznitelik kaldırıldı');
+                          await load();
+                        } catch (err) {
+                          setError(
+                            err instanceof ProblemError ? err.title : 'Öznitelik kaldırılamadı',
+                          );
+                        }
+                      },
+                    })
+                  }
                 />
               }
             />
@@ -324,6 +350,7 @@ export default function GroupDetailPage() {
         </form>
       </section>
 
+      {confirmDialog}
       <PickerDrawer
         open={memberOpen}
         onClose={() => setMemberOpen(false)}

@@ -12,6 +12,7 @@ import { ProblemError } from '@/lib/api/core';
 import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch, roleKey } from '@/lib/picker';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function UserDetailPage() {
@@ -32,6 +33,7 @@ export default function UserDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   async function load() {
     try {
@@ -118,6 +120,7 @@ export default function UserDetailPage() {
     return <StateCard title={error} description="Kişi kartına dönemiyor." tone="danger" />;
   }
   if (!card) return <StateCard title="Yükleniyor…" isLoading />;
+  const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
 
   return (
     <div className="space-y-6">
@@ -144,31 +147,48 @@ export default function UserDetailPage() {
         onRemoveRole={
           privileged
             ? (role) =>
-                void change(
-                  () => identityApi.removeExtraRole(card.id, role),
-                  'Rol kaldırıldı',
-                  'Rol kaldırılamadı',
-                )
+                confirm({
+                  title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
+                  description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider.`,
+                  actionLabel: 'Rolü kaldır',
+                  onConfirm: () =>
+                    change(
+                      () => identityApi.removeExtraRole(card.id, role),
+                      'Rol kaldırıldı',
+                      'Rol kaldırılamadı',
+                    ),
+                })
             : undefined
         }
       />
       {privileged ? (
         <SaveButton
           type="button"
-          onClick={async () => {
-            setActionError(null);
-            try {
-              await identityApi.logoutUser(card.id);
-              notify.success('Oturumlar kapatıldı');
-            } catch (err) {
-              setActionError(err instanceof ProblemError ? err.title : 'Oturumlar kapatılamadı');
-            }
-          }}
+          onClick={() =>
+            confirm({
+              title: `${name} için bütün oturumlar kapatılsın mı?`,
+              description:
+                'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
+              actionLabel: 'Oturumları kapat',
+              onConfirm: async () => {
+                setActionError(null);
+                try {
+                  await identityApi.logoutUser(card.id);
+                  notify.success('Oturumlar kapatıldı');
+                } catch (err) {
+                  setActionError(
+                    err instanceof ProblemError ? err.title : 'Oturumlar kapatılamadı',
+                  );
+                }
+              },
+            })
+          }
         >
           <LogOut className="h-4 w-4" />
           Oturumları kapat
         </SaveButton>
       ) : null}
+      {confirmDialog}
       {privileged ? (
         <PickerDrawer
           open={groupOpen}
