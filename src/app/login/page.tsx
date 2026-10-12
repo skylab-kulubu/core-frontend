@@ -40,7 +40,9 @@ function LoginContent() {
           ? 'Yetkilendirme kodu alınamadı. Tekrar dene.'
           : error === 'config_missing'
             ? 'Giriş ayarı eksik. Yöneticiye yaz.'
-            : `Hata: ${error}`;
+            : error === 'stale_authentication'
+              ? 'Panel en fazla 8 saat önceki bir girişi kabul eder. Yeniden giriş yap.'
+              : `Hata: ${error}`;
     return (
       <LoginShell>
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Giriş hatası</h1>

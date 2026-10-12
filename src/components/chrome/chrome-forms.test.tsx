@@ -115,7 +115,8 @@ describe('Forms chrome primitives', () => {
     const trigger = screen.getByRole('button', { name: 'Paneli aç' });
     await user.click(trigger);
     expect(screen.getByRole('dialog', { name: 'Ayarlar' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'İlk alan' })).toHaveFocus();
+    // Base UI moves the initial focus on the next animation frame, not during the click
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'İlk alan' })).toHaveFocus());
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Ayarlar' })).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
