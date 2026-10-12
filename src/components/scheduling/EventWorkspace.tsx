@@ -11,6 +11,7 @@ import { Drawer } from '@/components/chrome/Drawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
 import {
   emptyEventForm,
@@ -260,6 +261,7 @@ export function EventWorkspace({
   }, [id, pathname]);
 
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+  useChromeCrumbName(`/events/${id}`, event?.name);
 
   if (error && !event) {
     return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;

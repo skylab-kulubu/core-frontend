@@ -5,6 +5,7 @@ import { QrCode } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
@@ -79,6 +80,11 @@ export default function TicketDetailPage({
   }, [id, ticketId, user, authLoading]);
 
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+  useChromeCrumbName(`/events/${id}`, event?.name);
+  useChromeCrumbName(
+    `/events/${id}/tickets/${ticketId}`,
+    ticket ? ticketApplicantName(ticket, personById) : null,
+  );
 
   if (error && !ticket) {
     return <StateCard title={error} description="Başvuru kaydına dönemiyor." tone="danger" />;
