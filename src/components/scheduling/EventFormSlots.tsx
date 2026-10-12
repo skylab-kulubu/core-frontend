@@ -23,7 +23,7 @@ import {
   slugYearAlias,
   aliasYear,
   eventFormTitle,
-  createAliasWithRetry,
+  createSlotAlias,
   type EventFormMode,
   type EventFormSlot,
 } from '@/lib/event-forms';
@@ -142,7 +142,7 @@ export function EventFormSlots({
         const row = await urlsApi.update(slot.urlId, { url, alias });
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       } else {
-        const row = await createAliasWithRetry((body) => urlsApi.create(body), url, alias, year);
+        const row = await createSlotAlias((body) => urlsApi.create(body), slot, url, alias, year);
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       }
     } catch (err) {
