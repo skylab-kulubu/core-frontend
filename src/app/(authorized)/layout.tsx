@@ -4,7 +4,12 @@ import { redirect } from 'next/navigation';
 import { GlobalErrorMessenger } from '@/components/common/GlobalErrorMessenger';
 import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
 import { AuthProvider } from '@/context/AuthContext';
-import { readSessionAccessToken, readSessionRefreshToken } from '@/lib/auth/session-cookies';
+import { sessionSecondsLeft } from '@/lib/auth/auth-age';
+import {
+  readSessionAccessToken,
+  readSessionAuthTime,
+  readSessionRefreshToken,
+} from '@/lib/auth/session-cookies';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
 import type { UserDto } from '@/types/api';
 
@@ -23,6 +28,13 @@ export default async function AuthorizedLayout({
     redirect('/login');
   }
 
+  // Seconds until the panel stops accepting this sign-in (auth-age.ts); the page leaves for the
+  // login then, and a refresh does not move it.
+  const sessionExpiresIn = sessionSecondsLeft(readSessionAuthTime(cookieStore));
+  if (sessionExpiresIn <= 0) {
+    redirect('/login');
+  }
+
   const session = sessionUserFromAccessToken(token);
   if (!session) {
     redirect('/login');
@@ -38,7 +50,7 @@ export default async function AuthorizedLayout({
     groups: session.groups,
   };
   return (
-    <AuthProvider initialUser={user}>
+    <AuthProvider initialUser={user} sessionExpiresIn={sessionExpiresIn}>
       <AuthenticatedChrome sidebarUser={user}>
         <GlobalErrorMessenger />
         {children}

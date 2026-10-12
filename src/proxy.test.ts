@@ -2,6 +2,7 @@
 
 import { NextRequest } from 'next/server';
 import { proxy } from '@/proxy';
+import { freezeClock, PAST_THE_LIMIT, signedInAgo } from '@/test/server/clock';
 import { saveEnv } from '@/test/server/env';
 
 function visit(path: string, cookie: string) {
@@ -18,10 +19,25 @@ describe('proxy', () => {
 
   beforeEach(() => {
     process.env.AUTH_COOKIE_SECURE = 'true';
+    freezeClock();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('lets an admin with a __Host- session cookie through', () => {
-    expect(sentToLogin(visit('/dashboard', '__Host-auth_token=access-1'))).toBe(false);
+    const cookie = `__Host-auth_token=access-1; __Host-session_auth_time=${signedInAgo(3600)}`;
+    expect(sentToLogin(visit('/dashboard', cookie))).toBe(false);
+  });
+
+  it('sends an admin whose sign-in is more than 8 hours old to /login', () => {
+    const cookie = `__Host-auth_token=access-1; __Host-session_auth_time=${signedInAgo(PAST_THE_LIMIT)}`;
+    expect(sentToLogin(visit('/dashboard', cookie))).toBe(true);
+  });
+
+  it('sends an admin whose session has no sign-in time (one from before the limit) to /login', () => {
+    expect(sentToLogin(visit('/dashboard', '__Host-auth_token=access-1'))).toBe(true);
   });
 
   it.each(['auth_token', 'access_token', 'token'])(

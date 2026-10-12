@@ -95,16 +95,12 @@ export function expiredCookie({ secure = true, path = '/' } = {}): SentCookie {
   return { value: '', maxAge: 0, path, secure, httpOnly: true, sameSite: 'lax' };
 }
 
-/** 7 days: the access token cookies. */
-export const ACCESS_TOKEN_MAX_AGE = 604800;
-/** 30 days: the refresh token cookie. */
-export const REFRESH_TOKEN_MAX_AGE = 2592000;
-
-/** With Secure cookies: the three `__Host-` session cookies plus every legacy unprefixed name. */
+/** With Secure cookies: the four `__Host-` session cookies plus every legacy unprefixed name. */
 export const EVERY_SECURE_SESSION_COOKIE = [
   '__Host-access_token',
   '__Host-auth_token',
   '__Host-refresh_token',
+  '__Host-session_auth_time',
   'access_token',
   'auth_token',
   'refresh_token',
