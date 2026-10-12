@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import RootPage from '@/app/page';
 import { fakeCookieStore } from '@/test/server/cookie-store';
+import { freezeClock, PAST_THE_LIMIT, signedInAgo } from '@/test/server/clock';
 import { saveEnv } from '@/test/server/env';
 import { redirectTarget } from '@/test/server/redirect';
 
@@ -22,6 +23,11 @@ describe('RootPage', () => {
 
   beforeEach(() => {
     process.env.AUTH_COOKIE_SECURE = 'true';
+    freezeClock();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('sends an admin whose session is only in legacy unprefixed cookies to /login', async () => {
@@ -29,6 +35,20 @@ describe('RootPage', () => {
   });
 
   it('sends an admin with a __Host- refresh cookie on to the dashboard', async () => {
-    expect(await visit({ '__Host-refresh_token': 'refresh-1' })).toBe('/dashboard');
+    expect(
+      await visit({
+        '__Host-refresh_token': 'refresh-1',
+        '__Host-session_auth_time': signedInAgo(3600),
+      }),
+    ).toBe('/dashboard');
+  });
+
+  it('sends an admin whose sign-in is more than 8 hours old to /login', async () => {
+    expect(
+      await visit({
+        '__Host-refresh_token': 'refresh-1',
+        '__Host-session_auth_time': signedInAgo(PAST_THE_LIMIT),
+      }),
+    ).toBe('/login');
   });
 });

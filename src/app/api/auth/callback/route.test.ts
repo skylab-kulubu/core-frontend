@@ -3,14 +3,10 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/auth/callback/route';
-import {
-  ACCESS_TOKEN_MAX_AGE,
-  expiredCookie,
-  fakeCookieStore,
-  REFRESH_TOKEN_MAX_AGE,
-  sessionCookie,
-} from '@/test/server/cookie-store';
+import { freezeClock, NOW, PAST_THE_LIMIT, secondsLeftAfter } from '@/test/server/clock';
+import { expiredCookie, fakeCookieStore, sessionCookie } from '@/test/server/cookie-store';
 import { saveEnv } from '@/test/server/env';
+import { idToken } from '@/test/server/jwt';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -21,6 +17,24 @@ const SIGNING_IN = {
   '__Host-oauth_state': 'state-1',
   '__Host-oauth_code_verifier': 'verifier-1',
 };
+
+/** The admin signed in at Keycloak ten minutes ago (an SSO session Keycloak reused). */
+const SIGNED_IN_SECONDS_AGO = 600;
+const SESSION_SECONDS_LEFT = secondsLeftAfter(SIGNED_IN_SECONDS_AGO);
+
+/**
+ * Stands in for Keycloak's token endpoint on the network boundary: its ID token is the panel's,
+ * signed in ten minutes ago, with `idTokenClaims` changed; `null` leaves the ID token out.
+ */
+function fakeKeycloak(idTokenClaims: Record<string, unknown> | null = {}) {
+  global.fetch = jest.fn(async () =>
+    Response.json({
+      access_token: 'access-1',
+      refresh_token: 'refresh-1',
+      ...(idTokenClaims && { id_token: idToken(NOW - SIGNED_IN_SECONDS_AGO, idTokenClaims) }),
+    }),
+  ) as typeof fetch;
+}
 
 function callback(query: string) {
   return GET(new NextRequest(`https://admin.yildizskylab.com/api/auth/callback?${query}`));
@@ -41,10 +55,8 @@ describe('GET /api/auth/callback', () => {
     process.env.OAUTH2_ISSUER = 'https://e.yildizskylab.com/realms/e-skylab';
     process.env.OAUTH2_CLIENT_ID = 'superadmin';
     process.env.OAUTH2_REDIRECT_URI = 'https://admin.yildizskylab.com/api/auth/callback';
-    // Stands in for Keycloak's token endpoint on the network boundary.
-    global.fetch = jest.fn(async () =>
-      Response.json({ access_token: 'access-1', refresh_token: 'refresh-1' }),
-    ) as typeof fetch;
+    freezeClock();
+    fakeKeycloak();
   });
 
   afterEach(() => {
@@ -59,13 +71,59 @@ describe('GET /api/auth/callback', () => {
     const response = await callback('code=code-1&state=state-1');
 
     expect(new URL(response.headers.get('location')!).pathname).toBe('/dashboard');
-    expect(jar.sent('__Host-auth_token')).toEqual(sessionCookie('access-1', ACCESS_TOKEN_MAX_AGE));
+    expect(jar.sent('__Host-auth_token')).toEqual(sessionCookie('access-1', SESSION_SECONDS_LEFT));
     expect(jar.sent('__Host-access_token')).toEqual(
-      sessionCookie('access-1', ACCESS_TOKEN_MAX_AGE),
+      sessionCookie('access-1', SESSION_SECONDS_LEFT),
     );
     expect(jar.sent('__Host-refresh_token')).toEqual(
-      sessionCookie('refresh-1', REFRESH_TOKEN_MAX_AGE),
+      sessionCookie('refresh-1', SESSION_SECONDS_LEFT),
     );
+  });
+
+  it("keeps the ID token's sign-in time, so the session ends 8 hours after the sign-in at Keycloak", async () => {
+    const jar = fakeCookieStore(SIGNING_IN);
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+
+    await callback('code=code-1&state=state-1');
+
+    expect(jar.sent('__Host-session_auth_time')).toEqual(
+      sessionCookie(String(NOW - SIGNED_IN_SECONDS_AGO), SESSION_SECONDS_LEFT),
+    );
+  });
+
+  it.each([
+    ['carries no auth_time', { auth_time: undefined }],
+    ['carries a sign-in older than 8 hours', { auth_time: NOW - PAST_THE_LIMIT }],
+    ['was issued to another client', { aud: 'frontend-main', azp: 'frontend-main' }],
+    ['names another client as its azp', { azp: 'frontend-main' }],
+    ['comes from another issuer', { iss: 'https://e.yildizskylab.com/realms/e-skylab-sandbox' }],
+    ['has expired', { exp: NOW - 3600 }],
+  ])('refuses the login and starts no session when the ID token %s', async (_name, claims) => {
+    fakeKeycloak(claims);
+    const jar = fakeCookieStore(SIGNING_IN);
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+
+    const response = await callback('code=code-1&state=state-1');
+
+    expect(response.headers.get('location')).toBe(
+      'https://admin.yildizskylab.com/login?error=stale_authentication',
+    );
+    expect(jar.sent('__Host-auth_token')).toBeUndefined();
+    expect(jar.sent('__Host-refresh_token')).toBeUndefined();
+    expect(jar.sent('__Host-session_auth_time')).toBeUndefined();
+  });
+
+  it('refuses the login when Keycloak returns no ID token', async () => {
+    fakeKeycloak(null);
+    const jar = fakeCookieStore(SIGNING_IN);
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+
+    const response = await callback('code=code-1&state=state-1');
+
+    expect(response.headers.get('location')).toBe(
+      'https://admin.yildizskylab.com/login?error=stale_authentication',
+    );
+    expect(jar.sent('__Host-auth_token')).toBeUndefined();
   });
 
   it('refuses a login whose state and verifier arrive only under the legacy unprefixed names', async () => {
@@ -119,12 +177,15 @@ describe('GET /api/auth/callback', () => {
 
     await callback('code=code-1&state=state-1');
 
-    expect(jar.sent('auth_token')).toEqual(sessionCookie('access-1', ACCESS_TOKEN_MAX_AGE, false));
+    expect(jar.sent('auth_token')).toEqual(sessionCookie('access-1', SESSION_SECONDS_LEFT, false));
     expect(jar.sent('access_token')).toEqual(
-      sessionCookie('access-1', ACCESS_TOKEN_MAX_AGE, false),
+      sessionCookie('access-1', SESSION_SECONDS_LEFT, false),
     );
     expect(jar.sent('refresh_token')).toEqual(
-      sessionCookie('refresh-1', REFRESH_TOKEN_MAX_AGE, false),
+      sessionCookie('refresh-1', SESSION_SECONDS_LEFT, false),
+    );
+    expect(jar.sent('session_auth_time')).toEqual(
+      sessionCookie(String(NOW - SIGNED_IN_SECONDS_AGO), SESSION_SECONDS_LEFT, false),
     );
   });
 });
