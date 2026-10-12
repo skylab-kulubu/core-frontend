@@ -228,11 +228,11 @@ describe('A refused News write is explained in Turkish', () => {
     );
   });
 
-  it("other refusals say core's detail or the status in Turkish, anything else the fallback", async () => {
+  it('other refusals say the status in Turkish, never the English detail; anything else the fallback', async () => {
     cmsAnswers(403, { title: 'Forbidden', status: 403, detail: "User cannot edit 'news/x'." });
     const refused = await newsApi.remove('x', 1).catch((err: unknown) => err);
 
-    expect(newsProblemMessage(refused, 'Silinemedi')).toBe("User cannot edit 'news/x'.");
+    expect(newsProblemMessage(refused, 'Silinemedi')).toBe('Bu işlem için yetkin yok.');
     cmsAnswers(403, { title: 'Forbidden', status: 403 });
     const bare = await newsApi.remove('x', 1).catch((err: unknown) => err);
     expect(newsProblemMessage(bare, 'Silinemedi')).toBe('Bu işlem için yetkin yok.');

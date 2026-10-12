@@ -34,6 +34,9 @@ import { useAuth } from '@/context/AuthContext';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
+/** core's bare 409 on a short link's create or save: the alias is in use. */
+const ALIAS_TAKEN = { 409: 'Bu kısa ad alınmış; başka bir ad seç.' };
+
 export default function UrlsPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
@@ -86,21 +89,19 @@ export default function UrlsPage() {
       description: `Link çalışmayı bırakır; tıklayan sayfa bulunamadı görür. ${UNDO_HINT}`,
       actionLabel: 'Linki sil',
       onConfirm: async () => {
-        try {
-          await urlsApi.remove(row.id);
-          notify.undoable(
-            'Kısa link silindi',
-            async () => {
-              await urlsApi.restore(row.id);
-              void load();
-            },
-            'Kısa link geri alındı',
-          );
-          await load();
-        } catch (err) {
-          setError(coreProblemMessage(err, 'Silinemedi'));
-        }
+        await urlsApi.remove(row.id);
+        notify.undoable(
+          'Kısa link silindi',
+          async () => {
+            await urlsApi.restore(row.id);
+            void load();
+          },
+          'Kısa link geri alındı',
+        );
+        await load();
       },
+      failure: (err) =>
+        coreProblemMessage(err, 'Kısa link silinemedi', { 409: 'Kısa link şu an silinemiyor.' }),
     });
   }
 
@@ -145,7 +146,7 @@ export default function UrlsPage() {
             notify.success('Kısa link oluşturuldu');
             await load();
           } catch (err) {
-            setError(coreProblemMessage(err, 'Kısaltılamadı'));
+            setError(coreProblemMessage(err, 'Kısaltılamadı', ALIAS_TAKEN));
           } finally {
             setPending(false);
           }
@@ -285,7 +286,7 @@ export default function UrlsPage() {
                 notify.success('Kısa link kaydedildi');
                 await load();
               } catch (err) {
-                setEditError(coreProblemMessage(err, 'Güncellenemedi'));
+                setEditError(coreProblemMessage(err, 'Güncellenemedi', ALIAS_TAKEN));
               }
             }}
           >

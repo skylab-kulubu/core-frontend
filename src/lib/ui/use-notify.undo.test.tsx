@@ -59,9 +59,9 @@ describe('useNotify undoable', () => {
     [new ProblemError(404, 'Not Found'), 'Kayıt bulunamadı'],
     [
       new ProblemError(409, 'Conflict', {
-        detail: 'Etkinlik aktif değil, yarışmacı geri alınamaz.',
+        detail: 'competitor cannot be reinstated: event is not active',
       }),
-      'Etkinlik aktif değil, yarışmacı geri alınamaz.',
+      'Bu kayıt artık geri alınamıyor',
     ],
     [new TypeError('Failed to fetch'), 'Sunucuya ulaşılamadı'],
   ])('gives a Turkish reason for %p', async (error, reason) => {
@@ -69,6 +69,9 @@ describe('useNotify undoable', () => {
     render(<Deleter undo={jest.fn().mockRejectedValue(error)} />);
     await user.click(screen.getByRole('button', { name: 'Sil' }));
     await user.click(await screen.findByRole('button', { name: 'Geri al' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(reason);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(reason);
+    // core's English never reaches the reader
+    expect(alert).not.toHaveTextContent(/cannot be reinstated|Conflict|Forbidden|Not Found/);
   });
 });

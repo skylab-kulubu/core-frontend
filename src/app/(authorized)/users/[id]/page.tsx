@@ -156,12 +156,12 @@ export default function UserDetailPage() {
                   title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
                   description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider.`,
                   actionLabel: 'Rolü kaldır',
-                  onConfirm: () =>
-                    change(
-                      () => identityApi.removeExtraRole(card.id, role),
-                      'Rol kaldırıldı',
-                      'Rol kaldırılamadı',
-                    ),
+                  onConfirm: async () => {
+                    await identityApi.removeExtraRole(card.id, role);
+                    notify.success('Rol kaldırıldı');
+                    await load();
+                  },
+                  failure: 'Rol kaldırılamadı',
                 })
             : undefined
         }
@@ -176,14 +176,10 @@ export default function UserDetailPage() {
                 'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
               actionLabel: 'Oturumları kapat',
               onConfirm: async () => {
-                setActionError(null);
-                try {
-                  await identityApi.logoutUser(card.id);
-                  notify.success('Oturumlar kapatıldı');
-                } catch (err) {
-                  setActionError(coreProblemMessage(err, 'Oturumlar kapatılamadı'));
-                }
+                await identityApi.logoutUser(card.id);
+                notify.success('Oturumlar kapatıldı');
               },
+              failure: 'Oturumlar kapatılamadı',
             })
           }
         >

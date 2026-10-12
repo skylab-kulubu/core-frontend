@@ -154,7 +154,7 @@ describe('Event Program tab days and sessions', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (sessionsApi.create as jest.Mock).mockRejectedValue(
       new ProblemError(422, 'Unprocessable Content', {
-        detail: 'Oturum saati gün aralığının dışında',
+        detail: 'session start is outside its day',
       }),
     );
     await renderProgram();
@@ -164,8 +164,9 @@ describe('Event Program tab days and sessions', () => {
     await user.type(within(dialog).getByLabelText('Konuşmacı'), 'Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Oturum saati gün aralığının dışında',
+      'Gönderilen bilgiler geçersiz.',
     );
+    expect(dialog).not.toHaveTextContent('outside its day');
     expect(screen.queryByText('Oturum eklendi')).not.toBeInTheDocument();
   });
 
@@ -188,6 +189,40 @@ describe('Event Program tab days and sessions', () => {
     });
     await user.click(within(confirm).getByRole('button', { name: 'Oturumu sil' }));
     expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
+  });
+
+  it('keeps the session drawer and its question open until the program is read again', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
+    await user.click(within(drawer).getByRole('button', { name: 'Sil' }));
+
+    let reread: (days: unknown[]) => void = () => {};
+    (eventDaysApi.listByEvent as jest.Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        reread = resolve;
+      }),
+    );
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Oturumu sil' }));
+    await waitFor(() => expect(sessionsApi.delete).toHaveBeenCalledWith('s1'));
+    expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
+    // The program has not been read again yet: both stay
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'Oturumu düzenle', hidden: true }),
+    ).toBeInTheDocument();
+
+    reread([]);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Oturumu düzenle' })).not.toBeInTheDocument(),
+    );
+    // The deleted session's row is gone, so focus lands on the toolbar's add button
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Oturum ekle' })).toHaveFocus());
   });
 
   it('asks before deleting a day and does nothing on Vazgeç', async () => {
@@ -245,7 +280,7 @@ describe('Event Program tab days and sessions', () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
-      new ProblemError(404, 'Not Found', { detail: 'Kişi bulunamadı' }),
+      new ProblemError(404, 'Not Found', { detail: 'no ticket for person' }),
     );
     await renderProgram();
     const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
@@ -253,7 +288,9 @@ describe('Event Program tab days and sessions', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Yok Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Kişi bulunamadı');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt bulunamadı; silinmiş olabilir.',
+    );
   });
 
   it('says the person is already in when core refuses a second check-in', async () => {

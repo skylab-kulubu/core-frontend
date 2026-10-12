@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
@@ -53,6 +53,9 @@ export default function SeasonsPage() {
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const notify = useNotify();
+  // A deleted season's row goes away (animated): the drawer then returns focus to Sezon ekle
+  const addSeason = useRef<HTMLButtonElement>(null);
+  const deleted = useRef(false);
   const [confirm, confirmDialog] = useConfirm();
 
   async function load() {
@@ -95,11 +98,13 @@ export default function SeasonsPage() {
               icon={Plus}
               variant="primary"
               label="Sezon ekle"
+              ref={addSeason}
               onClick={() => {
                 setEditingId(null);
                 setForm(emptySeason());
                 setAssignEventId('');
                 setFormError(null);
+                deleted.current = false;
                 setOpen(true);
               }}
             />
@@ -164,6 +169,7 @@ export default function SeasonsPage() {
                       });
                       setAssignEventId('');
                       setFormError(null);
+                      deleted.current = false;
                       setOpen(true);
                     }}
                   />
@@ -178,6 +184,7 @@ export default function SeasonsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
+        finalFocus={() => (deleted.current ? addSeason.current : null)}
       >
         <form
           className="space-y-3"
@@ -255,23 +262,22 @@ export default function SeasonsPage() {
                   description: `Sezon listeden kalkar. ${UNDO_HINT}`,
                   actionLabel: 'Sezonu sil',
                   onConfirm: async () => {
-                    setFormError(null);
-                    try {
-                      await seasonsApi.delete(id);
-                      setOpen(false);
-                      notify.undoable(
-                        'Sezon silindi',
-                        async () => {
-                          await seasonsApi.restore(id);
-                          void load();
-                        },
-                        'Sezon geri alındı',
-                      );
-                      await load();
-                    } catch (err) {
-                      setFormError(coreProblemMessage(err, 'Silinemedi'));
-                    }
+                    await seasonsApi.delete(id);
+                    notify.undoable(
+                      'Sezon silindi',
+                      async () => {
+                        await seasonsApi.restore(id);
+                        void load();
+                      },
+                      'Sezon geri alındı',
+                    );
+                    // The drawer, and the question inside it, close once the list shows the change
+                    await load();
+                    deleted.current = true;
+                    setOpen(false);
                   },
+                  failure: 'Sezon silinemedi',
+                  closesDrawer: true,
                 });
               }}
             >

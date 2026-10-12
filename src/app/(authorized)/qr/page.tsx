@@ -58,6 +58,8 @@ export default function QrPage() {
   const [sessions, setSessions] = useState<EventSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
+  // A refused check-in shows under the button, where the operator is looking
+  const [checkInError, setCheckInError] = useState<string | null>(null);
   const [successLine, setSuccessLine] = useState<string | null>(null);
   const [recent, setRecent] = useState<RecentCheckIn[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
@@ -102,6 +104,7 @@ export default function QrPage() {
     resetField('personId');
     resetField('email');
     setSuccessLine(null);
+    setCheckInError(null);
     setSessions([]);
     setValue('sessionId', '');
     setRecent([]);
@@ -228,6 +231,7 @@ export default function QrPage() {
         className="max-w-md space-y-3"
         noValidate
         onSubmit={handleSubmit(async (form) => {
+          setCheckInError(null);
           try {
             const created = await ticketsApi.resolveAndCheckIn(form.sessionId, {
               personId: form.personId || undefined,
@@ -258,10 +262,9 @@ export default function QrPage() {
             setActivityTotal((total) => total + 1);
             resetField('personId');
             resetField('email');
-            setError(null);
           } catch (err) {
             setSuccessLine(null);
-            setError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
+            setCheckInError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
           }
         })}
       >
@@ -341,6 +344,11 @@ export default function QrPage() {
           ) : null}
         </label>
         <SaveButton disabled={isSubmitting}>{isSubmitting ? 'Yazılıyor…' : 'Check-in'}</SaveButton>
+        {checkInError ? (
+          <p role="alert" className="text-destructive text-sm">
+            {checkInError}
+          </p>
+        ) : null}
         {/* Under the button, in view on a phone; always mounted so each line is read out */}
         <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
           {successLine ? (

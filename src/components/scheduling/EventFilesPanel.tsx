@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -50,6 +49,7 @@ import {
   type UploadProgress,
 } from '@/lib/uploads/direct-upload';
 import { formatBytes, scanResultMessage, uploadErrorMessage } from '@/lib/uploads/messages';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 const GIB = 1024 ** 3;
@@ -165,9 +165,9 @@ function MediaList({
   const [unavailable, setUnavailable] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [removing, setRemoving] = useState<EventFile | null>(null);
   const [waiting, setWaiting] = useState<string[]>([]);
   const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
   // Uploads run one after another, so a batch never trips the three-open limit
   const queue = useRef<Promise<void>>(Promise.resolve());
   const eventId = useRef(event.id);
@@ -247,6 +247,34 @@ function MediaList({
     }
   }
 
+  /** Asks before removing; the dialog waits for core and says a refusal itself. */
+  function askRemove(target: EventFile) {
+    const name = target.name || 'Adsız dosya';
+    confirm({
+      title: `${target.name || 'Bu öğe'} kaldırılsın mı?`,
+      description: 'Etkinlikten çıkar. Başka bir yerde kullanılmıyorsa 30 gün sonra silinir.',
+      actionLabel: 'Kaldır',
+      onConfirm: async () => {
+        setBusy(true);
+        setProblem(null);
+        try {
+          onEvent(await eventMediaApi.remove(eventId.current, kind, [target.id]));
+          notify.success(`${name} kaldırıldı`);
+        } catch (error) {
+          // core's 404: the item is not in the list (any more). Read the list; if it is gone, so is the job
+          if (!(error instanceof ProblemError && error.status === 404)) throw error;
+          const fresh = await eventsApi.get(eventId.current);
+          onEvent(fresh);
+          if ((fresh[kind] ?? []).some((item) => item.id === target.id)) throw error;
+          notify.success(`${name} zaten kaldırılmış`);
+        } finally {
+          setBusy(false);
+        }
+      },
+      failure: problemMessage,
+    });
+  }
+
   function move(index: number, step: -1 | 1) {
     const ids = items.map((item) => item.id);
     const target = index + step;
@@ -274,7 +302,7 @@ function MediaList({
               first={index === 0}
               last={index === items.length - 1}
               onMove={(step) => move(index, step)}
-              onRemove={() => setRemoving(item)}
+              onRemove={() => askRemove(item)}
               onRun={run}
             />
           ))}
@@ -362,24 +390,7 @@ function MediaList({
         </>
       ) : null}
 
-      <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => (open ? undefined : setRemoving(null))}
-        title={`${removing?.name || 'Bu öğe'} kaldırılsın mı?`}
-        description="Etkinlikten çıkar. Başka bir yerde kullanılmıyorsa 30 gün sonra silinir."
-        actionLabel="Kaldır"
-        destructive
-        pending={busy}
-        onAction={() => {
-          const target = removing;
-          setRemoving(null);
-          if (target)
-            void run(
-              () => eventMediaApi.remove(eventId.current, kind, [target.id]),
-              `${target.name || 'Adsız dosya'} kaldırıldı`,
-            );
-        }}
-      />
+      {confirmDialog}
     </section>
   );
 }

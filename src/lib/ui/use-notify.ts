@@ -30,9 +30,11 @@ export function useNotify() {
         add({ title, type: 'success' });
       },
       /**
-       * Says a removal went through and offers Geri al while the toast shows
-       * (five seconds, paused while hovered or focused). `undo` calls core's
-       * restore; `undone` is said once it worked, the problem if it did not.
+       * Says a removal went through and offers Geri al while the toast shows.
+       * How long each toast stays is skylcn-ui's (useToast): a plain one five
+       * seconds, one with an action ten, an error until it is closed, all
+       * paused while hovered or focused. `undo` calls core's restore; `undone`
+       * is said once it worked, the problem if it did not.
        */
       undoable(title: string, undo: () => Promise<unknown>, undone: string) {
         const id = add({
@@ -44,14 +46,13 @@ export function useNotify() {
               close(id);
               undo().then(
                 () => add({ title: undone, type: 'success' }),
-                // Stays until closed and is read out at once: the reader may have looked away
+                // Read out at once: the reader may have looked away
                 (err: unknown) =>
                   add({
                     title: 'Geri alınamadı',
                     description: undoFailureReason(err),
                     type: 'error',
                     priority: 'high',
-                    timeout: 0,
                   }),
               );
             },

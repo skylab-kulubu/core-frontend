@@ -170,9 +170,11 @@ describe('Users page feedback', () => {
 
   it('shows a create error inside the open drawer', async () => {
     (identityApi.createUser as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu e-posta zaten kayıtlı' }),
+      new ProblemError(409, 'Conflict', { detail: 'user exists with same email' }),
     );
     const dialog = await submitAda();
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu e-posta zaten kayıtlı');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt şu anki durumunda buna uygun değil',
+    );
   });
 });
