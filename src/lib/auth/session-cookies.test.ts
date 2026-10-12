@@ -13,6 +13,7 @@ describe('session cookie names', () => {
       authToken: '__Host-auth_token',
       accessToken: '__Host-access_token',
       refreshToken: '__Host-refresh_token',
+      authTime: '__Host-session_auth_time',
     });
   });
 
@@ -23,6 +24,7 @@ describe('session cookie names', () => {
       authToken: 'auth_token',
       accessToken: 'access_token',
       refreshToken: 'refresh_token',
+      authTime: 'session_auth_time',
     });
   });
 });

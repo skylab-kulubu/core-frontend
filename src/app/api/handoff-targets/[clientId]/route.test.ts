@@ -31,7 +31,12 @@ function fakeKeycloak(handler: KeycloakHandler): Request[] {
   return seen;
 }
 
-function signedIn(values: Record<string, string>) {
+/** A session (plain cookie names: these tests run without Secure) signed in a minute ago. */
+function signedIn(cookieValues: Record<string, string>) {
+  const values: Record<string, string> = {
+    session_auth_time: String(Math.floor(Date.now() / 1000) - 60),
+    ...cookieValues,
+  };
   (cookies as jest.Mock).mockResolvedValue({
     get: (name: string) => (name in values ? { name, value: values[name] } : undefined),
     set: jest.fn(),
