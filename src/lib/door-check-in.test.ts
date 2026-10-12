@@ -201,14 +201,30 @@ describe('doorSessionTiming', () => {
 
   it('notes a session that has not started, has ended, or was cancelled', () => {
     expect(doorSessionTiming(session, new Date('2026-10-12T13:00:00+03:00'))).toBe(
-      'Bu oturum henüz başlamadı (başlangıç 14:00).',
+      'Bu oturum henüz başlamadı (başlangıç 14:00); misafir QR’ı şimdiden açık.',
     );
     expect(doorSessionTiming(session, new Date('2026-10-12T16:00:00+03:00'))).toBe(
-      'Bu oturum bitti (bitiş 15:00).',
+      'Bu oturum bitti (bitiş 15:00); misafir QR’ı bitişten 12 saat sonrasına kadar açık.',
     );
     expect(doorSessionTiming(session, new Date('2026-10-13T09:00:00+03:00'))).toBe(
-      'Bu oturum bitti (bitiş 12 Eki 15:00).',
+      'Bu oturum bitti (bitiş 12 Eki 15:00); misafir QR’ı kapandı.',
     );
     expect(doorSessionTiming({ ...session, cancelled: true })).toBe('Bu oturum iptal edildi.');
+  });
+
+  it('says whether the guest QR is open: 12 hours before the start until 12 hours after the end', () => {
+    // 02:00 is exactly 12 hours before the 14:00 start; 03:00 the next day, 12 hours after the end.
+    expect(doorSessionTiming(session, new Date('2026-10-12T01:59:00+03:00'))).toBe(
+      'Bu oturum henüz başlamadı (başlangıç 14:00); misafir QR’ı başlangıçtan 12 saat önce açılır.',
+    );
+    expect(doorSessionTiming(session, new Date('2026-10-12T02:00:00+03:00'))).toBe(
+      'Bu oturum henüz başlamadı (başlangıç 14:00); misafir QR’ı şimdiden açık.',
+    );
+    expect(doorSessionTiming(session, new Date('2026-10-13T03:00:00+03:00'))).toBe(
+      'Bu oturum bitti (bitiş 12 Eki 15:00); misafir QR’ı bitişten 12 saat sonrasına kadar açık.',
+    );
+    expect(doorSessionTiming(session, new Date('2026-10-13T03:01:00+03:00'))).toBe(
+      'Bu oturum bitti (bitiş 12 Eki 15:00); misafir QR’ı kapandı.',
+    );
   });
 });
