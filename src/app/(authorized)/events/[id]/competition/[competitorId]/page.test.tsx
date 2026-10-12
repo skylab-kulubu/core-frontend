@@ -62,7 +62,7 @@ describe('Event Yarışma: edit competitor', () => {
   it('keeps the form when saving fails, with the error beside it', async () => {
     const user = userEvent.setup();
     (competitorsApi.update as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Bu kişi zaten yarışmacı'),
+      new ProblemError(409, 'Conflict', { detail: 'Bu kişi zaten yarışmacı' }),
     );
     await renderEdit('e2');
     await user.click(await screen.findByRole('button', { name: 'Kaydet' }));
@@ -109,7 +109,7 @@ describe('Event Yarışma: edit competitor', () => {
   it('shows a refused delete instead of failing silently', async () => {
     const user = userEvent.setup();
     (competitorsApi.delete as jest.Mock).mockRejectedValue(
-      new ProblemError(403, 'Silme yetkin yok'),
+      new ProblemError(403, 'Forbidden', { detail: 'Silme yetkin yok' }),
     );
     await renderEdit('e2');
     await user.click(await screen.findByRole('button', { name: 'Sil' }));

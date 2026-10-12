@@ -235,7 +235,9 @@ describe('Event workspace layout', () => {
 
   it('shows why the event did not load instead of its tabs', async () => {
     signInAs(['/UYELER/YK']);
-    (eventsApi.get as jest.Mock).mockRejectedValue(new ProblemError(404, 'Etkinlik bulunamadı'));
+    (eventsApi.get as jest.Mock).mockRejectedValue(
+      new ProblemError(404, 'Not Found', { detail: 'Etkinlik bulunamadı' }),
+    );
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
     expect(await screen.findByText('Etkinlik bulunamadı')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();

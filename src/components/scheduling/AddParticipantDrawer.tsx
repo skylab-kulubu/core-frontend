@@ -9,7 +9,7 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { PersonPick } from '@/components/identity/PersonPick';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi, type GuestApplyBody, type Ticket } from '@/lib/api/tickets';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -84,7 +84,7 @@ export function AddParticipantDrawer({
               onClose();
               notify.success('Üye kaydı yazıldı');
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Üye kaydı yazılamadı');
+              setError(coreProblemMessage(err, 'Üye kaydı yazılamadı'));
             }
           })}
         >
@@ -120,7 +120,7 @@ export function AddParticipantDrawer({
               onClose();
               notify.success('Misafir kaydı yazıldı');
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Misafir kaydı yazılamadı');
+              setError(coreProblemMessage(err, 'Misafir kaydı yazılamadı'));
             }
           })}
         >

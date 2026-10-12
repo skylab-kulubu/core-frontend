@@ -77,13 +77,102 @@ function purposeOf(error: ProblemError): string {
   return mediaPurposeLabel(text(error.fields.purpose)) || 'bu alan';
 }
 
+/** Turkish sentences for core codes the panel meets outside media. */
+const CODE_MESSAGES: Record<string, string> = {
+  session_closed: 'Bu oturum şu an girişe açık değil.',
+  event_managed: 'Bu kısa link bir etkinliğe ait; etkinliğin sayfasından değiştir.',
+  managed: 'Bu kısa link sistem tarafından yönetiliyor; buradan değiştirilemez.',
+  ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
+  // Group name refusals (core teamcode)
+  invalid_name:
+    'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
+  reserved_name: 'Bu grup adı ayrılmış; başka bir ad seç.',
+  name_taken: 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.',
+  privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
+};
+
+/** core's own English titles that carry meaning but no code. */
+const TITLE_MESSAGES: Record<string, string> = {
+  'Ambiguous Match': 'Bu adla birden fazla kayıt var; e-posta ile dene.',
+  'No mail recipients': 'Mail gönderilecek alıcı yok.',
+  'Skymail is not configured': 'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
+};
+
+const SERVER_FAILED = 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.';
+
+/** What a status means for the person in the panel, when core says no more than the status. */
+const STATUS_MESSAGES: Record<number, string> = {
+  400: 'İstek geçersiz. Girdiklerini denetleyip tekrar dene.',
+  401: 'Oturumun sona ermiş. Sayfayı yenileyip yeniden giriş yap.',
+  403: 'Bu işlem için yetkin yok.',
+  404: 'Kayıt bulunamadı; silinmiş olabilir.',
+  409: 'Kayıt şu anki durumunda buna uygun değil ya da aynı bilgilerle başka bir kayıt var.',
+  410: 'Kayıt artık yok.',
+  422: 'Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.',
+  429: 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.',
+};
+
+/** The English reason phrases core and proxies put in `title`; they say nothing the status does not. */
+const REASON_PHRASES = new Set(
+  [
+    'Bad Request',
+    'Unauthorized',
+    'Forbidden',
+    'Not Found',
+    'Method Not Allowed',
+    'Conflict',
+    'Gone',
+    'Request Entity Too Large',
+    'Payload Too Large',
+    'Content Too Large',
+    'Unsupported Media Type',
+    'Unprocessable Entity',
+    'Unprocessable Content',
+    'Too Many Requests',
+    'Internal Server Error',
+    'Bad Gateway',
+    'Service Unavailable',
+    'Gateway Timeout',
+  ].map((phrase) => phrase.toLowerCase()),
+);
+
 /**
- * A Turkish sentence for a problem core answered with: the media refusals
- * (upload purpose, upload limit, links on save) by their code, anything else
- * by its detail, then its title.
+ * core's detail, when it says more than the title or the status's English name.
+ * Never on a server error: there it can name internal paths and roles.
  */
-export function coreProblemMessage(error: unknown, fallback = 'Yüklenemedi'): string {
-  if (!(error instanceof ProblemError)) return fallback;
+function informativeDetail(error: ProblemError): string | undefined {
+  if (error.status >= 500) return undefined;
+  const detail = error.detail?.trim();
+  if (!detail || detail === error.title.trim()) return undefined;
+  if (REASON_PHRASES.has(detail.toLowerCase())) return undefined;
+  return detail;
+}
+
+/** Whether `fetch` itself failed (offline, DNS, CORS): browsers throw a TypeError with these words. */
+function isNetworkFailure(error: unknown): boolean {
+  return (
+    error instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(error.message)
+  );
+}
+
+/**
+ * A Turkish sentence for a failed core call, for every place the panel shows
+ * one: a known code (media refusals, door, short links) in its own words;
+ * otherwise core's detail when it says more than the status; otherwise the
+ * status in Turkish (`statusText` lets a caller word one for its own action).
+ * A network failure says the server could not be reached; anything else is
+ * the caller's `fallback`.
+ */
+export function coreProblemMessage(
+  error: unknown,
+  fallback = 'Yüklenemedi',
+  statusText: Partial<Record<number, string>> = {},
+): string {
+  if (!(error instanceof ProblemError)) {
+    return isNetworkFailure(error)
+      ? 'Sunucuya ulaşılamadı. Bağlantını denetleyip tekrar dene.'
+      : fallback;
+  }
   const fields = error.fields;
   switch (error.code) {
     case 'purpose_unknown':
@@ -128,6 +217,13 @@ export function coreProblemMessage(error: unknown, fallback = 'Yüklenemedi'): s
       if (error.status === 413) {
         return `Dosya çok büyük: sunucu tek seferde en fazla ${formatBytes(SINGLE_STEP_MAX_BYTES)} kabul ediyor.`;
       }
-      return error.detail || error.title || fallback;
+      if (error.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code];
+      if (TITLE_MESSAGES[error.title]) return TITLE_MESSAGES[error.title];
+      return (
+        informativeDetail(error) ??
+        statusText[error.status] ??
+        STATUS_MESSAGES[error.status] ??
+        (error.status >= 500 ? SERVER_FAILED : fallback)
+      );
   }
 }

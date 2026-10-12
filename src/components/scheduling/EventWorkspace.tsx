@@ -19,7 +19,6 @@ import {
 } from '@/components/scheduling/EventEditor';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import { useAuth } from '@/context/AuthContext';
-import { ProblemError } from '@/lib/api/core';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -116,9 +115,6 @@ export type EventWorkspaceValue = EventPermissions & {
   /** A failed action, shown under the tabs. */
   error: string | null;
   setError: (error: string | null) => void;
-  /** The last check-in, shown under the tabs. */
-  deskNote: string | null;
-  setDeskNote: (note: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
   /** Fills the event's Skymail list (all tickets, or only these) and opens the composer. */
@@ -165,7 +161,6 @@ export function EventWorkspace({
   // A save the edit drawer refused, shown in the drawer where the organizer is.
   const [editError, setEditError] = useState<string | null>(null);
   const [mailing, setMailing] = useState(false);
-  const [deskNote, setDeskNote] = useState<string | null>(null);
   const [doorAccess, setDoorAccess] = useState(false);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -248,7 +243,7 @@ export function EventWorkspace({
       );
       if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Etkinlik yüklenemedi');
+      setError(coreProblemMessage(err, 'Etkinlik yüklenemedi'));
     }
   }
 
@@ -283,7 +278,7 @@ export function EventWorkspace({
         },
       );
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Skymail listesi yenilenemedi');
+      setError(coreProblemMessage(err, 'Skymail listesi yenilenemedi'));
     } finally {
       setMailing(false);
     }
@@ -301,8 +296,6 @@ export function EventWorkspace({
     personById,
     error,
     setError,
-    deskNote,
-    setDeskNote,
     reload: load,
     mailApplicants,
   };
@@ -356,7 +349,7 @@ export function EventWorkspace({
                           );
                           router.push('/events');
                         } catch (err) {
-                          setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                          setError(coreProblemMessage(err, 'Silinemedi'));
                         }
                       },
                     })
@@ -381,11 +374,6 @@ export function EventWorkspace({
           </p>
         ) : null}
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
-        {deskNote ? (
-          <p role="status" aria-label="Check-in sonucu" className="text-skylab-300 text-sm">
-            {deskNote}
-          </p>
-        ) : null}
         {children}
         {confirmDialog}
         <Drawer

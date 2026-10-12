@@ -20,7 +20,7 @@ import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import {
   sessionsApi,
@@ -33,7 +33,7 @@ import {
 } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
-import { checkInSuccessLine } from '@/lib/door-check-in';
+import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
 import { listStatus } from '@/lib/list-status';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -79,18 +79,8 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
 
 /** Program tab: the event's days and their sessions, with check-in and session QR per session. */
 export default function EventProgramPage() {
-  const {
-    event,
-    days,
-    sessions,
-    error,
-    setError,
-    deskNote,
-    setDeskNote,
-    reload,
-    canMutate,
-    canDesk,
-  } = useEventWorkspace();
+  const { event, days, sessions, error, setError, reload, canMutate, canDesk } =
+    useEventWorkspace();
   const [dayOpen, setDayOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -206,7 +196,7 @@ export default function EventProgramPage() {
                             );
                             await reload();
                           } catch (err) {
-                            setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
+                            setError(coreProblemMessage(err, 'Gün silinemedi'));
                           }
                         },
                       })
@@ -240,7 +230,6 @@ export default function EventProgramPage() {
                               icon={CheckCircle2}
                               label="Katıldı"
                               onClick={() => {
-                                setDeskNote(null);
                                 setDeskError(null);
                                 deskForm.reset();
                                 setCheckInSession(session);
@@ -309,7 +298,7 @@ export default function EventProgramPage() {
               notify.success('Gün eklendi');
               await reload();
             } catch (err) {
-              setDayError(err instanceof ProblemError ? err.title : 'Gün eklenemedi');
+              setDayError(coreProblemMessage(err, 'Gün eklenemedi'));
             }
           })}
         >
@@ -385,7 +374,7 @@ export default function EventProgramPage() {
               notify.success(editingSessionId ? 'Oturum kaydedildi' : 'Oturum eklendi');
               await reload();
             } catch (err) {
-              setSessionError(err instanceof ProblemError ? err.title : 'Oturum kaydedilemedi');
+              setSessionError(coreProblemMessage(err, 'Oturum kaydedilemedi'));
             }
           })}
         >
@@ -492,9 +481,7 @@ export default function EventProgramPage() {
                       );
                       await reload();
                     } catch (err) {
-                      setSessionError(
-                        err instanceof ProblemError ? err.title : 'Oturum silinemedi',
-                      );
+                      setSessionError(coreProblemMessage(err, 'Oturum silinemedi'));
                     }
                   },
                 });
@@ -548,7 +535,7 @@ export default function EventProgramPage() {
                   personId: desk.personId || undefined,
                   query: desk.email.trim(),
                 });
-                setDeskNote(
+                notify.success(
                   checkInSuccessLine({
                     name: created.personName,
                     sessionTitle: checkInSession.title,
@@ -558,11 +545,10 @@ export default function EventProgramPage() {
                 setCheckInSession(null);
                 await reload();
               } catch (err) {
-                setDeskError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
+                setDeskError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
               }
             })}
           >
-            {deskNote ? <p className="text-skylab-300 text-sm">{deskNote}</p> : null}
             <DoorAttendeePick
               eventId={event.id}
               valueKey={deskPersonId || deskQuery}

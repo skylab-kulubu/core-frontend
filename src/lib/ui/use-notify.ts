@@ -2,7 +2,19 @@
 
 import { useToast } from '@skylab-kulubu/skylcn-ui';
 import { useMemo } from 'react';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
+
+/**
+ * Why Geri al did not work, in Turkish: the panel's one problem text
+ * (core-problems), with 403/404/409 worded for undoing.
+ */
+export function undoFailureReason(err: unknown): string {
+  return coreProblemMessage(err, 'Geri alma tamamlanamadı. Sayfayı yenileyip tekrar dene.', {
+    403: 'Bunu geri almaya yetkin yok.',
+    404: 'Kayıt bulunamadı; bu arada kalıcı olarak silinmiş olabilir.',
+    409: 'Bu kayıt artık geri alınamıyor: bağlı olduğu etkinlik ya da gün silinmiş veya etkinlik aktif değil.',
+  });
+}
 
 /**
  * Says that a write went through, as a short toast in the app's polite live
@@ -10,28 +22,6 @@ import { ProblemError } from '@/lib/api/core';
  * the work is, in the form or drawer that sent it. The one exception is a
  * failed Geri al, whose only place is the toast it was pressed in.
  */
-/**
- * Why Geri al did not work, in Turkish. core's titles are English
- * ("Conflict"); a detail that says more than the title is core's own
- * explanation and wins.
- */
-export function undoFailureReason(err: unknown): string {
-  if (!(err instanceof ProblemError)) {
-    return 'Sunucuya ulaşılamadı. Bağlantını denetleyip sayfayı yenile.';
-  }
-  if (err.detail && err.detail !== err.title) return err.detail;
-  switch (err.status) {
-    case 403:
-      return 'Bunu geri almaya yetkin yok.';
-    case 404:
-      return 'Kayıt bulunamadı; bu arada kalıcı olarak silinmiş olabilir.';
-    case 409:
-      return 'Bu kayıt artık geri alınamıyor: bağlı olduğu etkinlik ya da gün silinmiş veya etkinlik aktif değil.';
-    default:
-      return 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.';
-  }
-}
-
 export function useNotify() {
   const { add, close } = useToast();
   return useMemo(

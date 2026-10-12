@@ -7,7 +7,7 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Switch } from '@/components/chrome/Switch';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
 import { editorReturnTo, eventIdForForms } from '@/lib/event-draft';
@@ -146,7 +146,7 @@ export function EventFormSlots({
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       }
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Kısa link oluşturulamadı');
+      setError(coreProblemMessage(err, 'Kısa link oluşturulamadı'));
       if (!slot.alias.trim()) patchSlot(slot.key, { alias });
     } finally {
       setPendingKey(null);
@@ -162,7 +162,7 @@ export function EventFormSlots({
       const next = await setFormGate(formId, open);
       setGates((prev) => ({ ...prev, [slot.key]: next }));
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Form durumu güncellenemedi');
+      setError(coreProblemMessage(err, 'Form durumu güncellenemedi'));
       try {
         const current = await readFormGate(formId);
         setGates((prev) => ({ ...prev, [slot.key]: current }));

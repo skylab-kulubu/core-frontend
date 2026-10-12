@@ -7,7 +7,7 @@ import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi, type PublicTeam } from '@/lib/api/teams';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
@@ -23,7 +23,7 @@ export default function TeamsPage() {
     teamsApi
       .list()
       .then(setTeams)
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Ekipler yüklenemedi'))
+      .catch((err) => setError(coreProblemMessage(err, 'Ekipler yüklenemedi')))
       .finally(() => setLoading(false));
   }, []);
 
