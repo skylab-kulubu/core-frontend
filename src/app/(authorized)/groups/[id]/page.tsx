@@ -15,6 +15,7 @@ import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
+import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
@@ -38,10 +39,10 @@ export default function GroupDetailPage() {
   const [memberQuery, setMemberQuery] = useState('');
   const [memberRosterQuery, setMemberRosterQuery] = useState('');
   const [roleQuery, setRoleQuery] = useState('');
-  const [people, setPeople] = useState<Person[]>([]);
   const [catalog, setCatalog] = useState<ClientRole[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerFailed, setPickerFailed] = useState(false);
+  const memberSearch = usePersonSearch(memberOpen, memberQuery);
 
   async function load() {
     try {
@@ -65,30 +66,11 @@ export default function GroupDetailPage() {
     void load();
   }, [id]);
 
-  useEffect(() => {
-    if (!memberOpen) return;
-    const handle = window.setTimeout(
-      () => {
-        setPickerLoading(true);
-        identityApi
-          .listUsers(memberQuery)
-          .then((rows) => {
-            setPeople(rows);
-            setPickerFailed(false);
-          })
-          .catch(() => setPickerFailed(true))
-          .finally(() => setPickerLoading(false));
-      },
-      memberQuery.trim() ? 250 : 0,
-    );
-    return () => window.clearTimeout(handle);
-  }, [memberOpen, memberQuery]);
-
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const extraAttrs = extraGroupAttrs(group?.attributes);
 
-  const memberOptions = people
+  const memberOptions = memberSearch.people
     .filter((person) => !memberIds.has(person.id))
     .map((person) => ({
       id: person.id,
@@ -145,7 +127,6 @@ export default function GroupDetailPage() {
               label="Üye ekle"
               onClick={() => {
                 setMemberQuery('');
-                setPeople([]);
                 setMemberOpen(true);
               }}
             />
@@ -336,10 +317,10 @@ export default function GroupDetailPage() {
         query={memberQuery}
         onQuery={setMemberQuery}
         placeholder="Ad, e-posta"
-        loading={pickerLoading}
-        failed={pickerFailed}
+        loading={memberSearch.loading}
+        failed={memberSearch.failed}
         options={memberOptions}
-        emptyMessage="Kullanıcı yok"
+        emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
         onPick={async (userId) => {
           try {
             await identityApi.addMember(id, userId);

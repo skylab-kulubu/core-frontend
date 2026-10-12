@@ -20,10 +20,11 @@ import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { identityApi, type Person } from '@/lib/api/identity';
+import type { Person } from '@/lib/api/identity';
 import { canManageCompetitors, isPrivileged } from '@/lib/auth/groups';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { lookupPeople } from '@/lib/people-lookup';
 
 export default function CompetitorsPage() {
   const { user } = useAuth();
@@ -54,8 +55,10 @@ export default function CompetitorsPage() {
       const allowedIds = new Set(
         eventRows.filter((e) => canManageCompetitors(groups, e.ownerTeam)).map((e) => e.id),
       );
-      setRows(isPrivileged(groups) ? comps : comps.filter((c) => allowedIds.has(c.eventId)));
-      setPeople(await identityApi.listUsers().catch(() => []));
+      const visible = isPrivileged(groups) ? comps : comps.filter((c) => allowedIds.has(c.eventId));
+      setRows(visible);
+      const named = await lookupPeople(visible.map((c) => c.userId));
+      setPeople([...named.values()]);
       setError(null);
     } catch (err) {
       setError(err instanceof ProblemError ? err.title : 'Yarışmacılar yüklenemedi');

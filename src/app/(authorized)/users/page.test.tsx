@@ -35,7 +35,6 @@ describe('Users page', () => {
   it('validates and trims the create-user form before submission', async () => {
     const user = userEvent.setup();
     render(<UsersPage />);
-    await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalled());
     await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
     await user.type(screen.getByLabelText('Ad'), '  Ada  ');
     await user.type(screen.getByLabelText('Soyad'), '  Lovelace  ');
@@ -54,5 +53,31 @@ describe('Users page', () => {
         email: 'ada@example.com',
       }),
     );
+  });
+
+  it('reads the directory only for a search of two or more characters', async () => {
+    const user = userEvent.setup();
+    (identityApi.listUsers as jest.Mock).mockResolvedValue([
+      { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+    ]);
+    render(<UsersPage />);
+    expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('searchbox', { name: 'Kullanıcı ara' }), 'A');
+    expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+    await user.type(screen.getByRole('searchbox', { name: 'Kullanıcı ara' }), 'd');
+
+    expect(await screen.findByRole('link', { name: /Ada Lovelace/ })).toBeInTheDocument();
+    expect(identityApi.listUsers).toHaveBeenCalledTimes(1);
+    expect(identityApi.listUsers).toHaveBeenCalledWith('Ad');
+  });
+
+  it('shows the created user by searching for its e-mail', async () => {
+    const user = userEvent.setup();
+    render(<UsersPage />);
+    await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
+    await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalledWith('ada@example.com'));
   });
 });

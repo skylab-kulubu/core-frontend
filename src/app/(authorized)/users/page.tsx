@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
+import { personSearchReady } from '@/components/identity/use-person-search';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
@@ -20,7 +21,7 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { ProblemError } from '@/lib/api/core';
-import { emptyListCopy, paginateRows } from '@/lib/list-query';
+import { paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
@@ -37,7 +38,7 @@ export default function UsersPage() {
   const { user } = useAuth();
   const privileged = isPrivileged(user?.groups ?? []);
   const [users, setUsers] = useState<Person[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [page, setPage] = useState(1);
@@ -63,15 +64,21 @@ export default function UsersPage() {
     }
   }
 
+  // The directory is searched, never listed whole (core has no paging on GET /v1/users).
+  const ready = personSearchReady(query);
+
   useEffect(() => {
-    const handle = window.setTimeout(
-      () => {
-        void load(query);
-      },
-      query.trim() ? 250 : 0,
-    );
+    if (!ready) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const handle = window.setTimeout(() => {
+      void load(query);
+    }, 250);
     return () => window.clearTimeout(handle);
-  }, [query]);
+  }, [query, ready]);
 
   useEffect(() => {
     setPage(1);
@@ -109,13 +116,15 @@ export default function UsersPage() {
           loading,
           failed: Boolean(error),
           rowCount: users.length,
-          emptyMessage: emptyListCopy({
-            none: 'Kullanıcı yok',
-            noneMatch: 'Eşleşen kullanıcı yok',
-            query,
-          }),
+          emptyMessage: ready ? 'Eşleşen kullanıcı yok' : 'Aramak için yaz',
         })}
-        emptyDescription={privileged ? 'Üye ekle veya aramayı temizle.' : 'Aramayı temizle.'}
+        emptyDescription={
+          ready
+            ? privileged
+              ? 'Üye ekle veya aramayı değiştir.'
+              : 'Aramayı değiştir.'
+            : 'Ad, e-posta ya da okul mailinden en az 2 karakter.'
+        }
       >
         {paged.slice.map((u) => {
           const name = `${u.firstName} ${u.lastName}`.trim();
@@ -149,7 +158,8 @@ export default function UsersPage() {
                 await identityApi.createUser(values);
                 reset();
                 setCreating(false);
-                await load(query);
+                if (query === values.email) await load(query);
+                else setQuery(values.email);
               } catch (err) {
                 setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
               }
