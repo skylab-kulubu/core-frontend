@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { saveClass } from '@/components/chrome/SaveButton';
+import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
 import { eventsApi } from '@/lib/api/events';
 import {
   publicMediaUrl,
@@ -156,9 +157,9 @@ export function EventMediaFields({
       <div className="space-y-2">
         <FieldLabel>Kapak görseli</FieldLabel>
         {coverImageId ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             {urls[coverImageId] ? (
-              <img src={urls[coverImageId]} alt="" className="h-12 w-12 rounded-md object-cover" />
+              <EventCoverImage src={urls[coverImageId]} className="max-w-xs" />
             ) : (
               <span className="text-3xs text-subtle-foreground">{coverImageId}</span>
             )}

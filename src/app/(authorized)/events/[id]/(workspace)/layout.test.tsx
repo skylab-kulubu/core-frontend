@@ -14,6 +14,7 @@ import {
   primeEventWorkspace,
   renderEventTab,
   signInAs,
+  workspaceEvent,
   workspaceRouter,
 } from '@/test/event-workspace';
 
@@ -105,6 +106,23 @@ describe('Event workspace layout', () => {
     await screen.findByRole('heading', { name: 'GeceKodu' });
     await waitFor(() => expect(screen.getByRole('link', { name: 'Kapı' })).toBeInTheDocument());
     expect(tabNames()).toEqual(['Genel bakış', 'Program']);
+  });
+
+  it('shows the cover beside the title and whole on the overview, not cut to a strip', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      coverImageId: 'm1',
+      coverImageUrl: 'https://cdn.example/kapak.png',
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+
+    const headerCover = document.querySelector('[data-slot="page-header-cover"] img');
+    expect(headerCover).toHaveAttribute('src', 'https://cdn.example/kapak.png');
+    const overviewCover = document.querySelector('[data-slot="event-cover"] img');
+    expect(overviewCover).toHaveAttribute('src', 'https://cdn.example/kapak.png');
+    expect(overviewCover).toHaveClass('object-contain');
   });
 
   it('shows the competitor list to readers who cannot manage it once it has rows', async () => {
