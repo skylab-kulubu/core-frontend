@@ -5,6 +5,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { pickerMatch } from '@/lib/picker';
+import { PERSON_SEARCH_HINT, usePersonSearch } from './use-person-search';
 
 export function personLabel(person: Person): string {
   return `${person.firstName} ${person.lastName}`.trim() || person.email;
@@ -25,10 +26,8 @@ export function PersonPick({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [people, setPeople] = useState<Person[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
   const [picked, setPicked] = useState<Person | null>(null);
+  const { people, loading, failed, ready } = usePersonSearch(open, query, searchPeople);
 
   useEffect(() => {
     if (!valueId) {
@@ -53,24 +52,6 @@ export function PersonPick({
       cancelled = true;
     };
   }, [searchPeople, valueId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handle = window.setTimeout(
-      () => {
-        setLoading(true);
-        (searchPeople ?? identityApi.listUsers)(query)
-          .then((rows) => {
-            setPeople(rows);
-            setFailed(false);
-          })
-          .catch(() => setFailed(true))
-          .finally(() => setLoading(false));
-      },
-      query.trim() ? 250 : 0,
-    );
-    return () => window.clearTimeout(handle);
-  }, [open, query, searchPeople]);
 
   const selected = useMemo(() => {
     if (picked && picked.id === valueId) return picked;
@@ -109,7 +90,7 @@ export function PersonPick({
             title: personLabel(person),
             subtitle: person.email,
           }))}
-        emptyMessage="Kullanıcı yok"
+        emptyMessage={ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
         onPick={(id) => {
           const person = people.find((row) => row.id === id) ?? null;
           setPicked(person);

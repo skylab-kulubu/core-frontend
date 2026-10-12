@@ -23,7 +23,7 @@ import { ProblemError } from '@/lib/api/core';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { identityApi, type Person } from '@/lib/api/identity';
+import type { Person } from '@/lib/api/identity';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import type { EventSession } from '@/lib/api/sessions';
 import { teamsApi } from '@/lib/api/teams';
@@ -49,6 +49,7 @@ import {
   showsCompetitionTab,
 } from '@/lib/event-workspace';
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
+import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import {
   canAssignEventTicket,
@@ -217,16 +218,20 @@ export function EventWorkspace({
       ).flat();
       setDays(dayRows);
       setSessions(sessionRows);
-      setCompetitors(await competitorsApi.listByEvent(id).catch(() => []));
+      const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
+      setCompetitors(competitorRows);
       const ticketRows = canListEventTickets(groups, ev.ownerTeam, roles)
         ? await ticketsApi.listByEvent(id).catch(() => [] as Ticket[])
         : [];
       setTickets(ticketRows);
-      const directoryPeople = privileged ? await identityApi.listUsers().catch(() => []) : [];
-      const knownPeople = new Map(directoryPeople.map((person) => [person.id, person]));
-      for (const [personId, person] of ticketOwnerPeople(ticketRows)) {
-        knownPeople.set(personId, person);
-      }
+      // Tickets carry their owner; only competitors without a ticket are looked up by id.
+      const ticketPeople = ticketOwnerPeople(ticketRows);
+      const knownPeople = privileged
+        ? await lookupPeople(
+            competitorRows.map((row) => row.userId),
+            ticketPeople,
+          )
+        : ticketPeople;
       setPeople([...knownPeople.values()]);
       const teams = await teamsApi.list().catch(() => []);
       const leaderTeams = leaderOwnerTeams(groups);

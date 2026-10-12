@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Ban, Eye, RefreshCw, Send } from 'lucide-react';
+import { Ban, Eye, RefreshCw, RotateCcw, Send } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -11,6 +11,7 @@ import { Select } from '@/components/chrome/Select';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import {
   certificatesApi,
+  type CertificateBatch,
   type CertificateEventSummary,
   type CertificateTemplate,
   type IssuedCertificate,
@@ -27,6 +28,19 @@ const sourceLabel = (source: string | undefined, ownerTeam: string) => {
   }
   return 'SKY LAB varsayılanından geliyor';
 };
+
+const batchReasonLabel: Record<CertificateBatch['reason'], string> = {
+  finalization: 'Katılım kapatma',
+  manual: 'Manuel verme',
+  reissue: 'Yeniden verme',
+};
+
+/** Batches with failed jobs, newest first: what "Yeniden dene" can act on. */
+export function failedBatches(batches: readonly CertificateBatch[]): CertificateBatch[] {
+  return batches
+    .filter((batch) => batch.failedCount > 0)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 
 function ticketLabel(ticket: Ticket) {
   if (ticket.owner) return `${ticket.owner.firstName} ${ticket.owner.lastName}`.trim();
@@ -60,6 +74,8 @@ export function EventCertificatesPanel({
   const [summary, setSummary] = useState<CertificateEventSummary>();
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [issued, setIssued] = useState<IssuedCertificate[]>([]);
+  const [failed, setFailed] = useState<CertificateBatch[]>([]);
+  const [failedUnread, setFailedUnread] = useState(false);
   const [templateId, setTemplateId] = useState('');
   const [ticketId, setTicketId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -84,9 +100,17 @@ export function EventCertificatesPanel({
         canBind ? certificatesApi.templates() : Promise.resolve([]),
         canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
       ]);
+      // Only read the batches when something failed: retrying is what they are for here,
+      // and a failed read keeps the rest of the tab
+      const nextBatches =
+        canIssue && nextSummary.failedCount > 0
+          ? await certificatesApi.listBatches(eventId).catch(() => null)
+          : [];
       setSummary(nextSummary);
       setTemplates(nextTemplates);
       setIssued(nextIssued);
+      setFailed(failedBatches(nextBatches ?? []));
+      setFailedUnread(nextBatches === null);
       setTemplateId(nextSummary.resolution.template.id);
       setError(undefined);
     } catch (cause) {
@@ -98,7 +122,7 @@ export function EventCertificatesPanel({
 
   useEffect(() => {
     void load();
-  }, [canBind, canReadIssued, eventId]);
+  }, [canBind, canIssue, canReadIssued, eventId]);
 
   if (loading) {
     return (
@@ -209,6 +233,62 @@ export function EventCertificatesPanel({
             </div>
           </div>
         </>
+      ) : null}
+
+      {canIssue && (failed.length > 0 || failedUnread) ? (
+        <div className="space-y-3">
+          <p className="text-secondary-foreground text-sm font-semibold">Başarısız üretim işleri</p>
+          {failedUnread ? (
+            <p role="alert" className="text-destructive text-xs">
+              Başarısız üretim işleri okunamadı. Sayfayı yenileyip yeniden dene.
+            </p>
+          ) : null}
+          <ListPanel
+            status={listStatus({
+              loading: false,
+              rowCount: failed.length,
+              failed: failedUnread,
+              emptyMessage: 'Başarısız iş yok',
+            })}
+          >
+            {failed.map((batch) => (
+              <ListItem
+                key={batch.id}
+                title={`${batchReasonLabel[batch.reason] ?? batch.reason} · ${batch.totalCount} sertifika`}
+                subtitle={`${batch.issuedCount} verildi · ${batch.queuedCount} bekliyor · ${batch.failedCount} başarısız · ${new Date(batch.createdAt).toLocaleString('tr-TR')}`}
+                trailing={
+                  <ActionButton
+                    icon={RotateCcw}
+                    label="Yeniden dene"
+                    disabled={busy}
+                    onClick={async () => {
+                      if (
+                        !window.confirm(
+                          `${batch.failedCount} başarısız sertifika yeniden üretilsin mi?`,
+                        )
+                      )
+                        return;
+                      setBusy(true);
+                      try {
+                        await certificatesApi.retryBatch(batch.id);
+                        setMessage(
+                          `${batch.failedCount} başarısız sertifika yeniden kuyruğa alındı.`,
+                        );
+                        await load();
+                      } catch (cause) {
+                        setError(
+                          cause instanceof ProblemError ? cause.title : 'Yeniden denenemedi',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  />
+                }
+              />
+            ))}
+          </ListPanel>
+        </div>
       ) : null}
 
       {canBind || canIssue ? (

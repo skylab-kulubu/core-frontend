@@ -35,8 +35,6 @@ describe('filterSidebarNavForUser', () => {
       '/seasons',
       '/teams',
       '/qr',
-      '/competitors',
-      '/media',
       '/urls',
       '/certificates',
     ]);
@@ -56,8 +54,6 @@ describe('filterSidebarNavForUser', () => {
       '/dashboard',
       '/events',
       '/qr',
-      '/competitors',
-      '/media',
       '/certificates',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');

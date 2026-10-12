@@ -11,10 +11,16 @@ import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { identityApi, type Person } from '@/lib/api/identity';
+import type { Person } from '@/lib/api/identity';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import type { EventSession } from '@/lib/api/sessions';
-import { canListEventTickets, ticketApplicantName, ticketStatus } from '@/lib/tickets-ui';
+import { lookupPeople } from '@/lib/people-lookup';
+import {
+  canListEventTickets,
+  ticketApplicantName,
+  ticketOwnerPeople,
+  ticketStatus,
+} from '@/lib/tickets-ui';
 import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
 
 export default function TicketDetailPage({
@@ -39,21 +45,25 @@ export default function TicketDetailPage({
         if (!canListEventTickets(user?.groups ?? [], ev.ownerTeam)) {
           throw new ProblemError(403, 'Bu başvuruları görme yetkin yok');
         }
-        const [got, users, days] = await Promise.all([
+        const [got, days] = await Promise.all([
           ticketsApi.get(ticketId).catch(async () => {
             const rows = await ticketsApi.listByEvent(id);
             return rows.find((row) => row.id === ticketId) ?? null;
           }),
-          identityApi.listUsers().catch(() => []),
           eventDaysApi.listByEvent(id).catch(() => []),
         ]);
+        // The ticket carries its owner; GET /v1/users/{id} only if it does not.
+        const owners = await lookupPeople(
+          got?.ownerId ? [got.ownerId] : [],
+          ticketOwnerPeople(got ? [got] : []),
+        );
         const sessionRows = (
           await Promise.all(days.map((day) => eventDaysApi.listSessions(day.id).catch(() => [])))
         ).flat();
         if (cancelled) return;
         setEvent(ev);
         setTicket(got);
-        setPeople(users);
+        setPeople([...owners.values()]);
         setSessions(sessionRows);
         setError(got ? null : 'Başvuru bulunamadı');
       } catch (err) {
