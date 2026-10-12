@@ -22,6 +22,7 @@ import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type DoorEvent } from '@/lib/api/tickets';
 import {
+  ALREADY_CHECKED_IN,
   checkInSuccessLine,
   defaultDoorSessionId,
   doorSessionLabel,
@@ -260,7 +261,7 @@ export default function QrPage() {
             setError(null);
           } catch (err) {
             setSuccessLine(null);
-            setError(coreProblemMessage(err, 'Check-in yapılamadı'));
+            setError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
           }
         })}
       >

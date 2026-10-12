@@ -185,7 +185,7 @@ describe('coreProblemMessage for any core refusal', () => {
     [
       409,
       'Conflict',
-      'Kayıt şu anki durumunda buna uygun değil ya da başka bir kayıtla çakışıyor. Sayfayı yenileyip tekrar dene.',
+      'Kayıt şu anki durumunda buna uygun değil ya da aynı bilgilerle başka bir kayıt var.',
     ],
     [410, 'Gone', 'Kayıt artık yok.'],
     [422, 'Unprocessable Entity', 'Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.'],
@@ -268,5 +268,56 @@ describe('coreProblemMessage for any core refusal', () => {
         403: 'Bunu geri almaya yetkin yok.',
       }),
     ).toBe('Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.');
+  });
+
+  it("never shows core's detail on a server error: it can name internal paths and roles", () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(502, 'Bad Gateway', { detail: 'mail: POST /v1/lists/x status 500' }),
+        'x',
+      ),
+    ).toBe('Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.');
+    expect(
+      coreProblemMessage(
+        new ProblemError(503, 'Service Unavailable', {
+          detail: 'mail: lists forbidden — grant skymail:lists:write on core SA',
+        }),
+        'x',
+      ),
+    ).toBe('Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.');
+  });
+
+  it("treats core's RFC 9110 status names as saying nothing more", () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(422, 'Bad Request', { detail: 'Unprocessable Content' }),
+        'x',
+      ),
+    ).toBe('Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.');
+    expect(
+      coreProblemMessage(
+        new ProblemError(400, 'Bad Request', { detail: 'Content Too Large' }),
+        'x',
+      ),
+    ).toBe('İstek geçersiz. Girdiklerini denetleyip tekrar dene.');
+  });
+
+  it.each([
+    ['ytu_managed_field', 409, 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.'],
+    [
+      'invalid_name',
+      422,
+      'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
+    ],
+    ['reserved_name', 422, 'Bu grup adı ayrılmış; başka bir ad seç.'],
+    ['name_taken', 409, 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.'],
+    ['privileged_root', 409, 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.'],
+  ])('says %s in Turkish', (code, status, message) => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(status, 'Conflict', { code, detail: 'An English sentence.' }),
+        'x',
+      ),
+    ).toBe(message);
   });
 });

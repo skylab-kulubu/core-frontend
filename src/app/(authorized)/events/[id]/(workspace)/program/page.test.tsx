@@ -255,4 +255,21 @@ describe('Event Program tab days and sessions', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Kişi bulunamadı');
   });
+
+  it('says the person is already in when core refuses a second check-in', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
+    );
+    await renderProgram();
+    const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
+    await user.click(deskButtons[deskButtons.length - 1]);
+    const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
+    await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Ada Lovelace');
+    await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu kişi bu oturuma zaten girmiş.',
+    );
+  });
 });

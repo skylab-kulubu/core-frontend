@@ -82,6 +82,13 @@ const CODE_MESSAGES: Record<string, string> = {
   session_closed: 'Bu oturum şu an girişe açık değil.',
   event_managed: 'Bu kısa link bir etkinliğe ait; etkinliğin sayfasından değiştir.',
   managed: 'Bu kısa link sistem tarafından yönetiliyor; buradan değiştirilemez.',
+  ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
+  // Group name refusals (core teamcode)
+  invalid_name:
+    'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
+  reserved_name: 'Bu grup adı ayrılmış; başka bir ad seç.',
+  name_taken: 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.',
+  privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
 };
 
 /** core's own English titles that carry meaning but no code. */
@@ -99,7 +106,7 @@ const STATUS_MESSAGES: Record<number, string> = {
   401: 'Oturumun sona ermiş. Sayfayı yenileyip yeniden giriş yap.',
   403: 'Bu işlem için yetkin yok.',
   404: 'Kayıt bulunamadı; silinmiş olabilir.',
-  409: 'Kayıt şu anki durumunda buna uygun değil ya da başka bir kayıtla çakışıyor. Sayfayı yenileyip tekrar dene.',
+  409: 'Kayıt şu anki durumunda buna uygun değil ya da aynı bilgilerle başka bir kayıt var.',
   410: 'Kayıt artık yok.',
   422: 'Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.',
   429: 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.',
@@ -117,8 +124,10 @@ const REASON_PHRASES = new Set(
     'Gone',
     'Request Entity Too Large',
     'Payload Too Large',
+    'Content Too Large',
     'Unsupported Media Type',
     'Unprocessable Entity',
+    'Unprocessable Content',
     'Too Many Requests',
     'Internal Server Error',
     'Bad Gateway',
@@ -127,8 +136,12 @@ const REASON_PHRASES = new Set(
   ].map((phrase) => phrase.toLowerCase()),
 );
 
-/** core's detail, when it says more than the title or the status's English name. */
+/**
+ * core's detail, when it says more than the title or the status's English name.
+ * Never on a server error: there it can name internal paths and roles.
+ */
 function informativeDetail(error: ProblemError): string | undefined {
+  if (error.status >= 500) return undefined;
   const detail = error.detail?.trim();
   if (!detail || detail === error.title.trim()) return undefined;
   if (REASON_PHRASES.has(detail.toLowerCase())) return undefined;

@@ -8,7 +8,7 @@ import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
-import { checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
+import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
 import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -69,7 +69,7 @@ export default function EventParticipantsPage() {
                   );
                   await reload();
                 } catch (err) {
-                  setError(coreProblemMessage(err, 'Check-in yapılamadı'));
+                  setError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
                 }
               }
             : undefined

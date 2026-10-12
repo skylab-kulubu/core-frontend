@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
+import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import { guestTicket, primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
@@ -111,5 +112,20 @@ describe('Event Katılımcılar tab', () => {
     await waitFor(() => expect(ticketsApi.checkIn).toHaveBeenCalledWith('t-guest', 's1'));
     expect(await screen.findByText(/^Ada Lovelace · Açılış · /)).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Check-in sonucu' })).not.toBeInTheDocument();
+  });
+
+  it('says the person is already in when core refuses a second row check-in', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+    (ticketsApi.checkIn as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
+    );
+
+    await renderParticipants();
+    await user.click((await screen.findAllByRole('button', { name: 'Katıldı · Açılış' }))[0]);
+
+    const said = await screen.findByText('Bu kişi bu oturuma zaten girmiş.');
+    expect(said).toHaveAttribute('role', 'alert');
   });
 });

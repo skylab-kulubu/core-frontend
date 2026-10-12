@@ -33,7 +33,7 @@ import {
 } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
-import { checkInSuccessLine } from '@/lib/door-check-in';
+import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
 import { listStatus } from '@/lib/list-status';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -545,7 +545,7 @@ export default function EventProgramPage() {
                 setCheckInSession(null);
                 await reload();
               } catch (err) {
-                setDeskError(coreProblemMessage(err, 'Check-in yapılamadı'));
+                setDeskError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
               }
             })}
           >
