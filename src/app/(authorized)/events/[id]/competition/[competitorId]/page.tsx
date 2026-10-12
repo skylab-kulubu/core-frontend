@@ -14,6 +14,7 @@ import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
 import { eventTabHref } from '@/lib/event-workspace';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function EditCompetitorPage({
   params,
@@ -30,6 +31,9 @@ export default function EditCompetitorPage({
   const [score, setScore] = useState('');
   const [isWinner, setIsWinner] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed save or delete keeps the form; `error` is for a competitor that cannot load
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const notify = useNotify();
 
   useEffect(() => {
     competitorsApi
@@ -66,6 +70,7 @@ export default function EditCompetitorPage({
           e.preventDefault();
           if (!canManage || !userId) return;
           const parsed = score.trim() === '' ? undefined : Number(score);
+          setSaveError(null);
           try {
             await competitorsApi.update(id, {
               userId,
@@ -73,9 +78,10 @@ export default function EditCompetitorPage({
               score: parsed,
               isWinner,
             });
+            notify.success('Yarışmacı kaydedildi');
             router.push(back);
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
+            setSaveError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
           }
         }}
       >
@@ -85,6 +91,11 @@ export default function EditCompetitorPage({
           <Field type="number" value={score} onChange={(e) => setScore(e.target.value)} />
         </label>
         <Switch checked={isWinner} onChange={setIsWinner} label="Kazanan" />
+        {saveError ? (
+          <p role="alert" className="text-destructive text-sm">
+            {saveError}
+          </p>
+        ) : null}
         {canManage ? (
           <div className="flex gap-2">
             <SaveButton>Kaydet</SaveButton>
@@ -92,8 +103,14 @@ export default function EditCompetitorPage({
               type="button"
               className="text-2xs border-border text-destructive h-8 rounded-md border px-3 font-medium"
               onClick={async () => {
-                await competitorsApi.delete(id);
-                router.push(back);
+                setSaveError(null);
+                try {
+                  await competitorsApi.delete(id);
+                  notify.success('Yarışmacı silindi');
+                  router.push(back);
+                } catch (err) {
+                  setSaveError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                }
               }}
             >
               Sil

@@ -179,6 +179,30 @@ describe('Event workspace layout', () => {
     expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
   });
 
+  it('says the event was saved from the edit drawer', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    (saveEventWithSeason as jest.Mock).mockResolvedValueOnce('e1');
+    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
+  });
+
+  it('says the event was deleted', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    (eventsApi.delete as jest.Mock).mockResolvedValueOnce(undefined);
+    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    await waitFor(() => expect(workspaceRouter.push).toHaveBeenCalledWith('/events'));
+    expect(await screen.findByText('Etkinlik silindi')).toBeInTheDocument();
+  });
+
   it('shows a refused save inside the edit drawer', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);

@@ -80,6 +80,7 @@ describe('Yeni etkinlik', () => {
     await user.click(saveButton);
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/events/e-new'));
+    expect(await screen.findByText('Etkinlik oluşturuldu')).toBeInTheDocument();
     expect(save).toHaveBeenLastCalledWith(
       expect.objectContaining({ imageIds: ['g1', 'g2'] }),
       'e-new',

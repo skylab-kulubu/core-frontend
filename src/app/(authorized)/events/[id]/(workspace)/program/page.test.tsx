@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
+import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { sessionsApi } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
@@ -131,5 +132,70 @@ describe('Event Program tab days and sessions', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(sessionsApi.create).not.toHaveBeenCalled();
     expect(within(dialog).getByText('Başlık zorunlu')).toBeInTheDocument();
+  });
+
+  it('says the day was added once the drawer closes', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (eventDaysApi.create as jest.Mock).mockResolvedValue({ id: 'd2' });
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Gün ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Gün ekle' });
+    await user.type(within(dialog).getByLabelText('Gün adı'), 'Gün 2');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Gün eklendi')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Gün ekle' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('shows a session save error inside the open drawer, not behind it', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.create as jest.Mock).mockRejectedValue(
+      new ProblemError(422, 'Oturum saati gün aralığının dışında'),
+    );
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturum ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Oturum ekle' });
+    await user.type(within(dialog).getByLabelText('Başlık'), 'Hatalı');
+    await user.type(within(dialog).getByLabelText('Konuşmacı'), 'Kişi');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Oturum saati gün aralığının dışında',
+    );
+    expect(screen.queryByText('Oturum eklendi')).not.toBeInTheDocument();
+  });
+
+  it('says the session was saved and deleted', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.update as jest.Mock).mockResolvedValue({});
+    (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByText('Oturum kaydedildi')).toBeInTheDocument();
+
+    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
+    expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
+  });
+
+  it('shows a check-in error inside the Katıldı drawer', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
+      new ProblemError(404, 'Kişi bulunamadı'),
+    );
+    await renderProgram();
+    const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
+    await user.click(deskButtons[deskButtons.length - 1]);
+    const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
+    await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Yok Kişi');
+    await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Kişi bulunamadı');
   });
 });

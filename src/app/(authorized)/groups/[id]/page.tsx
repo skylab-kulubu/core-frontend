@@ -23,6 +23,7 @@ import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function GroupDetailPage() {
   const params = useParams<{ id: string }>();
@@ -43,6 +44,8 @@ export default function GroupDetailPage() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerFailed, setPickerFailed] = useState(false);
   const memberSearch = usePersonSearch(memberOpen, memberQuery);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const notify = useNotify();
 
   async function load() {
     try {
@@ -100,7 +103,11 @@ export default function GroupDetailPage() {
         description={group?.path}
         meta={<span className="text-2xs text-subtle-foreground">{members.length} üye</span>}
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
 
       {group ? (
         <GroupProfile
@@ -108,6 +115,7 @@ export default function GroupDetailPage() {
           onSave={async (next) => {
             try {
               await identityApi.updateGroup(id, next);
+              notify.success('Grup kaydedildi');
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
@@ -127,6 +135,7 @@ export default function GroupDetailPage() {
               label="Üye ekle"
               onClick={() => {
                 setMemberQuery('');
+                setPickError(null);
                 setMemberOpen(true);
               }}
             />
@@ -164,6 +173,7 @@ export default function GroupDetailPage() {
                     onClick={async () => {
                       try {
                         await identityApi.removeMember(id, m.id);
+                        notify.success('Üye çıkarıldı');
                         await load();
                       } catch (err) {
                         setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
@@ -187,6 +197,7 @@ export default function GroupDetailPage() {
               label="Rol ekle"
               onClick={async () => {
                 setRoleQuery('');
+                setPickError(null);
                 setRoleOpen(true);
                 setPickerLoading(true);
                 try {
@@ -224,6 +235,7 @@ export default function GroupDetailPage() {
                         id,
                         roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
                       );
+                      notify.success('Rol kaldırıldı');
                       await load();
                     } catch (err) {
                       setError(err instanceof ProblemError ? err.title : 'Rol kaldırılamadı');
@@ -263,6 +275,7 @@ export default function GroupDetailPage() {
                       const next = { ...(group?.attributes ?? {}) };
                       delete next[k];
                       await identityApi.updateGroup(id, { attributes: next });
+                      notify.success('Öznitelik kaldırıldı');
                       await load();
                     } catch (err) {
                       setError(err instanceof ProblemError ? err.title : 'Öznitelik kaldırılamadı');
@@ -288,6 +301,7 @@ export default function GroupDetailPage() {
               });
               setAttrKey('');
               setAttrValue('');
+              notify.success('Öznitelik eklendi');
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Öznitelik eklenemedi');
@@ -321,13 +335,16 @@ export default function GroupDetailPage() {
         failed={memberSearch.failed}
         options={memberOptions}
         emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
+        error={pickError}
         onPick={async (userId) => {
+          setPickError(null);
           try {
             await identityApi.addMember(id, userId);
             setMemberOpen(false);
+            notify.success('Üye eklendi');
             await load();
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Üye eklenemedi');
+            setPickError(err instanceof ProblemError ? err.title : 'Üye eklenemedi');
           }
         }}
       />
@@ -342,15 +359,18 @@ export default function GroupDetailPage() {
         failed={pickerFailed}
         options={roleOptions}
         emptyMessage="Rol yok"
+        error={pickError}
         onPick={async (picked) => {
           const role = catalog.find((row) => roleKey(row) === picked);
           if (!role) return;
+          setPickError(null);
           try {
             await identityApi.setGroupRoles(id, [...roles, role]);
             setRoleOpen(false);
+            notify.success('Rol eklendi');
             await load();
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Rol eklenemedi');
+            setPickError(err instanceof ProblemError ? err.title : 'Rol eklenemedi');
           }
         }}
       />

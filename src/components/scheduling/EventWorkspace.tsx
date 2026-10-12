@@ -51,6 +51,7 @@ import {
 import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { useNotify } from '@/lib/ui/use-notify';
 import {
   canAssignEventTicket,
   canDeskCheckIn,
@@ -165,6 +166,7 @@ export function EventWorkspace({
   const [mailing, setMailing] = useState(false);
   const [deskNote, setDeskNote] = useState<string | null>(null);
   const [doorAccess, setDoorAccess] = useState(false);
+  const notify = useNotify();
   const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
@@ -338,6 +340,7 @@ export function EventWorkspace({
                     if (!window.confirm('Bu etkinliği silmek istediğine emin misin?')) return;
                     try {
                       await eventsApi.delete(event.id);
+                      notify.success('Etkinlik silindi');
                       router.push('/events');
                     } catch (err) {
                       setError(err instanceof ProblemError ? err.title : 'Silinemedi');
@@ -388,6 +391,7 @@ export function EventWorkspace({
                   clearEventDraft(sessionStorage, window.location.href);
                 }
                 setEditing(false);
+                notify.success('Etkinlik kaydedildi');
                 await load();
               } catch (err) {
                 setEditError(coreProblemMessage(err, 'Kaydedilemedi'));

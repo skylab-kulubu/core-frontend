@@ -24,6 +24,7 @@ export function PickerDrawer({
   options,
   emptyMessage,
   onPick,
+  error,
 }: {
   open: boolean;
   onClose: () => void;
@@ -36,6 +37,8 @@ export function PickerDrawer({
   options: PickerOption[];
   emptyMessage: string;
   onPick: (id: string) => void;
+  /** Why the last pick failed, shown inside the drawer above the list. */
+  error?: string | null;
 }) {
   return (
     <Drawer open={open} onClose={onClose} title={title}>
@@ -46,6 +49,11 @@ export function PickerDrawer({
         placeholder={placeholder}
         autoFocus
       />
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <ListPanel
         status={listStatus({
           loading,
