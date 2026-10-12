@@ -19,7 +19,9 @@ describe('doorQrFailure', () => {
       15,
     );
     expect(failure).toMatchObject({ hideQr: true, retryAfterSeconds: 30 });
-    expect(failure.message).toMatch(/Oturum şu an açık değil/);
+    expect(failure.message).toBe(
+      'Oturum şu an açık değil; misafir QR’ı oturumdan 12 saat önce açılır, bitişinden 12 saat sonra kapanır.',
+    );
   });
 
   it('stops for good when the person is not door staff', () => {

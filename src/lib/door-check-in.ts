@@ -2,6 +2,7 @@ import { personLabel } from '@/components/identity/PersonPick';
 import type { Person } from '@/lib/api/identity';
 import type { EventSession } from '@/lib/api/sessions';
 import type { Ticket } from '@/lib/api/tickets';
+import { DOOR_GUEST_QR_WINDOW_HOURS } from '@/lib/door-qr';
 import { ticketApplicantName, formatApplicantWhen } from '@/lib/tickets-ui';
 
 /** What the door needs to know about a session to pick and show it. */
@@ -93,8 +94,22 @@ export function doorSessionTiming(
     const parts = istanbulParts(ms);
     return parts.day === istanbulParts(at).day ? parts.time : `${parts.date} ${parts.time}`;
   };
-  if (start > at) return `Bu oturum henüz başlamadı (başlangıç ${clock(start)}).`;
-  if (end <= at) return `Bu oturum bitti (bitiş ${clock(end)}).`;
+  // The guest QR's window (core's session grace); staff check-ins are never time-limited.
+  const windowMs = DOOR_GUEST_QR_WINDOW_HOURS * 3600_000;
+  if (start > at) {
+    const qr =
+      start - windowMs <= at
+        ? 'misafir QR’ı şimdiden açık'
+        : `misafir QR’ı başlangıçtan ${DOOR_GUEST_QR_WINDOW_HOURS} saat önce açılır`;
+    return `Bu oturum henüz başlamadı (başlangıç ${clock(start)}); ${qr}.`;
+  }
+  if (end <= at) {
+    const qr =
+      at <= end + windowMs
+        ? `misafir QR’ı bitişten ${DOOR_GUEST_QR_WINDOW_HOURS} saat sonrasına kadar açık`
+        : 'misafir QR’ı kapandı';
+    return `Bu oturum bitti (bitiş ${clock(end)}); ${qr}.`;
+  }
   return null;
 }
 
