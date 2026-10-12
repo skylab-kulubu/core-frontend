@@ -184,21 +184,18 @@ export default function EventProgramPage() {
                         description: `Gün, oturumlarıyla birlikte programdan kalkar. ${UNDO_HINT}`,
                         actionLabel: 'Günü sil',
                         onConfirm: async () => {
-                          try {
-                            await eventDaysApi.delete(day.id);
-                            notify.undoable(
-                              'Gün silindi',
-                              async () => {
-                                await eventDaysApi.restore(day.id);
-                                void reload();
-                              },
-                              'Gün geri alındı',
-                            );
-                            await reload();
-                          } catch (err) {
-                            setError(coreProblemMessage(err, 'Gün silinemedi'));
-                          }
+                          await eventDaysApi.delete(day.id);
+                          notify.undoable(
+                            'Gün silindi',
+                            async () => {
+                              await eventDaysApi.restore(day.id);
+                              void reload();
+                            },
+                            'Gün geri alındı',
+                          );
+                          await reload();
                         },
+                        failure: 'Gün silinemedi',
                       })
                     }
                   />
@@ -467,23 +464,19 @@ export default function EventProgramPage() {
                   description: `Oturum programdan kalkar. ${UNDO_HINT}`,
                   actionLabel: 'Oturumu sil',
                   onConfirm: async () => {
-                    setSessionError(null);
-                    try {
-                      await sessionsApi.delete(id);
-                      setSessionOpen(false);
-                      notify.undoable(
-                        'Oturum silindi',
-                        async () => {
-                          await sessionsApi.restore(id);
-                          void reload();
-                        },
-                        'Oturum geri alındı',
-                      );
-                      await reload();
-                    } catch (err) {
-                      setSessionError(coreProblemMessage(err, 'Oturum silinemedi'));
-                    }
+                    await sessionsApi.delete(id);
+                    setSessionOpen(false);
+                    notify.undoable(
+                      'Oturum silindi',
+                      async () => {
+                        await sessionsApi.restore(id);
+                        void reload();
+                      },
+                      'Oturum geri alındı',
+                    );
+                    await reload();
                   },
+                  failure: 'Oturum silinemedi',
                 });
               }}
             >

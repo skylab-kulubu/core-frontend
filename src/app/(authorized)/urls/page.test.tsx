@@ -139,13 +139,46 @@ describe('Kısa URL feedback', () => {
     expect(await screen.findByText('Kısa link oluşturuldu')).toBeInTheDocument();
   });
 
-  it('says the link was deleted and copied', async () => {
+  it('copies in place with a tick, not a toast', async () => {
+    const clicker = userEvent.setup();
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Kopyala' }));
+    expect(await screen.findByRole('button', { name: 'Kopyalandı' })).toBeInTheDocument();
+    await expect(navigator.clipboard.readText()).resolves.toBe('https://skyl.app/hack');
+    expect(screen.queryByText('Kısa link kopyalandı')).not.toBeInTheDocument();
+  });
+
+  it('keeps the question open while deleting and says a refusal inside it, in Turkish', async () => {
+    const clicker = userEvent.setup();
+    let refuse: (err: unknown) => void = () => {};
+    (urlsApi.remove as jest.Mock).mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await clicker.click(within(dialog).getByRole('button', { name: 'Linki sil' }));
+    expect(within(dialog).getByRole('button', { name: 'Linki sil' })).toBeDisabled();
+
+    refuse(
+      new ProblemError(409, 'Conflict', {
+        detail: 'short url is referenced by event e-hack and cannot be deleted',
+      }),
+    );
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Kayıt şu anki durumunda buna uygun değil');
+    expect(document.body).not.toHaveTextContent(/referenced by event|Conflict/);
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(screen.queryByText('Kısa link silindi')).not.toBeInTheDocument();
+  });
+
+  it('says the link was deleted', async () => {
     const clicker = userEvent.setup();
     (urlsApi.remove as jest.Mock).mockResolvedValue(undefined);
     render(<UrlsPage />);
-    await clicker.click(await screen.findByRole('button', { name: 'Kopyala' }));
-    expect(await screen.findByText('Kısa link kopyalandı')).toBeInTheDocument();
-    await clicker.click(screen.getByRole('button', { name: 'Sil' }));
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
     const confirm = await screen.findByRole('alertdialog', {
       name: 'https://skyl.app/hack silinsin mi?',
     });
@@ -173,13 +206,13 @@ describe('Kısa URL feedback', () => {
 
   it('shows an edit error inside the open drawer', async () => {
     const clicker = userEvent.setup();
-    (urlsApi.update as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu kısa ad alınmış' }),
-    );
+    (urlsApi.update as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
     render(<UrlsPage />);
     await clicker.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
     await clicker.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu kısa ad alınmış');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu kısa ad alınmış; başka bir ad seç.',
+    );
   });
 });

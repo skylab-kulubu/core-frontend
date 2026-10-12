@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import CertificateDefaultsPage from '@/app/(authorized)/certificates/defaults/page';
 import { certificatesApi } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 
 const mockAuth = { user: { id: 'yk', groups: ['/UYELER/YK'], roles: [] } };
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
@@ -50,5 +51,25 @@ describe('Certificate defaults: remove a team default', () => {
     await waitFor(() =>
       expect(certificatesApi.clearBinding).toHaveBeenCalledWith('ownerTeam', 'GECEKODU'),
     );
+    // A finished write is a toast, not a status line on the page
+    expect(
+      await screen.findByText('GECEKODU varsayılanı kaldırıldı; SKY LAB varsayılanı geçerli.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('says a refused removal inside the dialog, which stays open', async () => {
+    const user = userEvent.setup();
+    (certificatesApi.clearBinding as jest.Mock).mockRejectedValue(
+      new ProblemError(403, 'Forbidden', { detail: 'missing role certificate:bind' }),
+    );
+    render(<CertificateDefaultsPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ekip varsayılanını kaldır' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Varsayılanı kaldır' }));
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+      'Bu işlem için yetkin yok.',
+    );
+    expect(confirm).not.toHaveTextContent(/Forbidden|missing role/);
   });
 });

@@ -255,23 +255,19 @@ export default function SeasonsPage() {
                   description: `Sezon listeden kalkar. ${UNDO_HINT}`,
                   actionLabel: 'Sezonu sil',
                   onConfirm: async () => {
-                    setFormError(null);
-                    try {
-                      await seasonsApi.delete(id);
-                      setOpen(false);
-                      notify.undoable(
-                        'Sezon silindi',
-                        async () => {
-                          await seasonsApi.restore(id);
-                          void load();
-                        },
-                        'Sezon geri alındı',
-                      );
-                      await load();
-                    } catch (err) {
-                      setFormError(coreProblemMessage(err, 'Silinemedi'));
-                    }
+                    await seasonsApi.delete(id);
+                    setOpen(false);
+                    notify.undoable(
+                      'Sezon silindi',
+                      async () => {
+                        await seasonsApi.restore(id);
+                        void load();
+                      },
+                      'Sezon geri alındı',
+                    );
+                    await load();
                   },
+                  failure: 'Sezon silinemedi',
                 });
               }}
             >

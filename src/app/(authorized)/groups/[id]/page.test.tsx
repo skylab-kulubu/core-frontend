@@ -77,14 +77,14 @@ describe('Group detail feedback', () => {
   it('shows an add-member error inside the open picker', async () => {
     const user = userEvent.setup();
     (identityApi.addMember as jest.Mock).mockRejectedValue(
-      new ProblemError(403, 'Forbidden', { detail: 'Yetkin yok' }),
+      new ProblemError(403, 'Forbidden', { detail: 'missing role' }),
     );
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: 'Ada L' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Yetkin yok');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
   });
 
   it('says the member was removed', async () => {

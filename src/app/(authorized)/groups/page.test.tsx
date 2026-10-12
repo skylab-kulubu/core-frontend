@@ -37,9 +37,11 @@ describe('Groups page feedback', () => {
 
   it('shows a create error inside the open drawer', async () => {
     (identityApi.createGroup as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu adla bir grup var' }),
+      new ProblemError(409, 'Conflict', { detail: 'group exists' }),
     );
     const dialog = await createGroup('WEBLAB');
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu adla bir grup var');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt şu anki durumunda buna uygun değil',
+    );
   });
 });

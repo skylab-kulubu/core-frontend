@@ -154,7 +154,7 @@ describe('Event Program tab days and sessions', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (sessionsApi.create as jest.Mock).mockRejectedValue(
       new ProblemError(422, 'Unprocessable Content', {
-        detail: 'Oturum saati gün aralığının dışında',
+        detail: 'session start is outside its day',
       }),
     );
     await renderProgram();
@@ -164,8 +164,9 @@ describe('Event Program tab days and sessions', () => {
     await user.type(within(dialog).getByLabelText('Konuşmacı'), 'Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Oturum saati gün aralığının dışında',
+      'Gönderilen bilgiler geçersiz.',
     );
+    expect(dialog).not.toHaveTextContent('outside its day');
     expect(screen.queryByText('Oturum eklendi')).not.toBeInTheDocument();
   });
 
@@ -245,7 +246,7 @@ describe('Event Program tab days and sessions', () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
-      new ProblemError(404, 'Not Found', { detail: 'Kişi bulunamadı' }),
+      new ProblemError(404, 'Not Found', { detail: 'no ticket for person' }),
     );
     await renderProgram();
     const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
@@ -253,7 +254,9 @@ describe('Event Program tab days and sessions', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Yok Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Kişi bulunamadı');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt bulunamadı; silinmiş olabilir.',
+    );
   });
 
   it('says the person is already in when core refuses a second check-in', async () => {

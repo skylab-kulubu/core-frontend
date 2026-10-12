@@ -112,42 +112,6 @@ const STATUS_MESSAGES: Record<number, string> = {
   429: 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.',
 };
 
-/** The English reason phrases core and proxies put in `title`; they say nothing the status does not. */
-const REASON_PHRASES = new Set(
-  [
-    'Bad Request',
-    'Unauthorized',
-    'Forbidden',
-    'Not Found',
-    'Method Not Allowed',
-    'Conflict',
-    'Gone',
-    'Request Entity Too Large',
-    'Payload Too Large',
-    'Content Too Large',
-    'Unsupported Media Type',
-    'Unprocessable Entity',
-    'Unprocessable Content',
-    'Too Many Requests',
-    'Internal Server Error',
-    'Bad Gateway',
-    'Service Unavailable',
-    'Gateway Timeout',
-  ].map((phrase) => phrase.toLowerCase()),
-);
-
-/**
- * core's detail, when it says more than the title or the status's English name.
- * Never on a server error: there it can name internal paths and roles.
- */
-function informativeDetail(error: ProblemError): string | undefined {
-  if (error.status >= 500) return undefined;
-  const detail = error.detail?.trim();
-  if (!detail || detail === error.title.trim()) return undefined;
-  if (REASON_PHRASES.has(detail.toLowerCase())) return undefined;
-  return detail;
-}
-
 /** Whether `fetch` itself failed (offline, DNS, CORS): browsers throw a TypeError with these words. */
 function isNetworkFailure(error: unknown): boolean {
   return (
@@ -158,10 +122,11 @@ function isNetworkFailure(error: unknown): boolean {
 /**
  * A Turkish sentence for a failed core call, for every place the panel shows
  * one: a known code (media refusals, door, short links) in its own words;
- * otherwise core's detail when it says more than the status; otherwise the
- * status in Turkish (`statusText` lets a caller word one for its own action).
- * A network failure says the server could not be reached; anything else is
- * the caller's `fallback`.
+ * otherwise the status in Turkish (`statusText` lets a caller word one for its
+ * own action). core's title and detail are English and never shown: a refusal
+ * without a Turkish sentence of its own gets the status's or the caller's
+ * general text. A network failure says the server could not be reached;
+ * anything else is the caller's `fallback`.
  */
 export function coreProblemMessage(
   error: unknown,
@@ -220,7 +185,6 @@ export function coreProblemMessage(
       if (error.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code];
       if (TITLE_MESSAGES[error.title]) return TITLE_MESSAGES[error.title];
       return (
-        informativeDetail(error) ??
         statusText[error.status] ??
         STATUS_MESSAGES[error.status] ??
         (error.status >= 500 ? SERVER_FAILED : fallback)

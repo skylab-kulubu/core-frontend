@@ -118,26 +118,22 @@ export default function EditCompetitorPage({
                     : 'Yarışma listesinden kalkar. Etkinlik aktif olmadığı için geri alınamaz.',
                   actionLabel: 'Yarışmacıyı sil',
                   onConfirm: async () => {
-                    setSaveError(null);
-                    try {
-                      await competitorsApi.delete(id);
-                      if (undoable) {
-                        notify.undoable(
-                          'Yarışmacı silindi',
-                          async () => {
-                            await competitorsApi.reinstate(id);
-                            router.push(`${back}/${encodeURIComponent(id)}`);
-                          },
-                          'Yarışmacı geri alındı',
-                        );
-                      } else {
-                        notify.success('Yarışmacı silindi');
-                      }
-                      router.push(back);
-                    } catch (err) {
-                      setSaveError(coreProblemMessage(err, 'Silinemedi'));
+                    await competitorsApi.delete(id);
+                    if (undoable) {
+                      notify.undoable(
+                        'Yarışmacı silindi',
+                        async () => {
+                          await competitorsApi.reinstate(id);
+                          router.push(`${back}/${encodeURIComponent(id)}`);
+                        },
+                        'Yarışmacı geri alındı',
+                      );
+                    } else {
+                      notify.success('Yarışmacı silindi');
                     }
+                    router.push(back);
                   },
+                  failure: 'Yarışmacı silinemedi',
                 });
               }}
             >

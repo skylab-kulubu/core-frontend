@@ -54,13 +54,15 @@ describe('Seasons page', () => {
   it('shows a save error inside the open drawer and keeps the list', async () => {
     const user = userEvent.setup();
     (seasonsApi.update as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu ad kullanılıyor' }),
+      new ProblemError(409, 'Conflict', { detail: 'season name exists' }),
     );
     render(<SeasonsPage />);
     await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu ad kullanılıyor');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt şu anki durumunda buna uygun değil',
+    );
     expect(screen.getByText('2026-2027')).toBeInTheDocument();
   });
 
