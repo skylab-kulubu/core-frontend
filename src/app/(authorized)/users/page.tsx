@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -53,14 +53,21 @@ export default function UsersPage() {
     defaultValues: { firstName: '', lastName: '', email: '' },
   });
 
+  // Only the latest search may write the list: an older, slower answer is dropped
+  const latestSearch = useRef(0);
+
   async function load(q: string) {
+    const search = ++latestSearch.current;
     try {
-      setUsers(await identityApi.listUsers(q));
+      const rows = await identityApi.listUsers(q);
+      if (search !== latestSearch.current) return;
+      setUsers(rows);
       setError(null);
     } catch (err) {
+      if (search !== latestSearch.current) return;
       setError(err instanceof ProblemError ? err.title : 'Kullanıcılar yüklenemedi');
     } finally {
-      setLoading(false);
+      if (search === latestSearch.current) setLoading(false);
     }
   }
 
@@ -68,8 +75,10 @@ export default function UsersPage() {
   const ready = personSearchReady(query);
 
   useEffect(() => {
+    latestSearch.current += 1;
     if (!ready) {
       setUsers([]);
+      setError(null);
       setLoading(false);
       return;
     }

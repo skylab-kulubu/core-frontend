@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UsersPage from '@/app/(authorized)/users/page';
@@ -79,5 +79,68 @@ describe('Users page', () => {
     await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalledWith('ada@example.com'));
+  });
+
+  describe('with slow answers', () => {
+    const person = (id: string, firstName: string) => ({
+      id,
+      email: `${id}@example.com`,
+      firstName,
+      lastName: 'K',
+    });
+
+    function deferredSearches() {
+      const pending = new Map<string, (rows: unknown[]) => void>();
+      (identityApi.listUsers as jest.Mock).mockImplementation(
+        (q: string) => new Promise((resolve) => pending.set(q, resolve)),
+      );
+      return pending;
+    }
+
+    it('keeps the latest search when an older answer arrives after it', async () => {
+      const user = userEvent.setup();
+      const pending = deferredSearches();
+      render(<UsersPage />);
+      const box = screen.getByRole('searchbox', { name: 'Kullanıcı ara' });
+
+      await user.type(box, 'ab');
+      await waitFor(() => expect(pending.has('ab')).toBe(true));
+      await user.type(box, 'c');
+      await waitFor(() => expect(pending.has('abc')).toBe(true));
+
+      await act(async () => pending.get('abc')?.([person('u-new', 'Abc')]));
+      await act(async () => pending.get('ab')?.([person('u-old', 'Ab')]));
+
+      expect(screen.getByRole('link', { name: /Abc K/ })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /^Ab K/ })).not.toBeInTheDocument();
+    });
+
+    it('does not bring rows back after the box is cleared', async () => {
+      const user = userEvent.setup();
+      const pending = deferredSearches();
+      render(<UsersPage />);
+      const box = screen.getByRole('searchbox', { name: 'Kullanıcı ara' });
+
+      await user.type(box, 'ab');
+      await waitFor(() => expect(pending.has('ab')).toBe(true));
+      await user.clear(box);
+      await act(async () => pending.get('ab')?.([person('u-old', 'Ab')]));
+
+      expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /Ab K/ })).not.toBeInTheDocument();
+    });
+
+    it('drops a failed search once the box is cleared', async () => {
+      const user = userEvent.setup();
+      (identityApi.listUsers as jest.Mock).mockRejectedValue(new Error('down'));
+      render(<UsersPage />);
+      const box = screen.getByRole('searchbox', { name: 'Kullanıcı ara' });
+
+      await user.type(box, 'ab');
+      expect(await screen.findByText('Kullanıcılar yüklenemedi')).toBeInTheDocument();
+      await user.clear(box);
+      expect(screen.queryByText('Kullanıcılar yüklenemedi')).not.toBeInTheDocument();
+      expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+    });
   });
 });
