@@ -49,4 +49,21 @@ describe('chromeCrumbs', () => {
       { href: '/certificates/templates', label: 'Şablonlar' },
     ]);
   });
+
+  it('names a record by what its page read, keeping Kayıt until then', () => {
+    const event = '/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    expect(
+      chromeCrumbs(`${event}/participants`, { [event]: "Yıldız Hackathon '26" }).map(
+        (crumb) => crumb.label,
+      ),
+    ).toEqual(['Etkinlikler', "Yıldız Hackathon '26", 'Katılımcılar']);
+    expect(chromeCrumbs(event, {}).at(-1)?.label).toBe('Kayıt');
+  });
+
+  it('matches a name to its address whether or not the address is encoded', () => {
+    expect(chromeCrumbs('/groups/a%20b', { '/groups/a b': 'Yönetim Kurulu' }).at(-1)).toEqual({
+      href: '/groups/a%20b',
+      label: 'Yönetim Kurulu',
+    });
+  });
 });
