@@ -1,3 +1,4 @@
+import { coreProblemMessage } from '@/lib/core-problems';
 import { ProblemError, problemFromResponse } from './core';
 
 export type NewsData = {
@@ -102,16 +103,15 @@ export const newsApi = {
 /**
  * A Turkish sentence for a refused News write. inscribed answers 409 when the
  * version the editor read is no longer current, or with `reason: "archived"`
- * when the item was deleted meanwhile; anything else keeps its problem title,
- * and a non-problem error the caller's fallback.
+ * when the item was deleted meanwhile; anything else is the panel's shared
+ * problem text (core-problems).
  */
 export function newsProblemMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof ProblemError)) return fallback;
-  if (error.status === 409) {
+  if (error instanceof ProblemError && error.status === 409) {
     if (error.fields.reason === 'archived') {
       return 'Bu duyuru bu arada başka biri tarafından silindi.';
     }
     return 'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Son hâlini görmek için sayfayı yenile, sonra tekrar dene.';
   }
-  return error.title;
+  return coreProblemMessage(error, fallback);
 }

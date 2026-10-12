@@ -154,7 +154,9 @@ describe('EventCertificatesPanel failed batches', () => {
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Yeniden dene' }),
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Conflict');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Kayıt şu anki durumunda buna uygun değil',
+    );
     expect(screen.getByRole('button', { name: 'Yeniden dene' })).toBeEnabled();
   });
 
@@ -249,7 +251,9 @@ describe('EventCertificatesPanel issued certificates', () => {
   it('shows why a revoke failed', async () => {
     const user = userEvent.setup();
     api.listIssued.mockResolvedValue([issued]);
-    api.revoke.mockRejectedValue(new ProblemError(403, 'İptal yetkin yok'));
+    api.revoke.mockRejectedValue(
+      new ProblemError(403, 'Forbidden', { detail: 'İptal yetkin yok' }),
+    );
     renderIssued();
     await user.click(await screen.findByRole('button', { name: 'İptal et' }));
     await user.click(

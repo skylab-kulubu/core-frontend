@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import type { Person } from '@/lib/api/identity';
@@ -43,7 +44,7 @@ export default function TicketDetailPage({
       try {
         const ev = await eventsApi.get(id);
         if (!canListEventTickets(user?.groups ?? [], ev.ownerTeam)) {
-          throw new ProblemError(403, 'Bu başvuruları görme yetkin yok');
+          throw new ProblemError(403, 'Forbidden', { detail: 'Bu başvuruları görme yetkin yok' });
         }
         const [got, days] = await Promise.all([
           ticketsApi.get(ticketId).catch(async () => {
@@ -68,7 +69,7 @@ export default function TicketDetailPage({
         setError(got ? null : 'Başvuru bulunamadı');
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof ProblemError ? err.title : 'Başvuru yüklenemedi');
+        setError(coreProblemMessage(err, 'Başvuru yüklenemedi'));
       }
     }
     void load();

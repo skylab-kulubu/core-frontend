@@ -29,7 +29,6 @@ import {
   type CertificateLayout,
   type CertificateTemplateDraft,
 } from '@/lib/api/certificates';
-import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
@@ -309,8 +308,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         setImageUrls(urls);
       })
       .catch((cause) => {
-        if (!cancelled)
-          setError(cause instanceof ProblemError ? cause.title : 'Şablon yüklenemedi');
+        if (!cancelled) setError(coreProblemMessage(cause, 'Şablon yüklenemedi'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -506,7 +504,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       window.open(url, '_blank', 'noopener,noreferrer');
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Önizleme üretilemedi');
+      setError(coreProblemMessage(cause, 'Önizleme üretilemedi'));
     } finally {
       setBusy(false);
     }

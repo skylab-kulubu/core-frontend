@@ -76,7 +76,9 @@ describe('Group detail feedback', () => {
 
   it('shows an add-member error inside the open picker', async () => {
     const user = userEvent.setup();
-    (identityApi.addMember as jest.Mock).mockRejectedValue(new ProblemError(403, 'Yetkin yok'));
+    (identityApi.addMember as jest.Mock).mockRejectedValue(
+      new ProblemError(403, 'Forbidden', { detail: 'Yetkin yok' }),
+    );
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });

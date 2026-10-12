@@ -138,3 +138,9 @@ export function doorTicketName(
   if (picked) return personLabel(picked);
   return ticketApplicantName(ticket, people);
 }
+
+/**
+ * core's 409 on a check-in (no code, no detail): the person is already in that
+ * session. For coreProblemMessage's `statusText`.
+ */
+export const ALREADY_CHECKED_IN = { 409: 'Bu kişi bu oturuma zaten girmiş.' };

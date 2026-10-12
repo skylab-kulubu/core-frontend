@@ -15,7 +15,7 @@ import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
@@ -61,7 +61,7 @@ export default function SeasonsPage() {
       setEvents((await eventsApi.list()).map((ev) => ({ id: ev.id, name: ev.name })));
       setError(null);
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Sezonlar yüklenemedi');
+      setError(coreProblemMessage(err, 'Sezonlar yüklenemedi'));
     } finally {
       setLoading(false);
     }
@@ -201,7 +201,7 @@ export default function SeasonsPage() {
               notify.success(editingId ? 'Sezon kaydedildi' : 'Sezon eklendi');
               await load();
             } catch (err) {
-              setFormError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+              setFormError(coreProblemMessage(err, 'Kaydedilemedi'));
             }
           }}
         >
@@ -269,7 +269,7 @@ export default function SeasonsPage() {
                       );
                       await load();
                     } catch (err) {
-                      setFormError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                      setFormError(coreProblemMessage(err, 'Silinemedi'));
                     }
                   },
                 });

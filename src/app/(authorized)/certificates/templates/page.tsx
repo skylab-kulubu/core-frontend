@@ -8,7 +8,7 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { certificatesApi, type CertificateTemplate } from '@/lib/api/certificates';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { canManageCertificateTemplates } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -24,9 +24,7 @@ export default function CertificateTemplatesPage() {
     certificatesApi
       .templates()
       .then(setTemplates)
-      .catch((cause) =>
-        setError(cause instanceof ProblemError ? cause.title : 'Şablonlar yüklenemedi'),
-      )
+      .catch((cause) => setError(coreProblemMessage(cause, 'Şablonlar yüklenemedi')))
       .finally(() => setLoading(false));
   }, []);
 

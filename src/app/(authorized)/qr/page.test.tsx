@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { ProblemError } from '@/lib/api/core';
 import QrPage from '@/app/(authorized)/qr/page';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
@@ -105,9 +106,16 @@ describe('Kapı check-in page', () => {
         query: 'ada@example.com',
       }),
     );
-    expect(screen.getByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
-      /Ada Lovelace · Açılış · /,
-    );
+    const result = screen.getByRole('status', { name: 'Check-in sonucu' });
+    expect(result).toHaveTextContent(/Ada Lovelace · Açılış · /);
+    // Right under the button, so a phone shows it without scrolling past the guest QR
+    const button = screen.getByRole('button', { name: 'Check-in' });
+    expect(button.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      result.compareDocumentPosition(screen.getByRole('region', { name: "Misafir QR'ı" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Ad veya e-posta')).toHaveValue('');
     expect(screen.queryByText(/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/)).not.toBeInTheDocument();
   });
 
@@ -381,5 +389,17 @@ describe('Kapı check-in page', () => {
       expect(screen.queryByText('Canlı kapı kayıtları yüklenemedi')).not.toBeInTheDocument(),
     );
     interval.mockRestore();
+  });
+
+  it('says the person is already in when core refuses a second check-in', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
+    );
+    render(<QrPage />);
+    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
 });

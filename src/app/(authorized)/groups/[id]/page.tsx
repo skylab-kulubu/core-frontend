@@ -17,7 +17,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
@@ -61,7 +61,7 @@ export default function GroupDetailPage() {
       setRoles(mapped);
       setError(null);
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Yüklenemedi');
+      setError(coreProblemMessage(err, 'Yüklenemedi'));
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function GroupDetailPage() {
               notify.success('Grup kaydedildi');
               await load();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+              setError(coreProblemMessage(err, 'Kaydedilemedi'));
             }
           }}
         />
@@ -184,7 +184,7 @@ export default function GroupDetailPage() {
                             notify.success('Üye çıkarıldı');
                             await load();
                           } catch (err) {
-                            setError(err instanceof ProblemError ? err.title : 'Üye çıkarılamadı');
+                            setError(coreProblemMessage(err, 'Üye çıkarılamadı'));
                           }
                         },
                       })
@@ -253,7 +253,7 @@ export default function GroupDetailPage() {
                           notify.success('Rol kaldırıldı');
                           await load();
                         } catch (err) {
-                          setError(err instanceof ProblemError ? err.title : 'Rol kaldırılamadı');
+                          setError(coreProblemMessage(err, 'Rol kaldırılamadı'));
                         }
                       },
                     })
@@ -300,9 +300,7 @@ export default function GroupDetailPage() {
                           notify.success('Öznitelik kaldırıldı');
                           await load();
                         } catch (err) {
-                          setError(
-                            err instanceof ProblemError ? err.title : 'Öznitelik kaldırılamadı',
-                          );
+                          setError(coreProblemMessage(err, 'Öznitelik kaldırılamadı'));
                         }
                       },
                     })
@@ -330,7 +328,7 @@ export default function GroupDetailPage() {
               notify.success('Öznitelik eklendi');
               await load();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Öznitelik eklenemedi');
+              setError(coreProblemMessage(err, 'Öznitelik eklenemedi'));
             }
           }}
         >
@@ -371,7 +369,7 @@ export default function GroupDetailPage() {
             notify.success('Üye eklendi');
             await load();
           } catch (err) {
-            setPickError(err instanceof ProblemError ? err.title : 'Üye eklenemedi');
+            setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
           }
         }}
       />
@@ -397,7 +395,7 @@ export default function GroupDetailPage() {
             notify.success('Rol eklendi');
             await load();
           } catch (err) {
-            setPickError(err instanceof ProblemError ? err.title : 'Rol eklenemedi');
+            setPickError(coreProblemMessage(err, 'Rol eklenemedi'));
           }
         }}
       />

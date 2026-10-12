@@ -13,7 +13,7 @@ import {
   type CertificateTemplate,
   type CertificateTemplateBinding,
 } from '@/lib/api/certificates';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
 import { useConfirm } from '@/lib/ui/use-confirm';
@@ -45,9 +45,7 @@ export default function CertificateDefaultsPage() {
         setTeams(allowed);
         setTeam(allowed[0] ?? '');
       })
-      .catch((cause) =>
-        setError(cause instanceof ProblemError ? cause.title : 'Varsayılanlar yüklenemedi'),
-      )
+      .catch((cause) => setError(coreProblemMessage(cause, 'Varsayılanlar yüklenemedi')))
       .finally(() => setLoading(false));
   }, [groups, privileged]);
 
@@ -78,7 +76,7 @@ export default function CertificateDefaultsPage() {
       );
       setMessage(`${team} artık SKY LAB varsayılanına düşecek.`);
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Varsayılan kaldırılamadı');
+      setError(coreProblemMessage(cause, 'Varsayılan kaldırılamadı'));
     } finally {
       setSaving(false);
     }
@@ -158,7 +156,7 @@ export default function CertificateDefaultsPage() {
                   : `${team} varsayılanı güncellendi.`,
               );
             } catch (cause) {
-              setError(cause instanceof ProblemError ? cause.title : 'Varsayılan güncellenemedi');
+              setError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
             } finally {
               setSaving(false);
             }
