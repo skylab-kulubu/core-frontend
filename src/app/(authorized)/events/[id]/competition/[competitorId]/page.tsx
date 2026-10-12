@@ -104,32 +104,40 @@ export default function EditCompetitorPage({
             <button
               type="button"
               className="text-2xs border-border text-destructive h-8 rounded-md border px-3 font-medium"
-              onClick={() =>
+              onClick={() => {
+                // core deletes a competitor of any event but reinstates only in an active one
+                const undoable = event?.active === true;
                 confirm({
                   title: event?.name
                     ? `Yarışmacı ${event.name} yarışmasından silinsin mi?`
                     : 'Yarışmacı silinsin mi?',
-                  description: `Yarışma listesinden kalkar. ${UNDO_HINT}`,
+                  description: undoable
+                    ? `Yarışma listesinden kalkar. ${UNDO_HINT}`
+                    : 'Yarışma listesinden kalkar. Etkinlik aktif olmadığı için geri alınamaz.',
                   actionLabel: 'Yarışmacıyı sil',
                   onConfirm: async () => {
                     setSaveError(null);
                     try {
                       await competitorsApi.delete(id);
-                      notify.undoable(
-                        'Yarışmacı silindi',
-                        async () => {
-                          await competitorsApi.reinstate(id);
-                          router.push(`${back}/${encodeURIComponent(id)}`);
-                        },
-                        'Yarışmacı geri alındı',
-                      );
+                      if (undoable) {
+                        notify.undoable(
+                          'Yarışmacı silindi',
+                          async () => {
+                            await competitorsApi.reinstate(id);
+                            router.push(`${back}/${encodeURIComponent(id)}`);
+                          },
+                          'Yarışmacı geri alındı',
+                        );
+                      } else {
+                        notify.success('Yarışmacı silindi');
+                      }
                       router.push(back);
                     } catch (err) {
                       setSaveError(err instanceof ProblemError ? err.title : 'Silinemedi');
                     }
                   },
-                })
-              }
+                });
+              }}
             >
               Sil
             </button>

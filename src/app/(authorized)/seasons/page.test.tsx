@@ -77,8 +77,10 @@ describe('Seasons page', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Sezonu sil' }));
     await waitFor(() => expect(seasonsApi.delete).toHaveBeenCalledWith('s1'));
     expect(await screen.findByText('Sezon silindi')).toBeInTheDocument();
+    await waitFor(() => expect(seasonsApi.list).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole('button', { name: 'Geri al' }));
     await waitFor(() => expect(seasonsApi.restore).toHaveBeenCalledWith('s1'));
     expect(await screen.findByText('Sezon geri alındı')).toBeInTheDocument();
+    await waitFor(() => expect(seasonsApi.list).toHaveBeenCalledTimes(3));
   });
 });

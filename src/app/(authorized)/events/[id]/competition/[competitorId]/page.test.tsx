@@ -43,6 +43,7 @@ describe('Event Yarışma: edit competitor', () => {
       id: 'e2',
       name: 'Hackathon',
       ownerTeam: 'GECEKODU',
+      active: true,
     });
   });
 
@@ -119,5 +120,25 @@ describe('Event Yarışma: edit competitor', () => {
     );
     expect(await screen.findByRole('alert')).toHaveTextContent('Silme yetkin yok');
     expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
+  it('offers no Geri al when the event is not active, as core cannot reinstate there', async () => {
+    const user = userEvent.setup();
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      id: 'e2',
+      name: 'Hackathon',
+      ownerTeam: 'GECEKODU',
+      active: false,
+    });
+    (competitorsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    await renderEdit('e2');
+    await user.click(await screen.findByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(confirm).toHaveTextContent('Etkinlik aktif olmadığı için geri alınamaz.');
+    expect(confirm).not.toHaveTextContent('Geri al ile');
+    await user.click(within(confirm).getByRole('button', { name: 'Yarışmacıyı sil' }));
+    await waitFor(() => expect(competitorsApi.delete).toHaveBeenCalledWith('c1'));
+    expect(await screen.findByText('Yarışmacı silindi')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Geri al' })).not.toBeInTheDocument();
   });
 });

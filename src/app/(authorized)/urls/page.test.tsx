@@ -167,6 +167,8 @@ describe('Kısa URL feedback', () => {
     await clicker.click(await screen.findByRole('button', { name: 'Geri al' }));
     await waitFor(() => expect(urlsApi.restore).toHaveBeenCalledWith('u1'));
     expect(await screen.findByText('Kısa link geri alındı')).toBeInTheDocument();
+    // First load, after the delete, after Geri al
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(3));
   });
 
   it('shows an edit error inside the open drawer', async () => {

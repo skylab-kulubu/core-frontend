@@ -212,9 +212,12 @@ describe('Event Program tab days and sessions', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Günü sil' }));
     await waitFor(() => expect(eventDaysApi.delete).toHaveBeenCalledWith('d1'));
     expect(await screen.findByText('Gün silindi')).toBeInTheDocument();
+    await waitFor(() => expect(eventDaysApi.listByEvent).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole('button', { name: 'Geri al' }));
     await waitFor(() => expect(eventDaysApi.restore).toHaveBeenCalledWith('d1'));
     expect(await screen.findByText('Gün geri alındı')).toBeInTheDocument();
+    // The program is read again, so the restored day shows without a page reload
+    await waitFor(() => expect(eventDaysApi.listByEvent).toHaveBeenCalledTimes(3));
   });
 
   it('brings a deleted session back with Geri al', async () => {
@@ -229,9 +232,11 @@ describe('Event Program tab days and sessions', () => {
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Oturumu sil' }),
     );
+    await waitFor(() => expect(eventDaysApi.listSessions).toHaveBeenCalledTimes(2));
     await user.click(await screen.findByRole('button', { name: 'Geri al' }));
     await waitFor(() => expect(sessionsApi.restore).toHaveBeenCalledWith('s1'));
     expect(await screen.findByText('Oturum geri alındı')).toBeInTheDocument();
+    await waitFor(() => expect(eventDaysApi.listSessions).toHaveBeenCalledTimes(3));
   });
 
   it('shows a check-in error inside the Katıldı drawer', async () => {
