@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exchangeCodeForToken } from '@/lib/auth/oauth2';
+import { checkIdToken } from '@/lib/auth/auth-age';
+import { exchangeCodeForToken, oauthClientId, oauthIssuer } from '@/lib/auth/oauth2';
 import { cookies } from 'next/headers';
 import {
   clearOAuthTransactionCookies,
@@ -38,7 +39,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { access_token, refresh_token } = await exchangeCodeForToken(code, codeVerifier);
+    const { access_token, refresh_token, id_token } = await exchangeCodeForToken(
+      code,
+      codeVerifier,
+    );
+
+    // The login asked for max_age, so the ID token must say when the admin signed in, and that
+    // sign-in must be within the panel's limit (OIDC Core 3.1.2.1; auth-age.ts).
+    const idTokenCheck = checkIdToken(id_token, {
+      issuer: oauthIssuer(),
+      clientId: oauthClientId(),
+    });
+    if (!('authTime' in idTokenCheck)) {
+      console.error('OAuth callback: ID token refused:', idTokenCheck.refused);
+      return NextResponse.redirect(new URL('/login?error=stale_authentication', request.url));
+    }
+    const { authTime } = idTokenCheck;
 
     console.log('✅ OAuth callback: Token exchange başarılı');
     console.log('Token uzunlukları:', {
@@ -46,7 +62,7 @@ export async function GET(request: NextRequest) {
       refresh_token: refresh_token?.length,
     });
 
-    writeSessionCookies(cookieStore, access_token, refresh_token);
+    writeSessionCookies(cookieStore, access_token, refresh_token, authTime);
     expireLegacySessionCookies(cookieStore);
 
     console.log("✅ OAuth callback: Cookie'ler set edildi, dashboard'a yönlendiriliyor");

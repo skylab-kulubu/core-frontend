@@ -1,4 +1,6 @@
-function oauthIssuer(): string {
+import { PANEL_MAX_AUTH_AGE_SECONDS } from '@/lib/auth/auth-age';
+
+export function oauthIssuer(): string {
   return (process.env.OAUTH2_ISSUER || '').replace(/\/+$/, '');
 }
 
@@ -7,7 +9,7 @@ function oauthEndpoint(path: string): string {
   return issuer ? `${issuer}/protocol/openid-connect/${path}` : '';
 }
 
-function oauthClientId(): string {
+export function oauthClientId(): string {
   return process.env.OAUTH2_CLIENT_ID || '';
 }
 
@@ -35,6 +37,8 @@ export function getOAuth2AuthUrl(state: string, codeChallenge: string): string {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
+    // Keycloak signs the admin in again when its SSO session's sign-in is older (auth-age.ts).
+    max_age: String(PANEL_MAX_AUTH_AGE_SECONDS),
   });
 
   return `${authUrl}?${params.toString()}`;
@@ -56,7 +60,7 @@ export function getOAuth2LogoutUrl(postLogoutRedirectUri?: string): string {
 export async function exchangeCodeForToken(
   code: string,
   codeVerifier: string,
-): Promise<{ access_token: string; refresh_token: string }> {
+): Promise<{ access_token: string; refresh_token: string; id_token?: string }> {
   const clientId = oauthClientId();
   const redirectUri = oauthRedirectUri();
   const clientSecret = oauthClientSecret();
@@ -99,6 +103,7 @@ export async function exchangeCodeForToken(
   return {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
+    id_token: data.id_token,
   };
 }
 
@@ -119,7 +124,7 @@ function isInvalidGrant(body: string): boolean {
 
 export async function refreshAccessToken(
   refreshToken: string,
-): Promise<{ access_token: string; refresh_token: string }> {
+): Promise<{ access_token: string; refresh_token: string; id_token?: string }> {
   const clientId = oauthClientId();
   const clientSecret = oauthClientSecret();
   const tokenUrl = oauthEndpoint('token');
@@ -158,5 +163,6 @@ export async function refreshAccessToken(
   return {
     access_token: data.access_token,
     refresh_token: data.refresh_token || refreshToken,
+    id_token: data.id_token,
   };
 }
