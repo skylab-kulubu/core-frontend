@@ -157,13 +157,15 @@ describe('GET /api/auth/token', () => {
   ])(
     'ends a session whose sign-in-time cookie was moved to "now" when %s',
     async (_name, refreshAnswer) => {
+      // An expired access token without auth_time: only the forged cookie stands before the
+      // refresh, so this exercises the refresh itself.
       const jar = fakeCookieStore({
-        '__Host-auth_token': accessToken(-60, { auth_time: NOW - 9 * 3600 }),
+        '__Host-auth_token': accessToken(-60),
         '__Host-refresh_token': 'stolen-but-still-valid-refresh',
         '__Host-session_auth_time': signedInAgo(0), // forged
       });
       (cookies as jest.Mock).mockResolvedValue(jar.store);
-      fakeKeycloak(() =>
+      const tokenEndpoint = fakeKeycloak(() =>
         Response.json({
           access_token: accessToken(300, { auth_time: NOW - 9 * 3600 }),
           refresh_token: 'refresh-2',
@@ -173,6 +175,7 @@ describe('GET /api/auth/token', () => {
 
       const response = await GET();
 
+      expect(tokenEndpoint).toHaveBeenCalledTimes(1);
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ token: null });
       expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
