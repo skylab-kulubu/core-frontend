@@ -31,6 +31,8 @@ export const seasonsApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/seasons/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  restore: (id: string) =>
+    coreFetch<Season>(`/v1/seasons/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   listEvents: (id: string) =>
     coreFetch<CoreEvent[]>(`/v1/seasons/${encodeURIComponent(id)}/events`),
   assignEvent: (seasonId: string, eventId: string) =>

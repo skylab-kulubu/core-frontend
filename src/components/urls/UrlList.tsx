@@ -11,6 +11,7 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { publicShortUrl, type ShortUrl } from '@/lib/api/urls';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export function UrlList({
   title,
@@ -35,6 +36,7 @@ export function UrlList({
 }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const notify = useNotify();
   const filtered = items.filter((row) =>
     matchesQuery(query, row.alias, row.url, publicShortUrl(row.alias)),
   );
@@ -76,7 +78,11 @@ export function UrlList({
                   <ActionButton
                     icon={Copy}
                     label="Kopyala"
-                    onClick={() => void navigator.clipboard.writeText(short)}
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(short)
+                        .then(() => notify.success('Kısa link kopyalandı'))
+                    }
                   />
                   <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
                   {onHits ? (

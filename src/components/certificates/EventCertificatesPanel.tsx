@@ -19,6 +19,7 @@ import {
 import { ProblemError } from '@/lib/api/core';
 import type { Ticket } from '@/lib/api/tickets';
 import { listStatus } from '@/lib/list-status';
+import { useConfirm } from '@/lib/ui/use-confirm';
 
 const sourceLabel = (source: string | undefined, ownerTeam: string) => {
   if (source === 'event') return 'Etkinliğe özel şablon';
@@ -82,6 +83,7 @@ export function EventCertificatesPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
+  const [confirm, confirmDialog] = useConfirm();
 
   const availableTemplates = useMemo(
     () =>
@@ -134,6 +136,7 @@ export function EventCertificatesPanel({
 
   return (
     <div className="space-y-5">
+      {confirmDialog}
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -206,26 +209,27 @@ export function EventCertificatesPanel({
                 <SaveButton
                   type="button"
                   disabled={busy || attendanceRule === 'none' || eventActive}
-                  onClick={async () => {
-                    if (
-                      !window.confirm(
-                        'Katılımı kapatıp uygun sertifikaları kuyruğa almak istiyor musun?',
-                      )
-                    )
-                      return;
-                    setBusy(true);
-                    try {
-                      const batch = await certificatesApi.finalize(eventId);
-                      setMessage(`${batch.totalCount} sertifika üretim kuyruğuna alındı.`);
-                      await load();
-                    } catch (cause) {
-                      setError(
-                        cause instanceof ProblemError ? cause.title : 'Katılım kapatılamadı',
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
+                  onClick={() =>
+                    confirm({
+                      title: 'Katılım kapatılıp sertifikalar üretilsin mi?',
+                      description: `Katılım kuralına uyan ${summary.eligibleCount} kişiye sertifika üretilir ve e-postayla gönderilir. Geri alınamaz: katılım kapandıktan sonra açılmaz, giden e-posta geri çekilmez.`,
+                      actionLabel: 'Katılımı kapat ve üret',
+                      onConfirm: async () => {
+                        setBusy(true);
+                        try {
+                          const batch = await certificatesApi.finalize(eventId);
+                          setMessage(`${batch.totalCount} sertifika üretim kuyruğuna alındı.`);
+                          await load();
+                        } catch (cause) {
+                          setError(
+                            cause instanceof ProblemError ? cause.title : 'Katılım kapatılamadı',
+                          );
+                        } finally {
+                          setBusy(false);
+                        }
+                      },
+                    })
+                  }
                 >
                   Katılımı kapat ve üret
                 </SaveButton>
@@ -261,28 +265,30 @@ export function EventCertificatesPanel({
                     icon={RotateCcw}
                     label="Yeniden dene"
                     disabled={busy}
-                    onClick={async () => {
-                      if (
-                        !window.confirm(
-                          `${batch.failedCount} başarısız sertifika yeniden üretilsin mi?`,
-                        )
-                      )
-                        return;
-                      setBusy(true);
-                      try {
-                        await certificatesApi.retryBatch(batch.id);
-                        setMessage(
-                          `${batch.failedCount} başarısız sertifika yeniden kuyruğa alındı.`,
-                        );
-                        await load();
-                      } catch (cause) {
-                        setError(
-                          cause instanceof ProblemError ? cause.title : 'Yeniden denenemedi',
-                        );
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
+                    onClick={() =>
+                      confirm({
+                        title: `${batch.failedCount} başarısız sertifika yeniden üretilsin mi?`,
+                        description: 'Üretilen sertifikalar sahiplerine e-postayla gönderilir.',
+                        actionLabel: 'Yeniden dene',
+                        destructive: false,
+                        onConfirm: async () => {
+                          setBusy(true);
+                          try {
+                            await certificatesApi.retryBatch(batch.id);
+                            setMessage(
+                              `${batch.failedCount} başarısız sertifika yeniden kuyruğa alındı.`,
+                            );
+                            await load();
+                          } catch (cause) {
+                            setError(
+                              cause instanceof ProblemError ? cause.title : 'Yeniden denenemedi',
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        },
+                      })
+                    }
                   />
                 }
               />
@@ -431,19 +437,58 @@ export function EventCertificatesPanel({
                       <ActionButton
                         icon={Ban}
                         label="İptal et"
-                        onClick={async () => {
-                          await certificatesApi.revoke(certificate.serial);
-                          await load();
-                        }}
+                        disabled={busy}
+                        onClick={() =>
+                          confirm({
+                            title: `${certificate.recipientName} sertifikası iptal edilsin mi?`,
+                            description: `Doğrulama sayfası ${certificate.serial} için "iptal edildi" gösterir. İptal geri alınamaz; gerekirse Yeniden ver yeni bir üretim başlatır.`,
+                            actionLabel: 'Sertifikayı iptal et',
+                            onConfirm: async () => {
+                              setBusy(true);
+                              setError(undefined);
+                              try {
+                                await certificatesApi.revoke(certificate.serial);
+                                setMessage(
+                                  `${certificate.recipientName} sertifikası iptal edildi.`,
+                                );
+                                await load();
+                              } catch (cause) {
+                                setError(
+                                  cause instanceof ProblemError
+                                    ? cause.title
+                                    : 'Sertifika iptal edilemedi',
+                                );
+                              } finally {
+                                setBusy(false);
+                              }
+                            },
+                          })
+                        }
                       />
                     ) : null}
                     {canIssue && certificate.revokedAt ? (
                       <ActionButton
                         icon={RefreshCw}
                         label="Yeniden ver"
+                        disabled={busy}
                         onClick={async () => {
-                          await certificatesApi.reissue(certificate.serial);
-                          await load();
+                          setBusy(true);
+                          setError(undefined);
+                          try {
+                            await certificatesApi.reissue(certificate.serial);
+                            setMessage(
+                              `${certificate.recipientName} sertifikası yeniden üretim kuyruğuna alındı.`,
+                            );
+                            await load();
+                          } catch (cause) {
+                            setError(
+                              cause instanceof ProblemError
+                                ? cause.title
+                                : 'Sertifika yeniden verilemedi',
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
                         }}
                       />
                     ) : null}

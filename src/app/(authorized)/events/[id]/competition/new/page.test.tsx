@@ -49,5 +49,6 @@ describe('Event Yarışma: new competitor', () => {
       }),
     );
     expect(mockPush).toHaveBeenCalledWith('/events/e1/competition');
+    expect(await screen.findByText('Yarışmacı eklendi')).toBeInTheDocument();
   });
 });

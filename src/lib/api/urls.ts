@@ -74,4 +74,6 @@ export const urlsApi = {
     }),
   remove: (id: string) =>
     coreFetch<void>(`/v1/urls/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  restore: (id: string) =>
+    coreFetch<ShortUrl>(`/v1/urls/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
 };

@@ -25,6 +25,7 @@ import { paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const createUserSchema = z.object({
   firstName: z.string().trim(),
@@ -41,6 +42,8 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const notify = useNotify();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const {
@@ -113,7 +116,11 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
@@ -155,6 +162,7 @@ export default function UsersPage() {
           open={creating}
           onClose={() => {
             setCreating(false);
+            setCreateError(null);
             reset();
           }}
           title="Kullanıcı ekle"
@@ -163,14 +171,16 @@ export default function UsersPage() {
             className="space-y-3"
             noValidate
             onSubmit={handleSubmit(async (values) => {
+              setCreateError(null);
               try {
                 await identityApi.createUser(values);
                 reset();
                 setCreating(false);
+                notify.success('Kullanıcı eklendi');
                 if (query === values.email) await load(query);
                 else setQuery(values.email);
               } catch (err) {
-                setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+                setCreateError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
               }
             })}
           >
@@ -191,6 +201,11 @@ export default function UsersPage() {
                 <p className="text-destructive text-xs">{errors.email.message}</p>
               ) : null}
             </div>
+            {createError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {createError}
+              </p>
+            ) : null}
             <SaveButton disabled={isSubmitting}>
               {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
             </SaveButton>

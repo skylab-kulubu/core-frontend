@@ -25,6 +25,8 @@ import { formatEventWhen } from '@/lib/events-view';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { activeStatus } from '@/lib/status-chip';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
+import { useNotify } from '@/lib/ui/use-notify';
 import { useAuth } from '@/context/AuthContext';
 
 const emptySeason = (): SeasonBody & { startLocal: string; endLocal: string } => ({
@@ -49,6 +51,9 @@ export default function SeasonsPage() {
   const [form, setForm] = useState(emptySeason());
   const [assignEventId, setAssignEventId] = useState('');
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
+  const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   async function load() {
     try {
@@ -94,13 +99,18 @@ export default function SeasonsPage() {
                 setEditingId(null);
                 setForm(emptySeason());
                 setAssignEventId('');
+                setFormError(null);
                 setOpen(true);
               }}
             />
           ) : undefined
         }
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <ListToolbar query={query} onQuery={setQuery} placeholder="Sezon adı" searchLabel="Sezon ara">
         <FilterPills
           ariaLabel="Sezon durumu"
@@ -153,6 +163,7 @@ export default function SeasonsPage() {
                         endLocal: toDatetimeLocal(season.endDate),
                       });
                       setAssignEventId('');
+                      setFormError(null);
                       setOpen(true);
                     }}
                   />
@@ -172,6 +183,7 @@ export default function SeasonsPage() {
           className="space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
+            setFormError(null);
             try {
               const body: SeasonBody = {
                 name: form.name.trim(),
@@ -186,9 +198,10 @@ export default function SeasonsPage() {
                 await seasonsApi.assignEvent(saved.id, assignEventId);
               }
               setOpen(false);
+              notify.success(editingId ? 'Sezon kaydedildi' : 'Sezon eklendi');
               await load();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
+              setFormError(err instanceof ProblemError ? err.title : 'Kaydedilemedi');
             }
           }}
         >
@@ -234,19 +247,43 @@ export default function SeasonsPage() {
             <button
               type="button"
               className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
-              onClick={async () => {
-                try {
-                  await seasonsApi.delete(editingId);
-                  setOpen(false);
-                  await load();
-                } catch (err) {
-                  setError(err instanceof ProblemError ? err.title : 'Silinemedi');
-                }
+              onClick={() => {
+                const id = editingId;
+                const name = seasons.find((season) => season.id === id)?.name ?? form.name;
+                confirm({
+                  title: `"${name}" sezonu silinsin mi?`,
+                  description: `Sezon listeden kalkar. ${UNDO_HINT}`,
+                  actionLabel: 'Sezonu sil',
+                  onConfirm: async () => {
+                    setFormError(null);
+                    try {
+                      await seasonsApi.delete(id);
+                      setOpen(false);
+                      notify.undoable(
+                        'Sezon silindi',
+                        async () => {
+                          await seasonsApi.restore(id);
+                          void load();
+                        },
+                        'Sezon geri alındı',
+                      );
+                      await load();
+                    } catch (err) {
+                      setFormError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                    }
+                  },
+                });
               }}
             >
               Sil
             </button>
           ) : null}
+          {formError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {formError}
+            </p>
+          ) : null}
+          {confirmDialog}
           <SaveButton>Kaydet</SaveButton>
         </form>
       </Drawer>

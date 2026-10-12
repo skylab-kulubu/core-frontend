@@ -1,7 +1,8 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UsersPage from '@/app/(authorized)/users/page';
+import { ProblemError } from '@/lib/api/core';
 import { identityApi } from '@/lib/api/identity';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -142,5 +143,36 @@ describe('Users page', () => {
       expect(screen.queryByText('Kullanıcılar yüklenemedi')).not.toBeInTheDocument();
       expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
     });
+  });
+});
+
+describe('Users page feedback', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.listUsers as jest.Mock).mockResolvedValue([]);
+  });
+
+  async function submitAda() {
+    const user = userEvent.setup();
+    render(<UsersPage />);
+    await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kullanıcı ekle' });
+    await user.type(within(dialog).getByLabelText('E-posta'), 'ada@example.com');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    return dialog;
+  }
+
+  it('says the user was added', async () => {
+    (identityApi.createUser as jest.Mock).mockResolvedValue({ id: 'u1' });
+    await submitAda();
+    expect(await screen.findByText('Kullanıcı eklendi')).toBeInTheDocument();
+  });
+
+  it('shows a create error inside the open drawer', async () => {
+    (identityApi.createUser as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Bu e-posta zaten kayıtlı'),
+    );
+    const dialog = await submitAda();
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu e-posta zaten kayıtlı');
   });
 });

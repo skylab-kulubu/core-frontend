@@ -35,6 +35,8 @@ import { ticketsApi } from '@/lib/api/tickets';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { checkInSuccessLine } from '@/lib/door-check-in';
 import { listStatus } from '@/lib/list-status';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const daySchema = z.object({
   name: z.string().trim().min(1, 'Gün adı zorunlu'),
@@ -94,6 +96,14 @@ export default function EventProgramPage() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
   const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
+  // A drawer's own error shows inside it; the tab's line sits behind the open drawer
+  const [dayError, setDayError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [deskError, setDeskError] = useState<string | null>(null);
+  const notify = useNotify();
+  const [confirmDay, dayConfirm] = useConfirm();
+  // The session's Sil sits in its drawer, so its question opens inside it
+  const [confirmSession, sessionConfirm] = useConfirm();
   const dayForm = useForm<z.infer<typeof daySchema>>({
     resolver: zodResolver(daySchema),
     defaultValues: { name: '', startDate: '', endDate: '' },
@@ -126,16 +136,25 @@ export default function EventProgramPage() {
         actions={
           canMutate ? (
             <div className="flex gap-2">
-              <ActionButton icon={Plus} label="Gün ekle" onClick={() => setDayOpen(true)} />
+              <ActionButton
+                icon={Plus}
+                label="Gün ekle"
+                onClick={() => {
+                  setDayError(null);
+                  setDayOpen(true);
+                }}
+              />
               <ActionButton
                 icon={Plus}
                 variant="primary"
                 label="Oturum ekle"
                 onClick={() => {
                   if (days.length === 0) {
+                    setDayError(null);
                     setDayOpen(true);
                     return;
                   }
+                  setSessionError(null);
                   setEditingSessionId(null);
                   sessionForm.reset(emptySession(days[0]?.id ?? ''));
                   setSessionOpen(true);
@@ -169,14 +188,29 @@ export default function EventProgramPage() {
                   <ActionButton
                     icon={Trash2}
                     label="Günü sil"
-                    onClick={async () => {
-                      try {
-                        await eventDaysApi.delete(day.id);
-                        await reload();
-                      } catch (err) {
-                        setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
-                      }
-                    }}
+                    onClick={() =>
+                      confirmDay({
+                        title: `"${day.name}" günü silinsin mi?`,
+                        description: `Gün, oturumlarıyla birlikte programdan kalkar. ${UNDO_HINT}`,
+                        actionLabel: 'Günü sil',
+                        onConfirm: async () => {
+                          try {
+                            await eventDaysApi.delete(day.id);
+                            notify.undoable(
+                              'Gün silindi',
+                              async () => {
+                                await eventDaysApi.restore(day.id);
+                                void reload();
+                              },
+                              'Gün geri alındı',
+                            );
+                            await reload();
+                          } catch (err) {
+                            setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
+                          }
+                        },
+                      })
+                    }
                   />
                 ) : null}
               </div>
@@ -207,6 +241,7 @@ export default function EventProgramPage() {
                               label="Katıldı"
                               onClick={() => {
                                 setDeskNote(null);
+                                setDeskError(null);
                                 deskForm.reset();
                                 setCheckInSession(session);
                               }}
@@ -222,6 +257,7 @@ export default function EventProgramPage() {
                               icon={Pencil}
                               label="Oturumu düzenle"
                               onClick={() => {
+                                setSessionError(null);
                                 setEditingSessionId(session.id);
                                 sessionForm.reset({
                                   eventDayId: session.eventDayId,
@@ -260,6 +296,7 @@ export default function EventProgramPage() {
           className="space-y-3"
           noValidate
           onSubmit={dayForm.handleSubmit(async (day) => {
+            setDayError(null);
             try {
               await eventDaysApi.create({
                 eventId: event.id,
@@ -269,9 +306,10 @@ export default function EventProgramPage() {
               });
               dayForm.reset();
               setDayOpen(false);
+              notify.success('Gün eklendi');
               await reload();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Gün eklenemedi');
+              setDayError(err instanceof ProblemError ? err.title : 'Gün eklenemedi');
             }
           })}
         >
@@ -303,6 +341,11 @@ export default function EventProgramPage() {
               render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
             />
           </label>
+          {dayError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {dayError}
+            </p>
+          ) : null}
           <SaveButton disabled={dayForm.formState.isSubmitting}>
             {dayForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
           </SaveButton>
@@ -320,6 +363,7 @@ export default function EventProgramPage() {
           className="space-y-3"
           noValidate
           onSubmit={sessionForm.handleSubmit(async (sessionDraft) => {
+            setSessionError(null);
             try {
               const body = {
                 eventDayId: sessionDraft.eventDayId,
@@ -338,9 +382,10 @@ export default function EventProgramPage() {
                 await sessionsApi.create(body);
               }
               setSessionOpen(false);
+              notify.success(editingSessionId ? 'Oturum kaydedildi' : 'Oturum eklendi');
               await reload();
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Oturum kaydedilemedi');
+              setSessionError(err instanceof ProblemError ? err.title : 'Oturum kaydedilemedi');
             }
           })}
         >
@@ -425,24 +470,51 @@ export default function EventProgramPage() {
             <button
               type="button"
               className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
-              onClick={async () => {
-                try {
-                  await sessionsApi.delete(editingSessionId);
-                  setSessionOpen(false);
-                  await reload();
-                } catch (err) {
-                  setError(err instanceof ProblemError ? err.title : 'Oturum silinemedi');
-                }
+              onClick={() => {
+                const id = editingSessionId;
+                const title = sessions.find((session) => session.id === id)?.title;
+                confirmSession({
+                  title: title ? `"${title}" oturumu silinsin mi?` : 'Oturum silinsin mi?',
+                  description: `Oturum programdan kalkar. ${UNDO_HINT}`,
+                  actionLabel: 'Oturumu sil',
+                  onConfirm: async () => {
+                    setSessionError(null);
+                    try {
+                      await sessionsApi.delete(id);
+                      setSessionOpen(false);
+                      notify.undoable(
+                        'Oturum silindi',
+                        async () => {
+                          await sessionsApi.restore(id);
+                          void reload();
+                        },
+                        'Oturum geri alındı',
+                      );
+                      await reload();
+                    } catch (err) {
+                      setSessionError(
+                        err instanceof ProblemError ? err.title : 'Oturum silinemedi',
+                      );
+                    }
+                  },
+                });
               }}
             >
               Sil
             </button>
           ) : null}
+          {sessionError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {sessionError}
+            </p>
+          ) : null}
+          {sessionConfirm}
           <SaveButton disabled={sessionForm.formState.isSubmitting}>
             {sessionForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
           </SaveButton>
         </form>
       </Drawer>
+      {dayConfirm}
       <Drawer
         open={qrSession !== null}
         onClose={() => setQrSession(null)}
@@ -470,6 +542,7 @@ export default function EventProgramPage() {
             className="space-y-3"
             noValidate
             onSubmit={deskForm.handleSubmit(async (desk) => {
+              setDeskError(null);
               try {
                 const created = await ticketsApi.resolveAndCheckIn(checkInSession.id, {
                   personId: desk.personId || undefined,
@@ -485,7 +558,7 @@ export default function EventProgramPage() {
                 setCheckInSession(null);
                 await reload();
               } catch (err) {
-                setError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
+                setDeskError(err instanceof ProblemError ? err.title : 'Check-in yapılamadı');
               }
             })}
           >
@@ -518,6 +591,11 @@ export default function EventProgramPage() {
                 </span>
               ) : null}
             </label>
+            {deskError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {deskError}
+              </p>
+            ) : null}
             <SaveButton disabled={deskForm.formState.isSubmitting}>
               {deskForm.formState.isSubmitting ? 'Yazılıyor…' : 'Katıldı'}
             </SaveButton>
