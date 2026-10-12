@@ -94,8 +94,14 @@ const CODE_MESSAGES: Record<string, string> = {
   privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
 };
 
-/** core's bare 409 on a competitor's create or save: the person already competes in that event. */
-export const COMPETITOR_TAKEN = { 409: 'Bu kişi zaten yarışmacı.' };
+/**
+ * core's bare 409 on a competitor's create or save. It has no code and means
+ * one of several things (the person already competes, their account is not
+ * active, the event is archived), so the text names what to check.
+ */
+export const COMPETITOR_CONFLICT = {
+  409: 'Yarışmacı kaydedilemedi; kişiyi ve etkinliğin durumunu denetle.',
+};
 
 /** core's own English titles that carry meaning but no code. */
 const TITLE_MESSAGES: Record<string, string> = {

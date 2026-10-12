@@ -259,14 +259,17 @@ function MediaList({
         setProblem(null);
         try {
           onEvent(await eventMediaApi.remove(eventId.current, kind, [target.id]));
+          notify.success(`${name} kaldırıldı`);
         } catch (error) {
-          if (!(error instanceof ProblemError && error.status === 409)) throw error;
-          // The list changed meanwhile and the item is already gone: show the list as it is now
-          onEvent(await eventsApi.get(eventId.current));
+          // core's 404: the item is not in the list (any more). Read the list; if it is gone, so is the job
+          if (!(error instanceof ProblemError && error.status === 404)) throw error;
+          const fresh = await eventsApi.get(eventId.current);
+          onEvent(fresh);
+          if ((fresh[kind] ?? []).some((item) => item.id === target.id)) throw error;
+          notify.success(`${name} zaten kaldırılmış`);
         } finally {
           setBusy(false);
         }
-        notify.success(`${name} kaldırıldı`);
       },
       failure: problemMessage,
     });

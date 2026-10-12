@@ -194,6 +194,8 @@ describe('useConfirm', () => {
       );
       const cancel = within(dialog).getByRole('button', { name: 'Vazgeç' });
       expect(cancel).toBeEnabled();
+      // The keyboard lands on the way out
+      expect(cancel).toHaveFocus();
       // The request still runs: the action cannot be sent a second time
       expect(within(dialog).getByRole('button', { name: 'Oturumu sil' })).toBeDisabled();
 
@@ -219,6 +221,29 @@ describe('useConfirm', () => {
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent('İşlem tamamlanamadı');
       expect(alert).toHaveTextContent('Bu işlem için yetkin yok.');
+    });
+
+    it('still says a late refusal when another question has opened meanwhile', async () => {
+      let refuse: (err: unknown) => void = () => {};
+      const { user, dialog } = await askAndHang(
+        () =>
+          new Promise<void>((_, reject) => {
+            refuse = reject;
+          }),
+      );
+      await act(async () => {
+        jest.advanceTimersByTime(CONFIRM_STALL_MS);
+      });
+      await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: 'Sil' }));
+      const next = await screen.findByRole('alertdialog');
+
+      await act(async () => refuse(new ProblemError(403, 'Forbidden')));
+      // Not in the new question, which is about something else, but as an error toast
+      expect(within(next).queryByRole('alert')).toBeNull();
+      const said = await screen.findAllByText('İşlem tamamlanamadı');
+      expect(said.some((node) => node.closest('[data-slot="toast-viewport"]'))).toBe(true);
     });
   });
 });

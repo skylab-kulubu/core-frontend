@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
@@ -53,6 +53,9 @@ export default function SeasonsPage() {
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const notify = useNotify();
+  // A deleted season's row goes away (animated): the drawer then returns focus to Sezon ekle
+  const addSeason = useRef<HTMLButtonElement>(null);
+  const deleted = useRef(false);
   const [confirm, confirmDialog] = useConfirm();
 
   async function load() {
@@ -95,11 +98,13 @@ export default function SeasonsPage() {
               icon={Plus}
               variant="primary"
               label="Sezon ekle"
+              ref={addSeason}
               onClick={() => {
                 setEditingId(null);
                 setForm(emptySeason());
                 setAssignEventId('');
                 setFormError(null);
+                deleted.current = false;
                 setOpen(true);
               }}
             />
@@ -164,6 +169,7 @@ export default function SeasonsPage() {
                       });
                       setAssignEventId('');
                       setFormError(null);
+                      deleted.current = false;
                       setOpen(true);
                     }}
                   />
@@ -178,8 +184,7 @@ export default function SeasonsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
-        // A deleted season's row is gone; focus goes to the header's add button
-        fallbackFocus={() => document.querySelector('button[aria-label="Sezon ekle"]')}
+        finalFocus={() => (deleted.current ? addSeason.current : null)}
       >
         <form
           className="space-y-3"
@@ -203,9 +208,7 @@ export default function SeasonsPage() {
               notify.success(editingId ? 'Sezon kaydedildi' : 'Sezon eklendi');
               await load();
             } catch (err) {
-              setFormError(
-                coreProblemMessage(err, 'Kaydedilemedi', { 409: 'Bu adla bir sezon zaten var.' }),
-              );
+              setFormError(coreProblemMessage(err, 'Kaydedilemedi'));
             }
           }}
         >
@@ -270,9 +273,11 @@ export default function SeasonsPage() {
                     );
                     // The drawer, and the question inside it, close once the list shows the change
                     await load();
+                    deleted.current = true;
                     setOpen(false);
                   },
                   failure: 'Sezon silinemedi',
+                  closesDrawer: true,
                 });
               }}
             >

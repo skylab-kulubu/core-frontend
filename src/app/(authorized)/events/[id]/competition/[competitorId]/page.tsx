@@ -10,7 +10,7 @@ import { PersonPick } from '@/components/identity/PersonPick';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
-import { COMPETITOR_TAKEN, coreProblemMessage } from '@/lib/core-problems';
+import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
@@ -85,7 +85,7 @@ export default function EditCompetitorPage({
             notify.success('Yarışmacı kaydedildi');
             router.push(back);
           } catch (err) {
-            setSaveError(coreProblemMessage(err, 'Güncellenemedi', COMPETITOR_TAKEN));
+            setSaveError(coreProblemMessage(err, 'Güncellenemedi', COMPETITOR_CONFLICT));
           }
         }}
       >

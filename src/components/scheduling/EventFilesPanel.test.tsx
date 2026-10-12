@@ -28,10 +28,10 @@ const emptied = { ...event, files: [] } as CoreEvent;
 describe('EventFilesPanel removal', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('counts a removal core says is already gone as done: closes, says so, shows the list now', async () => {
+  it('treats a 404 for a file that is no longer listed as done: closes and shows the list now', async () => {
     const user = userEvent.setup();
     const onEvent = jest.fn();
-    (eventMediaApi.remove as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
+    (eventMediaApi.remove as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
     (eventsApi.get as jest.Mock).mockResolvedValue(emptied);
     render(<EventFilesPanel event={event} canEdit onEvent={onEvent} />);
 
@@ -41,7 +41,35 @@ describe('EventFilesPanel removal', () => {
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(onEvent).toHaveBeenCalledWith(emptied);
-    expect(await screen.findByText('program.pdf kaldırıldı')).toBeInTheDocument();
+    expect(await screen.findByText('program.pdf zaten kaldırılmış')).toBeInTheDocument();
+  });
+
+  it('keeps the dialog with the error when a 404 file is still listed', async () => {
+    const user = userEvent.setup();
+    const onEvent = jest.fn();
+    (eventMediaApi.remove as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
+    (eventsApi.get as jest.Mock).mockResolvedValue(event);
+    render(<EventFilesPanel event={event} canEdit onEvent={onEvent} />);
+
+    await user.click(screen.getByRole('button', { name: 'Kaldır' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Kaldır' }));
+    expect(await within(confirm).findByRole('alert')).toBeInTheDocument();
+    expect(onEvent).toHaveBeenCalledWith(event);
+    expect(screen.queryByText(/kaldırıldı|kaldırılmış/)).not.toBeInTheDocument();
+  });
+
+  it('does not count a 409 as removed', async () => {
+    const user = userEvent.setup();
+    (eventMediaApi.remove as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
+    render(<EventFilesPanel event={event} canEdit onEvent={jest.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Kaldır' }));
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Kaldır' }));
+    expect(await within(confirm).findByRole('alert')).toBeInTheDocument();
+    expect(eventsApi.get).not.toHaveBeenCalled();
+    expect(screen.queryByText(/kaldırıldı|kaldırılmış/)).not.toBeInTheDocument();
   });
 
   it('says any other refusal inside the dialog', async () => {

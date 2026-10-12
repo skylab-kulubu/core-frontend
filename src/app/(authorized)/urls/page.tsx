@@ -100,7 +100,8 @@ export default function UrlsPage() {
         );
         await load();
       },
-      failure: 'Kısa link silinemedi',
+      failure: (err) =>
+        coreProblemMessage(err, 'Kısa link silinemedi', { 409: 'Kısa link şu an silinemiyor.' }),
     });
   }
 

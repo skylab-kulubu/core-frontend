@@ -168,7 +168,7 @@ describe('Kısa URL feedback', () => {
       }),
     );
     const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('Kayıt şu anki durumunda buna uygun değil');
+    expect(alert).toHaveTextContent('Kısa link şu an silinemiyor.');
     expect(document.body).not.toHaveTextContent(/referenced by event|Conflict/);
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     expect(screen.queryByText('Kısa link silindi')).not.toBeInTheDocument();

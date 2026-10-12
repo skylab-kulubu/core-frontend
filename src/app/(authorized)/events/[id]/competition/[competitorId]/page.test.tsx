@@ -66,7 +66,9 @@ describe('Event Yarışma: edit competitor', () => {
     );
     await renderEdit('e2');
     await user.click(await screen.findByRole('button', { name: 'Kaydet' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi zaten yarışmacı.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Yarışmacı kaydedilemedi; kişiyi ve etkinliğin durumunu denetle.',
+    );
     expect(screen.getByLabelText('Puan')).toHaveValue(5);
     expect(mockRouter.push).not.toHaveBeenCalled();
   });

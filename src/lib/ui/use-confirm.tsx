@@ -45,6 +45,11 @@ export type ConfirmRequest = {
    * service's wording. core's English title and detail never reach the reader.
    */
   failure?: string | ((error: unknown) => string);
+  /**
+   * The action closes the drawer the question sits in, so on success that
+   * drawer, not this dialog, decides where focus goes.
+   */
+  closesDrawer?: boolean;
 };
 
 function failureText(request: ConfirmRequest, error: unknown): string {
@@ -81,6 +86,7 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
   const cancel = useRef<HTMLButtonElement>(null);
   // Synchronous guards: a second click in the same batch, and a late answer for an earlier question
   const running = useRef(false);
+  const succeeded = useRef(false);
   const run = useRef(0);
   const openRef = useRef(false);
   openRef.current = open;
@@ -91,6 +97,11 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
     return () => clearTimeout(timer);
   }, [pending]);
 
+  // Once the wait runs out, Vazgeç is the way out: put the keyboard on it
+  useEffect(() => {
+    if (stalled) cancel.current?.focus();
+  }, [stalled]);
+
   const close = () => {
     setOpen(false);
     setError(null);
@@ -99,6 +110,7 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
   const ask = (next: ConfirmRequest) => {
     run.current += 1;
     running.current = false;
+    succeeded.current = false;
     setRequest(next);
     setError(null);
     setPending(false);
@@ -115,12 +127,14 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
     setError(null);
     try {
       await request.onConfirm();
-      if (id === run.current) setOpen(false);
+      if (id === run.current) {
+        succeeded.current = true;
+        setOpen(false);
+      }
     } catch (err) {
       const text = failureText(request, err);
-      if (id !== run.current) return;
-      if (openRef.current) setError(text);
-      // The reader already left the stalled dialog; this is the only place left to say it
+      if (id === run.current && openRef.current) setError(text);
+      // The reader left the stalled dialog, maybe for another question: a toast is the only place left
       else
         add({ title: 'İşlem tamamlanamadı', description: text, type: 'error', priority: 'high' });
     } finally {
@@ -138,12 +152,20 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
   const dialog = (
     <Dialog
       open={open}
+      // Like ConfirmDialog (an alert dialog): a click outside never closes the question
+      disablePointerDismissal
       onOpenChange={(next) => {
         if (next) setOpen(true);
         else if (!locked) close();
       }}
     >
-      <DialogContent hideClose role="alertdialog" data-slot="confirm-dialog" initialFocus={cancel}>
+      <DialogContent
+        hideClose
+        role="alertdialog"
+        data-slot="confirm-dialog"
+        initialFocus={cancel}
+        finalFocus={() => !(succeeded.current && request?.closesDrawer)}
+      >
         <DialogHeader className="pr-5">
           <DialogTitle>{request?.title ?? ''}</DialogTitle>
           {request?.description ? (
