@@ -9,7 +9,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { PersonPick } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
@@ -53,7 +53,7 @@ export default function EditCompetitorPage({
         const ev = await eventsApi.get(got.eventId).catch(() => null);
         setEvent(ev);
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Yüklenemedi'));
+      .catch((err) => setError(coreProblemMessage(err, 'Yüklenemedi')));
   }, [eventId, id]);
 
   const ownerTeam = event?.ownerTeam ?? '';
@@ -83,7 +83,7 @@ export default function EditCompetitorPage({
             notify.success('Yarışmacı kaydedildi');
             router.push(back);
           } catch (err) {
-            setSaveError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
+            setSaveError(coreProblemMessage(err, 'Güncellenemedi'));
           }
         }}
       >
@@ -133,7 +133,7 @@ export default function EditCompetitorPage({
                       }
                       router.push(back);
                     } catch (err) {
-                      setSaveError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                      setSaveError(coreProblemMessage(err, 'Silinemedi'));
                     }
                   },
                 });

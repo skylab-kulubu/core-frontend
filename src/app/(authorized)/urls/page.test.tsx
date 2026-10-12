@@ -173,7 +173,9 @@ describe('Kısa URL feedback', () => {
 
   it('shows an edit error inside the open drawer', async () => {
     const clicker = userEvent.setup();
-    (urlsApi.update as jest.Mock).mockRejectedValue(new ProblemError(409, 'Bu kısa ad alınmış'));
+    (urlsApi.update as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { detail: 'Bu kısa ad alınmış' }),
+    );
     render(<UrlsPage />);
     await clicker.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });

@@ -53,7 +53,9 @@ describe('Seasons page', () => {
 
   it('shows a save error inside the open drawer and keeps the list', async () => {
     const user = userEvent.setup();
-    (seasonsApi.update as jest.Mock).mockRejectedValue(new ProblemError(409, 'Bu ad kullanılıyor'));
+    (seasonsApi.update as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { detail: 'Bu ad kullanılıyor' }),
+    );
     render(<SeasonsPage />);
     await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });

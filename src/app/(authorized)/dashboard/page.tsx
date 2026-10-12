@@ -26,7 +26,7 @@ import { MembersSection } from '@/components/dashboard/MembersSection';
 import { SeasonWheelCard } from '@/components/dashboard/SeasonWheelCard';
 import { useAuth } from '@/context/AuthContext';
 import { newsApi } from '@/lib/api/cms';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { dashboardApi, type DashboardSummary, type EventStat } from '@/lib/api/dashboard';
 import type { CoreEvent } from '@/lib/api/events';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
@@ -100,7 +100,7 @@ export default function DashboardPage() {
         if (!cancelled) {
           setState({
             kind: 'error',
-            message: err instanceof ProblemError ? err.title : 'Özet yüklenemedi',
+            message: coreProblemMessage(err, 'Özet yüklenemedi'),
           });
         }
         return;
@@ -115,8 +115,8 @@ export default function DashboardPage() {
       } catch (err) {
         if (cancelled) return;
         setSessionRows([]);
-        setSessions(errorCount(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi'));
-        setSessionsError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi');
+        setSessions(errorCount(coreProblemMessage(err, 'Oturumlar yüklenemedi')));
+        setSessionsError(coreProblemMessage(err, 'Oturumlar yüklenemedi'));
       }
       if (privileged) {
         try {
@@ -124,8 +124,7 @@ export default function DashboardPage() {
           if (!cancelled)
             setNews(okCount((page.items ?? []).filter((item) => Boolean(item.slug)).length));
         } catch (err) {
-          if (!cancelled)
-            setNews(errorCount(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'));
+          if (!cancelled) setNews(errorCount(coreProblemMessage(err, 'Duyurular yüklenemedi')));
         }
       }
     }

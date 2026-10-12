@@ -14,7 +14,7 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { identityApi, type Group } from '@/lib/api/identity';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
@@ -38,7 +38,7 @@ export default function GroupsPage() {
     identityApi
       .listGroups()
       .then(setGroups)
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Gruplar yüklenemedi'))
+      .catch((err) => setError(coreProblemMessage(err, 'Gruplar yüklenemedi')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -122,7 +122,7 @@ export default function GroupsPage() {
               setCreating(false);
               notify.success('Grup oluşturuldu');
             } catch (err) {
-              setCreateError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+              setCreateError(coreProblemMessage(err, 'Oluşturulamadı'));
             }
           }}
         >

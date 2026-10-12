@@ -10,7 +10,6 @@ import {
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
 import { SaveButton } from '@/components/chrome/SaveButton';
-import { ProblemError } from '@/lib/api/core';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
@@ -75,7 +74,7 @@ function NewEventPageContent() {
         if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ProblemError ? err.title : 'Seçenekler yüklenemedi');
+          setError(coreProblemMessage(err, 'Seçenekler yüklenemedi'));
         }
       }
     })();

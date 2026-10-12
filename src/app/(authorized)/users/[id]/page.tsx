@@ -8,7 +8,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch, roleKey } from '@/lib/picker';
 import { useAuth } from '@/context/AuthContext';
@@ -40,7 +40,7 @@ export default function UserDetailPage() {
       setCard(await identityApi.getUser(params.id));
       setError(null);
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Yüklenemedi');
+      setError(coreProblemMessage(err, 'Yüklenemedi'));
     }
   }
 
@@ -56,7 +56,7 @@ export default function UserDetailPage() {
       notify.success(done);
       await load();
     } catch (err) {
-      setActionError(err instanceof ProblemError ? err.title : failed);
+      setActionError(coreProblemMessage(err, failed));
     }
   }
 
@@ -176,9 +176,7 @@ export default function UserDetailPage() {
                   await identityApi.logoutUser(card.id);
                   notify.success('Oturumlar kapatıldı');
                 } catch (err) {
-                  setActionError(
-                    err instanceof ProblemError ? err.title : 'Oturumlar kapatılamadı',
-                  );
+                  setActionError(coreProblemMessage(err, 'Oturumlar kapatılamadı'));
                 }
               },
             })
@@ -210,7 +208,7 @@ export default function UserDetailPage() {
               notify.success('Gruba eklendi');
               await load();
             } catch (err) {
-              setPickError(err instanceof ProblemError ? err.title : 'Gruba eklenemedi');
+              setPickError(coreProblemMessage(err, 'Gruba eklenemedi'));
             }
           }}
         />
@@ -238,7 +236,7 @@ export default function UserDetailPage() {
               notify.success('Rol eklendi');
               await load();
             } catch (err) {
-              setPickError(err instanceof ProblemError ? err.title : 'Rol eklenemedi');
+              setPickError(coreProblemMessage(err, 'Rol eklenemedi'));
             }
           }}
         />

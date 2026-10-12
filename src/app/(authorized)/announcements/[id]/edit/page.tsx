@@ -10,7 +10,7 @@ import { NewsForm } from '../../NewsForm';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, newsProblemMessage, type NewsItem } from '@/lib/api/cms';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -35,7 +35,7 @@ export default function EditAnnouncementPage() {
         setItem(next);
         setError(null);
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Duyuru yüklenemedi'));
+      .catch((err) => setError(coreProblemMessage(err, 'Duyuru yüklenemedi')));
   }, [privileged, slug]);
 
   if (!privileged) {

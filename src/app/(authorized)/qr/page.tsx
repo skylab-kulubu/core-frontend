@@ -17,11 +17,12 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type DoorEvent } from '@/lib/api/tickets';
 import {
+  ALREADY_CHECKED_IN,
   checkInSuccessLine,
   defaultDoorSessionId,
   doorSessionLabel,
@@ -93,7 +94,7 @@ export default function QrPage() {
           rows.some((event) => event.id === requested) ? requested : (rows[0]?.id ?? ''),
         );
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi'))
+      .catch((err) => setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi')))
       .finally(() => setLoading(false));
   }, [setValue]);
 
@@ -121,7 +122,7 @@ export default function QrPage() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err instanceof ProblemError ? err.title : 'Oturumlar yüklenemedi');
+          setError(coreProblemMessage(err, 'Oturumlar yüklenemedi'));
         }
       });
     return () => {
@@ -158,9 +159,7 @@ export default function QrPage() {
         })
         .catch((err) => {
           if (!cancelled) {
-            setActivityError(
-              err instanceof ProblemError ? err.title : 'Canlı kapı kayıtları yüklenemedi',
-            );
+            setActivityError(coreProblemMessage(err, 'Canlı kapı kayıtları yüklenemedi'));
           }
         });
     };
@@ -262,13 +261,7 @@ export default function QrPage() {
             setError(null);
           } catch (err) {
             setSuccessLine(null);
-            setError(
-              err instanceof ProblemError && err.title === 'Ambiguous Match'
-                ? 'Bu adla birden fazla bilet var; e-posta ile deneyin.'
-                : err instanceof ProblemError
-                  ? err.title
-                  : 'Check-in yapılamadı',
-            );
+            setError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
           }
         })}
       >
@@ -348,14 +341,17 @@ export default function QrPage() {
           ) : null}
         </label>
         <SaveButton disabled={isSubmitting}>{isSubmitting ? 'Yazılıyor…' : 'Check-in'}</SaveButton>
+        {/* Under the button, in view on a phone; always mounted so each line is read out */}
+        <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
+          {successLine ? (
+            <>
+              <StatusChip kind="checked-in" />
+              <p className="text-secondary-foreground text-sm">{successLine}</p>
+            </>
+          ) : null}
+        </div>
       </form>
       <GuestDoorQr sessionId={sessionId} />
-      {successLine ? (
-        <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
-          <StatusChip kind="checked-in" />
-          <p className="text-secondary-foreground text-sm">{successLine}</p>
-        </div>
-      ) : null}
       <p
         role="status"
         aria-label="Canlı check-in sayısı"

@@ -8,8 +8,7 @@ import { NewsForm } from '../NewsForm';
 import { useAuth } from '@/context/AuthContext';
 import { StateCard } from '@/components/chrome/StateCard';
 import { isPrivileged } from '@/lib/auth/groups';
-import { newsApi } from '@/lib/api/cms';
-import { ProblemError } from '@/lib/api/core';
+import { newsApi, newsProblemMessage } from '@/lib/api/cms';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function NewAnnouncementPage() {
@@ -43,7 +42,7 @@ export default function NewAnnouncementPage() {
             notify.success('Duyuru yayınlandı');
             router.push('/announcements');
           } catch (err) {
-            throw err instanceof ProblemError ? err : new Error('Oluşturulamadı');
+            throw new Error(newsProblemMessage(err, 'Oluşturulamadı'));
           } finally {
             setPending(false);
           }

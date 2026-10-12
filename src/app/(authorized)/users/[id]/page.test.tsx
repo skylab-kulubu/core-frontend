@@ -123,7 +123,9 @@ describe('User detail feedback', () => {
 
   it('shows a refused session close on the card, not as the unexpected error', async () => {
     const user = userEvent.setup();
-    (identityApi.logoutUser as jest.Mock).mockRejectedValue(new ProblemError(403, 'Yetkin yok'));
+    (identityApi.logoutUser as jest.Mock).mockRejectedValue(
+      new ProblemError(403, 'Forbidden', { detail: 'Yetkin yok' }),
+    );
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: /Oturumları kapat/ }));
     await user.click(
@@ -139,7 +141,9 @@ describe('User detail feedback', () => {
     const user = userEvent.setup();
     (identityApi.removeExtraRole as jest.Mock)
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new ProblemError(403, 'Rol kaldırma yetkin yok'));
+      .mockRejectedValueOnce(
+        new ProblemError(403, 'Forbidden', { detail: 'Rol kaldırma yetkin yok' }),
+      );
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Kaldır' }));
     const confirm = await screen.findByRole('alertdialog', {
@@ -158,7 +162,9 @@ describe('User detail feedback', () => {
   it('shows an add-group error inside the open picker and says a success', async () => {
     const user = userEvent.setup();
     (identityApi.addMember as jest.Mock)
-      .mockRejectedValueOnce(new ProblemError(403, 'Bu gruba ekleyemezsin'))
+      .mockRejectedValueOnce(
+        new ProblemError(403, 'Forbidden', { detail: 'Bu gruba ekleyemezsin' }),
+      )
       .mockResolvedValueOnce(undefined);
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Grup ekle' }));
