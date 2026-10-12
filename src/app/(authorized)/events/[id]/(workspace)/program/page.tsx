@@ -344,6 +344,8 @@ export default function EventProgramPage() {
           setSessionOpen(false);
         }}
         title={editingSessionId ? 'Oturumu düzenle' : 'Oturum ekle'}
+        // A deleted session's row is gone; focus goes to the toolbar's add button
+        fallbackFocus={() => document.querySelector('button[aria-label="Oturum ekle"]')}
       >
         <form
           className="space-y-3"
@@ -465,7 +467,6 @@ export default function EventProgramPage() {
                   actionLabel: 'Oturumu sil',
                   onConfirm: async () => {
                     await sessionsApi.delete(id);
-                    setSessionOpen(false);
                     notify.undoable(
                       'Oturum silindi',
                       async () => {
@@ -474,7 +475,9 @@ export default function EventProgramPage() {
                       },
                       'Oturum geri alındı',
                     );
+                    // The drawer, and the question inside it, close once the program shows the change
                     await reload();
+                    setSessionOpen(false);
                   },
                   failure: 'Oturum silinemedi',
                 });

@@ -82,6 +82,9 @@ const CODE_MESSAGES: Record<string, string> = {
   session_closed: 'Bu oturum şu an girişe açık değil.',
   event_managed: 'Bu kısa link bir etkinliğe ait; etkinliğin sayfasından değiştir.',
   managed: 'Bu kısa link sistem tarafından yönetiliyor; buradan değiştirilemez.',
+  // Event status (ADR 0066): certificates, competitors and event writes refuse with these
+  event_not_published: 'Etkinlik henüz yayımlanmadı.',
+  event_cancelled: 'Etkinlik iptal edilmiş.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
   // Group name refusals (core teamcode)
   invalid_name:
@@ -90,6 +93,9 @@ const CODE_MESSAGES: Record<string, string> = {
   name_taken: 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.',
   privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
 };
+
+/** core's bare 409 on a competitor's create or save: the person already competes in that event. */
+export const COMPETITOR_TAKEN = { 409: 'Bu kişi zaten yarışmacı.' };
 
 /** core's own English titles that carry meaning but no code. */
 const TITLE_MESSAGES: Record<string, string> = {

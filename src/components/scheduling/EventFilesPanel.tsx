@@ -259,21 +259,16 @@ function MediaList({
         setProblem(null);
         try {
           onEvent(await eventMediaApi.remove(eventId.current, kind, [target.id]));
-          notify.success(`${name} kaldırıldı`);
         } catch (error) {
-          // The list changed meanwhile: show it as it is now, and say so in the dialog
-          if (error instanceof ProblemError && error.status === 409) {
-            onEvent(await eventsApi.get(eventId.current));
-          }
-          throw error;
+          if (!(error instanceof ProblemError && error.status === 409)) throw error;
+          // The list changed meanwhile and the item is already gone: show the list as it is now
+          onEvent(await eventsApi.get(eventId.current));
         } finally {
           setBusy(false);
         }
+        notify.success(`${name} kaldırıldı`);
       },
-      failure: (error) =>
-        error instanceof ProblemError && error.status === 409
-          ? 'Liste bu arada değişti; güncel hali yüklendi.'
-          : problemMessage(error),
+      failure: problemMessage,
     });
   }
 

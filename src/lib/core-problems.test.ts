@@ -319,6 +319,8 @@ describe('coreProblemMessage for any core refusal', () => {
 
   it.each([
     ['ytu_managed_field', 409, 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.'],
+    ['event_not_published', 409, 'Etkinlik henüz yayımlanmadı.'],
+    ['event_cancelled', 409, 'Etkinlik iptal edilmiş.'],
     [
       'invalid_name',
       422,

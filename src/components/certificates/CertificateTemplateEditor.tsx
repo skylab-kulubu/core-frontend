@@ -190,7 +190,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(Boolean(templateId));
   const [busy, setBusy] = useState(false);
-  // Hints the designer reads (an element already placed, a background's next step) stay inline
+  // Lines the designer reads (an element already placed, the next step after a save or upload) stay inline
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const notify = useNotify();
@@ -473,8 +473,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         ? await certificatesApi.updateTemplate(savedId, draft)
         : await certificatesApi.createTemplate(draft);
       setSavedId(template.id);
-      if (announce)
-        notify.success('Taslak kaydedildi; verilen sertifikaları etkilemesi için yayınla');
+      // It says the next step, which the designer reads: inline, not a toast (K5)
+      if (announce) setMessage('Taslak kaydedildi. Verilen sertifikaları etkilemesi için yayınla.');
       if (!savedId) router.replace(`/certificates/templates/${template.id}`);
       return template.id;
     } catch (cause) {
@@ -491,6 +491,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     setBusy(true);
     try {
       const version = await certificatesApi.publishTemplate(id);
+      setMessage(undefined);
       notify.success(`Sürüm ${version.version} yayınlandı; yeni işler bu sürümü kullanacak`);
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Şablon yayınlanamadı'));

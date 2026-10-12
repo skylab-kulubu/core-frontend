@@ -265,6 +265,23 @@ describe('EventCertificatesPanel issued certificates', () => {
     expect(confirm).not.toHaveTextContent(/Forbidden|missing role/);
   });
 
+  it('drops an earlier error once a write goes through', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([{ ...issued, revokedAt: '2026-10-11T10:00:00Z' }]);
+    api.reissue
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'))
+      .mockResolvedValueOnce(undefined);
+    renderIssued();
+    await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
+
+    await user.click(screen.getByRole('button', { name: 'Yeniden ver' }));
+    expect(
+      await screen.findByText('Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Bu işlem için yetkin yok.')).not.toBeInTheDocument();
+  });
+
   it('says the certificate was issued again', async () => {
     const user = userEvent.setup();
     api.listIssued.mockResolvedValue([{ ...issued, revokedAt: '2026-10-11T10:00:00Z' }]);

@@ -191,6 +191,40 @@ describe('Event Program tab days and sessions', () => {
     expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
   });
 
+  it('keeps the session drawer and its question open until the program is read again', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
+    await user.click(within(drawer).getByRole('button', { name: 'Sil' }));
+
+    let reread: (days: unknown[]) => void = () => {};
+    (eventDaysApi.listByEvent as jest.Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        reread = resolve;
+      }),
+    );
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Oturumu sil' }));
+    await waitFor(() => expect(sessionsApi.delete).toHaveBeenCalledWith('s1'));
+    expect(await screen.findByText('Oturum silindi')).toBeInTheDocument();
+    // The program has not been read again yet: both stay
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'Oturumu düzenle', hidden: true }),
+    ).toBeInTheDocument();
+
+    reread([]);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Oturumu düzenle' })).not.toBeInTheDocument(),
+    );
+    // The deleted session's row is gone, so focus lands on the toolbar's add button
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Oturum ekle' })).toHaveFocus());
+  });
+
   it('asks before deleting a day and does nothing on Vazgeç', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);

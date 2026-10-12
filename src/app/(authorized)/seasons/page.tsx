@@ -178,6 +178,8 @@ export default function SeasonsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
+        // A deleted season's row is gone; focus goes to the header's add button
+        fallbackFocus={() => document.querySelector('button[aria-label="Sezon ekle"]')}
       >
         <form
           className="space-y-3"
@@ -201,7 +203,9 @@ export default function SeasonsPage() {
               notify.success(editingId ? 'Sezon kaydedildi' : 'Sezon eklendi');
               await load();
             } catch (err) {
-              setFormError(coreProblemMessage(err, 'Kaydedilemedi'));
+              setFormError(
+                coreProblemMessage(err, 'Kaydedilemedi', { 409: 'Bu adla bir sezon zaten var.' }),
+              );
             }
           }}
         >
@@ -256,7 +260,6 @@ export default function SeasonsPage() {
                   actionLabel: 'Sezonu sil',
                   onConfirm: async () => {
                     await seasonsApi.delete(id);
-                    setOpen(false);
                     notify.undoable(
                       'Sezon silindi',
                       async () => {
@@ -265,7 +268,9 @@ export default function SeasonsPage() {
                       },
                       'Sezon geri alındı',
                     );
+                    // The drawer, and the question inside it, close once the list shows the change
                     await load();
+                    setOpen(false);
                   },
                   failure: 'Sezon silinemedi',
                 });

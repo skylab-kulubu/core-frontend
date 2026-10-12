@@ -61,7 +61,7 @@ describe('Seasons page', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Kayıt şu anki durumunda buna uygun değil',
+      'Bu adla bir sezon zaten var.',
     );
     expect(screen.getByText('2026-2027')).toBeInTheDocument();
   });

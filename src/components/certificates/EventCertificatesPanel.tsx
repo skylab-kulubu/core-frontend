@@ -87,6 +87,15 @@ export function EventCertificatesPanel({
   const [message, setMessage] = useState<string>();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  /** A write went through: the earlier error and queue line are stale now. */
+  const settled = (line?: string) => {
+    setError(undefined);
+    setMessage(line);
+  };
+  const done = (toast: string) => {
+    settled();
+    notify.success(toast);
+  };
 
   const availableTemplates = useMemo(
     () =>
@@ -221,7 +230,7 @@ export function EventCertificatesPanel({
                         setBusy(true);
                         try {
                           const batch = await certificatesApi.finalize(eventId);
-                          setMessage(`${batch.totalCount} sertifika üretim kuyruğuna alındı.`);
+                          settled(`${batch.totalCount} sertifika üretim kuyruğuna alındı.`);
                           await load();
                         } finally {
                           setBusy(false);
@@ -275,7 +284,7 @@ export function EventCertificatesPanel({
                           setBusy(true);
                           try {
                             await certificatesApi.retryBatch(batch.id);
-                            setMessage(
+                            settled(
                               `${batch.failedCount} başarısız sertifika yeniden kuyruğa alındı.`,
                             );
                             await load();
@@ -323,7 +332,7 @@ export function EventCertificatesPanel({
                         scopeKey: eventId,
                         templateId,
                       });
-                      notify.success('Etkinliğe özel şablon seçildi');
+                      done('Etkinliğe özel şablon seçildi');
                       await load();
                     } catch (cause) {
                       setError(coreProblemMessage(cause, 'Şablon seçilemedi'));
@@ -342,7 +351,7 @@ export function EventCertificatesPanel({
                       setBusy(true);
                       try {
                         await certificatesApi.clearBinding('event', eventId);
-                        notify.success('Etkinliğe özel seçim kaldırıldı; varsayılana dönüldü');
+                        done('Etkinliğe özel seçim kaldırıldı; varsayılana dönüldü');
                         await load();
                       } catch (cause) {
                         setError(coreProblemMessage(cause, 'Seçim kaldırılamadı'));
@@ -380,7 +389,7 @@ export function EventCertificatesPanel({
                   setBusy(true);
                   try {
                     await certificatesApi.issue(eventId, ticketId);
-                    notify.success('Manuel sertifika üretim kuyruğuna alındı');
+                    done('Manuel sertifika üretim kuyruğuna alındı');
                     setTicketId('');
                     await load();
                   } catch (cause) {
@@ -440,9 +449,7 @@ export function EventCertificatesPanel({
                               setBusy(true);
                               try {
                                 await certificatesApi.revoke(certificate.serial);
-                                notify.success(
-                                  `${certificate.recipientName} sertifikası iptal edildi`,
-                                );
+                                done(`${certificate.recipientName} sertifikası iptal edildi`);
                                 await load();
                               } finally {
                                 setBusy(false);
@@ -463,7 +470,7 @@ export function EventCertificatesPanel({
                           setError(undefined);
                           try {
                             await certificatesApi.reissue(certificate.serial);
-                            notify.success(
+                            done(
                               `${certificate.recipientName} sertifikası yeniden üretim kuyruğuna alındı`,
                             );
                             await load();
