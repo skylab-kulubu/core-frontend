@@ -7,6 +7,7 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Switch } from '@/components/chrome/Switch';
+import { ProblemError } from '@/lib/api/core';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
@@ -52,6 +53,7 @@ export function EventFormSlots({
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [gates, setGates] = useState<Record<string, FormGate | 'loading'>>({});
   const year = aliasYear(startLocal);
   const origin = formsAdminOrigin();
@@ -137,6 +139,7 @@ export function EventFormSlots({
     );
     setPendingKey(slot.key);
     setError(null);
+    setNote(null);
     try {
       if (slot.urlId) {
         const row = await urlsApi.update(slot.urlId, { url, alias });
@@ -146,6 +149,11 @@ export function EventFormSlots({
         patchSlot(slot.key, { alias: row.alias, urlId: row.id });
       }
     } catch (err) {
+      const saved = slot.saved?.url === url && slot.saved.alias === alias;
+      if (saved && err instanceof ProblemError && err.status === 409) {
+        setNote(`Bu etkinliğin kısa linki zaten var: ${publicShortUrl(alias)}`);
+        return;
+      }
       setError(coreProblemMessage(err, 'Kısa link oluşturulamadı'));
       if (!slot.alias.trim()) patchSlot(slot.key, { alias });
     } finally {
@@ -324,6 +332,7 @@ export function EventFormSlots({
           </SaveButton>
         </div>
       </div>
+      {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>
   );

@@ -124,7 +124,7 @@ describe('saveEventWithSeason', () => {
     ]);
   });
 
-  it('recreates a saved alias whose link is gone, under the same name', async () => {
+  it('creates a saved alias whose link was never created under the same name', async () => {
     const calls = coreWithTakenAliases(savedEvent, []);
 
     await saveEventWithSeason(formStateFromEvent(savedEvent), savedEvent.id);
