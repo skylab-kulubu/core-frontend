@@ -14,6 +14,8 @@ import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
 import { eventTabHref } from '@/lib/event-workspace';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function EditCompetitorPage({
   params,
@@ -30,6 +32,10 @@ export default function EditCompetitorPage({
   const [score, setScore] = useState('');
   const [isWinner, setIsWinner] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A failed save or delete keeps the form; `error` is for a competitor that cannot load
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const notify = useNotify();
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     competitorsApi
@@ -66,6 +72,7 @@ export default function EditCompetitorPage({
           e.preventDefault();
           if (!canManage || !userId) return;
           const parsed = score.trim() === '' ? undefined : Number(score);
+          setSaveError(null);
           try {
             await competitorsApi.update(id, {
               userId,
@@ -73,9 +80,10 @@ export default function EditCompetitorPage({
               score: parsed,
               isWinner,
             });
+            notify.success('Yarışmacı kaydedildi');
             router.push(back);
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
+            setSaveError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
           }
         }}
       >
@@ -85,15 +93,50 @@ export default function EditCompetitorPage({
           <Field type="number" value={score} onChange={(e) => setScore(e.target.value)} />
         </label>
         <Switch checked={isWinner} onChange={setIsWinner} label="Kazanan" />
+        {saveError ? (
+          <p role="alert" className="text-destructive text-sm">
+            {saveError}
+          </p>
+        ) : null}
         {canManage ? (
           <div className="flex gap-2">
             <SaveButton>Kaydet</SaveButton>
             <button
               type="button"
               className="text-2xs border-border text-destructive h-8 rounded-md border px-3 font-medium"
-              onClick={async () => {
-                await competitorsApi.delete(id);
-                router.push(back);
+              onClick={() => {
+                // core deletes a competitor of any event but reinstates only in an active one
+                const undoable = event?.active === true;
+                confirm({
+                  title: event?.name
+                    ? `Yarışmacı ${event.name} yarışmasından silinsin mi?`
+                    : 'Yarışmacı silinsin mi?',
+                  description: undoable
+                    ? `Yarışma listesinden kalkar. ${UNDO_HINT}`
+                    : 'Yarışma listesinden kalkar. Etkinlik aktif olmadığı için geri alınamaz.',
+                  actionLabel: 'Yarışmacıyı sil',
+                  onConfirm: async () => {
+                    setSaveError(null);
+                    try {
+                      await competitorsApi.delete(id);
+                      if (undoable) {
+                        notify.undoable(
+                          'Yarışmacı silindi',
+                          async () => {
+                            await competitorsApi.reinstate(id);
+                            router.push(`${back}/${encodeURIComponent(id)}`);
+                          },
+                          'Yarışmacı geri alındı',
+                        );
+                      } else {
+                        notify.success('Yarışmacı silindi');
+                      }
+                      router.push(back);
+                    } catch (err) {
+                      setSaveError(err instanceof ProblemError ? err.title : 'Silinemedi');
+                    }
+                  },
+                });
               }}
             >
               Sil
@@ -101,6 +144,7 @@ export default function EditCompetitorPage({
           </div>
         ) : null}
       </form>
+      {confirmDialog}
     </div>
   );
 }

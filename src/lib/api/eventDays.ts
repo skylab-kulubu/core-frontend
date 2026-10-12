@@ -29,6 +29,8 @@ export const eventDaysApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/event-days/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  restore: (id: string) =>
+    coreFetch<EventDay>(`/v1/event-days/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   listSessions: (dayId: string) =>
     coreFetch<EventSession[]>(`/v1/event-days/${encodeURIComponent(dayId)}/sessions`),
 };

@@ -23,6 +23,7 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { ensureReservedEventId } from '@/lib/event-draft';
 import { eventFormIssue } from '@/lib/events-view';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const NewEventContext = createContext<{ open: () => void; canCreate: boolean }>({
   open: () => undefined,
@@ -76,6 +77,7 @@ function QuickEventDrawer({
   leaderTeams: string[];
 }) {
   const router = useRouter();
+  const notify = useNotify();
   const id = useId();
   const fresh = useCallback(
     () => ensureReservedEventId(emptyEventForm(privileged ? '' : (leaderTeams[0] ?? ''))),
@@ -129,6 +131,7 @@ function QuickEventDrawer({
             setForm(fresh());
             setCreatedId(null);
             onClose();
+            notify.success('Etkinlik oluşturuldu');
             router.push(`/events/${eventId}`);
           } catch (err) {
             if (err instanceof EventSaveIncomplete) {

@@ -16,6 +16,7 @@ import {
 import { ProblemError } from '@/lib/api/core';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
+import { useConfirm } from '@/lib/ui/use-confirm';
 
 export default function CertificateDefaultsPage() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export default function CertificateDefaultsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     Promise.all([certificatesApi.templates(), certificatesApi.bindings(), teamsApi.list()])
@@ -65,6 +67,22 @@ export default function CertificateDefaultsPage() {
   useEffect(() => {
     setTemplateId(currentBinding?.templateId ?? '');
   }, [currentBinding?.templateId, scope, team]);
+
+  async function clearTeamDefault() {
+    setSaving(true);
+    setError(undefined);
+    try {
+      await certificatesApi.clearBinding('ownerTeam', team);
+      setBindings((current) =>
+        current.filter((binding) => !(binding.scope === 'ownerTeam' && binding.scopeKey === team)),
+      );
+      setMessage(`${team} artık SKY LAB varsayılanına düşecek.`);
+    } catch (cause) {
+      setError(cause instanceof ProblemError ? cause.title : 'Varsayılan kaldırılamadı');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) return <StateCard title="Varsayılanlar yükleniyor…" isLoading />;
 
@@ -153,28 +171,20 @@ export default function CertificateDefaultsPage() {
             type="button"
             disabled={saving}
             className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-xs disabled:opacity-50"
-            onClick={async () => {
-              if (!window.confirm(`${team} varsayılanını kaldırmak istediğine emin misin?`)) return;
-              setSaving(true);
-              setError(undefined);
-              try {
-                await certificatesApi.clearBinding('ownerTeam', team);
-                setBindings((current) =>
-                  current.filter(
-                    (binding) => !(binding.scope === 'ownerTeam' && binding.scopeKey === team),
-                  ),
-                );
-                setMessage(`${team} artık SKY LAB varsayılanına düşecek.`);
-              } catch (cause) {
-                setError(cause instanceof ProblemError ? cause.title : 'Varsayılan kaldırılamadı');
-              } finally {
-                setSaving(false);
-              }
-            }}
+            onClick={() =>
+              confirm({
+                title: `${team} varsayılanı kaldırılsın mı?`,
+                description: `${team} etkinlikleri, kendine özel şablonu olmayanlarda SKY LAB varsayılanını kullanır.`,
+                actionLabel: 'Varsayılanı kaldır',
+                onConfirm: () => clearTeamDefault(),
+              })
+            }
           >
             Ekip varsayılanını kaldır
           </button>
         ) : null}
+        {confirmDialog}
+
         {message ? (
           <p role="status" className="text-skylab-300 text-sm">
             {message}

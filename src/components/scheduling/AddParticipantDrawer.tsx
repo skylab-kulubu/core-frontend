@@ -11,6 +11,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { PersonPick } from '@/components/identity/PersonPick';
 import { ProblemError } from '@/lib/api/core';
 import { ticketsApi, type GuestApplyBody, type Ticket } from '@/lib/api/tickets';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const memberSchema = z.object({
   personId: z.string().trim().min(1, 'Kişi seçin'),
@@ -38,6 +39,7 @@ export function AddParticipantDrawer({
   onCreated: (ticket: Ticket) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const notify = useNotify();
   const memberForm = useForm<MemberForm>({
     resolver: zodResolver(memberSchema),
     defaultValues: { personId: '' },
@@ -65,7 +67,11 @@ export function AddParticipantDrawer({
       title="Katılımcı ekle"
     >
       <div className="space-y-6">
-        {error ? <p className="text-destructive text-sm">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        ) : null}
         <form
           className="space-y-3"
           noValidate
@@ -76,6 +82,7 @@ export function AddParticipantDrawer({
               reset();
               onCreated(ticket);
               onClose();
+              notify.success('Üye kaydı yazıldı');
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Üye kaydı yazılamadı');
             }
@@ -111,6 +118,7 @@ export function AddParticipantDrawer({
               reset();
               onCreated(ticket);
               onClose();
+              notify.success('Misafir kaydı yazıldı');
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Misafir kaydı yazılamadı');
             }
