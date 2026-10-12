@@ -16,6 +16,8 @@ export type EventFormSlot = {
   url: string;
   alias: string;
   urlId?: string;
+  /** The address and alias the Event already saved for this slot. */
+  saved?: { url: string; alias: string };
 };
 
 export const APPLY_SLOT_KEY = 'apply';
@@ -235,15 +237,23 @@ export function slotsFromEvent(
   const apply = emptyApplySlot();
   apply.url = event.formUrl ?? '';
   apply.alias = event.formAlias ?? '';
+  apply.saved = savedLink(apply);
   if (looksLikeSkyforms(apply.url, origin)) apply.mode = 'skyforms';
   const extras = (event.extraFormUrls ?? []).map((row, index) => {
     const slot = extraFormSlot(row.label || 'Ek form', `extra-${index}-${row.label || 'form'}`);
     slot.url = row.url ?? '';
     slot.alias = row.alias ?? '';
+    slot.saved = savedLink(slot);
     if (looksLikeSkyforms(slot.url, origin)) slot.mode = 'skyforms';
     return slot;
   });
   return [apply, ...extras];
+}
+
+function savedLink(slot: EventFormSlot): EventFormSlot['saved'] {
+  const url = slot.url.trim();
+  const alias = slot.alias.trim();
+  return url && alias ? { url, alias } : undefined;
 }
 
 export function persistableFormFields(slots: EventFormSlot[]): {
@@ -297,6 +307,25 @@ export async function createAliasWithRetry(
   throw last instanceof Error ? last : new ProblemError(409, 'Conflict');
 }
 
+/**
+ * Creates the slot's link under `alias`. The alias the Event already saved for
+ * the same address is its own link (core binds a form's link to the Event), so
+ * a 409 on it must not move the slot to a numbered alias: one attempt only.
+ */
+export async function createSlotAlias(
+  create: (body: ShortUrlBody) => Promise<ShortUrl>,
+  slot: EventFormSlot,
+  url: string,
+  alias: string,
+  year: number,
+): Promise<ShortUrl> {
+  const own = shortAliasFromSlug(alias);
+  if (slot.saved && slot.saved.url === url && slot.saved.alias === own) {
+    return create({ url, alias: own });
+  }
+  return createAliasWithRetry(create, url, alias, year);
+}
+
 export async function attachFormAliases(
   slots: EventFormSlot[],
   name: string,
@@ -318,7 +347,7 @@ export async function attachFormAliases(
       humanFormAlias(ownerTeam, name, year, extra) ||
       slugYearAlias(name, year, extra);
     try {
-      const row = await createAliasWithRetry(create, url, alias, year);
+      const row = await createSlotAlias(create, slot, url, alias, year);
       out.push({ ...slot, url, alias: row.alias, urlId: row.id });
     } catch {
       out.push({ ...slot, url, alias: shortAliasFromSlug(alias) });
