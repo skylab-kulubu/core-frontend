@@ -213,7 +213,9 @@ describe('EventMediaFields', () => {
 
     await waitFor(() => expect(gallery).toHaveBeenLastCalledWith(['g1']));
     expect(await screen.findByRole('button', { name: 'Kalan 2 görseli yükle' })).toBeEnabled();
-    expect(screen.getByText('Yüklenemedi')).toBeInTheDocument();
+    expect(
+      screen.getByText('Sunucuya ulaşılamadı. Bağlantını denetleyip tekrar dene.'),
+    ).toBeInTheDocument();
   });
 
   it('keeps the edits made while a gallery upload runs', async () => {
@@ -318,7 +320,9 @@ describe('EventMediaFields', () => {
 
       await user.upload(screen.getByLabelText('Galeri görselleri seç'), [photo('c.png')]);
       const resume = await screen.findByRole('button', { name: 'Kalan 3 görseli yükle' });
-      expect(screen.getByText('Yüklenemedi')).toBeInTheDocument();
+      expect(
+        screen.getByText('Sunucuya ulaşılamadı. Bağlantını denetleyip tekrar dene.'),
+      ).toBeInTheDocument();
       expect(resume).toBeDisabled();
 
       act(() => {

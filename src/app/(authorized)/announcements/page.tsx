@@ -13,7 +13,7 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, type NewsItem } from '@/lib/api/cms';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 
@@ -38,7 +38,7 @@ export default function AnnouncementsPage() {
         setItems((result.items ?? []).filter((item) => Boolean(item.slug)));
         setError(null);
       })
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Duyurular yüklenemedi'))
+      .catch((err) => setError(coreProblemMessage(err, 'Duyurular yüklenemedi')))
       .finally(() => setLoading(false));
   }, [privileged]);
 

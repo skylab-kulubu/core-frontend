@@ -20,7 +20,7 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import { identityApi, type Person } from '@/lib/api/identity';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
@@ -68,7 +68,7 @@ export default function UsersPage() {
       setError(null);
     } catch (err) {
       if (search !== latestSearch.current) return;
-      setError(err instanceof ProblemError ? err.title : 'Kullanıcılar yüklenemedi');
+      setError(coreProblemMessage(err, 'Kullanıcılar yüklenemedi'));
     } finally {
       if (search === latestSearch.current) setLoading(false);
     }
@@ -180,7 +180,7 @@ export default function UsersPage() {
                 if (query === values.email) await load(query);
                 else setQuery(values.email);
               } catch (err) {
-                setCreateError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+                setCreateError(coreProblemMessage(err, 'Oluşturulamadı'));
               }
             })}
           >

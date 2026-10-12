@@ -9,7 +9,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { PersonPick } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
@@ -32,7 +32,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
     eventsApi
       .get(eventId)
       .then(setEvent)
-      .catch((err) => setError(err instanceof ProblemError ? err.title : 'Etkinlik yüklenemedi'));
+      .catch((err) => setError(coreProblemMessage(err, 'Etkinlik yüklenemedi')));
   }, [eventId]);
 
   return (
@@ -57,7 +57,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
             notify.success('Yarışmacı eklendi');
             router.push(eventTabHref(eventId, 'competition'));
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+            setError(coreProblemMessage(err, 'Oluşturulamadı'));
           }
         }}
       >

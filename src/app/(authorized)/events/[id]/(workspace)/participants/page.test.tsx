@@ -93,4 +93,23 @@ describe('Event Katılımcılar tab', () => {
     expect(screen.queryByRole('heading', { name: 'Başvuranlar' })).not.toBeInTheDocument();
     expect(ticketsApi.listByEvent).not.toHaveBeenCalled();
   });
+
+  it('says a row check-in in a toast, not in a line above the roster', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+    (ticketsApi.checkIn as jest.Mock).mockResolvedValue({
+      id: 'ci-1',
+      sessionId: 's1',
+      eventDayId: 'd1',
+      createdAt: new Date(2026, 8, 19, 9, 4, 0).toISOString(),
+    });
+
+    await renderParticipants();
+    await user.click((await screen.findAllByRole('button', { name: 'Katıldı · Açılış' }))[0]);
+
+    await waitFor(() => expect(ticketsApi.checkIn).toHaveBeenCalledWith('t-guest', 's1'));
+    expect(await screen.findByText(/^Ada Lovelace · Açılış · /)).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Check-in sonucu' })).not.toBeInTheDocument();
+  });
 });

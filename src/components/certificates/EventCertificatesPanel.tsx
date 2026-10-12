@@ -16,7 +16,7 @@ import {
   type CertificateTemplate,
   type IssuedCertificate,
 } from '@/lib/api/certificates';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import type { Ticket } from '@/lib/api/tickets';
 import { listStatus } from '@/lib/list-status';
 import { useConfirm } from '@/lib/ui/use-confirm';
@@ -116,7 +116,7 @@ export function EventCertificatesPanel({
       setTemplateId(nextSummary.resolution.template.id);
       setError(undefined);
     } catch (cause) {
-      setError(cause instanceof ProblemError ? cause.title : 'Sertifika bilgileri yüklenemedi');
+      setError(coreProblemMessage(cause, 'Sertifika bilgileri yüklenemedi'));
     } finally {
       setLoading(false);
     }
@@ -201,7 +201,7 @@ export function EventCertificatesPanel({
                     window.open(url, '_blank', 'noopener,noreferrer');
                     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
                   } catch (cause) {
-                    setError(cause instanceof ProblemError ? cause.title : 'Önizleme üretilemedi');
+                    setError(coreProblemMessage(cause, 'Önizleme üretilemedi'));
                   }
                 }}
               />
@@ -221,9 +221,7 @@ export function EventCertificatesPanel({
                           setMessage(`${batch.totalCount} sertifika üretim kuyruğuna alındı.`);
                           await load();
                         } catch (cause) {
-                          setError(
-                            cause instanceof ProblemError ? cause.title : 'Katılım kapatılamadı',
-                          );
+                          setError(coreProblemMessage(cause, 'Katılım kapatılamadı'));
                         } finally {
                           setBusy(false);
                         }
@@ -280,9 +278,7 @@ export function EventCertificatesPanel({
                             );
                             await load();
                           } catch (cause) {
-                            setError(
-                              cause instanceof ProblemError ? cause.title : 'Yeniden denenemedi',
-                            );
+                            setError(coreProblemMessage(cause, 'Yeniden denenemedi'));
                           } finally {
                             setBusy(false);
                           }
@@ -329,7 +325,7 @@ export function EventCertificatesPanel({
                       setMessage('Etkinliğe özel şablon seçildi.');
                       await load();
                     } catch (cause) {
-                      setError(cause instanceof ProblemError ? cause.title : 'Şablon seçilemedi');
+                      setError(coreProblemMessage(cause, 'Şablon seçilemedi'));
                     } finally {
                       setBusy(false);
                     }
@@ -348,9 +344,7 @@ export function EventCertificatesPanel({
                         setMessage('Etkinliğe özel seçim kaldırıldı; varsayılana dönüldü.');
                         await load();
                       } catch (cause) {
-                        setError(
-                          cause instanceof ProblemError ? cause.title : 'Seçim kaldırılamadı',
-                        );
+                        setError(coreProblemMessage(cause, 'Seçim kaldırılamadı'));
                       } finally {
                         setBusy(false);
                       }
@@ -389,9 +383,7 @@ export function EventCertificatesPanel({
                     setTicketId('');
                     await load();
                   } catch (cause) {
-                    setError(
-                      cause instanceof ProblemError ? cause.title : 'Sertifika kuyruğa alınamadı',
-                    );
+                    setError(coreProblemMessage(cause, 'Sertifika kuyruğa alınamadı'));
                   } finally {
                     setBusy(false);
                   }
@@ -453,11 +445,7 @@ export function EventCertificatesPanel({
                                 );
                                 await load();
                               } catch (cause) {
-                                setError(
-                                  cause instanceof ProblemError
-                                    ? cause.title
-                                    : 'Sertifika iptal edilemedi',
-                                );
+                                setError(coreProblemMessage(cause, 'Sertifika iptal edilemedi'));
                               } finally {
                                 setBusy(false);
                               }
@@ -481,11 +469,7 @@ export function EventCertificatesPanel({
                             );
                             await load();
                           } catch (cause) {
-                            setError(
-                              cause instanceof ProblemError
-                                ? cause.title
-                                : 'Sertifika yeniden verilemedi',
-                            );
+                            setError(coreProblemMessage(cause, 'Sertifika yeniden verilemedi'));
                           } finally {
                             setBusy(false);
                           }

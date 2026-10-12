@@ -100,9 +100,9 @@ describe('Event Program tab Katıldı', () => {
         query: 'Ada Lovelace',
       }),
     );
-    expect(await screen.findByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
-      /Ada Lovelace · Açılış · /,
-    );
+    // A toast: the drawer closes and the Program list may sit far below the tabs
+    expect(await screen.findByText(/^Ada Lovelace · Açılış · /)).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Check-in sonucu' })).not.toBeInTheDocument();
   });
 });
 
@@ -153,7 +153,9 @@ describe('Event Program tab days and sessions', () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (sessionsApi.create as jest.Mock).mockRejectedValue(
-      new ProblemError(422, 'Oturum saati gün aralığının dışında'),
+      new ProblemError(422, 'Unprocessable Content', {
+        detail: 'Oturum saati gün aralığının dışında',
+      }),
     );
     await renderProgram();
     await user.click(await screen.findByRole('button', { name: 'Oturum ekle' }));
@@ -243,7 +245,7 @@ describe('Event Program tab days and sessions', () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
-      new ProblemError(404, 'Kişi bulunamadı'),
+      new ProblemError(404, 'Not Found', { detail: 'Kişi bulunamadı' }),
     );
     await renderProgram();
     const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });

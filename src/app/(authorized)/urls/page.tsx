@@ -12,7 +12,7 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import {
   asHitList,
@@ -70,7 +70,7 @@ export default function UrlsPage() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'URL’ler yüklenemedi');
+      setError(coreProblemMessage(err, 'URL’ler yüklenemedi'));
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,7 @@ export default function UrlsPage() {
           );
           await load();
         } catch (err) {
-          setError(err instanceof ProblemError ? err.title : 'Silinemedi');
+          setError(coreProblemMessage(err, 'Silinemedi'));
         }
       },
     });
@@ -145,7 +145,7 @@ export default function UrlsPage() {
             notify.success('Kısa link oluşturuldu');
             await load();
           } catch (err) {
-            setError(err instanceof ProblemError ? err.title : 'Kısaltılamadı');
+            setError(coreProblemMessage(err, 'Kısaltılamadı'));
           } finally {
             setPending(false);
           }
@@ -197,7 +197,7 @@ export default function UrlsPage() {
                   setHits(asHitList(await urlsApi.listHits(row.id)));
                 } catch (err) {
                   setHits([]);
-                  setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
+                  setHitsError(coreProblemMessage(err, 'Tıklamalar yüklenemedi'));
                 }
               }
             : undefined
@@ -225,7 +225,7 @@ export default function UrlsPage() {
               setHits(asHitList(await urlsApi.listHits(row.id)));
             } catch (err) {
               setHits([]);
-              setHitsError(err instanceof ProblemError ? err.title : 'Tıklamalar yüklenemedi');
+              setHitsError(coreProblemMessage(err, 'Tıklamalar yüklenemedi'));
             }
           }}
           onDelete={askDelete}
@@ -285,7 +285,7 @@ export default function UrlsPage() {
                 notify.success('Kısa link kaydedildi');
                 await load();
               } catch (err) {
-                setEditError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
+                setEditError(coreProblemMessage(err, 'Güncellenemedi'));
               }
             }}
           >

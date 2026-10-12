@@ -12,7 +12,7 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
-import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
 import {
@@ -59,7 +59,7 @@ function EventsPageContent() {
       setEvents(await eventsApi.list(ownerFilter || undefined));
       setError(null);
     } catch (err) {
-      setError(err instanceof ProblemError ? err.title : 'Etkinlikler yüklenemedi');
+      setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi'));
     } finally {
       setLoading(false);
     }

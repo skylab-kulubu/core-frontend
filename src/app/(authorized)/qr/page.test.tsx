@@ -105,9 +105,16 @@ describe('Kapı check-in page', () => {
         query: 'ada@example.com',
       }),
     );
-    expect(screen.getByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
-      /Ada Lovelace · Açılış · /,
-    );
+    const result = screen.getByRole('status', { name: 'Check-in sonucu' });
+    expect(result).toHaveTextContent(/Ada Lovelace · Açılış · /);
+    // Right under the button, so a phone shows it without scrolling past the guest QR
+    const button = screen.getByRole('button', { name: 'Check-in' });
+    expect(button.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      result.compareDocumentPosition(screen.getByRole('region', { name: "Misafir QR'ı" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Ad veya e-posta')).toHaveValue('');
     expect(screen.queryByText(/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/)).not.toBeInTheDocument();
   });
 

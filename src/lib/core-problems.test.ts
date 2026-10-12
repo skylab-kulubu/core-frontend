@@ -143,13 +143,11 @@ describe('coreProblemMessage without a known code', () => {
     ).toBe('A new rule refused it.');
   });
 
-  it('falls back to the title, then to the caller text', () => {
+  it('says the status in Turkish, then the caller text for anything that is not a problem', () => {
     expect(coreProblemMessage(new ProblemError(500, 'Internal Server Error'))).toBe(
-      'Internal Server Error',
+      'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.',
     );
-    expect(coreProblemMessage(new TypeError('Failed to fetch'), 'Galeri yüklenemedi')).toBe(
-      'Galeri yüklenemedi',
-    );
+    expect(coreProblemMessage(new Error('boom'), 'Galeri yüklenemedi')).toBe('Galeri yüklenemedi');
   });
 });
 
@@ -175,5 +173,100 @@ describe('coreProblemMessage for a bare 413', () => {
     expect(coreProblemMessage(new ProblemError(413, 'Request Entity Too Large'))).toBe(
       'Dosya çok büyük: sunucu tek seferde en fazla 20 MB kabul ediyor.',
     );
+  });
+});
+
+describe('coreProblemMessage for any core refusal', () => {
+  it.each([
+    [400, 'Bad Request', 'İstek geçersiz. Girdiklerini denetleyip tekrar dene.'],
+    [401, 'Unauthorized', 'Oturumun sona ermiş. Sayfayı yenileyip yeniden giriş yap.'],
+    [403, 'Forbidden', 'Bu işlem için yetkin yok.'],
+    [404, 'Not Found', 'Kayıt bulunamadı; silinmiş olabilir.'],
+    [
+      409,
+      'Conflict',
+      'Kayıt şu anki durumunda buna uygun değil ya da başka bir kayıtla çakışıyor. Sayfayı yenileyip tekrar dene.',
+    ],
+    [410, 'Gone', 'Kayıt artık yok.'],
+    [422, 'Unprocessable Entity', 'Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.'],
+    [429, 'Too Many Requests', 'Çok fazla istek gönderildi. Biraz bekleyip tekrar dene.'],
+    [502, 'Bad Gateway', 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.'],
+    [503, 'HTTP 503', 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.'],
+  ])('says %i (%s) in Turkish', (status, title, message) => {
+    expect(coreProblemMessage(new ProblemError(status, title), 'Kaydedilemedi')).toBe(message);
+  });
+
+  it("keeps the caller's text for a status it has no sentence for", () => {
+    expect(coreProblemMessage(new ProblemError(418, "I'm a teapot"), 'Kaydedilemedi')).toBe(
+      'Kaydedilemedi',
+    );
+  });
+
+  it('says the server could not be reached when fetch itself failed', () => {
+    for (const message of [
+      'Failed to fetch',
+      'NetworkError when attempting to fetch resource.',
+      'Load failed',
+    ]) {
+      expect(coreProblemMessage(new TypeError(message), 'Kaydedilemedi')).toBe(
+        'Sunucuya ulaşılamadı. Bağlantını denetleyip tekrar dene.',
+      );
+    }
+  });
+
+  it("prefers core's detail when it says more than the status", () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(409, 'Conflict', { detail: 'Etkinlik aktif değil.' }),
+        'Kaydedilemedi',
+      ),
+    ).toBe('Etkinlik aktif değil.');
+  });
+
+  it("ignores a detail that only repeats the title or the status's English name", () => {
+    expect(
+      coreProblemMessage(new ProblemError(403, 'Forbidden', { detail: 'Forbidden' }), 'x'),
+    ).toBe('Bu işlem için yetkin yok.');
+    // problemFromResponse copies a lone detail into the title
+    expect(
+      coreProblemMessage(new ProblemError(404, 'Not Found', { detail: 'not found' }), 'x'),
+    ).toBe('Kayıt bulunamadı; silinmiş olabilir.');
+  });
+
+  it('uses a Turkish sentence for the codes the panel meets, over the detail', () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(403, 'Session Not Open', { code: 'session_closed', detail: 'closed' }),
+        'x',
+      ),
+    ).toBe('Bu oturum şu an girişe açık değil.');
+    expect(
+      coreProblemMessage(new ProblemError(403, 'Forbidden', { code: 'event_managed' }), 'x'),
+    ).toBe('Bu kısa link bir etkinliğe ait; etkinliğin sayfasından değiştir.');
+    expect(coreProblemMessage(new ProblemError(409, 'Conflict', { code: 'managed' }), 'x')).toBe(
+      'Bu kısa link sistem tarafından yönetiliyor; buradan değiştirilemez.',
+    );
+  });
+
+  it("says core's own English titles without a code in Turkish", () => {
+    expect(coreProblemMessage(new ProblemError(409, 'Ambiguous Match'), 'x')).toBe(
+      'Bu adla birden fazla kayıt var; e-posta ile dene.',
+    );
+    expect(coreProblemMessage(new ProblemError(422, 'No mail recipients'), 'x')).toBe(
+      'Mail gönderilecek alıcı yok.',
+    );
+  });
+
+  it('lets the caller word a status for its own action', () => {
+    expect(
+      coreProblemMessage(new ProblemError(403, 'Forbidden'), 'x', {
+        403: 'Bunu geri almaya yetkin yok.',
+      }),
+    ).toBe('Bunu geri almaya yetkin yok.');
+    expect(
+      coreProblemMessage(new ProblemError(500, 'Internal Server Error'), 'x', {
+        403: 'Bunu geri almaya yetkin yok.',
+      }),
+    ).toBe('Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.');
   });
 });
