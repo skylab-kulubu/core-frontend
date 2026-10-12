@@ -3,6 +3,11 @@ import { ProblemError } from '@/lib/api/core';
 export const DOOR_QR_FALLBACK_REFRESH_SECONDS = 15;
 export const DOOR_QR_RATE_LIMITED_WAIT_SECONDS = 60;
 export const DOOR_QR_CLOSED_RETRY_SECONDS = 30;
+/**
+ * Core mints the guest QR, and takes guest check-ins with it, from this many hours before a
+ * session starts until this many hours after it ends (core's DOOR_QR_SESSION_GRACE default).
+ */
+export const DOOR_GUEST_QR_WINDOW_HOURS = 12;
 
 /** The core's SVG as an image address; the SVG is ASCII, and an <img> never runs scripts in it. */
 export function svgDataUrl(svg: string): string {
@@ -21,7 +26,7 @@ export function doorQrFailure(err: unknown, refreshAfterSeconds: number): DoorQr
   if (err instanceof ProblemError) {
     if (err.status === 403 && err.code === 'session_closed') {
       return {
-        message: 'Oturum şu an açık değil; QR oturum saatinde görünür.',
+        message: `Oturum şu an açık değil; misafir QR’ı oturumdan ${DOOR_GUEST_QR_WINDOW_HOURS} saat önce açılır, bitişinden ${DOOR_GUEST_QR_WINDOW_HOURS} saat sonra kapanır.`,
         retryAfterSeconds: DOOR_QR_CLOSED_RETRY_SECONDS,
         hideQr: true,
       };

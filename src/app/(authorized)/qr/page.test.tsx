@@ -172,7 +172,7 @@ describe('Kapı check-in page', () => {
     render(<QrPage />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
-      /Bu oturum henüz başlamadı \(başlangıç /,
+      /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
     );
     await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
