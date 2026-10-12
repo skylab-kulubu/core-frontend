@@ -35,6 +35,11 @@ export default function EditCompetitorPage({
     competitorsApi
       .get(id)
       .then(async (got) => {
+        // A hand-written address with another event: open the competitor under its own event
+        if (got.eventId !== eventId) {
+          router.replace(`${eventTabHref(got.eventId, 'competition')}/${encodeURIComponent(id)}`);
+          return;
+        }
         setRow(got);
         setUserId(got.userId);
         setScore(got.score === undefined ? '' : String(got.score));
@@ -43,7 +48,7 @@ export default function EditCompetitorPage({
         setEvent(ev);
       })
       .catch((err) => setError(err instanceof ProblemError ? err.title : 'Yüklenemedi'));
-  }, [id]);
+  }, [eventId, id]);
 
   const ownerTeam = event?.ownerTeam ?? '';
   const canManage = canManageCompetitors(groups, ownerTeam);

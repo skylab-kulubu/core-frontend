@@ -6,6 +6,7 @@ import {
   failedBatches,
 } from '@/components/certificates/EventCertificatesPanel';
 import { certificatesApi, type CertificateBatch } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 
 jest.mock('@/lib/api/certificates', () => ({
   certificatesApi: {
@@ -125,6 +126,28 @@ describe('EventCertificatesPanel failed batches', () => {
     renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Yeniden dene' }));
     expect(api.retryBatch).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it('keeps the tab when the failed batches cannot be read', async () => {
+    api.summary.mockResolvedValue(summary(2));
+    api.listBatches.mockRejectedValue(new Error('down'));
+    renderPanel();
+    expect(await screen.findByText('SKY LAB')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Başarısız üretim işleri okunamadı');
+    expect(screen.getByText('Başarısız')).toBeInTheDocument();
+  });
+
+  it('shows why a retry failed', async () => {
+    const user = userEvent.setup();
+    const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    api.summary.mockResolvedValue(summary(1));
+    api.listBatches.mockResolvedValue([batch('b1', 1, '2026-10-01T10:00:00Z')]);
+    api.retryBatch.mockRejectedValue(new ProblemError(409, 'Conflict'));
+    renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Yeniden dene' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Conflict');
+    expect(screen.getByRole('button', { name: 'Yeniden dene' })).toBeEnabled();
     confirm.mockRestore();
   });
 

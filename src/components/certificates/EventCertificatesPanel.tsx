@@ -75,6 +75,7 @@ export function EventCertificatesPanel({
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [issued, setIssued] = useState<IssuedCertificate[]>([]);
   const [failed, setFailed] = useState<CertificateBatch[]>([]);
+  const [failedUnread, setFailedUnread] = useState(false);
   const [templateId, setTemplateId] = useState('');
   const [ticketId, setTicketId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -99,13 +100,17 @@ export function EventCertificatesPanel({
         canBind ? certificatesApi.templates() : Promise.resolve([]),
         canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
       ]);
-      // Only read the batches when something failed: retrying is what they are for here
+      // Only read the batches when something failed: retrying is what they are for here,
+      // and a failed read keeps the rest of the tab
       const nextBatches =
-        canIssue && nextSummary.failedCount > 0 ? await certificatesApi.listBatches(eventId) : [];
+        canIssue && nextSummary.failedCount > 0
+          ? await certificatesApi.listBatches(eventId).catch(() => null)
+          : [];
       setSummary(nextSummary);
       setTemplates(nextTemplates);
       setIssued(nextIssued);
-      setFailed(failedBatches(nextBatches));
+      setFailed(failedBatches(nextBatches ?? []));
+      setFailedUnread(nextBatches === null);
       setTemplateId(nextSummary.resolution.template.id);
       setError(undefined);
     } catch (cause) {
@@ -230,13 +235,19 @@ export function EventCertificatesPanel({
         </>
       ) : null}
 
-      {canIssue && failed.length > 0 ? (
+      {canIssue && (failed.length > 0 || failedUnread) ? (
         <div className="space-y-3">
           <p className="text-secondary-foreground text-sm font-semibold">Başarısız üretim işleri</p>
+          {failedUnread ? (
+            <p role="alert" className="text-destructive text-xs">
+              Başarısız üretim işleri okunamadı. Sayfayı yenileyip yeniden dene.
+            </p>
+          ) : null}
           <ListPanel
             status={listStatus({
               loading: false,
               rowCount: failed.length,
+              failed: failedUnread,
               emptyMessage: 'Başarısız iş yok',
             })}
           >
