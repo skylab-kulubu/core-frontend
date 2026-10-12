@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import type { UserDto } from '@/types/api';
 import { CORE_API_URL } from '@/lib/api/core';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
-import { refreshAccessToken, RefreshTokenRejectedError } from '@/lib/auth/oauth2';
+import { RefreshTokenRejectedError } from '@/lib/auth/oauth2';
+import { refreshSession } from '@/lib/auth/refresh-session';
 import { sessionUserFromAccessToken } from '@/lib/auth/session-user';
 import { clubRoleLabel } from '@/lib/chrome-role';
 import type { ProfilePicture } from '@/lib/profile-picture';
@@ -12,7 +13,6 @@ import {
   freshSessionAuthTime,
   readSessionAccessToken,
   readSessionRefreshToken,
-  writeSessionCookies,
 } from '@/lib/auth/session-cookies';
 
 function userFromAccessToken(token: string): UserDto | null {
@@ -53,8 +53,7 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     // A session past the panel's sign-in limit ends here, whatever its tokens say.
-    const authTime = freshSessionAuthTime(cookieStore);
-    if (authTime == null) {
+    if (freshSessionAuthTime(cookieStore) == null) {
       return NextResponse.json({ authenticated: false }, { status: 401 });
     }
     let token = readSessionAccessToken(cookieStore);
@@ -65,9 +64,9 @@ export async function GET() {
         return NextResponse.json({ authenticated: false }, { status: 401 });
       }
       try {
-        const refreshed = await refreshAccessToken(refreshToken);
-        token = refreshed.access_token;
-        writeSessionCookies(cookieStore, refreshed.access_token, refreshed.refresh_token, authTime);
+        // Keycloak's ID token, not the cookie, says when the admin signed in (refresh-session.ts).
+        token = await refreshSession(cookieStore, refreshToken);
+        if (!token) return NextResponse.json({ authenticated: false }, { status: 401 });
       } catch (error) {
         if (error instanceof RefreshTokenRejectedError) clearSessionCookies(cookieStore);
         return NextResponse.json({ authenticated: false }, { status: 401 });

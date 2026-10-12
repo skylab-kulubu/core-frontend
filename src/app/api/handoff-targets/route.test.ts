@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import { GET } from '@/app/api/handoff-targets/route';
 import { saveEnv } from '@/test/server/env';
+import { idToken } from '@/test/server/jwt';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -123,6 +124,25 @@ describe('GET /api/handoff-targets', () => {
     expect(response.status).toBe(401);
   });
 
+  it('answers 401 when the refresh shows a sign-in older than its cookie says', async () => {
+    signedIn({ auth_token: accessToken(-60), refresh_token: 'refresh-1' });
+    process.env.OAUTH2_CLIENT_ID = 'superadmin';
+    const seen = fakeKeycloak((request) =>
+      request.url.endsWith('/protocol/openid-connect/token')
+        ? Response.json({
+            access_token: accessToken(),
+            refresh_token: 'refresh-2',
+            id_token: idToken(Math.floor(Date.now() / 1000) - 9 * 3600),
+          })
+        : Response.json([]),
+    );
+
+    const response = await GET();
+
+    expect(seen).toHaveLength(1);
+    expect(response.status).toBe(401);
+  });
+
   describe('with Secure (__Host-) session cookies', () => {
     afterEach(saveEnv('AUTH_COOKIE_SECURE'));
 
@@ -144,7 +164,11 @@ describe('GET /api/handoff-targets', () => {
     process.env.OAUTH2_CLIENT_ID = 'superadmin';
     const seen = fakeKeycloak((request) =>
       request.url.endsWith('/protocol/openid-connect/token')
-        ? Response.json({ access_token: fresh, refresh_token: 'refresh-2' })
+        ? Response.json({
+            access_token: fresh,
+            refresh_token: 'refresh-2',
+            id_token: idToken(Math.floor(Date.now() / 1000) - 60),
+          })
         : Response.json([]),
     );
 

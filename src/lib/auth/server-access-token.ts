@@ -1,11 +1,10 @@
 import { cookies } from 'next/headers';
 import { isJwtExpired } from '@/lib/auth/jwt-expiry';
-import { refreshAccessToken } from '@/lib/auth/oauth2';
+import { refreshSession } from '@/lib/auth/refresh-session';
 import {
   freshSessionAuthTime,
   readSessionAccessToken,
   readSessionRefreshToken,
-  writeSessionCookies,
 } from '@/lib/auth/session-cookies';
 
 /**
@@ -16,17 +15,15 @@ import {
  */
 export async function serverAccessToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  const authTime = freshSessionAuthTime(cookieStore);
-  if (authTime == null) return null;
+  if (freshSessionAuthTime(cookieStore) == null) return null;
   const token = readSessionAccessToken(cookieStore);
   if (token && !isJwtExpired(token)) return token;
 
   const refreshToken = readSessionRefreshToken(cookieStore);
   if (!refreshToken) return null;
   try {
-    const refreshed = await refreshAccessToken(refreshToken);
-    writeSessionCookies(cookieStore, refreshed.access_token, refreshed.refresh_token, authTime);
-    return refreshed.access_token;
+    // Keycloak's ID token, not the cookie, says when the admin signed in (refresh-session.ts).
+    return await refreshSession(cookieStore, refreshToken);
   } catch {
     return null;
   }

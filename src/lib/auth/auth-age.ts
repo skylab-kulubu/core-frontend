@@ -39,24 +39,58 @@ export function authTimeIsFresh(authTime: number | null | undefined, now?: numbe
   return sessionSecondsLeft(authTime, now) > 0;
 }
 
-/**
- * The `auth_time` of an ID token issued to `clientId`, or `null`. The token comes straight from
- * Keycloak's token endpoint over TLS in exchange for this login's code and PKCE verifier, so its
- * signature is not checked here (OIDC Core 3.1.3.7, item 6); its audience is.
- */
-export function idTokenAuthTime(idToken: unknown, clientId: string): number | null {
-  if (typeof idToken !== 'string') return null;
-  const payload = idToken.split('.')[1];
+/** The claims of a JWT, read without checking its signature; `null` when it is not one. */
+export function jwtClaims(token: unknown): Record<string, unknown> | null {
+  if (typeof token !== 'string') return null;
+  const payload = token.split('.')[1];
   if (!payload) return null;
-  let claims: unknown;
   try {
-    claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return claims && typeof claims === 'object' ? (claims as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  if (!claims || typeof claims !== 'object') return null;
-  const { aud, auth_time: authTime } = claims as { aud?: unknown; auth_time?: unknown };
-  const audiences = Array.isArray(aud) ? aud : [aud];
-  if (!clientId || !audiences.includes(clientId)) return null;
+}
+
+/** A JWT's `auth_time` when it carries a whole number there, else `null`. */
+export function jwtAuthTime(token: unknown): number | null {
+  const authTime = jwtClaims(token)?.auth_time;
   return typeof authTime === 'number' && Number.isSafeInteger(authTime) ? authTime : null;
+}
+
+export type IdTokenCheck =
+  | { authTime: number }
+  | { refused: 'unreadable' | 'issuer' | 'audience' | 'expired' | 'no_auth_time' | 'stale' };
+
+/**
+ * Checks the ID token Keycloak returned with a login or a refresh (OIDC Core 3.1.3.7): issued by
+ * `issuer` to `clientId` (`aud`, and `azp` when present or when there are several audiences), not
+ * expired, with an `auth_time` the panel still accepts. The token comes straight from Keycloak's
+ * token endpoint over TLS, so its signature is not checked (item 6).
+ */
+export function checkIdToken(
+  idToken: unknown,
+  expected: { issuer: string; clientId: string },
+  now: number = nowSeconds(),
+): IdTokenCheck {
+  const claims = jwtClaims(idToken);
+  if (!claims) return { refused: 'unreadable' };
+  const issuer = expected.issuer.replace(/\/+$/, '');
+  if (!issuer || claims.iss !== issuer) return { refused: 'issuer' };
+  const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  const azpRequired = audiences.length > 1 || claims.azp !== undefined;
+  if (
+    !expected.clientId ||
+    !audiences.includes(expected.clientId) ||
+    (azpRequired && claims.azp !== expected.clientId)
+  ) {
+    return { refused: 'audience' };
+  }
+  if (typeof claims.exp !== 'number' || claims.exp <= now - AUTH_TIME_CLOCK_SKEW_SECONDS) {
+    return { refused: 'expired' };
+  }
+  const authTime = jwtAuthTime(idToken);
+  if (authTime == null) return { refused: 'no_auth_time' };
+  if (!authTimeIsFresh(authTime, now)) return { refused: 'stale' };
+  return { authTime };
 }

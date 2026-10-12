@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authTimeIsFresh, idTokenAuthTime } from '@/lib/auth/auth-age';
-import { exchangeCodeForToken, oauthClientId } from '@/lib/auth/oauth2';
+import { checkIdToken } from '@/lib/auth/auth-age';
+import { exchangeCodeForToken, oauthClientId, oauthIssuer } from '@/lib/auth/oauth2';
 import { cookies } from 'next/headers';
 import {
   clearOAuthTransactionCookies,
@@ -46,11 +46,15 @@ export async function GET(request: NextRequest) {
 
     // The login asked for max_age, so the ID token must say when the admin signed in, and that
     // sign-in must be within the panel's limit (OIDC Core 3.1.2.1; auth-age.ts).
-    const authTime = idTokenAuthTime(id_token, oauthClientId());
-    if (authTime == null || !authTimeIsFresh(authTime)) {
-      console.error('OAuth callback: sign-in time missing or older than the panel accepts');
+    const idTokenCheck = checkIdToken(id_token, {
+      issuer: oauthIssuer(),
+      clientId: oauthClientId(),
+    });
+    if (!('authTime' in idTokenCheck)) {
+      console.error('OAuth callback: ID token refused:', idTokenCheck.refused);
       return NextResponse.redirect(new URL('/login?error=stale_authentication', request.url));
     }
+    const { authTime } = idTokenCheck;
 
     console.log('✅ OAuth callback: Token exchange başarılı');
     console.log('Token uzunlukları:', {

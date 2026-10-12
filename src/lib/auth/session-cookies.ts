@@ -1,4 +1,4 @@
-import { authTimeIsFresh, sessionSecondsLeft } from '@/lib/auth/auth-age';
+import { authTimeIsFresh, jwtAuthTime, sessionSecondsLeft } from '@/lib/auth/auth-age';
 import {
   authCookieName,
   authCookieOptions,
@@ -54,10 +54,17 @@ export function readSessionRefreshToken(cookies: CookieReader): string | null {
   return cookies.get(sessionCookieNames().refreshToken)?.value || null;
 }
 
-/** When the session's admin signed in at Keycloak (epoch seconds), or `null` when unknown. */
+/**
+ * When the session's admin signed in at Keycloak (epoch seconds), or `null` when unknown. The
+ * cookie is only a hint the browser could change: when the access token carries Keycloak's own
+ * `auth_time` the older of the two counts (a forged access token gains nothing, core refuses it),
+ * and every refresh replaces the cookie with Keycloak's value (`refresh-session.ts`).
+ */
 export function readSessionAuthTime(cookies: CookieReader): number | null {
   const value = cookies.get(sessionCookieNames().authTime)?.value;
-  return value && /^\d{1,12}$/.test(value) ? Number(value) : null;
+  if (!value || !/^\d{1,12}$/.test(value)) return null;
+  const tokenAuthTime = jwtAuthTime(readSessionAccessToken(cookies));
+  return tokenAuthTime == null ? Number(value) : Math.min(Number(value), tokenAuthTime);
 }
 
 /**

@@ -6,6 +6,7 @@ import { GET } from '@/app/api/auth/callback/route';
 import { freezeClock, NOW, PAST_THE_LIMIT, secondsLeftAfter } from '@/test/server/clock';
 import { expiredCookie, fakeCookieStore, sessionCookie } from '@/test/server/cookie-store';
 import { saveEnv } from '@/test/server/env';
+import { idToken } from '@/test/server/jwt';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -17,24 +18,20 @@ const SIGNING_IN = {
   '__Host-oauth_code_verifier': 'verifier-1',
 };
 
-/** An ID token as Keycloak's token endpoint returns it (the callback does not check its signature). */
-function idToken(claims: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(claims)).toString('base64url');
-  return `${header}.${body}.sig`;
-}
-
 /** The admin signed in at Keycloak ten minutes ago (an SSO session Keycloak reused). */
 const SIGNED_IN_SECONDS_AGO = 600;
 const SESSION_SECONDS_LEFT = secondsLeftAfter(SIGNED_IN_SECONDS_AGO);
 
-/** Stands in for Keycloak's token endpoint on the network boundary. */
-function fakeKeycloak(idTokenClaims: Record<string, unknown> | null) {
+/**
+ * Stands in for Keycloak's token endpoint on the network boundary: its ID token is the panel's,
+ * signed in ten minutes ago, with `idTokenClaims` changed; `null` leaves the ID token out.
+ */
+function fakeKeycloak(idTokenClaims: Record<string, unknown> | null = {}) {
   global.fetch = jest.fn(async () =>
     Response.json({
       access_token: 'access-1',
       refresh_token: 'refresh-1',
-      ...(idTokenClaims && { id_token: idToken(idTokenClaims) }),
+      ...(idTokenClaims && { id_token: idToken(NOW - SIGNED_IN_SECONDS_AGO, idTokenClaims) }),
     }),
   ) as typeof fetch;
 }
@@ -59,7 +56,7 @@ describe('GET /api/auth/callback', () => {
     process.env.OAUTH2_CLIENT_ID = 'superadmin';
     process.env.OAUTH2_REDIRECT_URI = 'https://admin.yildizskylab.com/api/auth/callback';
     freezeClock();
-    fakeKeycloak({ aud: 'superadmin', auth_time: NOW - SIGNED_IN_SECONDS_AGO });
+    fakeKeycloak();
   });
 
   afterEach(() => {
@@ -95,12 +92,12 @@ describe('GET /api/auth/callback', () => {
   });
 
   it.each([
-    ['carries no auth_time', { aud: 'superadmin' }],
-    [
-      'carries a sign-in older than 8 hours',
-      { aud: 'superadmin', auth_time: NOW - PAST_THE_LIMIT },
-    ],
-    ['was issued to another client', { aud: 'frontend-main', auth_time: NOW }],
+    ['carries no auth_time', { auth_time: undefined }],
+    ['carries a sign-in older than 8 hours', { auth_time: NOW - PAST_THE_LIMIT }],
+    ['was issued to another client', { aud: 'frontend-main', azp: 'frontend-main' }],
+    ['names another client as its azp', { azp: 'frontend-main' }],
+    ['comes from another issuer', { iss: 'https://e.yildizskylab.com/realms/e-skylab-sandbox' }],
+    ['has expired', { exp: NOW - 3600 }],
   ])('refuses the login and starts no session when the ID token %s', async (_name, claims) => {
     fakeKeycloak(claims);
     const jar = fakeCookieStore(SIGNING_IN);

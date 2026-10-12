@@ -2,7 +2,13 @@
 
 import { cookies } from 'next/headers';
 import { GET } from '@/app/api/auth/token/route';
-import { freezeClock, PAST_THE_LIMIT, secondsLeftAfter, signedInAgo } from '@/test/server/clock';
+import {
+  freezeClock,
+  NOW,
+  PAST_THE_LIMIT,
+  secondsLeftAfter,
+  signedInAgo,
+} from '@/test/server/clock';
 import {
   EVERY_SECURE_SESSION_COOKIE,
   expiredCookie,
@@ -10,7 +16,7 @@ import {
   sessionCookie,
 } from '@/test/server/cookie-store';
 import { saveEnv } from '@/test/server/env';
-import { accessToken } from '@/test/server/jwt';
+import { accessToken, idToken } from '@/test/server/jwt';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -113,16 +119,23 @@ describe('GET /api/auth/token', () => {
     expect(jar.sentNames()).toEqual([]);
   });
 
-  it('refreshes an expired session but keeps it ending 8 hours after the sign-in, not after the refresh', async () => {
+  it("refreshes an expired session and keeps Keycloak's sign-in time, so the refresh does not extend it", async () => {
     const fresh = accessToken();
-    const signedIn = signedInAgo(7 * 3600);
+    const keycloakSignIn = NOW - 7 * 3600;
     const jar = fakeCookieStore({
       '__Host-auth_token': accessToken(-60),
       '__Host-refresh_token': 'refresh-1',
-      '__Host-session_auth_time': signedIn,
+      // Newer than Keycloak's: only Keycloak's value counts after a refresh
+      '__Host-session_auth_time': signedInAgo(3600),
     });
     (cookies as jest.Mock).mockResolvedValue(jar.store);
-    fakeKeycloak(() => Response.json({ access_token: fresh, refresh_token: 'refresh-2' }));
+    fakeKeycloak(() =>
+      Response.json({
+        access_token: fresh,
+        refresh_token: 'refresh-2',
+        id_token: idToken(keycloakSignIn),
+      }),
+    );
 
     const response = await GET();
 
@@ -132,7 +145,57 @@ describe('GET /api/auth/token', () => {
     expect(jar.sent('__Host-auth_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-access_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-refresh_token')).toEqual(sessionCookie('refresh-2', left));
-    expect(jar.sent('__Host-session_auth_time')).toEqual(sessionCookie(signedIn, left));
+    expect(jar.sent('__Host-session_auth_time')).toEqual(
+      sessionCookie(String(keycloakSignIn), left),
+    );
+  });
+
+  it.each([
+    ["Keycloak's ID token says the sign-in is 9 hours old", { id_token: idToken(NOW - 9 * 3600) }],
+    ['Keycloak returns no ID token with the refresh', {}],
+    ["Keycloak's ID token has no auth_time", { id_token: idToken(NOW, { auth_time: undefined }) }],
+  ])(
+    'ends a session whose sign-in-time cookie was moved to "now" when %s',
+    async (_name, refreshAnswer) => {
+      const jar = fakeCookieStore({
+        '__Host-auth_token': accessToken(-60, { auth_time: NOW - 9 * 3600 }),
+        '__Host-refresh_token': 'stolen-but-still-valid-refresh',
+        '__Host-session_auth_time': signedInAgo(0), // forged
+      });
+      (cookies as jest.Mock).mockResolvedValue(jar.store);
+      fakeKeycloak(() =>
+        Response.json({
+          access_token: accessToken(300, { auth_time: NOW - 9 * 3600 }),
+          refresh_token: 'refresh-2',
+          ...refreshAnswer,
+        }),
+      );
+
+      const response = await GET();
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ token: null });
+      expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
+      for (const name of jar.sentNames()) {
+        expect(jar.sent(name)).toEqual(expiredCookie());
+      }
+    },
+  );
+
+  it("ends a session whose live access token's sign-in is older than its forged cookie says", async () => {
+    const jar = fakeCookieStore({
+      '__Host-auth_token': accessToken(300, { auth_time: NOW - 9 * 3600 }),
+      '__Host-refresh_token': 'refresh-1',
+      '__Host-session_auth_time': signedInAgo(0), // forged
+    });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    const tokenEndpoint = fakeKeycloak(() => Response.json({}));
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    expect(tokenEndpoint).not.toHaveBeenCalled();
+    expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
   });
 
   it.each([

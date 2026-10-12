@@ -6,10 +6,17 @@ import {
   EVERY_SECURE_SESSION_COOKIE,
   expiredCookie,
   fakeCookieStore,
+  sessionCookie,
 } from '@/test/server/cookie-store';
-import { freezeClock, PAST_THE_LIMIT, signedInAgo } from '@/test/server/clock';
+import {
+  freezeClock,
+  NOW,
+  PAST_THE_LIMIT,
+  secondsLeftAfter,
+  signedInAgo,
+} from '@/test/server/clock';
 import { saveEnv } from '@/test/server/env';
-import { accessToken, accessTokenWithoutUser } from '@/test/server/jwt';
+import { accessToken, accessTokenWithoutUser, idToken } from '@/test/server/jwt';
 
 jest.mock('next/headers', () => ({
   cookies: jest.fn(),
@@ -177,6 +184,53 @@ describe('GET /api/auth/me', () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ authenticated: false });
     expect(global.fetch).not.toHaveBeenCalled();
+    expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
+  });
+
+  it("refreshes an expired session and keeps Keycloak's sign-in time, not the cookie's", async () => {
+    const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(60),
+      '__Host-auth_token': accessToken(-60),
+      '__Host-refresh_token': 'refresh-1',
+    });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    global.fetch = jest.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/protocol/openid-connect/token')
+        ? Response.json({
+            access_token: accessToken(),
+            refresh_token: 'refresh-2',
+            id_token: idToken(NOW - 2 * 3600),
+          })
+        : Response.json({}),
+    ) as typeof fetch;
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(jar.sent('__Host-session_auth_time')).toEqual(
+      sessionCookie(String(NOW - 2 * 3600), secondsLeftAfter(2 * 3600)),
+    );
+  });
+
+  it('ends a session whose sign-in-time cookie was moved to "now" once Keycloak says the sign-in is 9 hours old', async () => {
+    const jar = fakeCookieStore({
+      '__Host-session_auth_time': signedInAgo(0), // forged
+      '__Host-auth_token': accessToken(-60),
+      '__Host-refresh_token': 'refresh-1',
+    });
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+    fakeKeycloak(() =>
+      Response.json({
+        access_token: accessToken(),
+        refresh_token: 'refresh-2',
+        id_token: idToken(NOW - 9 * 3600),
+      }),
+    );
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ authenticated: false });
     expect(jar.sentNames()).toEqual(EVERY_SECURE_SESSION_COOKIE);
   });
 });

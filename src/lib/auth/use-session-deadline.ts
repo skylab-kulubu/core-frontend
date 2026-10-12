@@ -15,6 +15,7 @@ function signInAgain(): void {
  * (`auth-age.ts`). `secondsLeft` comes from the server when the page loads; counting from the
  * browser's own clock at that moment keeps a wrong browser clock out of it. A long timer would fire
  * late after the computer sleeps, so the page checks every few seconds and whenever it is shown.
+ * Only a visible tab leaves; a hidden one does when it is shown again.
  */
 export function useSessionDeadline(
   secondsLeft: number | undefined,
@@ -25,7 +26,9 @@ export function useSessionDeadline(
     const deadline = Date.now() + secondsLeft * 1000;
     let expired = false;
     const check = () => {
-      if (expired || Date.now() < deadline) return;
+      // A hidden tab waits until it is shown: tabs that all signed in again at once would overwrite
+      // one another's login state, and only the tab in use needs the new sign-in.
+      if (expired || Date.now() < deadline || document.visibilityState === 'hidden') return;
       expired = true;
       expire();
     };

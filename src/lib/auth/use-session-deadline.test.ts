@@ -1,8 +1,19 @@
 import { renderHook } from '@testing-library/react';
 import { SESSION_DEADLINE_CHECK_MS, useSessionDeadline } from '@/lib/auth/use-session-deadline';
 
+let visibility: DocumentVisibilityState = 'visible';
+
 describe('useSessionDeadline', () => {
+  beforeAll(() => {
+    jest.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
+    visibility = 'visible';
     jest.useFakeTimers({ now: 1_800_000_000_000 });
   });
 
@@ -53,5 +64,19 @@ describe('useSessionDeadline', () => {
     document.dispatchEvent(new Event('visibilitychange'));
 
     expect(expire).not.toHaveBeenCalled();
+  });
+
+  it('leaves a hidden tab where it is until it is shown, so only the tab in use signs in again', () => {
+    const expire = jest.fn();
+    visibility = 'hidden';
+    renderHook(() => useSessionDeadline(60, expire));
+
+    jest.advanceTimersByTime(3600 * 1000);
+    window.dispatchEvent(new Event('focus'));
+    expect(expire).not.toHaveBeenCalled();
+
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(expire).toHaveBeenCalledTimes(1);
   });
 });

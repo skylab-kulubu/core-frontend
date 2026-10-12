@@ -1,6 +1,6 @@
 import { PANEL_MAX_AUTH_AGE_SECONDS } from '@/lib/auth/auth-age';
 
-function oauthIssuer(): string {
+export function oauthIssuer(): string {
   return (process.env.OAUTH2_ISSUER || '').replace(/\/+$/, '');
 }
 
@@ -124,7 +124,7 @@ function isInvalidGrant(body: string): boolean {
 
 export async function refreshAccessToken(
   refreshToken: string,
-): Promise<{ access_token: string; refresh_token: string }> {
+): Promise<{ access_token: string; refresh_token: string; id_token?: string }> {
   const clientId = oauthClientId();
   const clientSecret = oauthClientSecret();
   const tokenUrl = oauthEndpoint('token');
@@ -163,5 +163,6 @@ export async function refreshAccessToken(
   return {
     access_token: data.access_token,
     refresh_token: data.refresh_token || refreshToken,
+    id_token: data.id_token,
   };
 }

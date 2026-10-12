@@ -2,7 +2,7 @@
 
 import {
   AUTH_TIME_CLOCK_SKEW_SECONDS,
-  idTokenAuthTime,
+  checkIdToken,
   PANEL_MAX_AUTH_AGE_SECONDS,
   sessionSecondsLeft,
 } from '@/lib/auth/auth-age';
@@ -50,23 +50,67 @@ describe('the panel sign-in limit', () => {
   );
 });
 
-describe('idTokenAuthTime', () => {
+describe('checkIdToken', () => {
+  const ISSUER = 'https://e.yildizskylab.com/realms/e-skylab';
+  const expected = { issuer: ISSUER, clientId: 'admin' };
+  const valid = { iss: ISSUER, aud: 'admin', azp: 'admin', exp: NOW + 300, auth_time: NOW - 60 };
+
+  function check(claims: Record<string, unknown>) {
+    return checkIdToken(idToken(claims), expected, NOW);
+  }
+
   it("reads auth_time from the panel's own ID token", () => {
-    expect(idTokenAuthTime(idToken({ aud: 'admin', auth_time: NOW }), 'admin')).toBe(NOW);
-    expect(idTokenAuthTime(idToken({ aud: ['admin', 'x'], auth_time: NOW }), 'admin')).toBe(NOW);
+    expect(check(valid)).toEqual({ authTime: NOW - 60 });
+    expect(check({ ...valid, aud: ['admin', 'core'] })).toEqual({ authTime: NOW - 60 });
+    expect(check({ ...valid, azp: undefined })).toEqual({ authTime: NOW - 60 });
   });
 
-  it('refuses an ID token issued to another client', () => {
-    expect(idTokenAuthTime(idToken({ aud: 'other', auth_time: NOW }), 'admin')).toBeNull();
-    expect(idTokenAuthTime(idToken({ auth_time: NOW }), 'admin')).toBeNull();
+  it('accepts the issuer with or without a trailing slash in the configuration', () => {
+    expect(checkIdToken(idToken(valid), { ...expected, issuer: `${ISSUER}/` }, NOW)).toEqual({
+      authTime: NOW - 60,
+    });
+  });
+
+  it('refuses an ID token from another issuer', () => {
+    expect(check({ ...valid, iss: 'https://e.yildizskylab.com/realms/e-skylab-sandbox' })).toEqual({
+      refused: 'issuer',
+    });
+    expect(check({ ...valid, iss: undefined })).toEqual({ refused: 'issuer' });
+  });
+
+  it('refuses an ID token issued to another client (aud or azp)', () => {
+    expect(check({ ...valid, aud: 'other', azp: 'other' })).toEqual({ refused: 'audience' });
+    expect(check({ ...valid, aud: undefined })).toEqual({ refused: 'audience' });
+    expect(check({ ...valid, azp: 'frontend-main' })).toEqual({ refused: 'audience' });
+    // Several audiences: azp must name the panel (OIDC Core 3.1.3.7, items 4 and 5)
+    expect(check({ ...valid, aud: ['admin', 'core'], azp: undefined })).toEqual({
+      refused: 'audience',
+    });
+  });
+
+  it('refuses an expired ID token, with the same clock tolerance', () => {
+    expect(check({ ...valid, exp: NOW - AUTH_TIME_CLOCK_SKEW_SECONDS - 1 })).toEqual({
+      refused: 'expired',
+    });
+    expect(check({ ...valid, exp: undefined })).toEqual({ refused: 'expired' });
+    expect(check({ ...valid, exp: NOW - 30 })).toEqual({ authTime: NOW - 60 });
   });
 
   it('refuses an ID token without a numeric auth_time', () => {
-    expect(idTokenAuthTime(idToken({ aud: 'admin' }), 'admin')).toBeNull();
-    expect(idTokenAuthTime(idToken({ aud: 'admin', auth_time: String(NOW) }), 'admin')).toBeNull();
+    expect(check({ ...valid, auth_time: undefined })).toEqual({ refused: 'no_auth_time' });
+    expect(check({ ...valid, auth_time: String(NOW) })).toEqual({ refused: 'no_auth_time' });
+  });
+
+  it('refuses a sign-in older than the panel accepts', () => {
+    expect(
+      check({
+        ...valid,
+        auth_time: NOW - PANEL_MAX_AUTH_AGE_SECONDS - AUTH_TIME_CLOCK_SKEW_SECONDS,
+      }),
+    ).toEqual({ refused: 'stale' });
   });
 
   it.each([undefined, '', 'not-a-jwt', 'a.%%%.c'])('refuses %p', (token) => {
-    expect(idTokenAuthTime(token, 'admin')).toBeNull();
+    expect(checkIdToken(token, expected, NOW)).toEqual({ refused: 'unreadable' });
   });
 });
