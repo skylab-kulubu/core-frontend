@@ -14,17 +14,26 @@ type DrawerProps = {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /**
+   * Where focus goes on close instead of the control that opened the drawer,
+   * e.g. after the drawer deleted its record and that row is going away.
+   * Null keeps Base UI's default (back to the opener).
+   */
+  finalFocus?: () => HTMLElement | null;
 };
 
 /** A side panel from the right with a title; skylcn-ui's Drawer, swiped or Esc to close. */
 const FIELD = 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
-export function Drawer({ open, onClose, title, children }: DrawerProps) {
+export function Drawer({ open, onClose, title, children, finalFocus }: DrawerProps) {
   const body = useRef<HTMLDivElement>(null);
   return (
     <Panel open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       {/* A panel with a form starts in its first field, as before */}
-      <DrawerContent initialFocus={() => body.current?.querySelector<HTMLElement>(FIELD) ?? true}>
+      <DrawerContent
+        initialFocus={() => body.current?.querySelector<HTMLElement>(FIELD) ?? true}
+        finalFocus={finalFocus ? () => finalFocus() ?? true : undefined}
+      >
         <DrawerHeader>
           <DrawerTitle>{title}</DrawerTitle>
         </DrawerHeader>

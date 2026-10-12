@@ -121,29 +121,28 @@ describe('User detail feedback', () => {
     expect(await screen.findByText('Oturumlar kapatıldı')).toBeInTheDocument();
   });
 
-  it('shows a refused session close on the card, not as the unexpected error', async () => {
+  it('shows a refused session close inside its dialog, not as the unexpected error', async () => {
     const user = userEvent.setup();
     (identityApi.logoutUser as jest.Mock).mockRejectedValue(
-      new ProblemError(403, 'Forbidden', { detail: 'Yetkin yok' }),
+      new ProblemError(403, 'Forbidden', { detail: 'missing role' }),
     );
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: /Oturumları kapat/ }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', {
-        name: 'Oturumları kapat',
-      }),
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Oturumları kapat' }));
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+      'Bu işlem için yetkin yok.',
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Yetkin yok');
-    expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    expect(confirm).not.toHaveTextContent(/Forbidden|missing role/);
+    // The card stays behind the open dialog
+    expect(screen.getByRole('heading', { name: 'Ada Lovelace', hidden: true })).toBeInTheDocument();
   });
 
-  it('says a role was removed, and shows a refused one on the card', async () => {
+  it('says a role was removed, and shows a refused one inside its dialog', async () => {
     const user = userEvent.setup();
     (identityApi.removeExtraRole as jest.Mock)
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(
-        new ProblemError(403, 'Forbidden', { detail: 'Rol kaldırma yetkin yok' }),
-      );
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden', { detail: 'missing role' }));
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Kaldır' }));
     const confirm = await screen.findByRole('alertdialog', {
@@ -153,18 +152,15 @@ describe('User detail feedback', () => {
     expect(await screen.findByText('Rol kaldırıldı')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     await user.click(await screen.findByRole('button', { name: 'Kaldır' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Rolü kaldır' }),
-    );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Rol kaldırma yetkin yok');
+    const again = await screen.findByRole('alertdialog');
+    await user.click(within(again).getByRole('button', { name: 'Rolü kaldır' }));
+    expect(await within(again).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
   });
 
   it('shows an add-group error inside the open picker and says a success', async () => {
     const user = userEvent.setup();
     (identityApi.addMember as jest.Mock)
-      .mockRejectedValueOnce(
-        new ProblemError(403, 'Forbidden', { detail: 'Bu gruba ekleyemezsin' }),
-      )
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden', { detail: 'missing role' }))
       .mockResolvedValueOnce(undefined);
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Grup ekle' }));
@@ -172,7 +168,7 @@ describe('User detail feedback', () => {
     await user.click(
       await within(dialog).findByRole('button', { name: '/UYELER/ORGANIZASYON/GECEKODU' }),
     );
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu gruba ekleyemezsin');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
     await user.click(within(dialog).getByRole('button', { name: '/UYELER/ORGANIZASYON/GECEKODU' }));
     expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
   });

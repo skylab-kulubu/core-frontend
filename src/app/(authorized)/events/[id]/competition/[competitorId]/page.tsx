@@ -10,7 +10,7 @@ import { PersonPick } from '@/components/identity/PersonPick';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
@@ -85,7 +85,7 @@ export default function EditCompetitorPage({
             notify.success('Yarışmacı kaydedildi');
             router.push(back);
           } catch (err) {
-            setSaveError(coreProblemMessage(err, 'Güncellenemedi'));
+            setSaveError(coreProblemMessage(err, 'Güncellenemedi', COMPETITOR_CONFLICT));
           }
         }}
       >
@@ -118,26 +118,22 @@ export default function EditCompetitorPage({
                     : 'Yarışma listesinden kalkar. Etkinlik aktif olmadığı için geri alınamaz.',
                   actionLabel: 'Yarışmacıyı sil',
                   onConfirm: async () => {
-                    setSaveError(null);
-                    try {
-                      await competitorsApi.delete(id);
-                      if (undoable) {
-                        notify.undoable(
-                          'Yarışmacı silindi',
-                          async () => {
-                            await competitorsApi.reinstate(id);
-                            router.push(`${back}/${encodeURIComponent(id)}`);
-                          },
-                          'Yarışmacı geri alındı',
-                        );
-                      } else {
-                        notify.success('Yarışmacı silindi');
-                      }
-                      router.push(back);
-                    } catch (err) {
-                      setSaveError(coreProblemMessage(err, 'Silinemedi'));
+                    await competitorsApi.delete(id);
+                    if (undoable) {
+                      notify.undoable(
+                        'Yarışmacı silindi',
+                        async () => {
+                          await competitorsApi.reinstate(id);
+                          router.push(`${back}/${encodeURIComponent(id)}`);
+                        },
+                        'Yarışmacı geri alındı',
+                      );
+                    } else {
+                      notify.success('Yarışmacı silindi');
                     }
+                    router.push(back);
                   },
+                  failure: 'Yarışmacı silinemedi',
                 });
               }}
             >

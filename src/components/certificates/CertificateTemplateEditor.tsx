@@ -37,6 +37,7 @@ import {
   canEditCertificateTemplateForTeam,
   canManageCertificateTemplates,
 } from '@/lib/auth/groups';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const ELEMENT_LABELS: Record<CertificateElementKind, string> = {
   staticText: 'Sabit metin',
@@ -189,8 +190,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(Boolean(templateId));
   const [busy, setBusy] = useState(false);
+  // Lines the designer reads (an element already placed, the next step after a save or upload) stay inline
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
+  const notify = useNotify();
   const canEdit = templateId
     ? canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam)
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []);
@@ -457,7 +460,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     }
   }
 
-  async function save() {
+  /** Saves the draft; `announce` is off when publishing says the outcome itself. */
+  async function save(announce = true) {
     if (!canEdit) {
       setError('Bu şablonu düzenleme yetkin yok.');
       return undefined;
@@ -469,7 +473,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         ? await certificatesApi.updateTemplate(savedId, draft)
         : await certificatesApi.createTemplate(draft);
       setSavedId(template.id);
-      setMessage('Taslak kaydedildi. Verilen sertifikaları etkilemesi için yayınla.');
+      // It says the next step, which the designer reads: inline, not a toast (K5)
+      if (announce) setMessage('Taslak kaydedildi. Verilen sertifikaları etkilemesi için yayınla.');
       if (!savedId) router.replace(`/certificates/templates/${template.id}`);
       return template.id;
     } catch (cause) {
@@ -481,12 +486,13 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   async function publish() {
-    const id = await save();
+    const id = await save(false);
     if (!id) return;
     setBusy(true);
     try {
       const version = await certificatesApi.publishTemplate(id);
-      setMessage(`Sürüm ${version.version} yayınlandı. Yeni işler bu sürümü kullanacak.`);
+      setMessage(undefined);
+      notify.success(`Sürüm ${version.version} yayınlandı; yeni işler bu sürümü kullanacak`);
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Şablon yayınlanamadı'));
     } finally {

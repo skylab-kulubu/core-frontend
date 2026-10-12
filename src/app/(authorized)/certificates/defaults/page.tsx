@@ -17,6 +17,7 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
 import { useConfirm } from '@/lib/ui/use-confirm';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function CertificateDefaultsPage() {
   const { user } = useAuth();
@@ -30,8 +31,8 @@ export default function CertificateDefaultsPage() {
   const [templateId, setTemplateId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
+  const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function CertificateDefaultsPage() {
     setTemplateId(currentBinding?.templateId ?? '');
   }, [currentBinding?.templateId, scope, team]);
 
+  /** For the confirm dialog: a refusal throws and is said there. */
   async function clearTeamDefault() {
     setSaving(true);
     setError(undefined);
@@ -74,9 +76,7 @@ export default function CertificateDefaultsPage() {
       setBindings((current) =>
         current.filter((binding) => !(binding.scope === 'ownerTeam' && binding.scopeKey === team)),
       );
-      setMessage(`${team} artık SKY LAB varsayılanına düşecek.`);
-    } catch (cause) {
-      setError(coreProblemMessage(cause, 'Varsayılan kaldırılamadı'));
+      notify.success(`${team} varsayılanı kaldırıldı; SKY LAB varsayılanı geçerli.`);
     } finally {
       setSaving(false);
     }
@@ -150,10 +150,10 @@ export default function CertificateDefaultsPage() {
                 ),
                 updated,
               ]);
-              setMessage(
+              notify.success(
                 scope === 'club'
-                  ? 'SKY LAB varsayılanı güncellendi.'
-                  : `${team} varsayılanı güncellendi.`,
+                  ? 'SKY LAB varsayılanı güncellendi'
+                  : `${team} varsayılanı güncellendi`,
               );
             } catch (cause) {
               setError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
@@ -175,6 +175,7 @@ export default function CertificateDefaultsPage() {
                 description: `${team} etkinlikleri, kendine özel şablonu olmayanlarda SKY LAB varsayılanını kullanır.`,
                 actionLabel: 'Varsayılanı kaldır',
                 onConfirm: () => clearTeamDefault(),
+                failure: 'Varsayılan kaldırılamadı',
               })
             }
           >
@@ -182,12 +183,6 @@ export default function CertificateDefaultsPage() {
           </button>
         ) : null}
         {confirmDialog}
-
-        {message ? (
-          <p role="status" className="text-skylab-300 text-sm">
-            {message}
-          </p>
-        ) : null}
       </div>
       <StateCard
         title="Etkinliğe özel seçim etkinlik detayında yapılır"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
@@ -91,6 +91,9 @@ export default function EventProgramPage() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [deskError, setDeskError] = useState<string | null>(null);
   const notify = useNotify();
+  // A deleted session's row goes away: the drawer then returns focus to Oturum ekle
+  const addSession = useRef<HTMLButtonElement>(null);
+  const sessionDeleted = useRef(false);
   const [confirmDay, dayConfirm] = useConfirm();
   // The session's Sil sits in its drawer, so its question opens inside it
   const [confirmSession, sessionConfirm] = useConfirm();
@@ -138,6 +141,7 @@ export default function EventProgramPage() {
                 icon={Plus}
                 variant="primary"
                 label="Oturum ekle"
+                ref={addSession}
                 onClick={() => {
                   if (days.length === 0) {
                     setDayError(null);
@@ -147,6 +151,7 @@ export default function EventProgramPage() {
                   setSessionError(null);
                   setEditingSessionId(null);
                   sessionForm.reset(emptySession(days[0]?.id ?? ''));
+                  sessionDeleted.current = false;
                   setSessionOpen(true);
                 }}
               />
@@ -184,21 +189,18 @@ export default function EventProgramPage() {
                         description: `Gün, oturumlarıyla birlikte programdan kalkar. ${UNDO_HINT}`,
                         actionLabel: 'Günü sil',
                         onConfirm: async () => {
-                          try {
-                            await eventDaysApi.delete(day.id);
-                            notify.undoable(
-                              'Gün silindi',
-                              async () => {
-                                await eventDaysApi.restore(day.id);
-                                void reload();
-                              },
-                              'Gün geri alındı',
-                            );
-                            await reload();
-                          } catch (err) {
-                            setError(coreProblemMessage(err, 'Gün silinemedi'));
-                          }
+                          await eventDaysApi.delete(day.id);
+                          notify.undoable(
+                            'Gün silindi',
+                            async () => {
+                              await eventDaysApi.restore(day.id);
+                              void reload();
+                            },
+                            'Gün geri alındı',
+                          );
+                          await reload();
                         },
+                        failure: 'Gün silinemedi',
                       })
                     }
                   />
@@ -259,6 +261,7 @@ export default function EventProgramPage() {
                                   orderIndex: session.orderIndex,
                                   sessionType: session.sessionType,
                                 });
+                                sessionDeleted.current = false;
                                 setSessionOpen(true);
                               }}
                             />
@@ -347,6 +350,7 @@ export default function EventProgramPage() {
           setSessionOpen(false);
         }}
         title={editingSessionId ? 'Oturumu düzenle' : 'Oturum ekle'}
+        finalFocus={() => (sessionDeleted.current ? addSession.current : null)}
       >
         <form
           className="space-y-3"
@@ -467,23 +471,22 @@ export default function EventProgramPage() {
                   description: `Oturum programdan kalkar. ${UNDO_HINT}`,
                   actionLabel: 'Oturumu sil',
                   onConfirm: async () => {
-                    setSessionError(null);
-                    try {
-                      await sessionsApi.delete(id);
-                      setSessionOpen(false);
-                      notify.undoable(
-                        'Oturum silindi',
-                        async () => {
-                          await sessionsApi.restore(id);
-                          void reload();
-                        },
-                        'Oturum geri alındı',
-                      );
-                      await reload();
-                    } catch (err) {
-                      setSessionError(coreProblemMessage(err, 'Oturum silinemedi'));
-                    }
+                    await sessionsApi.delete(id);
+                    notify.undoable(
+                      'Oturum silindi',
+                      async () => {
+                        await sessionsApi.restore(id);
+                        void reload();
+                      },
+                      'Oturum geri alındı',
+                    );
+                    // The drawer, and the question inside it, close once the program shows the change
+                    await reload();
+                    sessionDeleted.current = true;
+                    setSessionOpen(false);
                   },
+                  failure: 'Oturum silinemedi',
+                  closesDrawer: true,
                 });
               }}
             >

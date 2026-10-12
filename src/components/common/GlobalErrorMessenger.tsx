@@ -2,6 +2,8 @@
 
 import { useEffect, useReducer } from 'react';
 import type { Dispatch } from 'react';
+import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
 
 type ErrorKind = 'backend' | 'frontend';
 
@@ -68,6 +70,10 @@ function messageReducer(state: MessageState, action: MessageAction): MessageStat
 }
 
 function extractMessage(reason: unknown): string | null {
+  // core's title and detail are English: an unhandled refusal is said in Turkish
+  if (reason instanceof ProblemError) {
+    return coreProblemMessage(reason, 'Sunucu isteği tamamlanamadı.');
+  }
   if (typeof reason === 'string') {
     return reason;
   }

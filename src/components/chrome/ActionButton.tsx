@@ -4,6 +4,7 @@ import { IconButton } from '@skylab-kulubu/skylcn-ui';
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import type { Ref } from 'react';
 
 type ActionButtonProps = {
   href?: string;
@@ -14,6 +15,8 @@ type ActionButtonProps = {
   className?: string;
   title?: string;
   disabled?: boolean;
+  /** For a drawer's fallback focus, when the row that opened it is gone. */
+  ref?: Ref<HTMLButtonElement>;
 };
 
 /** A square icon action in a toolbar or row; a link when it has `href`. */
@@ -26,6 +29,7 @@ export function ActionButton({
   className,
   title,
   disabled,
+  ref,
 }: ActionButtonProps) {
   const name = label ?? title ?? '';
   const render = href ? (
@@ -45,6 +49,7 @@ export function ActionButton({
       disabled={disabled}
       onClick={onClick}
       render={render}
+      ref={ref}
     />
   );
 }
