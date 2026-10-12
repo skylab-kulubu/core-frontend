@@ -50,6 +50,7 @@ import {
   type UploadProgress,
 } from '@/lib/uploads/direct-upload';
 import { formatBytes, scanResultMessage, uploadErrorMessage } from '@/lib/uploads/messages';
+import { useNotify } from '@/lib/ui/use-notify';
 
 const GIB = 1024 ** 3;
 
@@ -166,6 +167,7 @@ function MediaList({
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<EventFile | null>(null);
   const [waiting, setWaiting] = useState<string[]>([]);
+  const notify = useNotify();
   // Uploads run one after another, so a batch never trips the three-open limit
   const queue = useRef<Promise<void>>(Promise.resolve());
   const eventId = useRef(event.id);
@@ -182,10 +184,11 @@ function MediaList({
         : list.map((row) => (row.key === key ? { ...row, ...change } : row)),
     );
 
-  async function attach(key: string, mediaId: string) {
+  async function attach(key: string, mediaId: string, name: string) {
     try {
       onEvent(await eventMediaApi.add(eventId.current, kind, [mediaId]));
       patch(key, null);
+      notify.success(`${name} eklendi`);
     } catch (error) {
       patch(key, { error: problemMessage(error), pendingMediaId: mediaId });
     }
@@ -210,7 +213,7 @@ function MediaList({
             onProgress: (progress) => patch(key, { progress }),
           });
           setWaiting((names) => names.filter((name) => name !== file.name));
-          await attach(key, media.id);
+          await attach(key, media.id, file.name);
         } catch (error) {
           if (error instanceof DOMException && error.name === 'AbortError') {
             patch(key, null);
@@ -224,11 +227,13 @@ function MediaList({
     }
   }
 
-  async function run(action: () => Promise<CoreEvent>) {
+  /** Runs a change to the lists; `done` is said once it went through. */
+  async function run(action: () => Promise<CoreEvent>, done?: string) {
     setBusy(true);
     setProblem(null);
     try {
       onEvent(await action());
+      if (done) notify.success(done);
     } catch (error) {
       if (error instanceof ProblemError && error.status === 409) {
         // The list changed meanwhile: show it as it is now
@@ -313,7 +318,7 @@ function MediaList({
                       <button
                         type="button"
                         className="text-skylab-300 text-xs hover:underline"
-                        onClick={() => void attach(row.key, row.pendingMediaId!)}
+                        onClick={() => void attach(row.key, row.pendingMediaId!, row.name)}
                       >
                         Etkinliğe ekle
                       </button>
@@ -368,7 +373,11 @@ function MediaList({
         onAction={() => {
           const target = removing;
           setRemoving(null);
-          if (target) void run(() => eventMediaApi.remove(eventId.current, kind, [target.id]));
+          if (target)
+            void run(
+              () => eventMediaApi.remove(eventId.current, kind, [target.id]),
+              `${target.name || 'Adsız dosya'} kaldırıldı`,
+            );
         }}
       />
     </section>
@@ -403,7 +412,7 @@ function MediaRow({
   last: boolean;
   onMove: (step: -1 | 1) => void;
   onRemove: () => void;
-  onRun: (action: () => Promise<CoreEvent>) => Promise<void>;
+  onRun: (action: () => Promise<CoreEvent>, done?: string) => Promise<void>;
 }) {
   const video = kind === 'videos' ? (item as EventVideo) : null;
   const [preview, setPreview] = useState(false);
@@ -520,7 +529,7 @@ function PosterMenu({
   video: EventVideo;
   event: CoreEvent;
   busy: boolean;
-  onRun: (action: () => Promise<CoreEvent>) => Promise<void>;
+  onRun: (action: () => Promise<CoreEvent>, done?: string) => Promise<void>;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [picking, setPicking] = useState(false);
@@ -536,7 +545,7 @@ function PosterMenu({
   }, [picking, library, event.ownerTeam]);
 
   const setPoster = (posterId: string) =>
-    onRun(() => eventMediaApi.setPoster(event.id, video.id, posterId));
+    onRun(() => eventMediaApi.setPoster(event.id, video.id, posterId), 'Video kapağı ayarlandı');
 
   return (
     <>
@@ -563,7 +572,12 @@ function PosterMenu({
             <MenuItem
               icon={ImageOff}
               destructive
-              onClick={() => void onRun(() => eventMediaApi.clearPoster(event.id, video.id))}
+              onClick={() =>
+                void onRun(
+                  () => eventMediaApi.clearPoster(event.id, video.id),
+                  'Video kapağı kaldırıldı',
+                )
+              }
             >
               Kapağı kaldır
             </MenuItem>
@@ -584,7 +598,7 @@ function PosterMenu({
           await onRun(async () => {
             const media = await mediaApi.upload(file, 'event_cover');
             return eventMediaApi.setPoster(event.id, video.id, media.id);
-          });
+          }, 'Video kapağı ayarlandı');
         }}
       />
       <PickerDrawer

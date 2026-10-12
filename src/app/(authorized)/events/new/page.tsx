@@ -15,6 +15,7 @@ import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { useNotify } from '@/lib/ui/use-notify';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventFormIssue } from '@/lib/events-view';
 import { formHandoffFromSearch } from '@/lib/event-forms';
@@ -29,6 +30,7 @@ import { useAuth } from '@/context/AuthContext';
 
 function NewEventPageContent() {
   const router = useRouter();
+  const notify = useNotify();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const groups = user?.groups ?? [];
@@ -130,6 +132,7 @@ function NewEventPageContent() {
               const id = await saveEventWithSeason(form, createdId ?? undefined);
               if (typeof window !== 'undefined')
                 clearEventDraft(sessionStorage, window.location.href);
+              notify.success('Etkinlik oluşturuldu');
               router.push(`/events/${id}`);
             } catch (err) {
               if (err instanceof EventSaveIncomplete) {

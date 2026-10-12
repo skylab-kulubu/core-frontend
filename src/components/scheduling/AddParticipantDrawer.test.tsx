@@ -58,6 +58,7 @@ describe('AddParticipantDrawer guest apply', () => {
       }),
     );
     expect((ticketsApi.applyGuest as jest.Mock).mock.calls[0][1]).not.toHaveProperty('phoneNumber');
+    expect(await screen.findByText('Misafir kaydı yazıldı')).toBeInTheDocument();
   });
 
   it('rejects whitespace-only guest names before calling the API', async () => {

@@ -18,6 +18,7 @@ import { ProblemError } from '@/lib/api/core';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -30,6 +31,8 @@ export default function GroupsPage() {
   const [parentId, setParentId] = useState('');
   const [parentOpen, setParentOpen] = useState(false);
   const [parentQuery, setParentQuery] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const notify = useNotify();
 
   useEffect(() => {
     identityApi
@@ -60,11 +63,18 @@ export default function GroupsPage() {
             icon={Plus}
             variant="primary"
             label="Grup ekle"
-            onClick={() => setCreating(true)}
+            onClick={() => {
+              setCreateError(null);
+              setCreating(true);
+            }}
           />
         }
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <ListToolbar
         query={query}
         onQuery={setQuery}
@@ -100,6 +110,7 @@ export default function GroupsPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             if (!name.trim()) return;
+            setCreateError(null);
             try {
               const created = await identityApi.createGroup({
                 name: name.trim(),
@@ -109,8 +120,9 @@ export default function GroupsPage() {
               setName('');
               setParentId('');
               setCreating(false);
+              notify.success('Grup oluşturuldu');
             } catch (err) {
-              setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
+              setCreateError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');
             }
           }}
         >
@@ -131,6 +143,11 @@ export default function GroupsPage() {
               {parent ? parent.path : 'Kök'}
             </button>
           </label>
+          {createError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {createError}
+            </p>
+          ) : null}
           <SaveButton>Oluştur</SaveButton>
         </form>
       </Drawer>

@@ -15,6 +15,8 @@ jest.mock('@/lib/api/certificates', () => ({
     listIssued: jest.fn(),
     listBatches: jest.fn(),
     retryBatch: jest.fn(),
+    revoke: jest.fn(),
+    reissue: jest.fn(),
   },
 }));
 
@@ -160,5 +162,76 @@ describe('EventCertificatesPanel failed batches', () => {
     expect(await screen.findByText('SKY LAB')).toBeInTheDocument();
     expect(api.listBatches).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Yeniden dene' })).not.toBeInTheDocument();
+  });
+});
+
+describe('EventCertificatesPanel issued certificates', () => {
+  const issued = {
+    id: 'c1',
+    eventId: 'e1',
+    ticketId: 't1',
+    serial: 'SKY-0001',
+    recipientName: 'Ada Lovelace',
+    recipientEmail: 'ada@example.com',
+    eventName: 'GeceKodu',
+    ownerTeam: 'GECEKODU',
+    verifyUrl: 'https://example.com/v/SKY-0001',
+    templateSource: 'clubDefault',
+    issuedAt: '2026-10-10T10:00:00Z',
+  };
+
+  function renderIssued() {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        eventActive={false}
+        tickets={[]}
+        canIssue
+        canBind={false}
+        canRevoke
+        canReadIssued
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue(summary(0));
+    api.templates.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+  });
+
+  it('says the certificate was revoked', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([issued]);
+    api.revoke.mockResolvedValue(undefined);
+    renderIssued();
+    await user.click(await screen.findByRole('button', { name: 'İptal et' }));
+    await waitFor(() => expect(api.revoke).toHaveBeenCalledWith('SKY-0001'));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Ada Lovelace sertifikası iptal edildi.',
+    );
+  });
+
+  it('shows why a revoke failed', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([issued]);
+    api.revoke.mockRejectedValue(new ProblemError(403, 'İptal yetkin yok'));
+    renderIssued();
+    await user.click(await screen.findByRole('button', { name: 'İptal et' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('İptal yetkin yok');
+  });
+
+  it('says the certificate was issued again', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([{ ...issued, revokedAt: '2026-10-11T10:00:00Z' }]);
+    api.reissue.mockResolvedValue(undefined);
+    renderIssued();
+    await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı.',
+    );
   });
 });

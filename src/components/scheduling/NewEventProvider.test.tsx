@@ -59,6 +59,7 @@ describe('NewEventProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Oluştur ve aç' }));
 
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/events/e-new'));
+    expect(await screen.findByText('Etkinlik oluşturuldu')).toBeInTheDocument();
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Gece Kodu 2026',

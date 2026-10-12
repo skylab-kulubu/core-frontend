@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, newsProblemMessage, type NewsItem } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function EditAnnouncementPage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function EditAnnouncementPage() {
   const [error, setError] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const notify = useNotify();
 
   useEffect(() => {
     if (!privileged || !slug) return;
@@ -63,6 +65,7 @@ export default function EditAnnouncementPage() {
               setRemoveError(null);
               try {
                 await newsApi.remove(item.slug, item.version);
+                notify.success('Duyuru silindi');
                 router.push('/announcements');
               } catch (err) {
                 setRemoveError(newsProblemMessage(err, 'Silinemedi'));
@@ -71,7 +74,11 @@ export default function EditAnnouncementPage() {
           />
         }
       />
-      {removeError ? <p className="text-sm text-red-300">{removeError}</p> : null}
+      {removeError ? (
+        <p role="alert" className="text-sm text-red-300">
+          {removeError}
+        </p>
+      ) : null}
       <NewsForm
         key={item.slug}
         initial={item.data}
@@ -81,6 +88,7 @@ export default function EditAnnouncementPage() {
           setPending(true);
           try {
             await newsApi.update(item.slug, data, item.version);
+            notify.success('Duyuru güncellendi');
             router.push('/announcements');
           } catch (err) {
             throw new Error(newsProblemMessage(err, 'Güncellenemedi'));

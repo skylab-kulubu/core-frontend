@@ -14,6 +14,7 @@ import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
 import { eventTabHref } from '@/lib/event-workspace';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function NewCompetitorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventId } = use(params);
@@ -25,6 +26,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
   const [score, setScore] = useState('');
   const [isWinner, setIsWinner] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const notify = useNotify();
 
   useEffect(() => {
     eventsApi
@@ -36,7 +38,11 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
   return (
     <div className="space-y-6">
       <PageHeader title="Yeni yarışmacı" description={event?.name} />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <form
         className="max-w-md space-y-3"
         onSubmit={async (e) => {
@@ -48,6 +54,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
           const parsed = score.trim() === '' ? undefined : Number(score);
           try {
             await competitorsApi.create({ userId, eventId, score: parsed, isWinner });
+            notify.success('Yarışmacı eklendi');
             router.push(eventTabHref(eventId, 'competition'));
           } catch (err) {
             setError(err instanceof ProblemError ? err.title : 'Oluşturulamadı');

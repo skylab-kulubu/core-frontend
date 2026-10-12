@@ -10,12 +10,14 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function NewAnnouncementPage() {
   const router = useRouter();
   const { user } = useAuth();
   const privileged = isPrivileged(user?.groups ?? []);
   const [pending, setPending] = useState(false);
+  const notify = useNotify();
 
   if (!privileged) {
     return (
@@ -38,6 +40,7 @@ export default function NewAnnouncementPage() {
           setPending(true);
           try {
             await newsApi.create(data);
+            notify.success('Duyuru yayınlandı');
             router.push('/announcements');
           } catch (err) {
             throw err instanceof ProblemError ? err : new Error('Oluşturulamadı');

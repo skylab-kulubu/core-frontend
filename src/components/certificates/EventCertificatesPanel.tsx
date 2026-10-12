@@ -431,9 +431,23 @@ export function EventCertificatesPanel({
                       <ActionButton
                         icon={Ban}
                         label="İptal et"
+                        disabled={busy}
                         onClick={async () => {
-                          await certificatesApi.revoke(certificate.serial);
-                          await load();
+                          setBusy(true);
+                          setError(undefined);
+                          try {
+                            await certificatesApi.revoke(certificate.serial);
+                            setMessage(`${certificate.recipientName} sertifikası iptal edildi.`);
+                            await load();
+                          } catch (cause) {
+                            setError(
+                              cause instanceof ProblemError
+                                ? cause.title
+                                : 'Sertifika iptal edilemedi',
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
                         }}
                       />
                     ) : null}
@@ -441,9 +455,25 @@ export function EventCertificatesPanel({
                       <ActionButton
                         icon={RefreshCw}
                         label="Yeniden ver"
+                        disabled={busy}
                         onClick={async () => {
-                          await certificatesApi.reissue(certificate.serial);
-                          await load();
+                          setBusy(true);
+                          setError(undefined);
+                          try {
+                            await certificatesApi.reissue(certificate.serial);
+                            setMessage(
+                              `${certificate.recipientName} sertifikası yeniden üretim kuyruğuna alındı.`,
+                            );
+                            await load();
+                          } catch (cause) {
+                            setError(
+                              cause instanceof ProblemError
+                                ? cause.title
+                                : 'Sertifika yeniden verilemedi',
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
                         }}
                       />
                     ) : null}

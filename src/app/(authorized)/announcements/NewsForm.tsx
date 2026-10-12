@@ -84,7 +84,11 @@ export function NewsForm({ initial, submitLabel, pending, onSubmit }: NewsFormPr
         }
       }}
     >
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <label className="block space-y-1">
         <FieldLabel>Başlık</FieldLabel>
         <Field required value={title} onChange={(e) => setTitle(e.target.value)} />

@@ -31,6 +31,7 @@ import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
+import { useNotify } from '@/lib/ui/use-notify';
 
 export default function UrlsPage() {
   const { user } = useAuth();
@@ -52,6 +53,8 @@ export default function UrlsPage() {
   const [hitsError, setHitsError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const notify = useNotify();
 
   const load = useCallback(async () => {
     if (!allowed) return;
@@ -95,7 +98,11 @@ export default function UrlsPage() {
         title="Kısa URL"
         description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      ) : null}
       <form
         className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
@@ -109,6 +116,7 @@ export default function UrlsPage() {
             });
             setTarget('');
             setAlias('');
+            notify.success('Kısa link oluşturuldu');
             await load();
           } catch (err) {
             setError(err instanceof ProblemError ? err.title : 'Kısaltılamadı');
@@ -149,6 +157,7 @@ export default function UrlsPage() {
         showClicks={moderate}
         onEdit={(row) => {
           setEditing(row);
+          setEditError(null);
           setEditTarget(row.url);
           setEditAlias(row.alias);
         }}
@@ -170,6 +179,7 @@ export default function UrlsPage() {
         onDelete={async (row) => {
           try {
             await urlsApi.remove(row.id);
+            notify.success('Kısa link silindi');
             await load();
           } catch (err) {
             setError(err instanceof ProblemError ? err.title : 'Silinemedi');
@@ -185,6 +195,7 @@ export default function UrlsPage() {
           showClicks
           onEdit={(row) => {
             setEditing(row);
+            setEditError(null);
             setEditTarget(row.url);
             setEditAlias(row.alias);
           }}
@@ -202,6 +213,7 @@ export default function UrlsPage() {
           onDelete={async (row) => {
             try {
               await urlsApi.remove(row.id);
+              notify.success('Kısa link silindi');
               await load();
             } catch (err) {
               setError(err instanceof ProblemError ? err.title : 'Silinemedi');
@@ -252,15 +264,17 @@ export default function UrlsPage() {
             className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
+              setEditError(null);
               try {
                 await urlsApi.update(editing.id, {
                   url: editTarget.trim(),
                   alias: editAlias.trim(),
                 });
                 setEditing(null);
+                notify.success('Kısa link kaydedildi');
                 await load();
               } catch (err) {
-                setError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
+                setEditError(err instanceof ProblemError ? err.title : 'Güncellenemedi');
               }
             }}
           >
@@ -277,6 +291,11 @@ export default function UrlsPage() {
               <FieldLabel>Kısa ad</FieldLabel>
               <Field value={editAlias} onChange={(e) => setEditAlias(e.target.value)} required />
             </label>
+            {editError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {editError}
+              </p>
+            ) : null}
             <SaveButton>Kaydet</SaveButton>
           </form>
         ) : null}
