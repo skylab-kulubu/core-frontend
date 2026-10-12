@@ -1,7 +1,8 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { AuthenticatedChrome } from '@/components/layout/AuthenticatedChrome';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi } from '@/lib/api/events';
@@ -45,6 +46,11 @@ const user: UserDto = {
   roles: [],
   groups: ['/UYELER/YK'],
 };
+
+function NamedEvent() {
+  useChromeCrumbName('/events/event-1', "Yıldız Hackathon '26");
+  return <p>İçerik</p>;
+}
 
 describe('AuthenticatedChrome', () => {
   beforeEach(() => {
@@ -243,5 +249,19 @@ describe('AuthenticatedChrome', () => {
 
     expect(await screen.findByRole('link', { name: 'Yarışma' })).toBeInTheDocument();
     expect(competitorsApi.listByEvent).not.toHaveBeenCalled();
+  });
+
+  it('names the open event in the trail instead of Kayıt', async () => {
+    currentPathname = '/events/event-1/program';
+    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <NamedEvent />
+      </AuthenticatedChrome>,
+    );
+
+    const trail = screen.getAllByRole('navigation', { name: 'Sayfa yolu' })[0];
+    expect(await within(trail).findAllByText("Yıldız Hackathon '26")).not.toHaveLength(0);
+    expect(within(trail).queryByText('Kayıt')).not.toBeInTheDocument();
   });
 });
