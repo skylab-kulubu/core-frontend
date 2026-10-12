@@ -18,7 +18,6 @@ export type CompetitorBody = {
 };
 
 export const competitorsApi = {
-  list: () => coreFetch<Competitor[]>('/v1/competitors'),
   get: (id: string) => coreFetch<Competitor>(`/v1/competitors/${encodeURIComponent(id)}`),
   create: (body: CompetitorBody) =>
     coreFetch<Competitor>('/v1/competitors', { method: 'POST', body: JSON.stringify(body) }),

@@ -193,10 +193,6 @@ export const certificatesApi = {
     coreFetchBlob(`${eventPath(eventId)}/certificates/preview`, { method: 'POST' }),
   listIssued: (eventId: string) =>
     coreFetch<IssuedCertificate[]>(`${eventPath(eventId)}/certificates`),
-  listBatches: (eventId: string) =>
-    coreFetch<CertificateBatch[]>(`${eventPath(eventId)}/certificate-batches`),
-  batch: (id: string) =>
-    coreFetch<CertificateBatch>(`/v1/certificate-batches/${encodeURIComponent(id)}`),
   finalize: (eventId: string) =>
     coreFetch<CertificateBatch>(`${eventPath(eventId)}/certificates/finalize`, { method: 'POST' }),
   issue: (eventId: string, ticketId: string) =>
@@ -208,10 +204,6 @@ export const certificatesApi = {
     coreFetch<void>(`/v1/certificates/${encodeURIComponent(serial)}/revoke`, { method: 'POST' }),
   reissue: (serial: string) =>
     coreFetch<CertificateBatch>(`/v1/certificates/${encodeURIComponent(serial)}/reissue`, {
-      method: 'POST',
-    }),
-  retryBatch: (id: string) =>
-    coreFetch<CertificateBatch>(`/v1/certificate-batches/${encodeURIComponent(id)}/retry`, {
       method: 'POST',
     }),
 };
