@@ -117,7 +117,7 @@ describe('Event workspace layout', () => {
     );
     expect(screen.getByRole('link', { name: /u9/ })).toHaveAttribute(
       'href',
-      '/competitors/c1/edit?eventId=e1',
+      '/events/e1/competition/c1',
     );
     expect(screen.queryByRole('button', { name: 'Yarışmacı ekle' })).not.toBeInTheDocument();
   });

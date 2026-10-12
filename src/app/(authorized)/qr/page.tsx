@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, Inbox } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -21,7 +21,12 @@ import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
 import { ticketsApi, type DoorEvent } from '@/lib/api/tickets';
-import { checkInSuccessLine } from '@/lib/door-check-in';
+import {
+  checkInSuccessLine,
+  defaultDoorSessionId,
+  doorSessionLabel,
+  doorSessionTiming,
+} from '@/lib/door-check-in';
 import { emptyListCopy, matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 
@@ -36,7 +41,7 @@ type RecentCheckIn = {
 const doorSchema = z
   .object({
     eventId: z.string().min(1, 'Etkinlik seçin'),
-    sessionId: z.string().min(1, 'Oturum seçin'),
+    sessionId: z.string().min(1, 'Girişin yazılacağı oturumu seçin'),
     personId: z.string(),
     email: z.string().trim(),
   })
@@ -59,6 +64,7 @@ export default function QrPage() {
   const [query, setQuery] = useState('');
   const {
     register,
+    control,
     watch,
     setValue,
     resetField,
@@ -111,7 +117,7 @@ export default function QrPage() {
         if (cancelled) return;
         const rows = nested.flat();
         setSessions(rows);
-        setValue('sessionId', rows[0]?.id ?? '');
+        setValue('sessionId', defaultDoorSessionId(rows));
       })
       .catch((err) => {
         if (!cancelled) {
@@ -165,6 +171,13 @@ export default function QrPage() {
       window.clearInterval(timer);
     };
   }, [eventId, events, sessionId, sessions]);
+
+  const selectedSession = sessions.find((session) => session.id === sessionId);
+  // Never blocks: says why nothing is chosen, or that the chosen session is not running now.
+  const sessionNote =
+    !sessionId && sessions.length > 0
+      ? 'Girişin yazılacağı oturumu seçin: şu an süren tek bir oturum yok.'
+      : doorSessionTiming(selectedSession);
 
   if (loading) {
     return (
@@ -275,22 +288,41 @@ export default function QrPage() {
             </span>
           ) : null}
         </label>
-        <label className="block space-y-1">
-          <FieldLabel>Oturum</FieldLabel>
-          <Select {...register('sessionId')} aria-invalid={Boolean(errors.sessionId)}>
-            <option value="">Seç</option>
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.title}
-              </option>
-            ))}
-          </Select>
+        <div className="space-y-1">
+          <label className="block space-y-1">
+            <FieldLabel>Oturum</FieldLabel>
+            {/* Controlled, so the picker always shows the session the check-in is sent to. */}
+            <Controller
+              control={control}
+              name="sessionId"
+              render={({ field }) => (
+                <Select
+                  {...field}
+                  aria-invalid={Boolean(errors.sessionId)}
+                  aria-describedby={
+                    errors.sessionId || sessionNote ? 'door-session-note' : undefined
+                  }
+                >
+                  <option value="">Oturum seçin</option>
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {doorSessionLabel(session)}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            />
+          </label>
           {errors.sessionId ? (
-            <span role="alert" className="text-2xs text-destructive">
+            <p id="door-session-note" role="alert" className="text-2xs text-destructive">
               {errors.sessionId.message}
-            </span>
+            </p>
+          ) : sessionNote ? (
+            <p id="door-session-note" className="text-2xs text-muted-foreground">
+              {sessionNote}
+            </p>
           ) : null}
-        </label>
+        </div>
         <DoorAttendeePick
           eventId={eventId}
           valueKey={personId || doorQuery}
@@ -329,7 +361,9 @@ export default function QrPage() {
         aria-label="Canlı check-in sayısı"
         className="text-secondary-foreground text-sm"
       >
-        Bu oturumda canlı toplam: {activityTotal}
+        {sessionId
+          ? `${selectedSession?.title ?? 'Bu oturum'} · canlı toplam: ${activityTotal}`
+          : 'Oturum seçilmedi'}
       </p>
       <ListToolbar
         query={query}

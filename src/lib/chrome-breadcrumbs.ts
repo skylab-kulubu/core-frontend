@@ -10,16 +10,11 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/sessions': 'Oturumlar',
   '/teams': 'Ekipler',
   '/qr': 'Kapı',
-  '/competitors': 'Yarışmacılar',
-  '/competitors/new': 'Yeni yarışmacı',
-  '/media': 'Medya',
   '/urls': 'Kısa URL',
   '/certificates': 'Sertifikalar',
   '/certificates/templates': 'Şablonlar',
   '/certificates/templates/new': 'Yeni şablon',
   '/certificates/defaults': 'Varsayılanlar',
-  '/certificates/issued': 'Verilenler',
-  '/certificates/jobs': 'Üretim İşleri',
   '/handoff-targets': "SkyApp'ten geçiş",
 };
 

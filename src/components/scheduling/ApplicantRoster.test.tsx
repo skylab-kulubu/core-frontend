@@ -201,8 +201,8 @@ describe('ApplicantRoster', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Katılımcı ekle' }));
     expect(onAddParticipant).toHaveBeenCalledTimes(1);
-    await user.selectOptions(screen.getByLabelText('Oturum'), 's1');
-    await user.click(screen.getAllByRole('button', { name: 'Katıldı' })[0]);
+    expect(screen.getByLabelText('Giriş oturumu')).toHaveValue('s1');
+    await user.click(screen.getAllByRole('button', { name: 'Katıldı · Açılış' })[0]);
     expect(onMarkAttended).toHaveBeenCalledWith(guest, 's1');
     await user.click(screen.getByRole('checkbox', { name: 'Ada Lovelace seç' }));
     expect(screen.getByRole('status', { name: 'Seçim özeti' })).toHaveTextContent('1 kişi seçildi');
@@ -210,5 +210,38 @@ describe('ApplicantRoster', () => {
     expect(onMailSelected).toHaveBeenCalledWith([
       { ticketId: 't-guest', name: 'Ada Lovelace', email: 'ada@example.com' },
     ]);
+  });
+
+  it('keeps the attendance session out of the filters and asks for one when several exist', async () => {
+    const user = userEvent.setup();
+    const onMarkAttended = jest.fn();
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[guest, member]}
+        people={people}
+        event={{ id: 'e1' }}
+        sessions={[
+          { id: 's1', title: 'Açılış' },
+          { id: 's2', title: 'Panel' },
+        ]}
+        onMarkAttended={onMarkAttended}
+      />,
+    );
+    const picker = screen.getByLabelText('Giriş oturumu');
+    expect(picker).toHaveValue('');
+    expect(screen.queryByLabelText('Oturum')).not.toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toBeEmptyDOMElement();
+
+    await user.click(screen.getAllByRole('button', { name: 'Katıldı' })[0]);
+    expect(onMarkAttended).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(alert).toHaveTextContent('Girişin yazılacağı oturumu seçin.');
+    expect(picker).toHaveFocus();
+
+    await user.selectOptions(picker, 's2');
+    await user.click(screen.getAllByRole('button', { name: 'Katıldı · Panel' })[0]);
+    expect(onMarkAttended).toHaveBeenCalledWith(expect.anything(), 's2');
   });
 });

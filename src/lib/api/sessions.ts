@@ -44,6 +44,7 @@ export type EventSession = {
   endTime?: string;
   orderIndex: number;
   sessionType: string;
+  cancelled?: boolean;
 };
 
 export type SessionBody = {

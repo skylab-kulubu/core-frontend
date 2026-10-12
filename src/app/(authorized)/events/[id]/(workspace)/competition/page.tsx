@@ -8,6 +8,7 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { personLabel } from '@/components/identity/PersonPick';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { eventTabHref } from '@/lib/event-workspace';
 import { listStatus } from '@/lib/list-status';
 
 /** Yarışma tab: the event's competitors, their scores and winners. */
@@ -25,7 +26,7 @@ export default function EventCompetitionPage() {
               icon={Trophy}
               variant="primary"
               label="Yarışmacı ekle"
-              href={`/competitors/new?eventId=${encodeURIComponent(event.id)}`}
+              href={`${eventTabHref(event.id, 'competition')}/new`}
             />
           ) : null
         }
@@ -44,7 +45,7 @@ export default function EventCompetitionPage() {
           return (
             <ListItem
               key={row.id}
-              href={`/competitors/${row.id}/edit?eventId=${encodeURIComponent(event.id)}`}
+              href={`${eventTabHref(event.id, 'competition')}/${encodeURIComponent(row.id)}`}
               title={person ? personLabel(person) : row.userId}
               subtitle={row.score !== undefined ? String(row.score) : '—'}
               trailing={row.isWinner ? <StatusChip kind="winner" /> : undefined}

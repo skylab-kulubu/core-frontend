@@ -67,12 +67,6 @@ const NAVIGATION_LINKS: ReadonlyArray<
       privileged || leader || context.hasDoorAssignment === true,
   },
   {
-    href: '/competitors',
-    label: 'Yarışmacılar',
-    visibleWhen: ({ privileged, leader }) => privileged || leader,
-  },
-  { href: '/media', label: 'Medya', visibleWhen: ({ privileged, leader }) => privileged || leader },
-  {
     ...URLS_LINK,
     visibleWhen: ({ groups, roles }) => canUseUrls(groups, roles),
   },
@@ -131,7 +125,6 @@ export function buildSidebarNavigation(
   for (const item of [
     { href: '/seasons', label: 'Sezonlar' },
     { href: '/qr', label: 'Kapı' },
-    { href: '/competitors', label: 'Yarışmacılar' },
   ]) {
     if (allowed.has(item.href)) eventChildren.push(item);
   }
@@ -185,7 +178,6 @@ export function buildSidebarNavigation(
 
   const contentChildren = [
     { href: '/announcements', label: 'Duyurular' },
-    { href: '/media', label: 'Medya' },
     { href: '/urls', label: 'Kısa URL' },
   ].filter((item) => allowed.has(item.href));
   if (contentChildren.length) {
@@ -205,16 +197,6 @@ export function buildSidebarNavigation(
     }
     if (privilegedOrLeader || roles.includes('certificate:binding:manage')) {
       certificateChildren.push({ href: '/certificates/defaults', label: 'Varsayılanlar' });
-    }
-    if (
-      privilegedOrLeader ||
-      roles.includes('certificate:issue') ||
-      roles.includes('certificate:revoke')
-    ) {
-      certificateChildren.push({ href: '/certificates/issued', label: 'Verilenler' });
-    }
-    if (privilegedOrLeader || roles.includes('certificate:issue')) {
-      certificateChildren.push({ href: '/certificates/jobs', label: 'Üretim İşleri' });
     }
     nodes.push({
       kind: 'group',

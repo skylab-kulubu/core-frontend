@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
@@ -12,12 +12,14 @@ import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
+import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import type { EventBody } from '@/lib/api/events';
-import { identityApi, type Person } from '@/lib/api/identity';
+import type { Person } from '@/lib/api/identity';
 import type { Season } from '@/lib/api/seasons';
 import { emptyApplySlot, persistableFormFields, type EventFormSlot } from '@/lib/event-forms';
 import type { EventMediaHint } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
+import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
 import { EventFormSlots } from './EventFormSlots';
 import { EventMediaFields } from './EventMediaFields';
@@ -90,37 +92,24 @@ export function EventEditor({
   onLeaveToSkyforms,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
-  const [people, setPeople] = useState<Person[]>([]);
   const [staffOpen, setStaffOpen] = useState(false);
   const [staffQuery, setStaffQuery] = useState('');
-  const [staffLoading, setStaffLoading] = useState(false);
-
-  useEffect(() => {
-    if (!assignDoorStaff) return;
-    identityApi
-      .listUsers()
-      .then(setPeople)
-      .catch(() => setPeople([]));
-  }, [assignDoorStaff]);
-
-  useEffect(() => {
-    if (!staffOpen) return;
-    const handle = window.setTimeout(
-      () => {
-        setStaffLoading(true);
-        identityApi
-          .listUsers(staffQuery)
-          .then(setPeople)
-          .catch(() => setPeople([]))
-          .finally(() => setStaffLoading(false));
-      },
-      staffQuery.trim() ? 250 : 0,
-    );
-    return () => window.clearTimeout(handle);
-  }, [staffOpen, staffQuery]);
+  const [staffPeople, setStaffPeople] = useState<ReadonlyMap<string, Person>>(new Map());
+  const staffSearch = usePersonSearch(staffOpen, staffQuery);
 
   const staffIds = value.doorStaffIds ?? [];
-  const staffById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
+  const staffKey = staffIds.join(',');
+
+  useEffect(() => {
+    if (!assignDoorStaff || !staffKey) return;
+    let cancelled = false;
+    void lookupPeople(staffKey.split(','), staffPeople).then((next) => {
+      if (!cancelled && next.size !== staffPeople.size) setStaffPeople(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [assignDoorStaff, staffKey]);
 
   return (
     <div className="space-y-3">
@@ -302,7 +291,7 @@ export function EventEditor({
             })}
           >
             {staffIds.map((id) => {
-              const person = staffById.get(id);
+              const person = staffPeople.get(id);
               const name = person
                 ? `${person.firstName} ${person.lastName}`.trim() || person.email
                 : id;
@@ -329,8 +318,9 @@ export function EventEditor({
             query={staffQuery}
             onQuery={setStaffQuery}
             placeholder="Ad, e-posta"
-            loading={staffLoading}
-            options={people
+            loading={staffSearch.loading}
+            failed={staffSearch.failed}
+            options={staffSearch.people
               .filter(
                 (person) =>
                   !staffIds.includes(person.id) &&
@@ -341,8 +331,10 @@ export function EventEditor({
                 title: `${person.firstName} ${person.lastName}`.trim() || person.email,
                 subtitle: person.email,
               }))}
-            emptyMessage="Kullanıcı yok"
+            emptyMessage={staffSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
             onPick={(picked) => {
+              const person = staffSearch.people.find((row) => row.id === picked);
+              if (person) setStaffPeople((known) => new Map(known).set(person.id, person));
               patch({ doorStaffIds: [...staffIds, picked] });
               setStaffOpen(false);
             }}
