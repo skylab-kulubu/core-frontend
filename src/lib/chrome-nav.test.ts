@@ -44,7 +44,6 @@ describe('buildSidebarNavigation', () => {
       ['Yeni', '/events/new'],
       ['Sezonlar', '/seasons'],
       ['Kapı', '/qr'],
-      ['Yarışmacılar', '/competitors'],
     ]);
     const club = nodes.find((node) => node.label === 'Kulüp');
     if (club?.kind !== 'group') throw new Error('club group missing');
@@ -54,8 +53,6 @@ describe('buildSidebarNavigation', () => {
     expect(certificates.children.map((item) => item.href)).toEqual([
       '/certificates/templates',
       '/certificates/defaults',
-      '/certificates/issued',
-      '/certificates/jobs',
     ]);
   });
 
@@ -70,6 +67,16 @@ describe('buildSidebarNavigation', () => {
     const content = nodes[1];
     if (content.kind !== 'group') throw new Error('content group missing');
     expect(content.children.map((item) => item.href)).toEqual(['/urls']);
+  });
+
+  it('leaves certificate issuing to the event tab: no Sertifikalar menu for an issuer', () => {
+    const nodes = buildSidebarNavigation({
+      ...privileged,
+      id: '4',
+      groups: ['/UYELER/ORGANIZASYON/GECEKODU'],
+      roles: ['certificate:issue', 'certificate:revoke'],
+    });
+    expect(nodes.map((node) => node.label)).not.toContain('Sertifikalar');
   });
 
   it('does not offer event creation to a GECEKODU member', () => {

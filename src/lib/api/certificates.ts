@@ -195,8 +195,6 @@ export const certificatesApi = {
     coreFetch<IssuedCertificate[]>(`${eventPath(eventId)}/certificates`),
   listBatches: (eventId: string) =>
     coreFetch<CertificateBatch[]>(`${eventPath(eventId)}/certificate-batches`),
-  batch: (id: string) =>
-    coreFetch<CertificateBatch>(`/v1/certificate-batches/${encodeURIComponent(id)}`),
   finalize: (eventId: string) =>
     coreFetch<CertificateBatch>(`${eventPath(eventId)}/certificates/finalize`, { method: 'POST' }),
   issue: (eventId: string, ticketId: string) =>

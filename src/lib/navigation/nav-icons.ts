@@ -1,7 +1,6 @@
 import {
   ArrowRightLeft,
   Award,
-  BadgeCheck,
   CalendarCheck,
   CalendarDays,
   CalendarPlus,
@@ -16,7 +15,6 @@ import {
   Layers,
   Link2,
   List,
-  ListChecks,
   Newspaper,
   QrCode,
   Settings2,
@@ -38,17 +36,13 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/events/new': CalendarPlus,
   '/seasons': Layers,
   '/qr': QrCode,
-  '/competitors': Trophy,
   '/users': Users,
   '/groups': FolderTree,
   '/teams': UsersRound,
   '/announcements': Newspaper,
-  '/media': Image,
   '/urls': Link2,
   '/certificates/templates': LayoutTemplate,
   '/certificates/defaults': SlidersHorizontal,
-  '/certificates/issued': BadgeCheck,
-  '/certificates/jobs': ListChecks,
   '/handoff-targets': ArrowRightLeft,
 };
 

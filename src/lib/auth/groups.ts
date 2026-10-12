@@ -119,9 +119,12 @@ export function canModerateUrls(groups: readonly string[], roles: readonly strin
   return roles.includes('url:moderator');
 }
 
+/** The Sertifikalar menu: templates and defaults. Issuing and revoking happen in each event's tab. */
 export function canUseCertificates(groups: readonly string[], roles: readonly string[]): boolean {
   if (isPrivileged(groups) || isLeader(groups)) return true;
-  return roles.some((role) => role.startsWith('certificate:'));
+  return (
+    roles.includes('certificate:template:manage') || roles.includes('certificate:binding:manage')
+  );
 }
 
 export function canIssueCertificates(
