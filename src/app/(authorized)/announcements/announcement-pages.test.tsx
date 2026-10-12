@@ -66,9 +66,8 @@ describe('Announcement pages feedback', () => {
     (newsApi.remove as jest.Mock).mockRejectedValue(new Error('x'));
     render(<EditAnnouncementPage />);
     await user.click(await screen.findByRole('button', { name: 'Sil' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Duyuruyu sil' }),
-    );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Silinemedi');
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Duyuruyu sil' }));
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent('Duyuru silinemedi');
   });
 });

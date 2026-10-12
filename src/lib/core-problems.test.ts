@@ -132,7 +132,7 @@ describe('coreProblemMessage', () => {
 });
 
 describe('coreProblemMessage without a known code', () => {
-  it("falls back to core's detail", () => {
+  it("never shows core's English detail for a code it does not know", () => {
     expect(
       coreProblemMessage(
         new ProblemError(400, 'Bad Request', {
@@ -140,7 +140,7 @@ describe('coreProblemMessage without a known code', () => {
           detail: 'A new rule refused it.',
         }),
       ),
-    ).toBe('A new rule refused it.');
+    ).toBe('İstek geçersiz. Girdiklerini denetleyip tekrar dene.');
   });
 
   it('says the status in Turkish, then the caller text for anything that is not a problem', () => {
@@ -214,23 +214,38 @@ describe('coreProblemMessage for any core refusal', () => {
     }
   });
 
-  it("prefers core's detail when it says more than the status", () => {
+  it.each([
+    [400, 'Bad Request', 'İstek geçersiz. Girdiklerini denetleyip tekrar dene.'],
+    [403, 'Forbidden', 'Bu işlem için yetkin yok.'],
+    [404, 'Not Found', 'Kayıt bulunamadı; silinmiş olabilir.'],
+    [
+      409,
+      'Conflict',
+      'Kayıt şu anki durumunda buna uygun değil ya da aynı bilgilerle başka bir kayıt var.',
+    ],
+    [422, 'Unprocessable Entity', 'Gönderilen bilgiler geçersiz. Alanları denetleyip tekrar dene.'],
+  ])(
+    "never shows core's English title or detail on a %i: the status says it in Turkish",
+    (status, title, message) => {
+      const said = coreProblemMessage(
+        new ProblemError(status, title, {
+          detail: 'session ss-1 is referenced by 3 check-ins and cannot be deleted',
+        }),
+        'Kaydedilemedi',
+      );
+      expect(said).toBe(message);
+      expect(said).not.toContain(title);
+      expect(said).not.toContain('referenced');
+    },
+  );
+
+  it('says the caller’s general Turkish text for a status it has no sentence for', () => {
     expect(
       coreProblemMessage(
-        new ProblemError(409, 'Conflict', { detail: 'Etkinlik aktif değil.' }),
+        new ProblemError(418, "I'm a teapot", { detail: 'An English sentence.' }),
         'Kaydedilemedi',
       ),
-    ).toBe('Etkinlik aktif değil.');
-  });
-
-  it("ignores a detail that only repeats the title or the status's English name", () => {
-    expect(
-      coreProblemMessage(new ProblemError(403, 'Forbidden', { detail: 'Forbidden' }), 'x'),
-    ).toBe('Bu işlem için yetkin yok.');
-    // problemFromResponse copies a lone detail into the title
-    expect(
-      coreProblemMessage(new ProblemError(404, 'Not Found', { detail: 'not found' }), 'x'),
-    ).toBe('Kayıt bulunamadı; silinmiş olabilir.');
+    ).toBe('Kaydedilemedi');
   });
 
   it('uses a Turkish sentence for the codes the panel meets, over the detail', () => {
@@ -304,6 +319,8 @@ describe('coreProblemMessage for any core refusal', () => {
 
   it.each([
     ['ytu_managed_field', 409, 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.'],
+    ['event_not_published', 409, 'Etkinlik henüz yayımlanmadı.'],
+    ['event_cancelled', 409, 'Etkinlik iptal edilmiş.'],
     [
       'invalid_name',
       422,

@@ -245,7 +245,11 @@ export function EventWorkspace({
       );
       if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
     } catch (err) {
-      setError(coreProblemMessage(err, 'Etkinlik yüklenemedi'));
+      setError(
+        coreProblemMessage(err, 'Etkinlik yüklenemedi', {
+          404: 'Etkinlik bulunamadı; silinmiş olabilir.',
+        }),
+      );
     }
   }
 
@@ -345,21 +349,18 @@ export function EventWorkspace({
                       description: `Etkinlik listeden kalkar. ${UNDO_HINT}`,
                       actionLabel: 'Etkinliği sil',
                       onConfirm: async () => {
-                        try {
-                          await eventsApi.delete(event.id);
-                          notify.undoable(
-                            'Etkinlik silindi',
-                            async () => {
-                              await eventsApi.restore(event.id);
-                              router.push(`/events/${encodeURIComponent(event.id)}`);
-                            },
-                            'Etkinlik geri alındı',
-                          );
-                          router.push('/events');
-                        } catch (err) {
-                          setError(coreProblemMessage(err, 'Silinemedi'));
-                        }
+                        await eventsApi.delete(event.id);
+                        notify.undoable(
+                          'Etkinlik silindi',
+                          async () => {
+                            await eventsApi.restore(event.id);
+                            router.push(`/events/${encodeURIComponent(event.id)}`);
+                          },
+                          'Etkinlik geri alındı',
+                        );
+                        router.push('/events');
                       },
+                      failure: 'Etkinlik silinemedi',
                     })
                   }
                 />

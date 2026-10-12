@@ -402,4 +402,26 @@ describe('Kapı check-in page', () => {
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
+
+  it('says a refused check-in under the button, in Turkish, never core’s English', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
+      new ProblemError(422, 'Unprocessable Entity', {
+        detail: 'query matched more than one ticket for this session',
+      }),
+    );
+    render(<QrPage />);
+    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
+    await user.type(screen.getByLabelText('Ad veya e-posta'), 'Ada');
+    const button = screen.getByRole('button', { name: 'Check-in' });
+    await user.click(button);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Gönderilen bilgiler geçersiz');
+    expect(document.body).not.toHaveTextContent(/matched more than one|Unprocessable/);
+    // Right after the button in the form, before the result line
+    expect(button.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(alert.closest('form')).not.toBeNull();
+    expect(button.nextElementSibling).toBe(alert);
+  });
 });

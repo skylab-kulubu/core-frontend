@@ -243,25 +243,43 @@ describe('EventCertificatesPanel issued certificates', () => {
     expect(api.revoke).not.toHaveBeenCalled();
     await user.click(within(confirm).getByRole('button', { name: 'Sertifikayı iptal et' }));
     await waitFor(() => expect(api.revoke).toHaveBeenCalledWith('SKY-0001'));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Ada Lovelace sertifikası iptal edildi.',
-    );
+    // A finished write is a toast; the dialog closes
+    expect(await screen.findByText('Ada Lovelace sertifikası iptal edildi')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
   });
 
   it('shows why a revoke failed', async () => {
     const user = userEvent.setup();
     api.listIssued.mockResolvedValue([issued]);
     api.revoke.mockRejectedValue(
-      new ProblemError(403, 'Forbidden', { detail: 'İptal yetkin yok' }),
+      new ProblemError(403, 'Forbidden', { detail: 'missing role certificate:revoke' }),
     );
     renderIssued();
     await user.click(await screen.findByRole('button', { name: 'İptal et' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', {
-        name: 'Sertifikayı iptal et',
-      }),
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Sertifikayı iptal et' }));
+    // Inside the dialog, which stays open, in Turkish
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+      'Bu işlem için yetkin yok.',
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent('İptal yetkin yok');
+    expect(confirm).not.toHaveTextContent(/Forbidden|missing role/);
+  });
+
+  it('drops an earlier error once a write goes through', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([{ ...issued, revokedAt: '2026-10-11T10:00:00Z' }]);
+    api.reissue
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'))
+      .mockResolvedValueOnce(undefined);
+    renderIssued();
+    await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
+
+    await user.click(screen.getByRole('button', { name: 'Yeniden ver' }));
+    expect(
+      await screen.findByText('Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Bu işlem için yetkin yok.')).not.toBeInTheDocument();
   });
 
   it('says the certificate was issued again', async () => {
@@ -270,8 +288,8 @@ describe('EventCertificatesPanel issued certificates', () => {
     api.reissue.mockResolvedValue(undefined);
     renderIssued();
     await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı.',
-    );
+    expect(
+      await screen.findByText('Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı'),
+    ).toBeInTheDocument();
   });
 });

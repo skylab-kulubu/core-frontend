@@ -54,13 +54,15 @@ describe('Seasons page', () => {
   it('shows a save error inside the open drawer and keeps the list', async () => {
     const user = userEvent.setup();
     (seasonsApi.update as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu ad kullanılıyor' }),
+      new ProblemError(409, 'Conflict', { detail: 'season name exists' }),
     );
     render(<SeasonsPage />);
     await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu ad kullanılıyor');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt şu anki durumunda buna uygun değil',
+    );
     expect(screen.getByText('2026-2027')).toBeInTheDocument();
   });
 
@@ -84,5 +86,36 @@ describe('Seasons page', () => {
     await waitFor(() => expect(seasonsApi.restore).toHaveBeenCalledWith('s1'));
     expect(await screen.findByText('Sezon geri alındı')).toBeInTheDocument();
     await waitFor(() => expect(seasonsApi.list).toHaveBeenCalledTimes(3));
+  });
+
+  it('keeps the drawer until the list is read again, then focuses Sezon ekle', async () => {
+    const user = userEvent.setup();
+    (seasonsApi.delete as jest.Mock).mockResolvedValue(undefined);
+    render(<SeasonsPage />);
+    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
+    await user.click(within(drawer).getByRole('button', { name: 'Sil' }));
+
+    let reread: (rows: unknown[]) => void = () => {};
+    (seasonsApi.list as jest.Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        reread = resolve;
+      }),
+    );
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Sezonu sil' }));
+    expect(await screen.findByText('Sezon silindi')).toBeInTheDocument();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'Sezonu düzenle', hidden: true }),
+    ).toBeInTheDocument();
+
+    reread([]);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Sezonu düzenle' })).not.toBeInTheDocument(),
+    );
+    // The deleted season's Düzenle is gone, so focus lands on Sezon ekle
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sezon ekle' })).toHaveFocus());
   });
 });

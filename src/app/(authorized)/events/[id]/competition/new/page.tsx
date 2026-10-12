@@ -9,7 +9,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { PersonPick } from '@/components/identity/PersonPick';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
@@ -57,7 +57,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
             notify.success('Yarışmacı eklendi');
             router.push(eventTabHref(eventId, 'competition'));
           } catch (err) {
-            setError(coreProblemMessage(err, 'Oluşturulamadı'));
+            setError(coreProblemMessage(err, 'Oluşturulamadı', COMPETITOR_CONFLICT));
           }
         }}
       >

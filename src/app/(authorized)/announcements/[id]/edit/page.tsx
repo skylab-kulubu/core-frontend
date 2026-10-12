@@ -22,7 +22,6 @@ export default function EditAnnouncementPage() {
   const privileged = isPrivileged(user?.groups ?? []);
   const [item, setItem] = useState<NewsItem | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [removeError, setRemoveError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -69,26 +68,17 @@ export default function EditAnnouncementPage() {
                 description: 'Duyuru sitede ve duyuru listesinde görünmez olur.',
                 actionLabel: 'Duyuruyu sil',
                 onConfirm: async () => {
-                  setRemoveError(null);
-                  try {
-                    await newsApi.remove(item.slug, item.version);
-                    notify.success('Duyuru silindi');
-                    router.push('/announcements');
-                  } catch (err) {
-                    setRemoveError(newsProblemMessage(err, 'Silinemedi'));
-                  }
+                  await newsApi.remove(item.slug, item.version);
+                  notify.success('Duyuru silindi');
+                  router.push('/announcements');
                 },
+                failure: (err) => newsProblemMessage(err, 'Duyuru silinemedi'),
               })
             }
           />
         }
       />
       {confirmDialog}
-      {removeError ? (
-        <p role="alert" className="text-sm text-red-300">
-          {removeError}
-        </p>
-      ) : null}
       <NewsForm
         key={item.slug}
         initial={item.data}

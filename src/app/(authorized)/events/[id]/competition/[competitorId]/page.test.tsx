@@ -62,11 +62,13 @@ describe('Event Yarışma: edit competitor', () => {
   it('keeps the form when saving fails, with the error beside it', async () => {
     const user = userEvent.setup();
     (competitorsApi.update as jest.Mock).mockRejectedValue(
-      new ProblemError(409, 'Conflict', { detail: 'Bu kişi zaten yarışmacı' }),
+      new ProblemError(409, 'Conflict', { detail: 'competitor exists' }),
     );
     await renderEdit('e2');
     await user.click(await screen.findByRole('button', { name: 'Kaydet' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi zaten yarışmacı');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Yarışmacı kaydedilemedi; kişiyi ve etkinliğin durumunu denetle.',
+    );
     expect(screen.getByLabelText('Puan')).toHaveValue(5);
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
@@ -109,16 +111,15 @@ describe('Event Yarışma: edit competitor', () => {
   it('shows a refused delete instead of failing silently', async () => {
     const user = userEvent.setup();
     (competitorsApi.delete as jest.Mock).mockRejectedValue(
-      new ProblemError(403, 'Forbidden', { detail: 'Silme yetkin yok' }),
+      new ProblemError(403, 'Forbidden', { detail: 'missing role' }),
     );
     await renderEdit('e2');
     await user.click(await screen.findByRole('button', { name: 'Sil' }));
-    await user.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', {
-        name: 'Yarışmacıyı sil',
-      }),
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Yarışmacıyı sil' }));
+    expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+      'Bu işlem için yetkin yok.',
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent('Silme yetkin yok');
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
 

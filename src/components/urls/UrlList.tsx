@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
+import { CopyButton } from '@skylab-kulubu/skylcn-ui';
+import { MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
@@ -11,7 +12,6 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { publicShortUrl, type ShortUrl } from '@/lib/api/urls';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
-import { useNotify } from '@/lib/ui/use-notify';
 
 export function UrlList({
   title,
@@ -36,7 +36,6 @@ export function UrlList({
 }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const notify = useNotify();
   const filtered = items.filter((row) =>
     matchesQuery(query, row.alias, row.url, publicShortUrl(row.alias)),
   );
@@ -75,15 +74,8 @@ export function UrlList({
               subtitle={showClicks ? `${row.url} · ${row.clickCount} tıklama` : row.url}
               trailing={
                 <>
-                  <ActionButton
-                    icon={Copy}
-                    label="Kopyala"
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(short)
-                        .then(() => notify.success('Kısa link kopyalandı'))
-                    }
-                  />
+                  {/* The tick shows in place; a copy is not a write, so no toast */}
+                  <CopyButton value={short} label="Kopyala" variant="outline" size="icon" />
                   <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
                   {onHits ? (
                     <ActionButton

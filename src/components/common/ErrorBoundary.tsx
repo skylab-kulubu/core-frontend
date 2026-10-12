@@ -1,6 +1,14 @@
 'use client';
 
 import React from 'react';
+import { ProblemError } from '@/lib/api/core';
+import { coreProblemMessage } from '@/lib/core-problems';
+
+/** core's English title never reaches the reader; other errors keep their message. */
+function readableMessage(error: unknown, fallback: string): string {
+  if (error instanceof ProblemError) return coreProblemMessage(error, fallback);
+  return error instanceof Error ? error.message : fallback;
+}
 
 interface ErrorBoundaryProps {
   fallback?: React.ReactNode;
@@ -21,14 +29,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
     return {
       hasError: true,
-      errorMessage: error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu',
+      errorMessage: readableMessage(error, 'Bilinmeyen bir hata oluştu'),
     };
   }
 
   componentDidCatch(error: unknown, _errorInfo: unknown) {
     // İleriye dönük: burada bir log servisine gönderebiliriz
     if (typeof window !== 'undefined') {
-      const message = error instanceof Error ? error.message : 'Bilinmeyen bir hata';
+      const message = readableMessage(error, 'Bilinmeyen bir hata');
       window.dispatchEvent(new CustomEvent('frontend-error', { detail: { message } }));
     }
   }

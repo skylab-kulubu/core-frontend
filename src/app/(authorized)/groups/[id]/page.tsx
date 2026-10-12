@@ -181,14 +181,11 @@ export default function GroupDetailPage() {
                           'Kişi bu grubun rollerini ve erişimlerini kaybeder. Grup bir ekibin grubuysa kişiye e-postayla bildirilir.',
                         actionLabel: 'Gruptan çıkar',
                         onConfirm: async () => {
-                          try {
-                            await identityApi.removeMember(id, m.id);
-                            notify.success('Üye çıkarıldı');
-                            await load();
-                          } catch (err) {
-                            setError(coreProblemMessage(err, 'Üye çıkarılamadı'));
-                          }
+                          await identityApi.removeMember(id, m.id);
+                          notify.success('Üye çıkarıldı');
+                          await load();
                         },
+                        failure: 'Üye çıkarılamadı',
                       })
                     }
                   />
@@ -247,17 +244,14 @@ export default function GroupDetailPage() {
                       description: 'Grubun bütün üyeleri bu rolü kaybeder.',
                       actionLabel: 'Rolü kaldır',
                       onConfirm: async () => {
-                        try {
-                          await identityApi.setGroupRoles(
-                            id,
-                            roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                          );
-                          notify.success('Rol kaldırıldı');
-                          await load();
-                        } catch (err) {
-                          setError(coreProblemMessage(err, 'Rol kaldırılamadı'));
-                        }
+                        await identityApi.setGroupRoles(
+                          id,
+                          roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                        );
+                        notify.success('Rol kaldırıldı');
+                        await load();
                       },
+                      failure: 'Rol kaldırılamadı',
                     })
                   }
                 />
@@ -295,16 +289,13 @@ export default function GroupDetailPage() {
                       description: `Değeri (${v}) gruptan silinir.`,
                       actionLabel: 'Özniteliği kaldır',
                       onConfirm: async () => {
-                        try {
-                          const next = { ...(group?.attributes ?? {}) };
-                          delete next[k];
-                          await identityApi.updateGroup(id, { attributes: next });
-                          notify.success('Öznitelik kaldırıldı');
-                          await load();
-                        } catch (err) {
-                          setError(coreProblemMessage(err, 'Öznitelik kaldırılamadı'));
-                        }
+                        const next = { ...(group?.attributes ?? {}) };
+                        delete next[k];
+                        await identityApi.updateGroup(id, { attributes: next });
+                        notify.success('Öznitelik kaldırıldı');
+                        await load();
                       },
+                      failure: 'Öznitelik kaldırılamadı',
                     })
                   }
                 />
