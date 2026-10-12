@@ -1,7 +1,102 @@
 import { personLabel } from '@/components/identity/PersonPick';
 import type { Person } from '@/lib/api/identity';
+import type { EventSession } from '@/lib/api/sessions';
 import type { Ticket } from '@/lib/api/tickets';
 import { ticketApplicantName, formatApplicantWhen } from '@/lib/tickets-ui';
+
+/** What the door needs to know about a session to pick and show it. */
+export type DoorSession = Pick<
+  EventSession,
+  'id' | 'title' | 'startTime' | 'endTime' | 'cancelled'
+>;
+
+// Sessions happen in Istanbul: "today" and clock times must not follow the door device's time zone.
+const DOOR_TIME = new Intl.DateTimeFormat('tr-TR', {
+  timeZone: 'Europe/Istanbul',
+  year: 'numeric',
+  month: 'short',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function istanbulParts(ms: number): { day: string; date: string; time: string } {
+  const parts = DOOR_TIME.formatToParts(new Date(ms));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return {
+    day: `${part('year')}-${part('month')}-${part('day')}`,
+    date: `${part('day')} ${part('month')}`,
+    time: `${part('hour')}:${part('minute')}`,
+  };
+}
+
+function sessionMs(iso?: string): number {
+  return iso ? new Date(iso).getTime() : Number.NaN;
+}
+
+/** The one candidate, or none when two or more tie (parallel sessions need a human choice). */
+function onlyOne(candidates: readonly DoorSession[]): string {
+  return candidates.length === 1 ? candidates[0].id : '';
+}
+
+/**
+ * The session a check-in goes to before anyone picks one: the only open session, the one running
+ * now, or the next one starting later today (Istanbul time). Cancelled sessions never count.
+ * Empty when none of these holds or when two sessions run or start together: the operator must
+ * choose, so check-ins never land in a session by accident.
+ */
+export function defaultDoorSessionId(sessions: readonly DoorSession[], now = new Date()): string {
+  const open = sessions.filter((session) => !session.cancelled);
+  if (open.length <= 1) return onlyOne(open);
+  const at = now.getTime();
+  const running = open.filter(
+    (session) => sessionMs(session.startTime) <= at && at < sessionMs(session.endTime),
+  );
+  if (running.length > 0) return onlyOne(running);
+  const today = istanbulParts(at).day;
+  const laterToday = open.filter((session) => {
+    const start = sessionMs(session.startTime);
+    return start > at && istanbulParts(start).day === today;
+  });
+  if (laterToday.length === 0) return '';
+  const first = Math.min(...laterToday.map((session) => sessionMs(session.startTime)));
+  return onlyOne(laterToday.filter((session) => sessionMs(session.startTime) === first));
+}
+
+/** Option text for a session picker: title plus day and start time, so same-named sessions differ. */
+export function doorSessionLabel(session: DoorSession): string {
+  const start = sessionMs(session.startTime);
+  let label = session.title;
+  if (!Number.isNaN(start)) {
+    const { date, time } = istanbulParts(start);
+    label += ` · ${date} ${time}`;
+  }
+  return session.cancelled ? `${label} · iptal` : label;
+}
+
+/**
+ * A short, non-blocking note when the chosen session is not running now: cancelled, not started
+ * yet, or already over. Null while it runs or when its times are unknown.
+ */
+export function doorSessionTiming(
+  session: DoorSession | undefined,
+  now = new Date(),
+): string | null {
+  if (!session) return null;
+  if (session.cancelled) return 'Bu oturum iptal edildi.';
+  const at = now.getTime();
+  const start = sessionMs(session.startTime);
+  const end = sessionMs(session.endTime);
+  const clock = (ms: number) => {
+    const parts = istanbulParts(ms);
+    return parts.day === istanbulParts(at).day ? parts.time : `${parts.date} ${parts.time}`;
+  };
+  if (start > at) return `Bu oturum henüz başlamadı (başlangıç ${clock(start)}).`;
+  if (end <= at) return `Bu oturum bitti (bitiş ${clock(end)}).`;
+  return null;
+}
 
 export function resolveDoorTicket(args: {
   tickets: readonly Ticket[];
