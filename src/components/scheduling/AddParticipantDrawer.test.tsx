@@ -84,6 +84,7 @@ describe('AddParticipantDrawer guest apply', () => {
     (ticketsApi.applyForOther as jest.Mock).mockImplementation(() => new Promise(() => undefined));
     render(<AddParticipantDrawer open onClose={jest.fn()} eventId="e1" onCreated={jest.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Kişi seç' }));
+    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'Ada');
     await user.click(await screen.findByRole('button', { name: 'Ada Lovelace' }));
     await user.click(screen.getByRole('button', { name: 'Üye kaydı yaz' }));
     await waitFor(() => expect(ticketsApi.applyForOther).toHaveBeenCalledWith('e1', 'u1'));
