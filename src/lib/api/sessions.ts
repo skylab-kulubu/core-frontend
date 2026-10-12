@@ -92,6 +92,8 @@ export const sessionsApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  restore: (id: string) =>
+    coreFetch<EventSession>(`/v1/sessions/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   async listAll(events?: CoreEvent[]): Promise<SessionRow[]> {
     const source = events ?? (await eventsApi.list());
     const nested = await Promise.all(

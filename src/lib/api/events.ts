@@ -79,6 +79,9 @@ export const eventsApi = {
     }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Brings back an Event its delete archived (Geri al). */
+  restore: (id: string) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   addImages: (id: string, imageIds: string[]) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/images`, {
       method: 'POST',

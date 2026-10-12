@@ -22,6 +22,7 @@ jest.mock('@/lib/api/urls', () => {
       create: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      restore: jest.fn(),
     },
   };
 });
@@ -145,8 +146,27 @@ describe('Kısa URL feedback', () => {
     await clicker.click(await screen.findByRole('button', { name: 'Kopyala' }));
     expect(await screen.findByText('Kısa link kopyalandı')).toBeInTheDocument();
     await clicker.click(screen.getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: 'https://skyl.app/hack silinsin mi?',
+    });
+    expect(urlsApi.remove).not.toHaveBeenCalled();
+    await clicker.click(within(confirm).getByRole('button', { name: 'Linki sil' }));
     await waitFor(() => expect(urlsApi.remove).toHaveBeenCalledWith('u1'));
     expect(await screen.findByText('Kısa link silindi')).toBeInTheDocument();
+  });
+
+  it('brings a deleted link back with Geri al', async () => {
+    const clicker = userEvent.setup();
+    (urlsApi.remove as jest.Mock).mockResolvedValue(undefined);
+    (urlsApi.restore as jest.Mock).mockResolvedValue(short);
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    await clicker.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Linki sil' }),
+    );
+    await clicker.click(await screen.findByRole('button', { name: 'Geri al' }));
+    await waitFor(() => expect(urlsApi.restore).toHaveBeenCalledWith('u1'));
+    expect(await screen.findByText('Kısa link geri alındı')).toBeInTheDocument();
   });
 
   it('shows an edit error inside the open drawer', async () => {

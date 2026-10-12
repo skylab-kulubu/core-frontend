@@ -18,7 +18,13 @@ export const navigationModule = {
 };
 export const authModule = { useAuth: jest.fn() };
 export const eventsModule = {
-  eventsApi: { get: jest.fn(), delete: jest.fn(), list: jest.fn(), syncMailList: jest.fn() },
+  eventsApi: {
+    get: jest.fn(),
+    delete: jest.fn(),
+    restore: jest.fn(),
+    list: jest.fn(),
+    syncMailList: jest.fn(),
+  },
 };
 export const eventDaysModule = {
   eventDaysApi: {
@@ -26,12 +32,13 @@ export const eventDaysModule = {
     listSessions: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
+    restore: jest.fn(),
   },
 };
 export function sessionsModule() {
   return {
     ...jest.requireActual('@/lib/api/sessions'),
-    sessionsApi: { create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    sessionsApi: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), restore: jest.fn() },
   };
 }
 export const ticketsModule = {

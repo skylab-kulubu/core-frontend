@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EditAnnouncementPage from '@/app/(authorized)/announcements/[id]/edit/page';
@@ -52,6 +52,11 @@ describe('Announcement pages feedback', () => {
     await user.click(await screen.findByRole('button', { name: 'Güncelle' }));
     expect(await screen.findByText('Duyuru güncellendi')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: '"Bahar şenliği" duyurusu silinsin mi?',
+    });
+    expect(newsApi.remove).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Duyuruyu sil' }));
     await waitFor(() => expect(newsApi.remove).toHaveBeenCalledWith('bahar-senligi', 3));
     expect(await screen.findByText('Duyuru silindi')).toBeInTheDocument();
   });
@@ -61,6 +66,9 @@ describe('Announcement pages feedback', () => {
     (newsApi.remove as jest.Mock).mockRejectedValue(new Error('x'));
     render(<EditAnnouncementPage />);
     await user.click(await screen.findByRole('button', { name: 'Sil' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Duyuruyu sil' }),
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('Silinemedi');
   });
 });

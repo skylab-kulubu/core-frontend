@@ -113,6 +113,11 @@ describe('User detail feedback', () => {
     (identityApi.logoutUser as jest.Mock).mockResolvedValue(undefined);
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: /Oturumları kapat/ }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: 'Ada Lovelace için bütün oturumlar kapatılsın mı?',
+    });
+    expect(identityApi.logoutUser).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Oturumları kapat' }));
     expect(await screen.findByText('Oturumlar kapatıldı')).toBeInTheDocument();
   });
 
@@ -121,6 +126,11 @@ describe('User detail feedback', () => {
     (identityApi.logoutUser as jest.Mock).mockRejectedValue(new ProblemError(403, 'Yetkin yok'));
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: /Oturumları kapat/ }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Oturumları kapat',
+      }),
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('Yetkin yok');
     expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
   });
@@ -132,8 +142,16 @@ describe('User detail feedback', () => {
       .mockRejectedValueOnce(new ProblemError(403, 'Rol kaldırma yetkin yok'));
     render(<UserDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Kaldır' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: 'forms:admin rolü Ada Lovelace kişisinden kaldırılsın mı?',
+    });
+    await user.click(within(confirm).getByRole('button', { name: 'Rolü kaldır' }));
     expect(await screen.findByText('Rol kaldırıldı')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     await user.click(await screen.findByRole('button', { name: 'Kaldır' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Rolü kaldır' }),
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('Rol kaldırma yetkin yok');
   });
 

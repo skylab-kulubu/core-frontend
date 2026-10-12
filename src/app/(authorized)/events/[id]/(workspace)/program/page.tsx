@@ -35,6 +35,7 @@ import { ticketsApi } from '@/lib/api/tickets';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { checkInSuccessLine } from '@/lib/door-check-in';
 import { listStatus } from '@/lib/list-status';
+import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 const daySchema = z.object({
@@ -100,6 +101,9 @@ export default function EventProgramPage() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [deskError, setDeskError] = useState<string | null>(null);
   const notify = useNotify();
+  const [confirmDay, dayConfirm] = useConfirm();
+  // The session's Sil sits in its drawer, so its question opens inside it
+  const [confirmSession, sessionConfirm] = useConfirm();
   const dayForm = useForm<z.infer<typeof daySchema>>({
     resolver: zodResolver(daySchema),
     defaultValues: { name: '', startDate: '', endDate: '' },
@@ -184,15 +188,29 @@ export default function EventProgramPage() {
                   <ActionButton
                     icon={Trash2}
                     label="Günü sil"
-                    onClick={async () => {
-                      try {
-                        await eventDaysApi.delete(day.id);
-                        notify.success('Gün silindi');
-                        await reload();
-                      } catch (err) {
-                        setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
-                      }
-                    }}
+                    onClick={() =>
+                      confirmDay({
+                        title: `"${day.name}" günü silinsin mi?`,
+                        description: `Gün, oturumlarıyla birlikte programdan kalkar. ${UNDO_HINT}`,
+                        actionLabel: 'Günü sil',
+                        onConfirm: async () => {
+                          try {
+                            await eventDaysApi.delete(day.id);
+                            notify.undoable(
+                              'Gün silindi',
+                              async () => {
+                                await eventDaysApi.restore(day.id);
+                                void reload();
+                              },
+                              'Gün geri alındı',
+                            );
+                            await reload();
+                          } catch (err) {
+                            setError(err instanceof ProblemError ? err.title : 'Gün silinemedi');
+                          }
+                        },
+                      })
+                    }
                   />
                 ) : null}
               </div>
@@ -452,16 +470,34 @@ export default function EventProgramPage() {
             <button
               type="button"
               className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
-              onClick={async () => {
-                setSessionError(null);
-                try {
-                  await sessionsApi.delete(editingSessionId);
-                  setSessionOpen(false);
-                  notify.success('Oturum silindi');
-                  await reload();
-                } catch (err) {
-                  setSessionError(err instanceof ProblemError ? err.title : 'Oturum silinemedi');
-                }
+              onClick={() => {
+                const id = editingSessionId;
+                const title = sessions.find((session) => session.id === id)?.title;
+                confirmSession({
+                  title: title ? `"${title}" oturumu silinsin mi?` : 'Oturum silinsin mi?',
+                  description: `Oturum programdan kalkar. ${UNDO_HINT}`,
+                  actionLabel: 'Oturumu sil',
+                  onConfirm: async () => {
+                    setSessionError(null);
+                    try {
+                      await sessionsApi.delete(id);
+                      setSessionOpen(false);
+                      notify.undoable(
+                        'Oturum silindi',
+                        async () => {
+                          await sessionsApi.restore(id);
+                          void reload();
+                        },
+                        'Oturum geri alındı',
+                      );
+                      await reload();
+                    } catch (err) {
+                      setSessionError(
+                        err instanceof ProblemError ? err.title : 'Oturum silinemedi',
+                      );
+                    }
+                  },
+                });
               }}
             >
               Sil
@@ -472,11 +508,13 @@ export default function EventProgramPage() {
               {sessionError}
             </p>
           ) : null}
+          {sessionConfirm}
           <SaveButton disabled={sessionForm.formState.isSubmitting}>
             {sessionForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
           </SaveButton>
         </form>
       </Drawer>
+      {dayConfirm}
       <Drawer
         open={qrSession !== null}
         onClose={() => setQrSession(null)}
