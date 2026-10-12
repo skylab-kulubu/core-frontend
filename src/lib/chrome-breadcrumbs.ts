@@ -40,7 +40,18 @@ function formatSegment(part: string): string {
   return part.replace(/[-_]/g, ' ').replace(/^\S/u, (ch) => ch.toLocaleUpperCase('tr-TR'));
 }
 
-export function chromeCrumbs(pathname: string): ChromeCrumb[] {
+/** Pages hand their record's name by address; the key ignores percent-encoding. */
+export type ChromeCrumbNames = Readonly<Record<string, string>>;
+
+export function chromeCrumbKey(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}
+
+export function chromeCrumbs(pathname: string, names: ChromeCrumbNames = {}): ChromeCrumb[] {
   const parts = (pathname || '/').split('/').filter(Boolean);
   if (parts.length === 0) return [{ href: '/dashboard', label: 'Özet' }];
   const crumbs: ChromeCrumb[] = [];
@@ -49,7 +60,7 @@ export function chromeCrumbs(pathname: string): ChromeCrumb[] {
     acc += `/${part}`;
     crumbs.push({
       href: acc,
-      label: CHROME_CRUMB_LABELS[acc] ?? formatSegment(part),
+      label: names[chromeCrumbKey(acc)] ?? CHROME_CRUMB_LABELS[acc] ?? formatSegment(part),
     });
   }
   return crumbs;

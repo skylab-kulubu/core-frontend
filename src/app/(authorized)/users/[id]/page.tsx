@@ -7,6 +7,7 @@ import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
@@ -115,6 +116,10 @@ export default function UserDetailPage() {
         subtitle: role.clientId,
       }));
   }, [catalog, heldRoles, roleQuery]);
+  useChromeCrumbName(
+    `/users/${params.id}`,
+    card ? `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email : null,
+  );
 
   if (error) {
     return <StateCard title={error} description="Kişi kartına dönemiyor." tone="danger" />;

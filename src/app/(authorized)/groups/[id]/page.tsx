@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -71,6 +72,7 @@ export default function GroupDetailPage() {
     void load();
   }, [id]);
 
+  useChromeCrumbName(`/groups/${id}`, group?.name);
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const extraAttrs = extraGroupAttrs(group?.attributes);

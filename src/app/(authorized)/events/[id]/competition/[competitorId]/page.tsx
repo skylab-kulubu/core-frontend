@@ -7,6 +7,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Switch } from '@/components/chrome/Switch';
 import { PersonPick } from '@/components/identity/PersonPick';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { coreProblemMessage } from '@/lib/core-problems';
@@ -59,6 +60,7 @@ export default function EditCompetitorPage({
   const ownerTeam = event?.ownerTeam ?? '';
   const canManage = canManageCompetitors(groups, ownerTeam);
   const back = eventTabHref(eventId, 'competition');
+  useChromeCrumbName(`/events/${eventId}`, event?.name);
 
   if (error) return <p className="text-destructive text-sm">{error}</p>;
   if (!row) return <p className="text-subtle-foreground text-sm">Yükleniyor…</p>;
