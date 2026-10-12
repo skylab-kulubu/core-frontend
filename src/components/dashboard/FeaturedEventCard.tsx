@@ -68,7 +68,7 @@ export function FeaturedEventCard({
           <img
             src={publicMediaUrl(event.coverImageUrl)}
             alt=""
-            className="border-border hidden size-20 shrink-0 rounded-lg border object-cover sm:block"
+            className="border-border bg-muted hidden aspect-video h-14 shrink-0 rounded-md border object-cover sm:block"
           />
         ) : null}
         <div className="min-w-0 flex-1">

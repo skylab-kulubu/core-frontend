@@ -1,5 +1,6 @@
 'use client';
 
+import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { publicShortUrl } from '@/lib/api/urls';
 import { publicMediaUrl } from '@/lib/event-media';
@@ -11,11 +12,7 @@ export default function EventOverviewPage() {
   return (
     <div className="space-y-6">
       {event.coverImageUrl ? (
-        <img
-          src={publicMediaUrl(event.coverImageUrl)}
-          alt=""
-          className="h-40 w-full rounded-lg object-cover"
-        />
+        <EventCoverImage src={publicMediaUrl(event.coverImageUrl)} className="max-w-3xl" />
       ) : null}
       <p className="text-muted-foreground text-sm whitespace-pre-wrap">
         {event.description || '—'}

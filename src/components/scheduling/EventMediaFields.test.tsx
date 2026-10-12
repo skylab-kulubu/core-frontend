@@ -111,6 +111,17 @@ describe('EventMediaFields', () => {
     expect(upload).toHaveBeenCalledWith(expect.any(File), 'event_cover');
   });
 
+  it('previews the cover whole, the way the event overview shows it', () => {
+    renderFields({
+      coverImageId: 'c1',
+      knownMedia: [{ id: 'c1', url: 'https://cdn.example/kapak.png' }],
+    });
+
+    const img = document.querySelector('[data-slot="event-cover"] img');
+    expect(img).toHaveAttribute('src', 'https://cdn.example/kapak.png');
+    expect(img).toHaveClass('object-contain');
+  });
+
   it('uploads gallery photos as Event gallery and adds them after the existing ones', async () => {
     upload.mockResolvedValueOnce(uploaded('g2')).mockResolvedValueOnce(uploaded('g3'));
     const { onGallery } = renderFields({ imageIds: ['g1'] });

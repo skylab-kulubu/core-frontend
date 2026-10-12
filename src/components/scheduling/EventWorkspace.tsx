@@ -42,6 +42,7 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { openEventMail } from '@/lib/event-mail';
+import { publicMediaUrl } from '@/lib/event-media';
 import {
   eventTabFromPath,
   legacyEventAnchorHref,
@@ -304,6 +305,11 @@ export function EventWorkspace({
     <EventWorkspaceContext.Provider value={workspace}>
       <div className="space-y-6">
         <PageHeader
+          cover={
+            event.coverImageUrl ? (
+              <img src={publicMediaUrl(event.coverImageUrl)} alt="" />
+            ) : undefined
+          }
           title={event.name}
           description={eventListSubtitle(event)}
           meta={
