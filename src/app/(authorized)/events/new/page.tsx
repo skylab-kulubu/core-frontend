@@ -12,7 +12,8 @@ import {
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
-import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
+import { useEventCreate } from '@/lib/use-event-create';
+import { StateCard } from '@/components/chrome/StateCard';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useNotify } from '@/lib/ui/use-notify';
 import { coreProblemMessage } from '@/lib/core-problems';
@@ -33,9 +34,14 @@ function NewEventPageContent() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const groups = user?.groups ?? [];
-  const privileged = isPrivileged(groups);
-  const leaderTeams = leaderOwnerTeams(groups);
-  const canCreate = privileged || leaderTeams.some((team) => canWriteEvent(groups, team, 'create'));
+  // The group rule narrowed by core's event.create: a DK member creates nothing,
+  // and one who leads a team creates for that team only
+  const {
+    canCreate,
+    privilegedWriter: privileged,
+    leaderTeams,
+    ready: capabilitiesReady,
+  } = useEventCreate(groups);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +105,7 @@ function NewEventPageContent() {
     setReady(true);
   }, [searchParams, privileged]);
 
+  if (!capabilitiesReady) return <StateCard title="Yükleniyor…" isLoading />;
   if (!canCreate) {
     return (
       <p className="text-destructive text-sm">

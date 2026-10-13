@@ -16,6 +16,7 @@ import {
 import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
+import { useTeamCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -23,6 +24,7 @@ export default function CertificateDefaultsPage() {
   const { user } = useAuth();
   const groups = useMemo(() => user?.groups ?? [], [user?.groups]);
   const privileged = isPrivileged(groups);
+  const teamCan = useTeamCan();
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [bindings, setBindings] = useState<CertificateTemplateBinding[]>([]);
   const [teams, setTeams] = useState<string[]>([]);
@@ -59,6 +61,9 @@ export default function CertificateDefaultsPage() {
     [scope, team, templates],
   );
   const bindingKey = scope === 'club' ? 'SKY_LAB' : team;
+  // core's certificateTemplate.assign for the chosen scope: a DK member sees the
+  // defaults and changes none
+  const canAssign = teamCan(scope === 'club' ? '' : team, 'certificateTemplate.assign');
   const currentBinding = bindings.find(
     (binding) => binding.scope === scope && binding.scopeKey === bindingKey,
   );
@@ -131,40 +136,42 @@ export default function CertificateDefaultsPage() {
             ))}
           </Select>
         </label>
-        <SaveButton
-          type="button"
-          disabled={saving || !templateId || (scope === 'ownerTeam' && !team)}
-          onClick={async () => {
-            setSaving(true);
-            setError(undefined);
-            try {
-              const updated = await certificatesApi.setBinding({
-                scope,
-                scopeKey: bindingKey,
-                templateId,
-              });
-              setBindings((current) => [
-                ...current.filter(
-                  (binding) =>
-                    !(binding.scope === updated.scope && binding.scopeKey === updated.scopeKey),
-                ),
-                updated,
-              ]);
-              notify.success(
-                scope === 'club'
-                  ? 'SKY LAB varsayılanı güncellendi'
-                  : `${team} varsayılanı güncellendi`,
-              );
-            } catch (cause) {
-              setError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          <Link2 className="h-4 w-4" /> Varsayılan yap
-        </SaveButton>
-        {scope === 'ownerTeam' && currentBinding ? (
+        {canAssign ? (
+          <SaveButton
+            type="button"
+            disabled={saving || !templateId || (scope === 'ownerTeam' && !team)}
+            onClick={async () => {
+              setSaving(true);
+              setError(undefined);
+              try {
+                const updated = await certificatesApi.setBinding({
+                  scope,
+                  scopeKey: bindingKey,
+                  templateId,
+                });
+                setBindings((current) => [
+                  ...current.filter(
+                    (binding) =>
+                      !(binding.scope === updated.scope && binding.scopeKey === updated.scopeKey),
+                  ),
+                  updated,
+                ]);
+                notify.success(
+                  scope === 'club'
+                    ? 'SKY LAB varsayılanı güncellendi'
+                    : `${team} varsayılanı güncellendi`,
+                );
+              } catch (cause) {
+                setError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            <Link2 className="h-4 w-4" /> Varsayılan yap
+          </SaveButton>
+        ) : null}
+        {canAssign && scope === 'ownerTeam' && currentBinding ? (
           <button
             type="button"
             disabled={saving}

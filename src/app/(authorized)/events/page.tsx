@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
+import { useEventCreate } from '@/lib/use-event-create';
 import {
   eventListSubtitle,
   filterEventsByPhase,
@@ -42,9 +42,8 @@ function EventsPageContent() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<EventPhaseFilter>('all');
-  const privileged = isPrivileged(groups);
-  const leaderTeams = leaderOwnerTeams(groups);
-  const canCreate = privileged || leaderTeams.some((team) => canWriteEvent(groups, team, 'create'));
+  // The group rule narrowed by core's event.create: a DK member reads, creates nothing
+  const { canCreate } = useEventCreate(groups);
 
   function setView(next: 'list' | 'calendar') {
     const params = new URLSearchParams(searchParams.toString());

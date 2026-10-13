@@ -5,6 +5,7 @@ import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import EventCompetitionPage from '@/app/(authorized)/events/[id]/(workspace)/competition/page';
 import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
@@ -36,6 +37,10 @@ jest.mock(
 );
 jest.mock('@/lib/api/teams', () => jest.requireActual('@/test/event-workspace').teamsModule);
 jest.mock('@/lib/api/seasons', () => jest.requireActual('@/test/event-workspace').seasonsModule);
+// Unreadable by default (the group rule stands); a test sets core's answer
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn(() => Promise.reject(new TypeError('Failed to fetch'))) },
+}));
 jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
@@ -184,6 +189,34 @@ describe('Event workspace layout', () => {
     ).toBeInTheDocument();
     expect(`${window.location.pathname}${window.location.search}`).toBe('/events/e1');
     expect(workspaceRouter.replace).not.toHaveBeenCalled();
+  });
+
+  it('opens no editor for a DK member coming back from Skyforms', async () => {
+    signInAs(['/UYELER/DK']);
+    let answer: (value: unknown) => void = () => undefined;
+    (capabilitiesApi.get as jest.Mock).mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    window.history.replaceState(
+      null,
+      '',
+      '/events/e1?formSlot=apply&formUrl=https%3A%2F%2Fforms.yildizskylab.com%2Fforms%2Ff1',
+    );
+
+    await renderEventTab(<EventOverviewPage />);
+    expect(await screen.findByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument();
+    // The save waits for core's answer, which says DK writes nothing
+    answer({
+      can: {},
+      teams: [],
+      otherTeams: { can: { 'event.update': false } },
+      noOwnerTeam: { can: { 'event.update': false } },
+    });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull());
+    expect(screen.queryByRole('dialog', { name: 'Etkinliği düzenle' })).not.toBeInTheDocument();
+    expect(saveEventWithSeason).not.toHaveBeenCalled();
   });
 
   it('opens the editor when GET omits images, extra forms, and door staff', async () => {

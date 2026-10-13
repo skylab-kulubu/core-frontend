@@ -1,8 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { capabilitiesApi } from '@/lib/api/capabilities';
+import { useEffect, useMemo, useState } from 'react';
+import { useCapabilities } from '@/lib/capabilities-context';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
@@ -22,21 +22,12 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   const pathname = usePathname();
   const [doorEventIds, setDoorEventIds] = useState<string[]>([]);
   const [activeEvent, setActiveEvent] = useState<SidebarNavigationContext['activeEvent']>();
-  const [editSites, setEditSites] = useState<SidebarNavLink[]>([]);
-
-  // core's editableSites; a failed read shows no site (the CMS decides edits anyway)
-  useEffect(() => {
-    let cancelled = false;
-    capabilitiesApi
-      .get()
-      .then((capabilities) => {
-        if (!cancelled) setEditSites(siteEditLinks(capabilities?.editableSites));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [user.id]);
+  // core's editableSites, from the chrome's one capabilities read; a failed read
+  // shows no site (the CMS decides edits anyway)
+  const capabilities = useCapabilities();
+  const editableSites =
+    capabilities.status === 'ready' ? capabilities.data.editableSites : undefined;
+  const editSites = useMemo(() => siteEditLinks(editableSites), [editableSites]);
 
   useEffect(() => {
     let cancelled = false;

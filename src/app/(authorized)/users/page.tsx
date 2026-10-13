@@ -26,6 +26,7 @@ import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useAppCan } from '@/lib/use-app-can';
 
 const createUserSchema = z.object({
   firstName: z.string().trim(),
@@ -37,7 +38,8 @@ type CreateUserForm = z.infer<typeof createUserSchema>;
 
 export default function UsersPage() {
   const { user } = useAuth();
-  const privileged = isPrivileged(user?.groups ?? []);
+  // core's user.create decides the add button (a DK member reads only)
+  const canCreate = useAppCan(isPrivileged(user?.groups ?? []))('user.create');
   const [users, setUsers] = useState<Person[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,10 +105,10 @@ export default function UsersPage() {
       <PageHeader
         title="Kullanıcılar"
         description={
-          privileged ? 'Üye ekle. Grup ve roller kişi kartında.' : 'Üye dizinini görüntüle.'
+          canCreate ? 'Üye ekle. Grup ve roller kişi kartında.' : 'Üye dizinini görüntüle.'
         }
         actions={
-          privileged ? (
+          canCreate ? (
             <ActionButton
               icon={Plus}
               variant="primary"
@@ -136,7 +138,7 @@ export default function UsersPage() {
         })}
         emptyDescription={
           ready
-            ? privileged
+            ? canCreate
               ? 'Üye ekle veya aramayı değiştir.'
               : 'Aramayı değiştir.'
             : 'Ad, e-posta ya da okul mailinden en az 2 karakter.'
@@ -157,7 +159,7 @@ export default function UsersPage() {
         })}
       </ListPanel>
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
-      {privileged ? (
+      {canCreate ? (
         <Drawer
           open={creating}
           onClose={() => {

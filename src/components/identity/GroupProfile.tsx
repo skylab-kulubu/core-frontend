@@ -18,9 +18,12 @@ import {
 export function GroupProfile({
   group,
   onSave,
+  readOnly = false,
 }: {
   group: Group;
   onSave: (next: { name: string; attributes: Record<string, string> }) => Promise<void>;
+  /** Shows the fields without a way to change them (a reader such as DK). */
+  readOnly?: boolean;
 }) {
   const extra = extraGroupAttrs(group.attributes);
   const [name, setName] = useState(group.name);
@@ -47,7 +50,7 @@ export function GroupProfile({
       className="space-y-4"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!name.trim()) return;
+        if (readOnly || !name.trim()) return;
         setPending(true);
         try {
           await onSave({
@@ -59,45 +62,49 @@ export function GroupProfile({
         }
       }}
     >
-      <label className="block space-y-1">
-        <FieldLabel>Grup adı</FieldLabel>
-        <Field value={name} onChange={(event) => setName(event.target.value)} required />
-      </label>
-      <div className="space-y-2">
-        {GROUP_TOGGLES.map((row) => (
-          <Switch
-            key={row.key}
-            checked={Boolean(toggles[row.key])}
-            onChange={(checked) => setToggles((prev) => ({ ...prev, [row.key]: checked }))}
-            label={row.label}
-            hint={row.hint}
-          />
-        ))}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {GROUP_TEXTS.map((row) => (
-          <label key={row.key} className="block space-y-1">
-            <FieldLabel>{row.label}</FieldLabel>
-            {row.multiline ? (
-              <TextArea
-                rows={3}
-                value={texts[row.key] ?? ''}
-                onChange={(event) =>
-                  setTexts((prev) => ({ ...prev, [row.key]: event.target.value }))
-                }
-              />
-            ) : (
-              <Field
-                value={texts[row.key] ?? ''}
-                onChange={(event) =>
-                  setTexts((prev) => ({ ...prev, [row.key]: event.target.value }))
-                }
-              />
-            )}
-          </label>
-        ))}
-      </div>
-      <SaveButton disabled={pending}>{pending ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
+      <fieldset disabled={readOnly} className="space-y-4">
+        <label className="block space-y-1">
+          <FieldLabel>Grup adı</FieldLabel>
+          <Field value={name} onChange={(event) => setName(event.target.value)} required />
+        </label>
+        <div className="space-y-2">
+          {GROUP_TOGGLES.map((row) => (
+            <Switch
+              key={row.key}
+              checked={Boolean(toggles[row.key])}
+              onChange={(checked) => setToggles((prev) => ({ ...prev, [row.key]: checked }))}
+              label={row.label}
+              hint={row.hint}
+            />
+          ))}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {GROUP_TEXTS.map((row) => (
+            <label key={row.key} className="block space-y-1">
+              <FieldLabel>{row.label}</FieldLabel>
+              {row.multiline ? (
+                <TextArea
+                  rows={3}
+                  value={texts[row.key] ?? ''}
+                  onChange={(event) =>
+                    setTexts((prev) => ({ ...prev, [row.key]: event.target.value }))
+                  }
+                />
+              ) : (
+                <Field
+                  value={texts[row.key] ?? ''}
+                  onChange={(event) =>
+                    setTexts((prev) => ({ ...prev, [row.key]: event.target.value }))
+                  }
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {readOnly ? null : (
+        <SaveButton disabled={pending}>{pending ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
+      )}
     </form>
   );
 }

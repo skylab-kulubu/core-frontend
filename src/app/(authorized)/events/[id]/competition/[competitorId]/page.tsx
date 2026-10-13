@@ -14,6 +14,7 @@ import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
+import { useTeamCan } from '@/lib/use-app-can';
 import { eventTabHref } from '@/lib/event-workspace';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -27,6 +28,7 @@ export default function EditCompetitorPage({
   const router = useRouter();
   const { user } = useAuth();
   const groups = user?.groups ?? [];
+  const teamCan = useTeamCan();
   const [row, setRow] = useState<Competitor | null>(null);
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [userId, setUserId] = useState('');
@@ -58,7 +60,9 @@ export default function EditCompetitorPage({
   }, [eventId, id]);
 
   const ownerTeam = event?.ownerTeam ?? '';
-  const canManage = canManageCompetitors(groups, ownerTeam);
+  // The group rule narrowed by core's competitor.update (a DK member reads only)
+  const canManage =
+    canManageCompetitors(groups, ownerTeam) && teamCan(ownerTeam, 'competitor.update');
   const back = eventTabHref(eventId, 'competition');
   useChromeCrumbName(`/events/${eventId}`, event?.name);
 
