@@ -14,12 +14,14 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { identityApi, type Group } from '@/lib/api/identity';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
 import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
+import { isPrivileged } from '@/lib/auth/groups';
+import { useAuth } from '@/context/AuthContext';
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -34,8 +36,9 @@ export default function GroupsPage() {
   const [parentQuery, setParentQuery] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const notify = useNotify();
-  // core's group.write (a DK member reads only); the page is offered to Privileged members
-  const canWrite = useAppCan(true)('group.write');
+  const { user } = useAuth();
+  // core's group.write (a DK member reads only); the group rule stands in only when it cannot be read
+  const canWrite = useAppCan(isPrivileged(user?.groups ?? []))('group.write');
 
   useEffect(() => {
     identityApi
@@ -127,7 +130,7 @@ export default function GroupsPage() {
               setCreating(false);
               notify.success('Grup oluşturuldu');
             } catch (err) {
-              setCreateError(coreProblemMessage(err, 'Oluşturulamadı'));
+              setCreateError(groupWriteProblemMessage(err, 'create', 'Oluşturulamadı'));
             }
           }}
         >

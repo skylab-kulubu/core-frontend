@@ -1,5 +1,9 @@
 import { ProblemError } from '@/lib/api/core';
-import { coreProblemMessage, isPerFileRefusal } from '@/lib/core-problems';
+import {
+  coreProblemMessage,
+  groupWriteProblemMessage,
+  isPerFileRefusal,
+} from '@/lib/core-problems';
 
 function problem(status: number, code: string, fields: Record<string, unknown> = {}) {
   return new ProblemError(status, 'Core title', { code, detail: 'Core detail.', fields });
@@ -362,6 +366,36 @@ describe('coreProblemMessage for the role rules', () => {
     );
     expect(coreProblemMessage(problem(403, 'keycloak_admin_group'))).toContain(
       'üyeliği yalnız Keycloak konsolundan',
+    );
+  });
+});
+
+describe('groupWriteProblemMessage', () => {
+  it('says a role group stays a leaf on a create', () => {
+    expect(
+      groupWriteProblemMessage(
+        problem(409, 'role_placement', { reason: 'roles_group_not_leaf' }),
+        'create',
+        'Oluşturulamadı',
+      ),
+    ).toBe('Rol grubunun altına grup açılmaz; /ROLLER altındaki rol grupları tek katmandır.');
+  });
+
+  it('puts the rename context before the placement reason on a save', () => {
+    expect(
+      groupWriteProblemMessage(
+        problem(409, 'role_placement', { reason: 'area' }),
+        'save',
+        'Kaydedilemedi',
+      ),
+    ).toMatch(
+      /^Yeni adla bu gruptaki roller kurala aykırı bir yere düşerdi: Alan grubuna rol verilmez/,
+    );
+  });
+
+  it('reads any other refusal as coreProblemMessage', () => {
+    expect(groupWriteProblemMessage(problem(409, 'name_taken'), 'save', 'Kaydedilemedi')).toContain(
+      'Bu ad başka bir grupta',
     );
   });
 });

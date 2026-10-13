@@ -102,6 +102,36 @@ const CODE_MESSAGES: Record<string, string> = {
     'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
 };
 
+/** The sentence for a Group created under a role group (core roleGroupStaysLeaf). */
+export const ROLE_GROUP_STAYS_LEAF =
+  'Rol grubunun altına grup açılmaz; /ROLLER altındaki rol grupları tek katmandır.';
+
+/** What a rename that moves the Group's roles to a refused place is told before the reason. */
+export const RENAME_PLACEMENT_PREFIX =
+  'Yeni adla bu gruptaki roller kurala aykırı bir yere düşerdi: ';
+
+/**
+ * A Turkish sentence for a failed Group create or save. core's
+ * `role_placement` means something else on these writes than on a role
+ * mapping: on a create, the new Group would sit under a role group; on a
+ * rename, the Group's own roles would land where the rule allows none.
+ * Every other refusal reads as coreProblemMessage.
+ */
+export function groupWriteProblemMessage(
+  error: unknown,
+  write: 'create' | 'save',
+  fallback: string,
+): string {
+  if (error instanceof ProblemError && error.code === 'role_placement') {
+    if (write === 'create' && error.fields.reason === 'roles_group_not_leaf') {
+      return ROLE_GROUP_STAYS_LEAF;
+    }
+    if (write === 'save')
+      return RENAME_PLACEMENT_PREFIX + rolePlacementMessage(error.fields.reason);
+  }
+  return coreProblemMessage(error, fallback);
+}
+
 /**
  * core's bare 409 on a competitor's create or save. It has no code and means
  * one of several things (the person already competes, their account is not

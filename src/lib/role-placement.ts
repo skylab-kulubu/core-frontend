@@ -33,7 +33,7 @@ export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
   members_root:
     '/UYELER grubuna rol verilmez: bütün üyeler alırdı. /ROLLER altında bir rol grubu kullan.',
   area: 'Alan grubuna rol verilmez: altındaki bütün ekipler alırdı. /ROLLER altında bir rol grubu kullan.',
-  team: 'Ekip ya da alt ekip grubuna rol verilmez; rolü en üst ekibin LIDERLER grubuna ver ya da /ROLLER altında bir rol grubu kullan.',
+  team: 'Ekip ya da alt ekip grubuna rol verilmez; rolü en üst ekibin LIDERLER ya da KOORDINATORLER grubuna ver ya da /ROLLER altında bir rol grubu kullan.',
   sub_team_leader_group:
     'Alt ekibin lider grubuna rol verilmez; yalnız en üst ekibin LIDERLER/KOORDINATORLER grubu rol alır.',
   roles_root:

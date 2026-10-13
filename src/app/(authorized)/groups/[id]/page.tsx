@@ -18,7 +18,9 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
+import { isPrivileged } from '@/lib/auth/groups';
+import { useAuth } from '@/context/AuthContext';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
@@ -51,11 +53,13 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
-  // page is offered to Privileged members, so an unread answer keeps the buttons
-  const canWrite = useAppCan(true)('group.write');
-  // Only a role group's own subgroups matter to the placement rule
-  const [hasSubgroups, setHasSubgroups] = useState(false);
+  // group rule stands in only when the capabilities cannot be read
+  const canWrite = useAppCan(isPrivileged(user?.groups ?? []))('group.write');
+  // Only a role group's own subgroups matter to the placement rule: the path
+  // they were read for, so a role group shows no "Rol ekle" before they are known
+  const [subgroupsOf, setSubgroupsOf] = useState<{ path: string; has: boolean } | null>(null);
 
   async function load() {
     try {
@@ -65,13 +69,17 @@ export default function GroupDetailPage() {
         identityApi.groupRoles(id),
       ]);
       setGroup(g);
-      if (g.path.startsWith(`${ROLES_ROOT}/`)) {
-        const all = await identityApi.listGroups().catch(() => []);
-        setHasSubgroups(all.some((other) => other.path.startsWith(`${g.path}/`)));
-      }
       setMembers(mem);
       setRoles(mapped);
       setError(null);
+      if (g.path.startsWith(`${ROLES_ROOT}/`)) {
+        // An unread list counts as none: core still refuses a mapping that breaks the rule
+        const all = await identityApi.listGroups().catch(() => []);
+        setSubgroupsOf({
+          path: g.path,
+          has: all.some((other) => other.path.startsWith(`${g.path}/`)),
+        });
+      }
     } catch (err) {
       setError(coreProblemMessage(err, 'Yüklenemedi'));
     } finally {
@@ -88,7 +96,12 @@ export default function GroupDetailPage() {
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const extraAttrs = extraGroupAttrs(group?.attributes);
   // Why core would refuse a new role here (null: it takes one); removing one is always allowed
-  const placement = group ? rolePlacement(group.path, hasSubgroups) : null;
+  const placementKnown =
+    !!group && (!group.path.startsWith(`${ROLES_ROOT}/`) || subgroupsOf?.path === group.path);
+  const placement =
+    group && placementKnown
+      ? rolePlacement(group.path, subgroupsOf?.path === group.path && subgroupsOf.has)
+      : null;
 
   const memberOptions = memberSearch.people
     .filter((person) => !memberIds.has(person.id))
@@ -136,7 +149,7 @@ export default function GroupDetailPage() {
               notify.success('Grup kaydedildi');
               await load();
             } catch (err) {
-              setError(coreProblemMessage(err, 'Kaydedilemedi'));
+              setError(groupWriteProblemMessage(err, 'save', 'Kaydedilemedi'));
             }
           }}
         />
@@ -218,7 +231,7 @@ export default function GroupDetailPage() {
           title="Uygulama rolleri"
           meta={`${roles.length} rol`}
           actions={
-            canWrite && !placement ? (
+            canWrite && placementKnown && !placement ? (
               <ActionButton
                 icon={Plus}
                 variant="primary"
@@ -243,7 +256,8 @@ export default function GroupDetailPage() {
         />
         {canWrite && placement ? (
           <p className="text-3xs text-subtle-foreground">
-            {rolePlacementMessage(placement)} Bu gruptaki roller yalnız kaldırılabilir.
+            {rolePlacementMessage(placement)}
+            {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
           </p>
         ) : null}
         <ListPanel
