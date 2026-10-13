@@ -13,6 +13,12 @@ export type EditableSite = {
  */
 export type Capabilities = {
   editableSites?: EditableSite[];
+  /**
+   * core's decisions that name no Owner team (`user.write`, `user.readFull`,
+   * `group.write`, …). A Privileged reader (DK) reads everything and gets
+   * every write `false`.
+   */
+  can?: Record<string, boolean>;
 };
 
 export const capabilitiesApi = {

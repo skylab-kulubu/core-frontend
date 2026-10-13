@@ -142,13 +142,50 @@ describe('UserCardView', () => {
       firstName: 'Ada',
       lastName: 'Lovelace',
     };
-    render(<UserCardView card={card} />);
+    render(<UserCardView card={card} canReadFull />);
     expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
     expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
     expect(screen.getByText('Telefon').closest('div')).toHaveTextContent('—');
     expect(screen.queryByText('Öğrenci kartı UID')).not.toBeInTheDocument();
+  });
+
+  it('leaves the phone out of a card core shares without user.readFull', () => {
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+        }}
+      />,
+    );
+    expect(screen.queryByText('Telefon')).not.toBeInTheDocument();
+  });
+
+  it('lists direct roles as to be moved, with no way to add one', () => {
+    const onRemoveRole = jest.fn();
+    render(
+      <UserCardView
+        card={{
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          email: 'ada@example.com',
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          extraRoles: [{ clientId: 'forms', role: 'forms:admin' }],
+        }}
+        onRemoveRole={onRemoveRole}
+      />,
+    );
+    const section = screen.getByText('Doğrudan roller').closest('section') as HTMLElement;
+    expect(section).toHaveTextContent('forms:admin');
+    expect(section).toHaveTextContent('Taşınacak');
+    expect(section).toHaveTextContent('Yetkiler rol grupları ve ekip grupları üzerinden verilir');
+    expect(section).toHaveTextContent('bir gruptan verilmeli');
+    expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
   });
 
   it('keeps inherited and extra client roles distinct', () => {
@@ -168,7 +205,7 @@ describe('UserCardView', () => {
     expect(screen.getByText('Gruptan gelen roller').closest('section')).toHaveTextContent(
       'skyforms:access',
     );
-    expect(screen.getByText('Ekstra roller').closest('section')).toHaveTextContent(
+    expect(screen.getByText('Doğrudan roller').closest('section')).toHaveTextContent(
       'skyforms:form:manage',
     );
   });
@@ -207,7 +244,7 @@ describe('UserCardView', () => {
     );
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
     expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
   });
 
   it('shows sky number when present', () => {
@@ -247,6 +284,7 @@ describe('UserCardView', () => {
           inheritedRoles: [],
           extraRoles: [],
         }}
+        canReadFull
       />,
     );
     expect(screen.getByText('YTÜ')).toBeInTheDocument();

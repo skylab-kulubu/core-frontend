@@ -3,7 +3,16 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import GroupsPage from '@/app/(authorized)/groups/page';
 import { ProblemError } from '@/lib/api/core';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
+}));
+
+beforeEach(() => {
+  (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
+});
 
 jest.mock('@/lib/api/identity', () => ({
   identityApi: { listGroups: jest.fn(), createGroup: jest.fn() },
@@ -43,5 +52,17 @@ describe('Groups page feedback', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Kayıt şu anki durumunda buna uygun değil',
     );
+  });
+});
+
+describe('Groups page for a reader', () => {
+  it('offers no add button to a DK member (group.write false)', async () => {
+    (identityApi.listGroups as jest.Mock).mockResolvedValue([
+      { id: 'g1', name: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB' },
+    ]);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': false } });
+    render(<GroupsPage />);
+    expect(await screen.findByText('/UYELER/ARGE/WEBLAB')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Grup ekle' })).not.toBeInTheDocument();
   });
 });

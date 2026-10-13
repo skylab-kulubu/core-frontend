@@ -338,3 +338,30 @@ describe('coreProblemMessage for any core refusal', () => {
     ).toBe(message);
   });
 });
+
+describe('coreProblemMessage for the role rules', () => {
+  it('says each placement reason in Turkish, never core English detail', () => {
+    const message = coreProblemMessage(problem(409, 'role_placement', { reason: 'team' }));
+    expect(message).toContain('Ekip ya da alt ekip grubuna rol verilmez');
+    expect(message).not.toContain('Core detail');
+  });
+
+  it('says the rule itself for a placement without a known reason', () => {
+    expect(coreProblemMessage(problem(409, 'role_placement', { reason: 'new_reason' }))).toContain(
+      'Roller yalnız yönetim köküne',
+    );
+    expect(coreProblemMessage(problem(409, 'role_placement'))).toContain('Bu gruba rol verilemez');
+  });
+
+  it('names the group path for a direct role, and the console for Keycloak admin roles', () => {
+    expect(coreProblemMessage(problem(403, 'direct_role_not_allowed'))).toContain(
+      'Kişiye doğrudan rol verilmez',
+    );
+    expect(coreProblemMessage(problem(403, 'keycloak_admin_role'))).toContain(
+      'Keycloak konsolundan',
+    );
+    expect(coreProblemMessage(problem(403, 'keycloak_admin_group'))).toContain(
+      'üyeliği yalnız Keycloak konsolundan',
+    );
+  });
+});

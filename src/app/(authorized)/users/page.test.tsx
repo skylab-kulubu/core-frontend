@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UsersPage from '@/app/(authorized)/users/page';
 import { ProblemError } from '@/lib/api/core';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -18,6 +19,14 @@ jest.mock('@/context/AuthContext', () => ({
     },
   }),
 }));
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
+}));
+
+beforeEach(() => {
+  (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'user.create': true } });
+});
 
 jest.mock('@/lib/api/identity', () => ({
   identityApi: {
@@ -36,7 +45,7 @@ describe('Users page', () => {
   it('validates and trims the create-user form before submission', async () => {
     const user = userEvent.setup();
     render(<UsersPage />);
-    await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
+    await user.click(await screen.findByRole('button', { name: 'Kullanıcı ekle' }));
     await user.type(screen.getByLabelText('Ad'), '  Ada  ');
     await user.type(screen.getByLabelText('Soyad'), '  Lovelace  ');
     await user.type(screen.getByLabelText('E-posta'), 'geçersiz');
@@ -76,7 +85,7 @@ describe('Users page', () => {
   it('shows the created user by searching for its e-mail', async () => {
     const user = userEvent.setup();
     render(<UsersPage />);
-    await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
+    await user.click(await screen.findByRole('button', { name: 'Kullanıcı ekle' }));
     await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalledWith('ada@example.com'));
@@ -155,7 +164,7 @@ describe('Users page feedback', () => {
   async function submitAda() {
     const user = userEvent.setup();
     render(<UsersPage />);
-    await user.click(screen.getByRole('button', { name: 'Kullanıcı ekle' }));
+    await user.click(await screen.findByRole('button', { name: 'Kullanıcı ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Kullanıcı ekle' });
     await user.type(within(dialog).getByLabelText('E-posta'), 'ada@example.com');
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
@@ -176,5 +185,15 @@ describe('Users page feedback', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Kayıt şu anki durumunda buna uygun değil',
     );
+  });
+});
+
+describe('Users page for a reader', () => {
+  it('offers no add button to a DK member (user.create false)', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'user.create': false } });
+    render(<UsersPage />);
+    expect(await screen.findByText('Üye dizinini görüntüle.')).toBeInTheDocument();
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Kullanıcı ekle' })).not.toBeInTheDocument();
   });
 });

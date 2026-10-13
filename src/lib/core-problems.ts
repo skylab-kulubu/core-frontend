@@ -1,5 +1,6 @@
 import { ProblemError } from '@/lib/api/core';
 import { mediaPurposeLabel, mediaRoleName } from '@/lib/media-purposes';
+import { rolePlacementMessage } from '@/lib/role-placement';
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -92,6 +93,13 @@ const CODE_MESSAGES: Record<string, string> = {
   reserved_name: 'Bu grup adı ayrılmış; başka bir ad seç.',
   name_taken: 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.',
   privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
+  // Role rules (core rol-temizligi 06): access comes through Groups only
+  direct_role_not_allowed:
+    'Kişiye doğrudan rol verilmez; kişiyi rolü taşıyan gruba ekle (/ROLLER altındaki rol grubu, ekibin lider grubu ya da yönetim kökü).',
+  keycloak_admin_role:
+    'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
+  keycloak_admin_group:
+    'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
 };
 
 /**
@@ -188,6 +196,8 @@ export function coreProblemMessage(
     }
     case 'media_not_linkable':
       return 'Seçilen dosya artık kullanılamıyor: silinmiş, arşivlenmiş ya da kaydedilmeden süresi dolmuş. Dosyayı yeniden yükle.';
+    case 'role_placement':
+      return rolePlacementMessage(fields.reason);
     case 'media_team_mismatch':
       return 'Bu fotoğraf başka bir ekibin etkinliğinde kullanılıyor. Yalnız kendi ekibinin fotoğraflarını kullanabilirsin.';
     default:

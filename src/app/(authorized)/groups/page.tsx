@@ -19,6 +19,7 @@ import { emptyListCopy, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useAppCan } from '@/lib/use-app-can';
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -33,6 +34,8 @@ export default function GroupsPage() {
   const [parentQuery, setParentQuery] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const notify = useNotify();
+  // core's group.write (a DK member reads only); the page is offered to Privileged members
+  const canWrite = useAppCan(true)('group.write');
 
   useEffect(() => {
     identityApi
@@ -59,15 +62,17 @@ export default function GroupsPage() {
         title="Gruplar"
         description="Ekipler, kurullar ve üye ağacı. Site görünürlüğü grup kartında."
         actions={
-          <ActionButton
-            icon={Plus}
-            variant="primary"
-            label="Grup ekle"
-            onClick={() => {
-              setCreateError(null);
-              setCreating(true);
-            }}
-          />
+          canWrite ? (
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Grup ekle"
+              onClick={() => {
+                setCreateError(null);
+                setCreating(true);
+              }}
+            />
+          ) : undefined
         }
       />
       {error ? (

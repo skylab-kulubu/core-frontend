@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UserDetailPage from '@/app/(authorized)/users/[id]/page';
 import { ProblemError } from '@/lib/api/core';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
 import { useAuth } from '@/context/AuthContext';
 
@@ -13,6 +14,29 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
+}));
+
+/** core's `can` for an ADMIN/YK member, a DK member (reads only) and a plain reader. */
+const ADMIN_CAN = {
+  'user.read': true,
+  'user.readFull': true,
+  'user.write': true,
+  'group.write': true,
+};
+const DK_CAN = {
+  'user.read': true,
+  'user.readFull': true,
+  'user.write': false,
+  'group.write': false,
+};
+const READER_CAN = { 'user.read': true };
+
+beforeEach(() => {
+  (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: ADMIN_CAN });
+});
 
 jest.mock('@/lib/api/identity', () => ({
   identityApi: {
@@ -50,11 +74,12 @@ describe('User detail page', () => {
     );
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
     expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Ekstra rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
     expect(screen.queryByText('Beklenmeyen bir hata oluştu')).not.toBeInTheDocument();
   });
 
   it('keeps users:read cards read-only', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: READER_CAN });
     (useAuth as jest.Mock).mockReturnValue({
       user: {
         id: 'reader',
@@ -79,6 +104,52 @@ describe('User detail page', () => {
     expect(screen.queryByRole('button', { name: 'Grup ekle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Oturumları kapat/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('User detail roles and readers', () => {
+  const card = {
+    id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    email: 'ada@example.com',
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+    phone: '5551112233',
+    extraRoles: [{ clientId: 'forms', role: 'forms:admin' }],
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.getUser as jest.Mock).mockResolvedValue(card);
+  });
+
+  it('offers no way to give a person a role directly, and keeps removing one', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: ADMIN_CAN });
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    render(<UserDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Grup ekle' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
+    expect(screen.getByText('Taşınacak')).toBeInTheDocument();
+    expect(identityApi.listClientRoles).not.toHaveBeenCalled();
+  });
+
+  it('shows a DK member the full card without a write button', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: DK_CAN });
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'dk', groups: ['/UYELER/DK'] } });
+    render(<UserDetailPage />);
+    expect(await screen.findByText('5551112233')).toBeInTheDocument();
+    expect(screen.getByText('forms:admin')).toBeInTheDocument();
+    for (const name of ['Kaydet', 'Grup ekle', 'Rol ekle', 'Kaldır', /Oturumları kapat/]) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it('falls back to the group rule when the capabilities cannot be read', async () => {
+    (capabilitiesApi.get as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    render(<UserDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Oturumları kapat/ })).toBeInTheDocument();
   });
 });
 

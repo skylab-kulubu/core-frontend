@@ -89,11 +89,6 @@ export const identityApi = {
     coreFetch<Person>('/v1/users', { method: 'POST', body: JSON.stringify(body) }),
   deleteUser: (id: string) => coreFetch<void>(`/v1/users/${id}`, { method: 'DELETE' }),
   logoutUser: (id: string) => coreFetch<void>(`/v1/users/${id}/logout`, { method: 'POST' }),
-  addExtraRole: (id: string, role: ClientRole) =>
-    coreFetch<void>(`/v1/users/${id}/client-roles`, {
-      method: 'POST',
-      body: JSON.stringify(role),
-    }),
   removeExtraRole: (id: string, role: ClientRole) =>
     coreFetch<void>(
       `/v1/users/${id}/client-roles?clientId=${encodeURIComponent(role.clientId)}&role=${encodeURIComponent(role.role)}`,

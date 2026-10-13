@@ -24,6 +24,8 @@ import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { pickerMatch, roleKey } from '@/lib/picker';
+import { ROLES_ROOT, rolePlacement, rolePlacementMessage } from '@/lib/role-placement';
+import { useAppCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -49,6 +51,11 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  // core's group.write decides every change here (a DK member reads only); the
+  // page is offered to Privileged members, so an unread answer keeps the buttons
+  const canWrite = useAppCan(true)('group.write');
+  // Only a role group's own subgroups matter to the placement rule
+  const [hasSubgroups, setHasSubgroups] = useState(false);
 
   async function load() {
     try {
@@ -58,6 +65,10 @@ export default function GroupDetailPage() {
         identityApi.groupRoles(id),
       ]);
       setGroup(g);
+      if (g.path.startsWith(`${ROLES_ROOT}/`)) {
+        const all = await identityApi.listGroups().catch(() => []);
+        setHasSubgroups(all.some((other) => other.path.startsWith(`${g.path}/`)));
+      }
       setMembers(mem);
       setRoles(mapped);
       setError(null);
@@ -76,6 +87,8 @@ export default function GroupDetailPage() {
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const extraAttrs = extraGroupAttrs(group?.attributes);
+  // Why core would refuse a new role here (null: it takes one); removing one is always allowed
+  const placement = group ? rolePlacement(group.path, hasSubgroups) : null;
 
   const memberOptions = memberSearch.people
     .filter((person) => !memberIds.has(person.id))
@@ -116,6 +129,7 @@ export default function GroupDetailPage() {
       {group ? (
         <GroupProfile
           group={group}
+          readOnly={!canWrite}
           onSave={async (next) => {
             try {
               await identityApi.updateGroup(id, next);
@@ -133,16 +147,18 @@ export default function GroupDetailPage() {
           title="Üyeler"
           meta={`${members.length} kişi`}
           actions={
-            <ActionButton
-              icon={Plus}
-              variant="primary"
-              label="Üye ekle"
-              onClick={() => {
-                setMemberQuery('');
-                setPickError(null);
-                setMemberOpen(true);
-              }}
-            />
+            canWrite ? (
+              <ActionButton
+                icon={Plus}
+                variant="primary"
+                label="Üye ekle"
+                onClick={() => {
+                  setMemberQuery('');
+                  setPickError(null);
+                  setMemberOpen(true);
+                }}
+              />
+            ) : null
           }
         />
         <ListToolbar
@@ -171,24 +187,26 @@ export default function GroupDetailPage() {
                 title={`${m.firstName} ${m.lastName}`.trim() || m.email}
                 subtitle={memberSubtitle(group?.path ?? '', m)}
                 trailing={
-                  <ActionButton
-                    icon={X}
-                    label="Çıkar"
-                    onClick={() =>
-                      confirm({
-                        title: `${`${m.firstName} ${m.lastName}`.trim() || m.email} ${group?.name ?? ''} grubundan çıkarılsın mı?`,
-                        description:
-                          'Kişi bu grubun rollerini ve erişimlerini kaybeder. Grup bir ekibin grubuysa kişiye e-postayla bildirilir.',
-                        actionLabel: 'Gruptan çıkar',
-                        onConfirm: async () => {
-                          await identityApi.removeMember(id, m.id);
-                          notify.success('Üye çıkarıldı');
-                          await load();
-                        },
-                        failure: 'Üye çıkarılamadı',
-                      })
-                    }
-                  />
+                  canWrite ? (
+                    <ActionButton
+                      icon={X}
+                      label="Çıkar"
+                      onClick={() =>
+                        confirm({
+                          title: `${`${m.firstName} ${m.lastName}`.trim() || m.email} ${group?.name ?? ''} grubundan çıkarılsın mı?`,
+                          description:
+                            'Kişi bu grubun rollerini ve erişimlerini kaybeder. Grup bir ekibin grubuysa kişiye e-postayla bildirilir.',
+                          actionLabel: 'Gruptan çıkar',
+                          onConfirm: async () => {
+                            await identityApi.removeMember(id, m.id);
+                            notify.success('Üye çıkarıldı');
+                            await load();
+                          },
+                          failure: 'Üye çıkarılamadı',
+                        })
+                      }
+                    />
+                  ) : null
                 }
               />
             ))}
@@ -200,27 +218,34 @@ export default function GroupDetailPage() {
           title="Uygulama rolleri"
           meta={`${roles.length} rol`}
           actions={
-            <ActionButton
-              icon={Plus}
-              variant="primary"
-              label="Rol ekle"
-              onClick={async () => {
-                setRoleQuery('');
-                setPickError(null);
-                setRoleOpen(true);
-                setPickerLoading(true);
-                try {
-                  setCatalog(await identityApi.listClientRoles());
-                  setPickerFailed(false);
-                } catch {
-                  setPickerFailed(true);
-                } finally {
-                  setPickerLoading(false);
-                }
-              }}
-            />
+            canWrite && !placement ? (
+              <ActionButton
+                icon={Plus}
+                variant="primary"
+                label="Rol ekle"
+                onClick={async () => {
+                  setRoleQuery('');
+                  setPickError(null);
+                  setRoleOpen(true);
+                  setPickerLoading(true);
+                  try {
+                    setCatalog(await identityApi.listClientRoles());
+                    setPickerFailed(false);
+                  } catch {
+                    setPickerFailed(true);
+                  } finally {
+                    setPickerLoading(false);
+                  }
+                }}
+              />
+            ) : null
           }
         />
+        {canWrite && placement ? (
+          <p className="text-3xs text-subtle-foreground">
+            {rolePlacementMessage(placement)} Bu gruptaki roller yalnız kaldırılabilir.
+          </p>
+        ) : null}
         <ListPanel
           status={listStatus({
             loading: false,
@@ -235,26 +260,28 @@ export default function GroupDetailPage() {
               title={r.role}
               subtitle={r.clientId}
               trailing={
-                <ActionButton
-                  icon={X}
-                  label="Kaldır"
-                  onClick={() =>
-                    confirm({
-                      title: `${r.role} rolü ${group?.name ?? ''} grubundan kaldırılsın mı?`,
-                      description: 'Grubun bütün üyeleri bu rolü kaybeder.',
-                      actionLabel: 'Rolü kaldır',
-                      onConfirm: async () => {
-                        await identityApi.setGroupRoles(
-                          id,
-                          roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                        );
-                        notify.success('Rol kaldırıldı');
-                        await load();
-                      },
-                      failure: 'Rol kaldırılamadı',
-                    })
-                  }
-                />
+                canWrite ? (
+                  <ActionButton
+                    icon={X}
+                    label="Kaldır"
+                    onClick={() =>
+                      confirm({
+                        title: `${r.role} rolü ${group?.name ?? ''} grubundan kaldırılsın mı?`,
+                        description: 'Grubun bütün üyeleri bu rolü kaybeder.',
+                        actionLabel: 'Rolü kaldır',
+                        onConfirm: async () => {
+                          await identityApi.setGroupRoles(
+                            id,
+                            roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                          );
+                          notify.success('Rol kaldırıldı');
+                          await load();
+                        },
+                        failure: 'Rol kaldırılamadı',
+                      })
+                    }
+                  />
+                ) : null
               }
             />
           ))}
@@ -280,65 +307,73 @@ export default function GroupDetailPage() {
               title={v}
               subtitle={k}
               trailing={
-                <ActionButton
-                  icon={X}
-                  label="Kaldır"
-                  onClick={() =>
-                    confirm({
-                      title: `${k} özniteliği kaldırılsın mı?`,
-                      description: `Değeri (${v}) gruptan silinir.`,
-                      actionLabel: 'Özniteliği kaldır',
-                      onConfirm: async () => {
-                        const next = { ...(group?.attributes ?? {}) };
-                        delete next[k];
-                        await identityApi.updateGroup(id, { attributes: next });
-                        notify.success('Öznitelik kaldırıldı');
-                        await load();
-                      },
-                      failure: 'Öznitelik kaldırılamadı',
-                    })
-                  }
-                />
+                canWrite ? (
+                  <ActionButton
+                    icon={X}
+                    label="Kaldır"
+                    onClick={() =>
+                      confirm({
+                        title: `${k} özniteliği kaldırılsın mı?`,
+                        description: `Değeri (${v}) gruptan silinir.`,
+                        actionLabel: 'Özniteliği kaldır',
+                        onConfirm: async () => {
+                          const next = { ...(group?.attributes ?? {}) };
+                          delete next[k];
+                          await identityApi.updateGroup(id, { attributes: next });
+                          notify.success('Öznitelik kaldırıldı');
+                          await load();
+                        },
+                        failure: 'Öznitelik kaldırılamadı',
+                      })
+                    }
+                  />
+                ) : null
               }
             />
           ))}
         </ListPanel>
-        <form
-          className="flex flex-wrap items-end gap-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!attrKey.trim()) return;
-            if (isKnownGroupAttr(attrKey.trim())) {
-              setError('Bu alan yukarıdaki kulüp alanlarında.');
-              return;
-            }
-            try {
-              await identityApi.updateGroup(id, {
-                attributes: { ...(group?.attributes ?? {}), [attrKey.trim()]: attrValue },
-              });
-              setAttrKey('');
-              setAttrValue('');
-              notify.success('Öznitelik eklendi');
-              await load();
-            } catch (err) {
-              setError(coreProblemMessage(err, 'Öznitelik eklenemedi'));
-            }
-          }}
-        >
-          <label className="block space-y-1">
-            <FieldLabel>Anahtar</FieldLabel>
-            <Field className="w-40" value={attrKey} onChange={(e) => setAttrKey(e.target.value)} />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Değer</FieldLabel>
-            <Field
-              className="w-40"
-              value={attrValue}
-              onChange={(e) => setAttrValue(e.target.value)}
-            />
-          </label>
-          <SaveButton className="self-end">Ekle</SaveButton>
-        </form>
+        {canWrite ? (
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!attrKey.trim()) return;
+              if (isKnownGroupAttr(attrKey.trim())) {
+                setError('Bu alan yukarıdaki kulüp alanlarında.');
+                return;
+              }
+              try {
+                await identityApi.updateGroup(id, {
+                  attributes: { ...(group?.attributes ?? {}), [attrKey.trim()]: attrValue },
+                });
+                setAttrKey('');
+                setAttrValue('');
+                notify.success('Öznitelik eklendi');
+                await load();
+              } catch (err) {
+                setError(coreProblemMessage(err, 'Öznitelik eklenemedi'));
+              }
+            }}
+          >
+            <label className="block space-y-1">
+              <FieldLabel>Anahtar</FieldLabel>
+              <Field
+                className="w-40"
+                value={attrKey}
+                onChange={(e) => setAttrKey(e.target.value)}
+              />
+            </label>
+            <label className="block space-y-1">
+              <FieldLabel>Değer</FieldLabel>
+              <Field
+                className="w-40"
+                value={attrValue}
+                onChange={(e) => setAttrValue(e.target.value)}
+              />
+            </label>
+            <SaveButton className="self-end">Ekle</SaveButton>
+          </form>
+        ) : null}
       </section>
 
       {confirmDialog}

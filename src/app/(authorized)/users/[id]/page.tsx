@@ -8,10 +8,11 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { identityApi, type ClientRole, type Group, type UserCard } from '@/lib/api/identity';
+import { identityApi, type Group, type UserCard } from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
-import { pickerMatch, roleKey } from '@/lib/picker';
+import { pickerMatch } from '@/lib/picker';
+import { useAppCan } from '@/lib/use-app-can';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -19,15 +20,16 @@ import { useNotify } from '@/lib/ui/use-notify';
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
   const { user } = useAuth();
-  const privileged = isPrivileged(user?.groups ?? []);
+  // core's capabilities decide the buttons (a DK member reads, writes nothing);
+  // the group rule stands in only when they cannot be read
+  const can = useAppCan(isPrivileged(user?.groups ?? []));
+  const canWrite = can('user.write');
+  const canAddGroup = can('group.write');
   const [card, setCard] = useState<UserCard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
   const [groupQuery, setGroupQuery] = useState('');
-  const [roleQuery, setRoleQuery] = useState('');
   const [groups, setGroups] = useState<Group[]>([]);
-  const [catalog, setCatalog] = useState<ClientRole[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerFailed, setPickerFailed] = useState(false);
   // A refused change (403 included) stays on the card; `error` replaces the card when it cannot load
@@ -76,28 +78,6 @@ export default function UserDetailPage() {
     }
   }
 
-  async function openRoles() {
-    setRoleQuery('');
-    setPickError(null);
-    setRoleOpen(true);
-    setPickerLoading(true);
-    try {
-      setCatalog(await identityApi.listClientRoles());
-      setPickerFailed(false);
-    } catch {
-      setPickerFailed(true);
-    } finally {
-      setPickerLoading(false);
-    }
-  }
-
-  const heldRoles = useMemo(() => {
-    const held = new Set<string>();
-    for (const role of card?.inheritedRoles ?? []) held.add(roleKey(role));
-    for (const role of card?.extraRoles ?? []) held.add(roleKey(role));
-    return held;
-  }, [card]);
-
   const groupOptions = useMemo(() => {
     const have = new Set((card?.groups ?? []).map((g) => g.id));
     return groups
@@ -105,17 +85,6 @@ export default function UserDetailPage() {
       .map((g) => ({ id: g.id, title: g.path, subtitle: g.name }));
   }, [groups, card, groupQuery]);
 
-  const roleOptions = useMemo(() => {
-    return catalog
-      .filter(
-        (role) => !heldRoles.has(roleKey(role)) && pickerMatch(roleQuery, role.role, role.clientId),
-      )
-      .map((role) => ({
-        id: roleKey(role),
-        title: role.role,
-        subtitle: role.clientId,
-      }));
-  }, [catalog, heldRoles, roleQuery]);
   useChromeCrumbName(
     `/users/${params.id}`,
     card ? `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email : null,
@@ -136,9 +105,10 @@ export default function UserDetailPage() {
       ) : null}
       <UserCardView
         card={card}
-        canEditProfile={privileged}
+        canEditProfile={canWrite}
+        canReadFull={can('user.readFull')}
         onSaveProfile={
-          privileged
+          canWrite
             ? (patch) =>
                 change(
                   () => identityApi.updateUser(card.id, patch),
@@ -147,14 +117,13 @@ export default function UserDetailPage() {
                 )
             : undefined
         }
-        onAddGroup={privileged ? () => void openGroups() : undefined}
-        onAddRole={privileged ? () => void openRoles() : undefined}
+        onAddGroup={canAddGroup ? () => void openGroups() : undefined}
         onRemoveRole={
-          privileged
+          canWrite
             ? (role) =>
                 confirm({
                   title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
-                  description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider.`,
+                  description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider. Kişi bu yetkiyi sürdürecekse önce rolü taşıyan gruba ekle.`,
                   actionLabel: 'Rolü kaldır',
                   onConfirm: async () => {
                     await identityApi.removeExtraRole(card.id, role);
@@ -166,7 +135,7 @@ export default function UserDetailPage() {
             : undefined
         }
       />
-      {privileged ? (
+      {canWrite ? (
         <SaveButton
           type="button"
           onClick={() =>
@@ -188,7 +157,7 @@ export default function UserDetailPage() {
         </SaveButton>
       ) : null}
       {confirmDialog}
-      {privileged ? (
+      {canAddGroup ? (
         <PickerDrawer
           open={groupOpen}
           onClose={() => setGroupOpen(false)}
@@ -210,34 +179,6 @@ export default function UserDetailPage() {
               await load();
             } catch (err) {
               setPickError(coreProblemMessage(err, 'Gruba eklenemedi'));
-            }
-          }}
-        />
-      ) : null}
-      {privileged ? (
-        <PickerDrawer
-          open={roleOpen}
-          onClose={() => setRoleOpen(false)}
-          title="Rol ekle"
-          query={roleQuery}
-          onQuery={setRoleQuery}
-          placeholder="Client veya rol"
-          loading={pickerLoading}
-          failed={pickerFailed}
-          options={roleOptions}
-          emptyMessage="Rol yok"
-          error={pickError}
-          onPick={async (id) => {
-            const role = catalog.find((row) => roleKey(row) === id);
-            if (!role) return;
-            setPickError(null);
-            try {
-              await identityApi.addExtraRole(card.id, role);
-              setRoleOpen(false);
-              notify.success('Rol eklendi');
-              await load();
-            } catch (err) {
-              setPickError(coreProblemMessage(err, 'Rol eklenemedi'));
             }
           }}
         />
