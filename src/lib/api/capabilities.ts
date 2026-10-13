@@ -13,6 +13,18 @@ export type EditableSite = {
  */
 export type Capabilities = {
   editableSites?: EditableSite[];
+  /**
+   * core's decisions that name no Owner team (`user.write`, `user.readFull`,
+   * `group.write`, …). A Privileged reader (DK) reads everything and gets
+   * every write `false`.
+   */
+  can?: Record<string, boolean>;
+  /** Decisions for a record of an Owner team the caller is in (`event.update`, `certificate.issue`, …). */
+  teams?: Array<{ team: string; levels?: string[]; can?: Record<string, boolean> }>;
+  /** Decisions for a record of an Owner team the caller is in no Group of. */
+  otherTeams?: { can?: Record<string, boolean> };
+  /** Decisions for a record without an Owner team. */
+  noOwnerTeam?: { can?: Record<string, boolean> };
 };
 
 export const capabilitiesApi = {

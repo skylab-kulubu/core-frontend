@@ -1,5 +1,9 @@
 import { ProblemError } from '@/lib/api/core';
-import { coreProblemMessage, isPerFileRefusal } from '@/lib/core-problems';
+import {
+  coreProblemMessage,
+  groupWriteProblemMessage,
+  isPerFileRefusal,
+} from '@/lib/core-problems';
 
 function problem(status: number, code: string, fields: Record<string, unknown> = {}) {
   return new ProblemError(status, 'Core title', { code, detail: 'Core detail.', fields });
@@ -336,5 +340,62 @@ describe('coreProblemMessage for any core refusal', () => {
         'x',
       ),
     ).toBe(message);
+  });
+});
+
+describe('coreProblemMessage for the role rules', () => {
+  it('says each placement reason in Turkish, never core English detail', () => {
+    const message = coreProblemMessage(problem(409, 'role_placement', { reason: 'team' }));
+    expect(message).toContain('Ekip ya da alt ekip grubuna rol verilmez');
+    expect(message).not.toContain('Core detail');
+  });
+
+  it('says the rule itself for a placement without a known reason', () => {
+    expect(coreProblemMessage(problem(409, 'role_placement', { reason: 'new_reason' }))).toContain(
+      'Roller yalnız yönetim köküne',
+    );
+    expect(coreProblemMessage(problem(409, 'role_placement'))).toContain('Bu gruba rol verilemez');
+  });
+
+  it('names the group path for a direct role, and the console for Keycloak admin roles', () => {
+    expect(coreProblemMessage(problem(403, 'direct_role_not_allowed'))).toContain(
+      'Kişiye doğrudan rol verilmez',
+    );
+    expect(coreProblemMessage(problem(403, 'keycloak_admin_role'))).toContain(
+      'Keycloak konsolundan',
+    );
+    expect(coreProblemMessage(problem(403, 'keycloak_admin_group'))).toContain(
+      'üyeliği yalnız Keycloak konsolundan',
+    );
+  });
+});
+
+describe('groupWriteProblemMessage', () => {
+  it('says a role group stays a leaf on a create', () => {
+    expect(
+      groupWriteProblemMessage(
+        problem(409, 'role_placement', { reason: 'roles_group_not_leaf' }),
+        'create',
+        'Oluşturulamadı',
+      ),
+    ).toBe('Rol grubunun altına grup açılmaz; /ROLLER altındaki rol grupları tek katmandır.');
+  });
+
+  it('puts the rename context before the placement reason on a save', () => {
+    expect(
+      groupWriteProblemMessage(
+        problem(409, 'role_placement', { reason: 'area' }),
+        'save',
+        'Kaydedilemedi',
+      ),
+    ).toMatch(
+      /^Yeni adla bu gruptaki roller kurala aykırı bir yere düşerdi: Alan grubuna rol verilmez/,
+    );
+  });
+
+  it('reads any other refusal as coreProblemMessage', () => {
+    expect(groupWriteProblemMessage(problem(409, 'name_taken'), 'save', 'Kaydedilemedi')).toContain(
+      'Bu ad başka bir grupta',
+    );
   });
 });

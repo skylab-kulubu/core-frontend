@@ -1,5 +1,6 @@
 import { ProblemError } from '@/lib/api/core';
 import { mediaPurposeLabel, mediaRoleName } from '@/lib/media-purposes';
+import { rolePlacementMessage } from '@/lib/role-placement';
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -92,7 +93,44 @@ const CODE_MESSAGES: Record<string, string> = {
   reserved_name: 'Bu grup adı ayrılmış; başka bir ad seç.',
   name_taken: 'Bu ad başka bir grupta ya da kayıtta kullanılıyor; başka bir ad seç.',
   privileged_root: 'Bu grubun adı değiştirilemez: üyelerinin yönetim yetkisi değişirdi.',
+  // Role rules (core rol-temizligi 06): access comes through Groups only
+  direct_role_not_allowed:
+    'Kişiye doğrudan rol verilmez; kişiyi rolü taşıyan gruba ekle (/ROLLER altındaki rol grubu, ekibin lider grubu ya da yönetim kökü).',
+  keycloak_admin_role:
+    'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
+  keycloak_admin_group:
+    'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
 };
+
+/** The sentence for a Group created under a role group (core roleGroupStaysLeaf). */
+export const ROLE_GROUP_STAYS_LEAF =
+  'Rol grubunun altına grup açılmaz; /ROLLER altındaki rol grupları tek katmandır.';
+
+/** What a rename that moves the Group's roles to a refused place is told before the reason. */
+export const RENAME_PLACEMENT_PREFIX =
+  'Yeni adla bu gruptaki roller kurala aykırı bir yere düşerdi: ';
+
+/**
+ * A Turkish sentence for a failed Group create or save. core's
+ * `role_placement` means something else on these writes than on a role
+ * mapping: on a create, the new Group would sit under a role group; on a
+ * rename, the Group's own roles would land where the rule allows none.
+ * Every other refusal reads as coreProblemMessage.
+ */
+export function groupWriteProblemMessage(
+  error: unknown,
+  write: 'create' | 'save',
+  fallback: string,
+): string {
+  if (error instanceof ProblemError && error.code === 'role_placement') {
+    if (write === 'create' && error.fields.reason === 'roles_group_not_leaf') {
+      return ROLE_GROUP_STAYS_LEAF;
+    }
+    if (write === 'save')
+      return RENAME_PLACEMENT_PREFIX + rolePlacementMessage(error.fields.reason);
+  }
+  return coreProblemMessage(error, fallback);
+}
 
 /**
  * core's bare 409 on a competitor's create or save. It has no code and means
@@ -188,6 +226,8 @@ export function coreProblemMessage(
     }
     case 'media_not_linkable':
       return 'Seçilen dosya artık kullanılamıyor: silinmiş, arşivlenmiş ya da kaydedilmeden süresi dolmuş. Dosyayı yeniden yükle.';
+    case 'role_placement':
+      return rolePlacementMessage(fields.reason);
     case 'media_team_mismatch':
       return 'Bu fotoğraf başka bir ekibin etkinliğinde kullanılıyor. Yalnız kendi ekibinin fotoğraflarını kullanabilirsin.';
     default:

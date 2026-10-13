@@ -18,7 +18,8 @@ import { DatePicker } from '@/components/forms/DatePicker';
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useAuth } from '@/context/AuthContext';
 import { teamsApi } from '@/lib/api/teams';
-import { canWriteEvent, isPrivileged, leaderOwnerTeams } from '@/lib/auth/groups';
+import { leaderOwnerTeams } from '@/lib/auth/groups';
+import { useEventCreate } from '@/lib/use-event-create';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ensureReservedEventId } from '@/lib/event-draft';
 import { eventFormIssue } from '@/lib/events-view';
@@ -43,9 +44,9 @@ export function useNewEvent() {
 export function NewEventProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const groups = useMemo(() => user?.groups ?? [], [user?.groups]);
-  const privileged = isPrivileged(groups);
   const leaderTeams = useMemo(() => leaderOwnerTeams(groups), [groups]);
-  const canCreate = privileged || leaderTeams.some((team) => canWriteEvent(groups, team, 'create'));
+  // The group rule narrowed by core's event.create: a DK member creates nothing
+  const { canCreate, privilegedWriter } = useEventCreate(groups);
   const [isOpen, setOpen] = useState(false);
   const open = useCallback(() => setOpen(true), []);
   const value = useMemo(() => ({ open, canCreate }), [open, canCreate]);
@@ -57,7 +58,7 @@ export function NewEventProvider({ children }: { children: ReactNode }) {
         <QuickEventDrawer
           open={isOpen}
           onClose={() => setOpen(false)}
-          privileged={privileged}
+          privileged={privilegedWriter}
           leaderTeams={leaderTeams}
         />
       ) : null}
