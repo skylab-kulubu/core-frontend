@@ -38,16 +38,17 @@ type ProfileForm = z.infer<typeof profileSchema>;
 export function UserCardView({
   card,
   canEditProfile,
+  canReadFull,
   onSaveProfile,
   onAddGroup,
-  onAddRole,
   onRemoveRole,
 }: {
   card: UserCard;
   canEditProfile?: boolean;
+  /** core's `user.readFull`: the card carries the phone and the student card UID. */
+  canReadFull?: boolean;
   onSaveProfile?: (patch: UserProfilePatch) => void | Promise<void>;
   onAddGroup?: () => void;
-  onAddRole?: () => void;
   onRemoveRole?: (role: ClientRole) => void;
 }) {
   const groups = card.groups ?? [];
@@ -166,10 +167,12 @@ export function UserCardView({
               <FieldLabel>LinkedIn</FieldLabel>
               <p className="text-secondary-foreground text-sm">{dash(card.linkedin)}</p>
             </div>
-            <div className="space-y-1">
-              <FieldLabel>Telefon</FieldLabel>
-              <p className="text-secondary-foreground text-sm">{dash(card.phone)}</p>
-            </div>
+            {canReadFull ? (
+              <div className="space-y-1">
+                <FieldLabel>Telefon</FieldLabel>
+                <p className="text-secondary-foreground text-sm">{dash(card.phone)}</p>
+              </div>
+            ) : null}
             {card.studentCardUid ? (
               <div className="space-y-1">
                 <FieldLabel>Öğrenci kartı UID</FieldLabel>
@@ -216,20 +219,17 @@ export function UserCardView({
         </ListPanel>
       </section>
       <section className="space-y-2">
-        <SectionHeading
-          title="Ekstra roller"
-          meta={`${extraRoles.length} rol`}
-          actions={
-            onAddRole ? (
-              <ActionButton icon={Plus} variant="primary" label="Rol ekle" onClick={onAddRole} />
-            ) : null
-          }
-        />
+        <SectionHeading title="Doğrudan roller" meta={`${extraRoles.length} rol`} />
+        <p className="text-3xs text-subtle-foreground">
+          Yetkiler rol grupları ve ekip grupları üzerinden verilir; kişiye doğrudan rol verilmez. Bu
+          roller bir gruptan verilmeli: kişiyi rolü taşıyan gruba (ör. /ROLLER altındaki rol grubu)
+          ekle, sonra buradan kaldır.
+        </p>
         <ListPanel
           status={listStatus({
             loading: false,
             rowCount: extraRoles.length,
-            emptyMessage: 'Ekstra rol yok',
+            emptyMessage: 'Doğrudan rol yok',
           })}
         >
           {extraRoles.map((r) => (
@@ -238,9 +238,12 @@ export function UserCardView({
               title={r.role}
               subtitle={r.clientId}
               trailing={
-                onRemoveRole ? (
-                  <ActionButton icon={X} label="Kaldır" onClick={() => onRemoveRole(r)} />
-                ) : null
+                <span className="flex items-center gap-2">
+                  <StatusChip kind="pending" label="Taşınacak" />
+                  {onRemoveRole ? (
+                    <ActionButton icon={X} label="Kaldır" onClick={() => onRemoveRole(r)} />
+                  ) : null}
+                </span>
               }
             />
           ))}

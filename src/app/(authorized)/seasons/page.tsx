@@ -19,6 +19,7 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
 import { canWriteSeason } from '@/lib/auth/groups';
+import { useAppCan } from '@/lib/use-app-can';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { formatEventWhen } from '@/lib/events-view';
@@ -39,7 +40,8 @@ const emptySeason = (): SeasonBody & { startLocal: string; endLocal: string } =>
 export default function SeasonsPage() {
   const { user } = useAuth();
   const groups = user?.groups ?? [];
-  const canWrite = canWriteSeason(groups);
+  // core's season.write (a DK member reads only); the group rule stands in when it cannot be read
+  const canWrite = useAppCan(canWriteSeason(groups))('season.write');
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

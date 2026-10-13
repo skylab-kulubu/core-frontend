@@ -37,6 +37,7 @@ import {
   canEditCertificateTemplateForTeam,
   canManageCertificateTemplates,
 } from '@/lib/auth/groups';
+import { useAnyTeamCan, useTeamCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
 
 const ELEMENT_LABELS: Record<CertificateElementKind, string> = {
@@ -194,9 +195,14 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const notify = useNotify();
+  // The group rule narrowed by core's certificateTemplate.update/create (a DK member reads only)
+  const teamCan = useTeamCan();
+  const anyTeamCan = useAnyTeamCan();
   const canEdit = templateId
-    ? canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam)
-    : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []);
+    ? canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam) &&
+      teamCan(draft.ownerTeam, 'certificateTemplate.update')
+    : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
+      anyTeamCan('certificateTemplate.create');
 
   const selected = useMemo(
     () => draft.layout.elements.find((element) => element.id === selectedId),

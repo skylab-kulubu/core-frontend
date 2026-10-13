@@ -10,12 +10,17 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { certificatesApi, type CertificateTemplate } from '@/lib/api/certificates';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { canManageCertificateTemplates } from '@/lib/auth/groups';
+import { useAnyTeamCan } from '@/lib/use-app-can';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 
 export default function CertificateTemplatesPage() {
   const { user } = useAuth();
-  const canCreate = canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []);
+  // The group rule narrowed by core's certificateTemplate.create (a DK member reads only)
+  const anyTeamCan = useAnyTeamCan();
+  const canCreate =
+    canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
+    anyTeamCan('certificateTemplate.create');
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
