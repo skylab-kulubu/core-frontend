@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { capabilitiesApi } from '@/lib/api/capabilities';
+import { useCapabilities } from '@/lib/capabilities-context';
 
 /**
  * core's answer to "may I" for a decision that names no Owner team
@@ -12,23 +11,44 @@ import { capabilitiesApi } from '@/lib/api/capabilities';
  * every request.
  */
 export function useAppCan(fallback: boolean): (key: string) => boolean {
-  const [can, setCan] = useState<Record<string, boolean> | null>(null);
-  const [failed, setFailed] = useState(false);
+  const state = useCapabilities();
+  return (key) => {
+    if (state.status === 'failed') return fallback;
+    return state.status === 'ready' && Boolean(state.data.can?.[key]);
+  };
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    capabilitiesApi
-      .get()
-      .then((answer) => {
-        if (!cancelled) setCan(answer?.can ?? {});
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+/**
+ * core's answer for a record of an Owner team (`teams`, `otherTeams`,
+ * `noOwnerTeam` scopes; `''` is no Owner team). Pages AND it with their own
+ * group rule: until the answer arrives it is `false`; when it cannot be read
+ * it is `true`, so the group rule alone stands.
+ */
+export function useTeamCan(): (ownerTeam: string, key: string) => boolean {
+  const state = useCapabilities();
+  return (ownerTeam, key) => {
+    if (state.status === 'failed') return true;
+    if (state.status !== 'ready') return false;
+    const { teams, otherTeams, noOwnerTeam } = state.data;
+    const scope = !ownerTeam
+      ? noOwnerTeam
+      : (teams?.find((row) => row.team === ownerTeam) ?? otherTeams);
+    return Boolean(scope?.can?.[key]);
+  };
+}
 
-  return (key) => (failed ? fallback : Boolean(can?.[key]));
+/**
+ * Whether core allows `key` for a record of any team scope (no Owner team,
+ * a team the caller is in, or another): for a page that writes before it
+ * knows the Owner team, such as a new certificate template. The same
+ * loading/failed rule as useTeamCan.
+ */
+export function useAnyTeamCan(): (key: string) => boolean {
+  const state = useCapabilities();
+  return (key) => {
+    if (state.status === 'failed') return true;
+    if (state.status !== 'ready') return false;
+    const { teams, otherTeams, noOwnerTeam } = state.data;
+    return [noOwnerTeam, otherTeams, ...(teams ?? [])].some((scope) => Boolean(scope?.can?.[key]));
+  };
 }

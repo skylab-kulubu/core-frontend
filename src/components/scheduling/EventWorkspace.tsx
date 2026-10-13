@@ -60,6 +60,7 @@ import {
   canListEventTickets,
   ticketOwnerPeople,
 } from '@/lib/tickets-ui';
+import { useTeamCan } from '@/lib/use-app-can';
 
 const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
@@ -102,6 +103,32 @@ export function eventPermissions(
     canIssueCertificate: canIssueCertificates(groups, roles, team),
     canBindCertificate: canBindCertificateTemplates(groups, roles, team),
     canRevokeCertificate: canRevokeCertificates(groups, roles, team),
+  };
+}
+
+/**
+ * The group rule's permissions narrowed by core's capabilities for the event's
+ * Owner team (`teamCan`, see useTeamCan): a DK member reads the event and its
+ * tabs but gets no write. Reading parts (tickets, certificates) stay the group
+ * rule's; door check-in stays open to the event's door staff.
+ */
+export function withTeamCapabilities(
+  can: EventPermissions,
+  ownerTeam: string,
+  teamCan: (ownerTeam: string, key: string) => boolean,
+  doorAccess: boolean,
+): EventPermissions {
+  const team = (key: string) => teamCan(ownerTeam, key);
+  return {
+    ...can,
+    canMutate: can.canMutate && team('event.update'),
+    canDelete: can.canDelete && team('event.delete'),
+    canCompetitors: can.canCompetitors && team('competitor.update'),
+    canAssign: can.canAssign && team('ticket.assign'),
+    canDesk: doorAccess || (can.canDesk && team('door.checkIn')),
+    canIssueCertificate: can.canIssueCertificate && team('certificate.issue'),
+    canBindCertificate: can.canBindCertificate && team('certificateTemplate.assign'),
+    canRevokeCertificate: can.canRevokeCertificate && team('certificate.revoke'),
   };
 }
 
@@ -149,6 +176,7 @@ export function EventWorkspace({
   const groups = user?.groups ?? [];
   const roles = user?.roles ?? [];
   const privileged = isPrivileged(groups);
+  const teamCan = useTeamCan();
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
   const [sessions, setSessions] = useState<EventSession[]>([]);
@@ -273,7 +301,9 @@ export function EventWorkspace({
   if (!event) return <StateCard title="Yükleniyor…" isLoading />;
 
   const current = event;
-  const can = eventPermissions(groups, roles, event, doorAccess);
+  // The group rule decides what is read (tabs); core's capabilities narrow the writes
+  const readable = eventPermissions(groups, roles, event, doorAccess);
+  const can = withTeamCapabilities(readable, event.ownerTeam, teamCan, doorAccess);
   async function mailApplicants(ticketIds?: string[]) {
     setMailing(true);
     try {
@@ -372,7 +402,7 @@ export function EventWorkspace({
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
           canSeeParticipants={can.canTickets}
-          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
+          canSeeCompetitors={showsCompetitionTab(readable.canCompetitors, competitors.length)}
           canUseDoor={can.canDesk}
           canSeeCertificates={can.canCertificates}
           canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}

@@ -4,6 +4,7 @@ import { AppShell, AppShellActions, Breadcrumbs } from '@skylab-kulubu/skylcn-ui
 import { usePathname } from 'next/navigation';
 import { NewEventProvider } from '@/components/scheduling/NewEventProvider';
 import { useAuth } from '@/context/AuthContext';
+import { CapabilitiesProvider } from '@/lib/capabilities-context';
 import { chromeCrumbs } from '@/lib/chrome-breadcrumbs';
 import type { UserDto } from '@/types/api';
 import { AdminSearch } from './AdminSearch';
@@ -21,9 +22,17 @@ function ChromeTrail({ pathname }: { pathname: string }) {
 }
 
 export function AuthenticatedChrome({ children, sidebarUser }: AuthenticatedChromeProps) {
-  const pathname = usePathname() || '/dashboard';
   const { user } = useAuth();
   const current = user ?? sidebarUser;
+  return (
+    <CapabilitiesProvider userId={current.id}>
+      <SignedInChrome current={current}>{children}</SignedInChrome>
+    </CapabilitiesProvider>
+  );
+}
+
+function SignedInChrome({ children, current }: { children: React.ReactNode; current: UserDto }) {
+  const pathname = usePathname() || '/dashboard';
   const navigationContext = useNavigationContext(current);
 
   return (
