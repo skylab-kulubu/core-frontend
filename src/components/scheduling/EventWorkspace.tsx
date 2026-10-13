@@ -1,6 +1,14 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
 import { Mail, Pencil, Trash2 } from 'lucide-react';
@@ -60,6 +68,7 @@ import {
   canListEventTickets,
   ticketOwnerPeople,
 } from '@/lib/tickets-ui';
+import { useCapabilities } from '@/lib/capabilities-context';
 import { useTeamCan } from '@/lib/use-app-can';
 
 const eventEditSchema = z
@@ -177,6 +186,24 @@ export function EventWorkspace({
   const roles = user?.roles ?? [];
   const privileged = isPrivileged(groups);
   const teamCan = useTeamCan();
+  // load() runs once per event, before core's capabilities may have arrived: it
+  // reads the latest answer through this ref and waits for it to settle
+  const capabilities = useCapabilities();
+  const capabilitiesRef = useRef({ settled: false, teamCan, waiters: [] as Array<() => void> });
+  capabilitiesRef.current.settled = capabilities.status !== 'loading';
+  capabilitiesRef.current.teamCan = teamCan;
+  useEffect(() => {
+    if (capabilities.status === 'loading') return;
+    for (const wake of capabilitiesRef.current.waiters.splice(0)) wake();
+  }, [capabilities.status]);
+  /** Resolves with core's decision for the event once the capabilities are in (or unreadable). */
+  function teamAllows(ownerTeam: string, key: string): Promise<boolean> {
+    const decide = () => capabilitiesRef.current.teamCan(ownerTeam, key);
+    if (capabilitiesRef.current.settled) return Promise.resolve(decide());
+    return new Promise((resolve) => {
+      capabilitiesRef.current.waiters.push(() => resolve(decide()));
+    });
+  }
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
   const [sessions, setSessions] = useState<EventSession[]>([]);
@@ -219,7 +246,12 @@ export function EventWorkspace({
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       eventEditForm.reset({ event: nextForm });
       setError(null);
-      if (handoff && canWriteEvent(groups, ev.ownerTeam, 'update')) {
+      // A DK member who comes back from Skyforms gets no editor: the save would be refused
+      if (
+        handoff &&
+        canWriteEvent(groups, ev.ownerTeam, 'update') &&
+        (await teamAllows(ev.ownerTeam, 'event.update'))
+      ) {
         setEditing(true);
         try {
           await saveEventWithSeason(nextForm, ev.id);
