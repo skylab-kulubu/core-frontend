@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UrlsPage from '@/app/(authorized)/urls/page';
 import { ProblemError } from '@/lib/api/core';
-import { urlsApi, type ShortUrl } from '@/lib/api/urls';
+import { urlsApi, type AliasAvailability, type ShortUrl } from '@/lib/api/urls';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { useAuth } from '@/context/AuthContext';
 import type { UserDto } from '@/types/api';
@@ -24,6 +24,7 @@ jest.mock('@/lib/api/urls', () => {
       listMine: jest.fn(),
       listAll: jest.fn(),
       listHits: jest.fn(),
+      availability: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
@@ -485,5 +486,205 @@ describe('Kısa URL form and event links', () => {
       'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
     await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe('Kısa URL hit source', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
+    (urlsApi.listAll as jest.Mock).mockResolvedValue([short]);
+  });
+
+  it('shows the channel a hit came from by its utm source', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ roles: [], groups: ['/UYELER/YK'] }),
+    });
+    (urlsApi.listHits as jest.Mock).mockResolvedValue([
+      {
+        id: 'h1',
+        urlId: 'u1',
+        alias: 'hack',
+        createdAt: '2026-01-01T08:05:00Z',
+        ip: '203.0.113.9',
+        userAgent: 'Safari/18',
+        referer: '',
+        utm: { source: 'instagram', medium: '', campaign: '', term: '', content: '' },
+      },
+      {
+        id: 'h2',
+        urlId: 'u1',
+        alias: 'hack',
+        createdAt: '2026-01-01T08:06:00Z',
+        ip: '203.0.113.10',
+        userAgent: 'Safari/18',
+        referer: '',
+        utm: { source: '' },
+      },
+    ]);
+    render(<UrlsPage />);
+    const buttons = await screen.findAllByRole('button', { name: 'Tıklamalar' });
+    await clicker.click(buttons[0]);
+    expect(await screen.findByText(/^instagram · 203\.0\.113\.9 · /)).toBeInTheDocument();
+    expect(screen.getByText(/^203\.0\.113\.10 · Safari/)).toBeInTheDocument();
+  });
+});
+
+describe('Kısa ad availability', () => {
+  const available = (alias: string): AliasAvailability => ({ alias, available: true });
+  const refused = (alias: string, reason: string): AliasAvailability => ({
+    alias,
+    available: false,
+    reason,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function setup() {
+    return userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  }
+
+  async function settle(ms = 400) {
+    await act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+  }
+
+  async function renderPage() {
+    render(<UrlsPage />);
+    await screen.findByText(/skyl\.app\/hack/);
+    return screen.getByPlaceholderText('opsiyonel');
+  }
+
+  it('asks once for the alias typed, after a pause, and says Uygun', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(available('yeni-ad'));
+    const alias = await renderPage();
+    await typist.type(alias, 'yeni-ad');
+    expect(urlsApi.availability).not.toHaveBeenCalled();
+    await settle();
+
+    expect(urlsApi.availability).toHaveBeenCalledTimes(1);
+    expect(urlsApi.availability).toHaveBeenCalledWith('yeni-ad');
+    expect(await screen.findByText('Uygun')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kısalt' })).toBeEnabled();
+  });
+
+  it('does not ask for an empty alias and shows no hint', async () => {
+    const typist = setup();
+    const alias = await renderPage();
+    await typist.type(alias, '  ');
+    await settle();
+    expect(urlsApi.availability).not.toHaveBeenCalled();
+    expect(screen.queryByText('Uygun')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['invalid', /^Geçersiz ad/],
+    ['reserved', /^Bu ad ayrılmış/],
+    ['taken', /^Bu ad kullanılıyor/],
+  ])('blocks a new link whose alias is %s', async (reason, hint) => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('go', reason));
+    const alias = await renderPage();
+    await typist.type(screen.getByPlaceholderText('https://…'), 'https://example.com');
+    await typist.type(alias, 'go');
+    await settle();
+
+    expect(await screen.findByText(hint)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kısalt' })).toBeDisabled();
+  });
+
+  it('ignores an answer for an alias typed past', async () => {
+    const typist = setup();
+    const first = deferred<AliasAvailability>();
+    const second = deferred<AliasAvailability>();
+    (urlsApi.availability as jest.Mock)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const alias = await renderPage();
+    await typist.type(alias, 'ab');
+    await settle();
+    await typist.type(alias, 'c');
+    await settle();
+    expect(urlsApi.availability).toHaveBeenNthCalledWith(1, 'ab');
+    expect(urlsApi.availability).toHaveBeenNthCalledWith(2, 'abc');
+
+    await act(async () => second.resolve(available('abc')));
+    await act(async () => first.resolve(refused('ab', 'taken')));
+
+    expect(screen.getByText('Uygun')).toBeInTheDocument();
+    expect(screen.queryByText(/Bu ad kullanılıyor/)).not.toBeInTheDocument();
+  });
+
+  it('shows no hint and blocks nothing when the check fails', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    const alias = await renderPage();
+    await typist.type(screen.getByPlaceholderText('https://…'), 'https://example.com');
+    await typist.type(alias, 'yeni');
+    await settle();
+
+    expect(urlsApi.availability).toHaveBeenCalledWith('yeni');
+    expect(screen.queryByText('Forbidden')).not.toBeInTheDocument();
+    expect(screen.queryByText('Uygun')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kısalt' })).toBeEnabled();
+  });
+
+  async function openEditor(typist: ReturnType<typeof setup>) {
+    await renderPage();
+    await typist.click(screen.getByRole('button', { name: 'Düzenle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
+    return {
+      drawer,
+      alias: within(drawer).getByDisplayValue('hack'),
+      save: within(drawer).getByRole('button', { name: 'Kaydet' }),
+    };
+  }
+
+  it('does not check the link’s own alias while editing, whatever its case', async () => {
+    const typist = setup();
+    const { alias } = await openEditor(typist);
+    await typist.clear(alias);
+    await typist.type(alias, 'HACK');
+    await settle();
+    expect(urlsApi.availability).not.toHaveBeenCalled();
+  });
+
+  it('only warns about a taken alias while editing, and lets the save decide', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('eski', 'taken'));
+    (urlsApi.update as jest.Mock).mockResolvedValue({ ...short, alias: 'eski' });
+    const { drawer, alias, save } = await openEditor(typist);
+    await typist.clear(alias);
+    await typist.type(alias, 'eski');
+    await settle();
+
+    expect(await within(drawer).findByText(/^Bu ad kullanılıyor/)).toBeInTheDocument();
+    expect(save).toBeEnabled();
+    await typist.click(save);
+    expect(urlsApi.update).toHaveBeenCalledWith('u1', { url: 'https://skylab.com', alias: 'eski' });
+  });
+
+  it('blocks saving an invalid alias while editing', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('-x', 'invalid'));
+    const { drawer, alias, save } = await openEditor(typist);
+    await typist.clear(alias);
+    await typist.type(alias, '-x');
+    await settle();
+
+    expect(await within(drawer).findByText(/^Geçersiz ad/)).toBeInTheDocument();
+    expect(save).toBeDisabled();
   });
 });

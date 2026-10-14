@@ -23,6 +23,13 @@ export type LinkKind = 'personal' | 'form' | 'event';
 /** A list filter: every link, or one kind. */
 export type LinkKindFilter = 'all' | LinkKind;
 
+/** core's answer to `GET /v1/urls/availability`; reason is invalid, reserved or taken. */
+export type AliasAvailability = {
+  alias: string;
+  available: boolean;
+  reason?: string;
+};
+
 export type ShortUrlBody = {
   url: string;
   alias?: string;
@@ -36,7 +43,17 @@ export type ShortUrlHit = {
   ip: string;
   userAgent: string;
   referer: string;
+  /** The hit's UTM tags; a channel suffix (/ig, /wa…) or a QR scan fills source. */
+  utm?: ShortUrlUtm;
   userId?: string;
+};
+
+export type ShortUrlUtm = {
+  source?: string;
+  medium?: string;
+  campaign?: string;
+  term?: string;
+  content?: string;
 };
 
 export const SHORT_ORIGIN = (process.env.NEXT_PUBLIC_SHORT_ORIGIN || 'https://skyl.app').replace(
@@ -65,6 +82,11 @@ export function hitUserLabel(hit: Pick<ShortUrlHit, 'userId'>): string {
   return '—';
 }
 
+/** The hit's utm source (instagram, qr…), or undefined when it carried none. */
+export function hitSource(hit: Pick<ShortUrlHit, 'utm'>): string | undefined {
+  return hit.utm?.source?.trim() || undefined;
+}
+
 export function hitWhen(hit: Pick<ShortUrlHit, 'createdAt'>): string {
   return hit.createdAt;
 }
@@ -82,6 +104,8 @@ export const urlsApi = {
   listMine: (kind: LinkKindFilter = 'all') => coreFetch<ShortUrl[]>(`/v1/urls${sourceQuery(kind)}`),
   listAll: (kind: LinkKindFilter = 'all') =>
     coreFetch<ShortUrl[]>(`/v1/urls/all${sourceQuery(kind)}`),
+  availability: (alias: string) =>
+    coreFetch<AliasAvailability>(`/v1/urls/availability?alias=${encodeURIComponent(alias)}`),
   listHits: (id: string) => coreFetch<ShortUrlHit[]>(`/v1/urls/${encodeURIComponent(id)}/hits`),
   create: (body: ShortUrlBody) =>
     coreFetch<ShortUrl>('/v1/urls', { method: 'POST', body: JSON.stringify(body) }),
