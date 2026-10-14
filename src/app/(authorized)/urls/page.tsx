@@ -31,6 +31,7 @@ import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
 import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
+import { useAppCanSince } from '@/lib/use-app-can';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -43,6 +44,12 @@ export default function UrlsPage() {
   const roles = user?.roles ?? [];
   const allowed = canUseUrls(groups, roles);
   const moderate = canModerateUrls(groups, roles);
+  // core's url.moderateWrite: changing someone else's link. A DK member reads
+  // everyone's links (url.moderate) but changes none; an older core without
+  // the key answers url.moderate, and the group rule stands in when unread.
+  const moderateWrite = useAppCanSince(moderate)('url.moderateWrite', 'url.moderate');
+  const canChange = (row: ShortUrl) =>
+    moderateWrite || (Boolean(user?.id) && row.createdBy === user?.id);
   const [mine, setMine] = useState<ShortUrl[]>([]);
   const [all, setAll] = useState<ShortUrl[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,6 +219,7 @@ export default function UrlsPage() {
           failed={Boolean(error)}
           items={all}
           showClicks
+          canChange={canChange}
           onEdit={(row) => {
             setEditing(row);
             setEditError(null);

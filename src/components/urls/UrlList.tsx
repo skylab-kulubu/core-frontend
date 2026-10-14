@@ -23,6 +23,7 @@ export function UrlList({
   onHits,
   onDelete,
   showClicks = false,
+  canChange = () => true,
 }: {
   title: string;
   items: ShortUrl[];
@@ -33,6 +34,8 @@ export function UrlList({
   onHits?: (row: ShortUrl) => void;
   onDelete: (row: ShortUrl) => void;
   showClicks?: boolean;
+  /** Whether core would take an edit or delete of this row; false hides Düzenle and Sil. */
+  canChange?: (row: ShortUrl) => boolean;
 }) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
@@ -84,8 +87,12 @@ export function UrlList({
                       onClick={() => onHits(row)}
                     />
                   ) : null}
-                  <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
-                  <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
+                  {canChange(row) ? (
+                    <>
+                      <ActionButton icon={Pencil} label="Düzenle" onClick={() => onEdit(row)} />
+                      <ActionButton icon={Trash2} label="Sil" onClick={() => onDelete(row)} />
+                    </>
+                  ) : null}
                 </>
               }
             />

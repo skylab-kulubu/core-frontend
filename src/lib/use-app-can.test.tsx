@@ -2,7 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
 import { capabilitiesApi, type Capabilities } from '@/lib/api/capabilities';
 import { CapabilitiesProvider } from '@/lib/capabilities-context';
-import { useAnyTeamCan, useAppCan, useTeamCan } from '@/lib/use-app-can';
+import { useAnyTeamCan, useAppCan, useAppCanSince, useTeamCan } from '@/lib/use-app-can';
 import { useEventCreate } from '@/lib/use-event-create';
 
 jest.mock('@/lib/api/capabilities', () => ({
@@ -54,6 +54,34 @@ describe('useAnyTeamCan and useAppCan', () => {
     expect(result.current.any('certificateTemplate.create')).toBe(false);
     expect(result.current.app('user.readFull')).toBe(true);
     expect(result.current.app('group.write')).toBe(false);
+  });
+});
+
+describe('useAppCanSince', () => {
+  it('reads the key, and the older key while core does not send it', async () => {
+    get.mockResolvedValue({ can: { 'url.moderate': true, 'url.moderateWrite': false } });
+    const { result } = renderHook(() => useAppCanSince(true));
+    await waitFor(() => expect(result.current('url.moderate', 'url.moderate')).toBe(true));
+    expect(result.current('url.moderateWrite', 'url.moderate')).toBe(false);
+
+    get.mockResolvedValue({ can: { 'url.moderate': true } });
+    const older = renderHook(() => useAppCanSince(false));
+    await waitFor(() =>
+      expect(older.result.current('url.moderateWrite', 'url.moderate')).toBe(true),
+    );
+  });
+
+  it('is false while the answer is coming and the fallback when it cannot be read', async () => {
+    let fail: (error: Error) => void = () => undefined;
+    get.mockReturnValue(
+      new Promise((_, reject) => {
+        fail = reject;
+      }),
+    );
+    const { result } = renderHook(() => useAppCanSince(true));
+    expect(result.current('url.moderateWrite', 'url.moderate')).toBe(false);
+    fail(new TypeError('Failed to fetch'));
+    await waitFor(() => expect(result.current('url.moderateWrite', 'url.moderate')).toBe(true));
   });
 });
 
