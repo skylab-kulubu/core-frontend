@@ -11,12 +11,14 @@ import { HorizontalBars } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StateCard } from '@/components/chrome/StateCard';
+import { AliasHint } from '@/components/urls/AliasHint';
 import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import {
   asHitList,
+  hitSource,
   hitUserLabel,
   hitWhen,
   publicShortUrl,
@@ -42,6 +44,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAppCanSince } from '@/lib/use-app-can';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useAliasHint } from '@/lib/ui/use-alias-hint';
 
 /** core's bare 409 on a short link's create or save: the alias is in use. */
 const ALIAS_TAKEN = { 409: 'Bu kısa ad alınmış; başka bir ad seç.' };
@@ -73,6 +76,8 @@ export default function UrlsPage() {
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
+  const aliasHint = useAliasHint(alias, 'create');
+  const editAliasHint = useAliasHint(editing ? editAlias : '', 'edit', editing?.alias);
   const [kindFilter, setKindFilter] = useState<LinkKindFilter>('all');
   // Read when a load starts, so a reload after a change uses the kind chosen meanwhile
   const kindFilterRef = useRef<LinkKindFilter>('all');
@@ -186,7 +191,7 @@ export default function UrlsPage() {
         className="flex flex-wrap items-end gap-2"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!target.trim()) return;
+          if (!target.trim() || aliasHint?.blocks) return;
           setPending(true);
           try {
             await urlsApi.create({
@@ -215,11 +220,17 @@ export default function UrlsPage() {
         </label>
         <label className="block w-40 space-y-1">
           <FieldLabel>Kısa ad</FieldLabel>
-          <Field value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="opsiyonel" />
+          <Field
+            value={alias}
+            onChange={(e) => setAlias(e.target.value)}
+            placeholder="opsiyonel"
+            aria-describedby="alias-hint"
+          />
         </label>
-        <SaveButton disabled={pending} className="self-end">
+        <SaveButton disabled={pending || Boolean(aliasHint?.blocks)} className="self-end">
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
+        <AliasHint id="alias-hint" hint={aliasHint} className="basis-full" />
       </form>
       <FilterPills
         ariaLabel="Link türü"
@@ -331,7 +342,15 @@ export default function UrlsPage() {
                 <ListItem
                   key={`${hitWhen(hit)}-${hit.ip}-${index}`}
                   title={formatApplicantWhen(hitWhen(hit))}
-                  subtitle={`${hit.ip} · ${hit.userAgent} · ${hit.referer || '—'} · ${hitUserLabel(hit)}`}
+                  subtitle={[
+                    hitSource(hit),
+                    hit.ip,
+                    hit.userAgent,
+                    hit.referer || '—',
+                    hitUserLabel(hit),
+                  ]
+                    .filter((part) => part !== undefined)
+                    .join(' · ')}
                 />
               ))}
             </ListPanel>
@@ -344,6 +363,7 @@ export default function UrlsPage() {
             className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (editAliasHint?.blocks) return;
               setEditError(null);
               try {
                 await urlsApi.update(editing.id, {
@@ -370,14 +390,20 @@ export default function UrlsPage() {
             </label>
             <label className="block space-y-1">
               <FieldLabel>Kısa ad</FieldLabel>
-              <Field value={editAlias} onChange={(e) => setEditAlias(e.target.value)} required />
+              <Field
+                value={editAlias}
+                onChange={(e) => setEditAlias(e.target.value)}
+                aria-describedby="edit-alias-hint"
+                required
+              />
             </label>
+            <AliasHint id="edit-alias-hint" hint={editAliasHint} />
             {editError ? (
               <p role="alert" className="text-destructive text-sm">
                 {editError}
               </p>
             ) : null}
-            <SaveButton>Kaydet</SaveButton>
+            <SaveButton disabled={Boolean(editAliasHint?.blocks)}>Kaydet</SaveButton>
           </form>
         ) : null}
       </Drawer>

@@ -1,5 +1,6 @@
 import { ProblemError } from '@/lib/api/core';
 import {
+  aliasHint,
   isManaged,
   isManagedRefusal,
   LINK_KIND_FILTERS,
@@ -8,6 +9,7 @@ import {
   managedDeleteWarning,
   managedNote,
   managedRefusalMessage,
+  shouldCheckAlias,
 } from '@/lib/short-links';
 
 const FORM = '11111111-1111-1111-1111-111111111111';
@@ -84,5 +86,57 @@ describe('managed links', () => {
     expect(managedRefusalMessage({})).toBe(
       'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
+  });
+});
+
+describe('alias availability', () => {
+  it('checks a typed alias, but not an empty one or the link’s own alias', () => {
+    expect(shouldCheckAlias('hack')).toBe(true);
+    expect(shouldCheckAlias('  ')).toBe(false);
+    expect(shouldCheckAlias('')).toBe(false);
+    expect(shouldCheckAlias('Hack ', 'hack')).toBe(false);
+    expect(shouldCheckAlias('hack2', 'hack')).toBe(true);
+  });
+
+  it('says Uygun for an available alias, without blocking', () => {
+    expect(aliasHint({ alias: 'hack', available: true }, 'create')).toEqual({
+      tone: 'ok',
+      text: 'Uygun',
+      blocks: false,
+    });
+  });
+
+  it('blocks an invalid or reserved alias, in both modes', () => {
+    for (const mode of ['create', 'edit'] as const) {
+      expect(aliasHint({ alias: '-x', available: false, reason: 'invalid' }, mode)).toEqual({
+        tone: 'error',
+        text: 'Geçersiz ad: harf ya da rakamla başlar; harf, rakam, - ve _; en fazla 64 karakter.',
+        blocks: true,
+      });
+      expect(aliasHint({ alias: 'c', available: false, reason: 'reserved' }, mode)).toEqual({
+        tone: 'error',
+        text: 'Bu ad ayrılmış; başka bir ad seç.',
+        blocks: true,
+      });
+    }
+  });
+
+  it('blocks a taken alias for a new link, but only warns while editing', () => {
+    const taken = { alias: 'old', available: false, reason: 'taken' };
+    expect(aliasHint(taken, 'create')).toEqual({
+      tone: 'error',
+      text: 'Bu ad kullanılıyor (eski adlar da dolu sayılır).',
+      blocks: true,
+    });
+    expect(aliasHint(taken, 'edit')).toEqual({
+      tone: 'warning',
+      text: 'Bu ad kullanılıyor (eski adlar da dolu sayılır). Linkin kendi eski adıysa kaydedebilirsin.',
+      blocks: false,
+    });
+  });
+
+  it('shows nothing for a reason it does not know', () => {
+    expect(aliasHint({ alias: 'x', available: false, reason: 'later' }, 'create')).toBeNull();
+    expect(aliasHint({ alias: 'x', available: false }, 'create')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { ProblemError } from '@/lib/api/core';
-import type { LinkKind, LinkKindFilter, ShortUrl } from '@/lib/api/urls';
+import type { AliasAvailability, LinkKind, LinkKindFilter, ShortUrl } from '@/lib/api/urls';
 
 type KindFields = Pick<ShortUrl, 'formId' | 'eventId'>;
 
@@ -73,4 +73,47 @@ export function isManagedRefusal(error: unknown): boolean {
 export function managedRefusalMessage(row: KindFields): string {
   const where = managedNote(row) ?? 'Forms’ta ya da etkinlikte yönetiliyor';
   return `${where}; buradan değiştirilemez.`;
+}
+
+/**
+ * Whether a typed alias is worth asking core about: not empty (core picks one
+ * then), and not the link's own current alias while editing.
+ */
+export function shouldCheckAlias(value: string, currentAlias?: string): boolean {
+  const alias = value.trim();
+  if (!alias) return false;
+  return currentAlias === undefined || alias.toLowerCase() !== currentAlias.toLowerCase();
+}
+
+export type AliasHint = { tone: 'ok' | 'warning' | 'error'; text: string; blocks: boolean };
+
+const TAKEN = 'Bu ad kullanılıyor (eski adlar da dolu sayılır).';
+
+/**
+ * The one-line hint for an availability answer. While editing, `taken` only
+ * warns: core counts the link's own retired aliases as taken, yet lets the
+ * link take one back, so the save decides.
+ */
+export function aliasHint(result: AliasAvailability, mode: 'create' | 'edit'): AliasHint | null {
+  if (result.available) return { tone: 'ok', text: 'Uygun', blocks: false };
+  switch (result.reason) {
+    case 'invalid':
+      return {
+        tone: 'error',
+        text: 'Geçersiz ad: harf ya da rakamla başlar; harf, rakam, - ve _; en fazla 64 karakter.',
+        blocks: true,
+      };
+    case 'reserved':
+      return { tone: 'error', text: 'Bu ad ayrılmış; başka bir ad seç.', blocks: true };
+    case 'taken':
+      return mode === 'edit'
+        ? {
+            tone: 'warning',
+            text: `${TAKEN} Linkin kendi eski adıysa kaydedebilirsin.`,
+            blocks: false,
+          }
+        : { tone: 'error', text: TAKEN, blocks: true };
+    default:
+      return null;
+  }
 }
