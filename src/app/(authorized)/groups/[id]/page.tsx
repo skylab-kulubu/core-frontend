@@ -208,7 +208,7 @@ export default function GroupDetailPage() {
                         confirm({
                           title: `${`${m.firstName} ${m.lastName}`.trim() || m.email} ${group?.name ?? ''} grubundan çıkarılsın mı?`,
                           description:
-                            'Kişi bu grubun rollerini ve erişimlerini kaybeder. Grup bir ekibin grubuysa kişiye e-postayla bildirilir.',
+                            'Kişi bu grubun rollerini ve erişimlerini kaybeder. Bu ona e-postayla bildirilir. Yönetim gruplarındaki değişiklik ayrıca yöneticilere bildirilir.',
                           actionLabel: 'Gruptan çıkar',
                           onConfirm: async () => {
                             await identityApi.removeMember(id, m.id);

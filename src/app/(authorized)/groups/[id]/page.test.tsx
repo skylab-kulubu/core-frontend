@@ -114,7 +114,11 @@ describe('Group detail feedback', () => {
     const confirm = await screen.findByRole('alertdialog', {
       name: 'Bora D GECEKODU grubundan çıkarılsın mı?',
     });
-    expect(confirm).toHaveTextContent('e-posta');
+    expect(confirm).toHaveTextContent('Bu ona e-postayla bildirilir.');
+    expect(confirm).toHaveTextContent(
+      'Yönetim gruplarındaki değişiklik ayrıca yöneticilere bildirilir.',
+    );
+    expect(confirm).not.toHaveTextContent('ekibin grubu');
     expect(identityApi.removeMember).not.toHaveBeenCalled();
     await user.click(within(confirm).getByRole('button', { name: 'Gruptan çıkar' }));
     await waitFor(() => expect(identityApi.removeMember).toHaveBeenCalledWith('g1', 'u-bora'));
