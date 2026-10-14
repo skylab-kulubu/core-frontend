@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
+import { FilterPills } from '@/components/chrome/ListToolbar';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { HorizontalBars } from '@/components/chrome/PanelChart';
@@ -23,12 +24,19 @@ import {
   shortQrPath,
   shortQrUrl,
   urlsApi,
+  type LinkKindFilter,
   type ShortUrl,
   type ShortUrlHit,
 } from '@/lib/api/urls';
 import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { canModerateUrls, canUseUrls } from '@/lib/auth/groups';
 import { listStatus } from '@/lib/list-status';
+import {
+  isManagedRefusal,
+  LINK_KIND_FILTERS,
+  managedDeleteWarning,
+  managedRefusalMessage,
+} from '@/lib/short-links';
 import { topClickUrls } from '@/lib/panel-charts';
 import { useAuth } from '@/context/AuthContext';
 import { useAppCanSince } from '@/lib/use-app-can';
@@ -65,38 +73,75 @@ export default function UrlsPage() {
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<LinkKindFilter>('all');
+  // Read when a load starts, so a reload after a change uses the kind chosen meanwhile
+  const kindFilterRef = useRef<LinkKindFilter>('all');
+  // Only the latest load fills the lists, so a slow answer for an older kind is dropped
+  const loadSeq = useRef(0);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
 
   const load = useCallback(async () => {
     if (!allowed) return;
+    const seq = ++loadSeq.current;
+    const kind = kindFilterRef.current;
     try {
-      const mineRows = await urlsApi.listMine();
+      const mineRows = await urlsApi.listMine(kind);
+      if (seq !== loadSeq.current) return;
       setMine(mineRows);
       if (moderate) {
-        setAll(await urlsApi.listAll());
+        const allRows = await urlsApi.listAll(kind);
+        if (seq !== loadSeq.current) return;
+        setAll(allRows);
       } else {
         setAll([]);
       }
       setError(null);
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setError(coreProblemMessage(err, 'URL’ler yüklenemedi'));
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [allowed, moderate]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, kindFilter]);
+
+  /**
+   * A list read before a Form or an Event took the link: core answers 409
+   * managed. The reload shows the link as it is now; the caller says why.
+   */
+  function reloadOnManaged(err: unknown) {
+    if (isManagedRefusal(err)) void load();
+  }
+
+  function refusalText(
+    err: unknown,
+    row: ShortUrl,
+    fallback: string,
+    statusText: Partial<Record<number, string>> = {},
+  ): string {
+    if (isManagedRefusal(err)) return managedRefusalMessage(row);
+    return coreProblemMessage(err, fallback, statusText);
+  }
 
   function askDelete(row: ShortUrl) {
+    const warning = managedDeleteWarning(row);
     confirm({
       title: `${publicShortUrl(row.alias)} silinsin mi?`,
-      description: `Link çalışmayı bırakır; tıklayan sayfa bulunamadı görür. ${UNDO_HINT}`,
+      description: [warning, 'Link çalışmayı bırakır; tıklayan sayfa bulunamadı görür.', UNDO_HINT]
+        .filter(Boolean)
+        .join(' '),
       actionLabel: 'Linki sil',
       onConfirm: async () => {
-        await urlsApi.remove(row.id);
+        try {
+          await urlsApi.remove(row.id);
+        } catch (err) {
+          reloadOnManaged(err);
+          throw err;
+        }
         notify.undoable(
           'Kısa link silindi',
           async () => {
@@ -108,7 +153,7 @@ export default function UrlsPage() {
         await load();
       },
       failure: (err) =>
-        coreProblemMessage(err, 'Kısa link silinemedi', { 409: 'Kısa link şu an silinemiyor.' }),
+        refusalText(err, row, 'Kısa link silinemedi', { 409: 'Kısa link şu an silinemiyor.' }),
     });
   }
 
@@ -176,6 +221,17 @@ export default function UrlsPage() {
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
       </form>
+      <FilterPills
+        ariaLabel="Link türü"
+        value={kindFilter}
+        onChange={(next) => {
+          if (next === kindFilter) return;
+          kindFilterRef.current = next;
+          setKindFilter(next);
+          setLoading(true);
+        }}
+        options={LINK_KIND_FILTERS}
+      />
       {moderate ? (
         <HorizontalBars
           title="En çok tıklanan"
@@ -189,6 +245,8 @@ export default function UrlsPage() {
         failed={Boolean(error)}
         items={mine}
         showClicks={moderate}
+        canDeleteManaged={moderateWrite}
+        filtered={kindFilter !== 'all'}
         onEdit={(row) => {
           setEditing(row);
           setEditError(null);
@@ -220,6 +278,8 @@ export default function UrlsPage() {
           items={all}
           showClicks
           canChange={canChange}
+          canDeleteManaged={moderateWrite}
+          filtered={kindFilter !== 'all'}
           onEdit={(row) => {
             setEditing(row);
             setEditError(null);
@@ -294,7 +354,8 @@ export default function UrlsPage() {
                 notify.success('Kısa link kaydedildi');
                 await load();
               } catch (err) {
-                setEditError(coreProblemMessage(err, 'Güncellenemedi', ALIAS_TAKEN));
+                setEditError(refusalText(err, editing, 'Güncellenemedi', ALIAS_TAKEN));
+                reloadOnManaged(err);
               }
             }}
           >
