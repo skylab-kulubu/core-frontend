@@ -54,7 +54,7 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
-  const [addMember, addMemberDialog] = useMemberAdd();
+  const memberAdd = useMemberAdd();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -395,7 +395,10 @@ export default function GroupDetailPage() {
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
-        onClose={() => setMemberOpen(false)}
+        onClose={() => {
+          memberAdd.cancel();
+          setMemberOpen(false);
+        }}
         title="Üye ekle"
         query={memberQuery}
         onQuery={setMemberQuery}
@@ -409,7 +412,7 @@ export default function GroupDetailPage() {
           setPickError(null);
           const person = memberOptions.find((option) => option.id === userId);
           try {
-            await addMember({
+            await memberAdd.add({
               groupId: id,
               userId,
               personName: person?.title ?? 'Kişi',
@@ -426,7 +429,7 @@ export default function GroupDetailPage() {
           }
         }}
       >
-        {addMemberDialog}
+        {memberAdd.dialog}
       </PickerDrawer>
       <PickerDrawer
         open={roleOpen}

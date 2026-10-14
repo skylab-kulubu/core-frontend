@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UserDetailPage from '@/app/(authorized)/users/[id]/page';
@@ -294,6 +294,42 @@ describe('User detail feedback', () => {
         ),
       );
       expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
+    });
+
+    it('drops the question of a check still running when the picker is closed', async () => {
+      let answer: (check: unknown) => void = () => undefined;
+      (identityApi.memberCheck as jest.Mock).mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const user = await pickYk();
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Grup ekle' })).not.toBeInTheDocument(),
+      );
+      await act(async () => {
+        answer({ privileged: true, ytuLinked: false, warnings: ['not_ytu_verified'] });
+      });
+      await user.click(screen.getByRole('button', { name: 'Grup ekle' }));
+      expect(await screen.findByRole('dialog', { name: 'Grup ekle' })).toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(identityApi.addMember).not.toHaveBeenCalled();
+    });
+
+    it('says a refused add inside the question once confirmed', async () => {
+      (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+        privileged: true,
+        ytuLinked: false,
+        warnings: ['not_ytu_verified'],
+      });
+      (identityApi.addMember as jest.Mock).mockRejectedValue(new Error('boom'));
+      const user = await pickYk();
+      const warning = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace YK grubuna eklensin mi?',
+      });
+      await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+      expect(await within(warning).findByRole('alert')).toHaveTextContent('Gruba eklenemedi');
     });
 
     it('adds without a question when core gives no warning', async () => {

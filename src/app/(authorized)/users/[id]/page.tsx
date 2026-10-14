@@ -38,7 +38,7 @@ export default function UserDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
-  const [addMember, addMemberDialog] = useMemberAdd();
+  const memberAdd = useMemberAdd();
 
   async function load() {
     try {
@@ -162,7 +162,10 @@ export default function UserDetailPage() {
       {canAddGroup ? (
         <PickerDrawer
           open={groupOpen}
-          onClose={() => setGroupOpen(false)}
+          onClose={() => {
+            memberAdd.cancel();
+            setGroupOpen(false);
+          }}
           title="Grup ekle"
           query={groupQuery}
           onQuery={setGroupQuery}
@@ -175,7 +178,7 @@ export default function UserDetailPage() {
           onPick={async (groupId) => {
             setPickError(null);
             try {
-              await addMember({
+              await memberAdd.add({
                 groupId,
                 userId: card.id,
                 personName: name,
@@ -192,7 +195,7 @@ export default function UserDetailPage() {
             }
           }}
         >
-          {addMemberDialog}
+          {memberAdd.dialog}
         </PickerDrawer>
       ) : null}
     </div>

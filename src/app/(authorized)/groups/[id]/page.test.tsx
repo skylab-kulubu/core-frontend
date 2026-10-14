@@ -215,6 +215,61 @@ describe('Group detail unverified account warning', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
+  it('says a refused add inside the question once confirmed', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: true,
+      ytuLinked: false,
+      warnings: ['not_ytu_verified'],
+    });
+    (identityApi.addMember as jest.Mock).mockRejectedValue(new Error('boom'));
+    const user = await pickAda();
+    const warning = await screen.findByRole('alertdialog', {
+      name: 'Ada L YK grubuna eklensin mi?',
+    });
+    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    expect(await within(warning).findByRole('alert')).toHaveTextContent('Üye eklenemedi');
+    expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada', { unverifiedAck: true });
+    expect(screen.queryByText('Üye eklendi')).not.toBeInTheDocument();
+  });
+
+  it('drops the question of a check still running when the picker is closed', async () => {
+    let answer: (check: unknown) => void = () => undefined;
+    (identityApi.memberCheck as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const user = await pickAda();
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Üye ekle' })).not.toBeInTheDocument(),
+    );
+    await act(async () => {
+      answer({ privileged: true, ytuLinked: false, warnings: ['not_ytu_verified'] });
+    });
+    await user.click(screen.getByRole('button', { name: 'Üye ekle' }));
+    expect(await screen.findByRole('dialog', { name: 'Üye ekle' })).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(identityApi.addMember).not.toHaveBeenCalled();
+  });
+
+  it('ignores a second pick while the check runs', async () => {
+    let answer: (check: unknown) => void = () => undefined;
+    (identityApi.memberCheck as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const user = await pickAda();
+    await user.click(screen.getByRole('button', { name: 'Ada L' }));
+    await act(async () => {
+      answer(NO_WARNING);
+    });
+    expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
+    expect(identityApi.memberCheck).toHaveBeenCalledTimes(1);
+    expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+  });
+
   it('still adds, without a warning, when the check cannot be read', async () => {
     const failure = new TypeError('Failed to fetch');
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);

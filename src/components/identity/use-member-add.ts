@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { identityApi } from '@/lib/api/identity';
 import { useConfirm } from '@/lib/ui/use-confirm';
 
@@ -40,32 +40,55 @@ async function warnsUnverified(groupId: string, userId: string): Promise<boolean
  * Group's Privileged state comes only from core's answer, never its name.
  *
  * `add` throws when an add without a question is refused, so the picker can
- * say why; a refusal after the question is said inside it. Render `dialog`
- * inside the picker's drawer so the question opens over it.
+ * say why; a refusal after the question is said inside it. A pick while one
+ * is still being checked or added is ignored. Call `cancel` when the picker
+ * closes: a check that answers later then asks nothing and adds nobody.
+ * Render `dialog` inside the picker's drawer so the question opens over it.
  */
-export function useMemberAdd(): [(request: MemberAdd) => Promise<void>, ReactNode] {
+export function useMemberAdd(): {
+  add: (request: MemberAdd) => Promise<void>;
+  cancel: () => void;
+  dialog: ReactNode;
+} {
   const [confirm, dialog] = useConfirm();
+  // Which picker opening a pick belongs to, and whether one is still running in it
+  const run = useRef(0);
+  const busy = useRef(false);
 
   async function add(request: MemberAdd) {
+    if (busy.current) return;
+    busy.current = true;
+    const id = run.current;
     const { groupId, userId, onAdded } = request;
-    if (await warnsUnverified(groupId, userId)) {
-      confirm({
-        title: `${request.personName} ${request.groupName} grubuna eklensin mi?`,
-        description: UNVERIFIED_ADD_TEXT,
-        actionLabel: 'Yine de ekle',
-        destructive: false,
-        onConfirm: async () => {
-          await identityApi.addMember(groupId, userId, { unverifiedAck: true });
-          await onAdded();
-        },
-        failure: request.failure,
-        closesDrawer: true,
-      });
-      return;
+    try {
+      const warns = await warnsUnverified(groupId, userId);
+      if (id !== run.current) return;
+      if (warns) {
+        confirm({
+          title: `${request.personName} ${request.groupName} grubuna eklensin mi?`,
+          description: UNVERIFIED_ADD_TEXT,
+          actionLabel: 'Yine de ekle',
+          destructive: false,
+          onConfirm: async () => {
+            await identityApi.addMember(groupId, userId, { unverifiedAck: true });
+            await onAdded();
+          },
+          failure: request.failure,
+          closesDrawer: true,
+        });
+        return;
+      }
+      await identityApi.addMember(groupId, userId);
+      await onAdded();
+    } finally {
+      if (id === run.current) busy.current = false;
     }
-    await identityApi.addMember(groupId, userId);
-    await onAdded();
   }
 
-  return [add, dialog];
+  function cancel() {
+    run.current += 1;
+    busy.current = false;
+  }
+
+  return { add, cancel, dialog };
 }
