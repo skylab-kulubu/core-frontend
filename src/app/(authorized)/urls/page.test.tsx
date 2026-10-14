@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UrlsPage from '@/app/(authorized)/urls/page';
@@ -625,6 +625,57 @@ describe('Kısa ad availability', () => {
 
     expect(screen.getByText('Uygun')).toBeInTheDocument();
     expect(screen.queryByText(/Bu ad kullanılıyor/)).not.toBeInTheDocument();
+  });
+
+  it('drops the old hint as soon as the alias changes, and opens Kısalt again', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('go', 'taken'));
+    const alias = await renderPage();
+    await typist.type(screen.getByPlaceholderText('https://…'), 'https://example.com');
+    await typist.type(alias, 'go');
+    await settle();
+    expect(await screen.findByText(/^Bu ad kullanılıyor/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kısalt' })).toBeDisabled();
+
+    // Before the pause runs out, the answer for "go" no longer speaks for "gox"
+    await typist.type(alias, 'x');
+
+    expect(screen.queryByText(/^Bu ad kullanılıyor/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kısalt' })).toBeEnabled();
+  });
+
+  it('does not send a new link whose alias the check blocks, even on a direct submit', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('go', 'reserved'));
+    const alias = await renderPage();
+    await typist.type(screen.getByPlaceholderText('https://…'), 'https://example.com');
+    await typist.type(alias, 'go');
+    await settle();
+    await screen.findByText(/^Bu ad ayrılmış/);
+
+    const form = screen.getByRole('button', { name: 'Kısalt' }).closest('form');
+    if (!form) throw new Error('no create form');
+    fireEvent.submit(form);
+    await settle();
+
+    expect(urlsApi.create).not.toHaveBeenCalled();
+  });
+
+  it('does not save an edit whose alias the check blocks, even on a direct submit', async () => {
+    const typist = setup();
+    (urlsApi.availability as jest.Mock).mockResolvedValue(refused('-x', 'invalid'));
+    const { drawer, alias, save } = await openEditor(typist);
+    await typist.clear(alias);
+    await typist.type(alias, '-x');
+    await settle();
+    await within(drawer).findByText(/^Geçersiz ad/);
+
+    const form = save.closest('form');
+    if (!form) throw new Error('no edit form');
+    fireEvent.submit(form);
+    await settle();
+
+    expect(urlsApi.update).not.toHaveBeenCalled();
   });
 
   it('shows no hint and blocks nothing when the check fails', async () => {
