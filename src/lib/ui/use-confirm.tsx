@@ -1,29 +1,13 @@
 'use client';
 
-import {
-  Button,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  useSkylcn,
-  useToast,
-} from '@skylab-kulubu/skylcn-ui';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ConfirmDialog, useToast } from '@skylab-kulubu/skylcn-ui';
+import { useState, type ReactNode } from 'react';
 import { coreProblemMessage } from '@/lib/core-problems';
 
 /** The description's closing line for a removal core can undo. */
 export const UNDO_HINT = 'Hemen ardından çıkan bildirimdeki Geri al ile geri getirebilirsin.';
 
 const DEFAULT_FAILURE = 'İşlem tamamlanamadı. Tekrar dene.';
-
-/** How long the dialog holds the reader before letting them leave a request that has not answered. */
-export const CONFIRM_STALL_MS = 25_000;
-
-export const STALLED_TEXT = 'Sunucu yanıt vermedi; sonucu listeden denetle.';
 
 export type ConfirmRequest = {
   /** Names the action and its target: '"Açılış" oturumu silinsin mi?' */
@@ -58,144 +42,57 @@ function failureText(request: ConfirmRequest, error: unknown): string {
 }
 
 /**
- * Asks before a destructive action. It is skylcn-ui's ConfirmDialog put
- * together from the same Dialog parts and classes, because the dialog needs
- * two things ConfirmDialog cannot do yet: a Vazgeç that is disabled while
- * the action runs, and an error line in the dialog. Focus starts on Vazgeç,
- * and the action button takes the destructive tone.
+ * Asks before a destructive action with skylcn-ui's ConfirmDialog, one
+ * dialog per page that each question reopens. Focus starts on Vazgeç, and
+ * the action button takes the destructive tone unless the request turns it off.
  *
- * While the action runs the dialog stays open and its button shows as
- * pending. A refusal is said inside the dialog, and only a success closes it.
- * If core does not answer within CONFIRM_STALL_MS the dialog says so and can
- * be closed. The request is not cancelled, because a delete may already have
- * gone through: a late success still shows its toast, and a late refusal
- * after the dialog has closed becomes an error toast.
+ * ConfirmDialog holds the reader while the action runs: Vazgeç is locked and
+ * the button shows as pending. A refusal is said inside the dialog, and only
+ * a success closes it. If core does not answer in time, the dialog says so
+ * and can be closed. The request is not cancelled, because a delete may
+ * already have gone through: a late success still shows its toast, and a
+ * late refusal after the dialog has closed becomes an error toast here.
+ *
+ * Only ConfirmDialog closes the dialog (Vazgeç, Esc or a success), never this
+ * hook, so a refusal that comes after the reader left always counts as late.
  *
  * Render `dialog` once. When the action sits in a drawer, render it inside
  * the drawer so the question opens over it.
  */
 export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
-  const { messages } = useSkylcn();
   const { add } = useToast();
   // The last request stays shown while the dialog closes, so its text does not blank out
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [stalled, setStalled] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cancel = useRef<HTMLButtonElement>(null);
-  // Synchronous guards: a second click in the same batch, and a late answer for an earlier question
-  const running = useRef(false);
-  const succeeded = useRef(false);
-  const run = useRef(0);
-  const openRef = useRef(false);
-  openRef.current = open;
-
-  useEffect(() => {
-    if (!pending) return;
-    const timer = setTimeout(() => setStalled(true), CONFIRM_STALL_MS);
-    return () => clearTimeout(timer);
-  }, [pending]);
-
-  // Once the wait runs out, Vazgeç is the way out: put the keyboard on it
-  useEffect(() => {
-    if (stalled) cancel.current?.focus();
-  }, [stalled]);
-
-  const close = () => {
-    setOpen(false);
-    setError(null);
-  };
 
   const ask = (next: ConfirmRequest) => {
-    run.current += 1;
-    running.current = false;
-    succeeded.current = false;
     setRequest(next);
-    setError(null);
-    setPending(false);
-    setStalled(false);
     setOpen(true);
   };
 
-  const confirm = async () => {
-    if (!request || running.current) return;
-    running.current = true;
-    const id = run.current;
-    setPending(true);
-    setStalled(false);
-    setError(null);
-    try {
-      await request.onConfirm();
-      if (id === run.current) {
-        succeeded.current = true;
-        setOpen(false);
-      }
-    } catch (err) {
-      const text = failureText(request, err);
-      if (id === run.current && openRef.current) setError(text);
-      // The reader left the stalled dialog, maybe for another question: a toast is the only place left
-      else
-        add({ title: 'İşlem tamamlanamadı', description: text, type: 'error', priority: 'high' });
-    } finally {
-      if (id === run.current) {
-        running.current = false;
-        setPending(false);
-        setStalled(false);
-      }
-    }
-  };
-
-  // Until core answers or stalls, the reader cannot leave: the result belongs here
-  const locked = pending && !stalled;
-  const alert = error ?? (stalled ? STALLED_TEXT : null);
   const dialog = (
-    <Dialog
+    <ConfirmDialog
       open={open}
-      // Like ConfirmDialog (an alert dialog): a click outside never closes the question
-      disablePointerDismissal
-      onOpenChange={(next) => {
-        if (next) setOpen(true);
-        else if (!locked) close();
+      onOpenChange={setOpen}
+      title={request?.title ?? ''}
+      description={request?.description}
+      actionLabel={request?.actionLabel ?? ''}
+      destructive={request?.destructive ?? true}
+      // Always a promise, so a synchronous action also closes the dialog once it went through
+      onAction={async () => {
+        await request?.onConfirm();
       }}
-    >
-      <DialogContent
-        hideClose
-        role="alertdialog"
-        data-slot="confirm-dialog"
-        initialFocus={cancel}
-        finalFocus={() => !(succeeded.current && request?.closesDrawer)}
-      >
-        <DialogHeader className="pr-5">
-          <DialogTitle>{request?.title ?? ''}</DialogTitle>
-          {request?.description ? (
-            <DialogDescription>{request.description}</DialogDescription>
-          ) : null}
-          {alert ? (
-            <p
-              role="alert"
-              className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-xs"
-            >
-              {alert}
-            </p>
-          ) : null}
-        </DialogHeader>
-        <DialogFooter className="mt-4">
-          <DialogClose
-            render={<Button ref={cancel} disabled={locked} aria-disabled={locked || undefined} />}
-          >
-            {messages.cancel}
-          </DialogClose>
-          <Button
-            variant={(request?.destructive ?? true) ? 'destructive' : 'primary'}
-            pending={pending}
-            onClick={() => void confirm()}
-          >
-            {request?.actionLabel ?? ''}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      failureMessage={(error) => (request ? failureText(request, error) : DEFAULT_FAILURE)}
+      // The reader left the stalled dialog, maybe for another question: a toast is the only place left
+      onLateFailure={(error) =>
+        add({
+          title: 'İşlem tamamlanamadı',
+          description: request ? failureText(request, error) : DEFAULT_FAILURE,
+          type: 'error',
+          priority: 'high',
+        })
+      }
+    />
   );
   return [ask, dialog];
 }

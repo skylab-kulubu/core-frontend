@@ -1,15 +1,20 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProblemError } from '@/lib/api/core';
-import { CONFIRM_STALL_MS, useConfirm, type ConfirmRequest } from '@/lib/ui/use-confirm';
+import { useConfirm, type ConfirmRequest } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+
+/** How long the dialog holds the reader before a request that has not answered can be left. */
+const STALL_MS = 25_000;
 
 function Remover({
   onConfirm,
   failure,
+  destructive,
 }: {
   onConfirm: () => void | Promise<void>;
   failure?: ConfirmRequest['failure'];
+  destructive?: boolean;
 }) {
   const [ask, dialog] = useConfirm();
   return (
@@ -23,6 +28,7 @@ function Remover({
             actionLabel: 'Oturumu sil',
             onConfirm,
             failure,
+            destructive,
           })
         }
       >
@@ -82,7 +88,6 @@ describe('useConfirm', () => {
     // Vazgeç cannot drop a running action, and says so: disabled, not silently inert
     const cancel = within(dialog).getByRole('button', { name: 'Vazgeç' });
     expect(cancel).toBeDisabled();
-    expect(cancel).toHaveAttribute('aria-disabled', 'true');
     await user.keyboard('{Escape}');
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
 
@@ -163,6 +168,69 @@ describe('useConfirm', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  it('says a synchronous throw inside the dialog like a refused request', async () => {
+    const user = userEvent.setup();
+    render(
+      <Remover
+        onConfirm={() => {
+          throw new Error('boom');
+        }}
+        failure="Oturum silinemedi"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Oturumu sil' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Oturum silinemedi');
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
+
+  it('takes the destructive tone unless the request turns it off', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Remover onConfirm={jest.fn()} />);
+    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('button', { name: 'Oturumu sil' })).toHaveClass(
+      'text-destructive',
+    );
+    unmount();
+
+    render(<Remover onConfirm={jest.fn()} destructive={false} />);
+    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const plain = await screen.findByRole('alertdialog');
+    expect(within(plain).getByRole('button', { name: 'Oturumu sil' })).not.toHaveClass(
+      'text-destructive',
+    );
+  });
+
+  it('puts the keyboard on Vazgeç once the action is refused', async () => {
+    const user = userEvent.setup();
+    render(
+      <Remover
+        onConfirm={jest.fn().mockRejectedValue(new Error('boom'))}
+        failure="Oturum silinemedi"
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Oturumu sil' }));
+    await within(dialog).findByRole('alert');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Vazgeç' })).toHaveFocus(),
+    );
+  });
+
+  it('gives focus back to the button that asked once the question closes', async () => {
+    const user = userEvent.setup();
+    render(<Remover onConfirm={jest.fn()} />);
+    const asker = screen.getByRole('button', { name: 'Sil' });
+    await user.click(asker);
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(asker).toHaveFocus());
+  });
+
   describe('when core does not answer', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
@@ -180,18 +248,20 @@ describe('useConfirm', () => {
       const { dialog } = await askAndHang(() => new Promise<void>(() => {}));
 
       await act(async () => {
-        jest.advanceTimersByTime(CONFIRM_STALL_MS - 1_000);
+        jest.advanceTimersByTime(STALL_MS - 1_000);
       });
       fireEvent.keyDown(dialog, { key: 'Escape' });
       expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-      expect(within(dialog).queryByRole('alert')).toBeNull();
+      expect(within(dialog).queryByRole('status')).toBeNull();
 
       await act(async () => {
         jest.advanceTimersByTime(1_000);
       });
-      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      // A state, not a refusal: said politely, while a refusal is an alert
+      expect(within(dialog).getByRole('status')).toHaveTextContent(
         'Sunucu yanıt vermedi; sonucu listeden denetle.',
       );
+      expect(within(dialog).queryByRole('alert')).toBeNull();
       const cancel = within(dialog).getByRole('button', { name: 'Vazgeç' });
       expect(cancel).toBeEnabled();
       // The keyboard lands on the way out
@@ -212,7 +282,7 @@ describe('useConfirm', () => {
           }),
       );
       await act(async () => {
-        jest.advanceTimersByTime(CONFIRM_STALL_MS);
+        jest.advanceTimersByTime(STALL_MS);
       });
       await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
       await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -232,7 +302,7 @@ describe('useConfirm', () => {
           }),
       );
       await act(async () => {
-        jest.advanceTimersByTime(CONFIRM_STALL_MS);
+        jest.advanceTimersByTime(STALL_MS);
       });
       await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
       await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
@@ -244,6 +314,28 @@ describe('useConfirm', () => {
       expect(within(next).queryByRole('alert')).toBeNull();
       const said = await screen.findAllByText('İşlem tamamlanamadı');
       expect(said.some((node) => node.closest('[data-slot="toast-viewport"]'))).toBe(true);
+    });
+
+    it('starts the next question clean after a late success for a left one', async () => {
+      let finish: () => void = () => {};
+      const { user, dialog } = await askAndHang(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await act(async () => {
+        jest.advanceTimersByTime(STALL_MS);
+      });
+      await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      await act(async () => finish());
+
+      await user.click(screen.getByRole('button', { name: 'Sil' }));
+      const next = await screen.findByRole('alertdialog');
+      expect(within(next).getByRole('button', { name: 'Oturumu sil' })).toBeEnabled();
+      expect(within(next).getByRole('button', { name: 'Vazgeç' })).toBeEnabled();
+      expect(within(next).queryByRole('status')).toBeNull();
     });
   });
 });
