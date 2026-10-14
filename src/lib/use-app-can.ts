@@ -19,6 +19,21 @@ export function useAppCan(fallback: boolean): (key: string) => boolean {
 }
 
 /**
+ * useAppCan for a key an older core does not send yet: while a read answer
+ * lacks `key`, `olderKey` stands in (`url.moderateWrite` came after
+ * `url.moderate`), so the panel can ship before core.
+ */
+export function useAppCanSince(fallback: boolean): (key: string, olderKey: string) => boolean {
+  const state = useCapabilities();
+  return (key, olderKey) => {
+    if (state.status === 'failed') return fallback;
+    if (state.status !== 'ready') return false;
+    const can = state.data.can ?? {};
+    return Boolean(key in can ? can[key] : can[olderKey]);
+  };
+}
+
+/**
  * core's answer for a record of an Owner team (`teams`, `otherTeams`,
  * `noOwnerTeam` scopes; `''` is no Owner team). Pages AND it with their own
  * group rule: until the answer arrives it is `false`; when it cannot be read

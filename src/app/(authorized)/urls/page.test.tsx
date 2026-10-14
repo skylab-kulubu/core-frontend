@@ -1,14 +1,19 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UrlsPage from '@/app/(authorized)/urls/page';
 import { ProblemError } from '@/lib/api/core';
 import { urlsApi } from '@/lib/api/urls';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { useAuth } from '@/context/AuthContext';
 import type { UserDto } from '@/types/api';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(),
+}));
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
 }));
 
 jest.mock('@/lib/api/urls', () => {
@@ -25,6 +30,11 @@ jest.mock('@/lib/api/urls', () => {
       restore: jest.fn(),
     },
   };
+});
+
+beforeEach(() => {
+  // No capabilities answer: the group rule stands in, as before core sent one
+  (capabilitiesApi.get as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
 });
 
 const short = {
@@ -214,5 +224,72 @@ describe('Kısa URL feedback', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu kısa ad alınmış; başka bir ad seç.',
     );
+  });
+});
+
+describe('Kısa URL moderation buttons', () => {
+  const others = { ...short, id: 'o1', alias: 'baskasi', createdBy: 'someone-else' };
+  const own = { ...short, id: 'm1', alias: 'benim', createdBy: 'me' };
+  const get = capabilitiesApi.get as jest.Mock;
+
+  beforeEach(() => {
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([]);
+    (urlsApi.listAll as jest.Mock).mockResolvedValue([others, own]);
+  });
+
+  async function tumuRows() {
+    await waitFor(() => expect(screen.getByText(/skyl\.app\/baskasi/)).toBeInTheDocument());
+    const row = (alias: string) =>
+      screen
+        .getByText(new RegExp(`skyl\\.app/${alias}$`))
+        .closest('[data-slot="list-item"]') as HTMLElement;
+    return { others: row('baskasi'), own: row('benim') };
+  }
+
+  it("hides edit and delete on someone else's link for DK (url.moderateWrite false)", async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ id: 'me', roles: [], groups: ['/UYELER/DK'] }),
+    });
+    get.mockResolvedValue({ can: { 'url.moderate': true, 'url.moderateWrite': false } });
+    render(<UrlsPage />);
+    const rows = await tumuRows();
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    // Let the answer land, so the check below is the read answer, not loading
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // Reading everyone's links stays: clicks and the list itself
+    expect(within(rows.others).getByRole('button', { name: 'Tıklamalar' })).toBeInTheDocument();
+    expect(within(rows.others).queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument();
+    expect(within(rows.others).queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument();
+    // Their own link they still change
+    expect(within(rows.own).getByRole('button', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(within(rows.own).getByRole('button', { name: 'Sil' })).toBeInTheDocument();
+  });
+
+  it("shows edit and delete on someone else's link for YK (url.moderateWrite true)", async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ id: 'me', roles: [], groups: ['/UYELER/YK'] }),
+    });
+    get.mockResolvedValue({ can: { 'url.moderate': true, 'url.moderateWrite': true } });
+    render(<UrlsPage />);
+    const rows = await tumuRows();
+    await waitFor(() =>
+      expect(within(rows.others).getByRole('button', { name: 'Düzenle' })).toBeInTheDocument(),
+    );
+    expect(within(rows.others).getByRole('button', { name: 'Sil' })).toBeInTheDocument();
+  });
+
+  it('falls back to url.moderate when an older core sends no url.moderateWrite', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ id: 'me', roles: [], groups: ['/UYELER/DK'] }),
+    });
+    get.mockResolvedValue({ can: { 'url.moderate': true } });
+    render(<UrlsPage />);
+    const rows = await tumuRows();
+    await waitFor(() =>
+      expect(within(rows.others).getByRole('button', { name: 'Düzenle' })).toBeInTheDocument(),
+    );
+    expect(within(rows.others).getByRole('button', { name: 'Sil' })).toBeInTheDocument();
   });
 });

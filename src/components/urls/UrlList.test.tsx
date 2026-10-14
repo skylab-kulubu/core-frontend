@@ -41,4 +41,20 @@ describe('UrlList', () => {
     );
     expect(screen.getByRole('button', { name: 'Tıklamalar' })).toBeInTheDocument();
   });
+
+  it('hides Düzenle and Sil on a row the caller may not change', () => {
+    render(
+      <UrlList
+        title="Tümü"
+        items={[row, { ...row, id: 'u2', alias: 'benim' }]}
+        loading={false}
+        failed={false}
+        canChange={(r) => r.id === 'u2'}
+        {...handlers}
+      />,
+    );
+    expect(screen.getAllByRole('button', { name: 'QR' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Düzenle' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Sil' })).toHaveLength(1);
+  });
 });
