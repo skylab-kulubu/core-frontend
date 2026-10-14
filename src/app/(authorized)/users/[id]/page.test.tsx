@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UserDetailPage from '@/app/(authorized)/users/[id]/page';
@@ -44,6 +44,7 @@ jest.mock('@/lib/api/identity', () => ({
     listGroups: jest.fn(),
     listClientRoles: jest.fn(),
     addMember: jest.fn(),
+    memberCheck: jest.fn(),
     logoutUser: jest.fn(),
     removeExtraRole: jest.fn(),
   },
@@ -177,6 +178,11 @@ describe('User detail feedback', () => {
     (identityApi.listGroups as jest.Mock).mockResolvedValue([
       { id: 'g1', name: 'GECEKODU', path: '/UYELER/ORGANIZASYON/GECEKODU' },
     ]);
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: false,
+      ytuLinked: false,
+      warnings: [],
+    });
   });
 
   it('says the sessions were closed', async () => {
@@ -242,5 +248,115 @@ describe('User detail feedback', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
     await user.click(within(dialog).getByRole('button', { name: '/UYELER/ORGANIZASYON/GECEKODU' }));
     expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
+  });
+
+  describe('adding to a group as an account not verified with YTÜ', () => {
+    beforeEach(() => {
+      (identityApi.listGroups as jest.Mock).mockResolvedValue([
+        { id: 'g-yk', name: 'YK', path: '/UYELER/YK' },
+      ]);
+      (identityApi.addMember as jest.Mock).mockResolvedValue(undefined);
+    });
+
+    async function pickYk() {
+      const user = userEvent.setup();
+      render(<UserDetailPage />);
+      await user.click(await screen.findByRole('button', { name: 'Grup ekle' }));
+      const drawer = await screen.findByRole('dialog', { name: 'Grup ekle' });
+      await user.click(await within(drawer).findByRole('button', { name: '/UYELER/YK' }));
+      return user;
+    }
+
+    it('warns before a Privileged group, and adds once confirmed', async () => {
+      (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+        privileged: true,
+        ytuLinked: false,
+        warnings: ['not_ytu_verified'],
+      });
+      const user = await pickYk();
+      const warning = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace YK grubuna eklensin mi?',
+      });
+      expect(identityApi.memberCheck).toHaveBeenCalledWith(
+        'g-yk',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      );
+      expect(warning).toHaveTextContent(
+        'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.',
+      );
+      expect(identityApi.addMember).not.toHaveBeenCalled();
+      await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+      await waitFor(() =>
+        expect(identityApi.addMember).toHaveBeenCalledWith(
+          'g-yk',
+          'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          { unverifiedAck: true },
+        ),
+      );
+      expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
+    });
+
+    it('drops the question of a check still running when the picker is closed', async () => {
+      let answer: (check: unknown) => void = () => undefined;
+      (identityApi.memberCheck as jest.Mock).mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const user = await pickYk();
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Grup ekle' })).not.toBeInTheDocument(),
+      );
+      await act(async () => {
+        answer({ privileged: true, ytuLinked: false, warnings: ['not_ytu_verified'] });
+      });
+      await user.click(screen.getByRole('button', { name: 'Grup ekle' }));
+      expect(await screen.findByRole('dialog', { name: 'Grup ekle' })).toBeInTheDocument();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(identityApi.addMember).not.toHaveBeenCalled();
+    });
+
+    it('says a refused add inside the question once confirmed', async () => {
+      (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+        privileged: true,
+        ytuLinked: false,
+        warnings: ['not_ytu_verified'],
+      });
+      (identityApi.addMember as jest.Mock).mockRejectedValue(new Error('boom'));
+      const user = await pickYk();
+      const warning = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace YK grubuna eklensin mi?',
+      });
+      await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+      expect(await within(warning).findByRole('alert')).toHaveTextContent('Gruba eklenemedi');
+    });
+
+    it('adds without a question when core gives no warning', async () => {
+      await pickYk();
+      await waitFor(() =>
+        expect(identityApi.addMember).toHaveBeenCalledWith(
+          'g-yk',
+          'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        ),
+      );
+      expect(identityApi.memberCheck).toHaveBeenCalled();
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+
+    it('still adds, without a warning, when the check cannot be read', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      (identityApi.memberCheck as jest.Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+      await pickYk();
+      await waitFor(() =>
+        expect(identityApi.addMember).toHaveBeenCalledWith(
+          'g-yk',
+          'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        ),
+      );
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
+      warn.mockRestore();
+    });
   });
 });

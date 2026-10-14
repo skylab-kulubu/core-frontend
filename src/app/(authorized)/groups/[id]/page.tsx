@@ -16,6 +16,7 @@ import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
+import { useMemberAdd } from '@/components/identity/use-member-add';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
@@ -53,6 +54,7 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const memberAdd = useMemberAdd();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -393,7 +395,10 @@ export default function GroupDetailPage() {
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
-        onClose={() => setMemberOpen(false)}
+        onClose={() => {
+          memberAdd.cancel();
+          setMemberOpen(false);
+        }}
         title="Üye ekle"
         query={memberQuery}
         onQuery={setMemberQuery}
@@ -405,16 +410,27 @@ export default function GroupDetailPage() {
         error={pickError}
         onPick={async (userId) => {
           setPickError(null);
+          const person = memberOptions.find((option) => option.id === userId);
           try {
-            await identityApi.addMember(id, userId);
-            setMemberOpen(false);
-            notify.success('Üye eklendi');
-            await load();
+            await memberAdd.add({
+              groupId: id,
+              userId,
+              personName: person?.title ?? 'Kişi',
+              groupName: group?.name ?? id,
+              failure: 'Üye eklenemedi',
+              onAdded: async () => {
+                setMemberOpen(false);
+                notify.success('Üye eklendi');
+                await load();
+              },
+            });
           } catch (err) {
             setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
           }
         }}
-      />
+      >
+        {memberAdd.dialog}
+      </PickerDrawer>
       <PickerDrawer
         open={roleOpen}
         onClose={() => setRoleOpen(false)}
