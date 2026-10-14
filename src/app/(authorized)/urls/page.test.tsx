@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import UrlsPage from '@/app/(authorized)/urls/page';
 import { ProblemError } from '@/lib/api/core';
-import { urlsApi } from '@/lib/api/urls';
+import { urlsApi, type ShortUrl } from '@/lib/api/urls';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { useAuth } from '@/context/AuthContext';
 import type { UserDto } from '@/types/api';
@@ -291,5 +291,199 @@ describe('Kısa URL moderation buttons', () => {
       expect(within(rows.others).getByRole('button', { name: 'Düzenle' })).toBeInTheDocument(),
     );
     expect(within(rows.others).getByRole('button', { name: 'Sil' })).toBeInTheDocument();
+  });
+});
+
+const formRow: ShortUrl = {
+  ...short,
+  id: 'u2',
+  alias: 'basvuru',
+  formId: '11111111-1111-1111-1111-111111111111',
+};
+
+const eventRow: ShortUrl = {
+  ...short,
+  id: 'u3',
+  alias: 'gecekodu',
+  formId: '22222222-2222-2222-2222-222222222222',
+  eventId: '33333333-3333-3333-3333-333333333333',
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+const creator = () => user({ roles: ['url:create'], groups: ['/UYELER/ARGE/WEBLAB'] });
+const moderator = () => user({ roles: ['url:moderator'], groups: ['/UYELER/ARGE/WEBLAB'] });
+const managed = () => new ProblemError(409, 'Conflict', { code: 'managed' });
+
+describe('Kısa URL kind filter', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
+    (urlsApi.listAll as jest.Mock).mockResolvedValue([short]);
+  });
+
+  it('lists every link with Tümü, and asks both lists for the chosen kind', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: moderator() });
+    render(<UrlsPage />);
+    await waitFor(() => expect(urlsApi.listAll).toHaveBeenCalled());
+    expect(urlsApi.listMine).toHaveBeenLastCalledWith('all');
+    expect(urlsApi.listAll).toHaveBeenLastCalledWith('all');
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    expect(within(filter).getByRole('button', { name: 'Tümü' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([formRow]);
+    (urlsApi.listAll as jest.Mock).mockResolvedValue([formRow]);
+    await clicker.click(within(filter).getByRole('button', { name: 'Form' }));
+
+    await waitFor(() => expect(urlsApi.listAll).toHaveBeenLastCalledWith('form'));
+    expect(urlsApi.listMine).toHaveBeenLastCalledWith('form');
+    expect((await screen.findAllByText(/skyl\.app\/basvuru/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/skyl\.app\/hack/)).not.toBeInTheDocument();
+  });
+
+  it('does not reload when the chosen kind is clicked again', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    render(<UrlsPage />);
+    await screen.findByText(/skyl\.app\/hack/);
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    await clicker.click(within(filter).getByRole('button', { name: 'Tümü' }));
+    expect(screen.getByText(/skyl\.app\/hack/)).toBeInTheDocument();
+    expect(urlsApi.listMine).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads after a create with the kind chosen while it was pending', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockImplementation(async (kind: string) =>
+      kind === 'form' ? [formRow] : [short],
+    );
+    const creation = deferred<ShortUrl>();
+    (urlsApi.create as jest.Mock).mockReturnValue(creation.promise);
+    render(<UrlsPage />);
+    await clicker.type(await screen.findByLabelText('Hedef adres'), 'https://skylab.com/yeni');
+    await clicker.click(screen.getByRole('button', { name: 'Kısalt' }));
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    await clicker.click(within(filter).getByRole('button', { name: 'Form' }));
+    await screen.findByText(/skyl\.app\/basvuru/);
+
+    await act(async () => creation.resolve({ ...short, id: 'u9', alias: 'yeni' }));
+
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(3));
+    expect(urlsApi.listMine).toHaveBeenLastCalledWith('form');
+    expect(screen.getByText(/skyl\.app\/basvuru/)).toBeInTheDocument();
+    expect(screen.queryByText(/skyl\.app\/hack/)).not.toBeInTheDocument();
+  });
+
+  it('shows only the answer for the latest kind', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    render(<UrlsPage />);
+    await screen.findByText(/skyl\.app\/hack/);
+    const forms = deferred<ShortUrl[]>();
+    const events = deferred<ShortUrl[]>();
+    (urlsApi.listMine as jest.Mock)
+      .mockReturnValueOnce(forms.promise)
+      .mockReturnValueOnce(events.promise);
+    const filter = screen.getByRole('group', { name: 'Link türü' });
+    await clicker.click(within(filter).getByRole('button', { name: 'Form' }));
+    await clicker.click(within(filter).getByRole('button', { name: 'Etkinlik' }));
+
+    await act(async () => events.resolve([eventRow]));
+    await act(async () => forms.resolve([formRow]));
+
+    expect(screen.getByText(/skyl\.app\/gecekodu/)).toBeInTheDocument();
+    expect(screen.queryByText(/skyl\.app\/basvuru/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Kısa URL form and event links', () => {
+  const get = capabilitiesApi.get as jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (urlsApi.listAll as jest.Mock).mockResolvedValue([]);
+  });
+
+  it('lets a URL moderator delete a form link after warning the form keeps no link', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ roles: [], groups: ['/UYELER/YK'] }),
+    });
+    get.mockResolvedValue({ can: { 'url.moderate': true, 'url.moderateWrite': true } });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([formRow]);
+    (urlsApi.remove as jest.Mock).mockResolvedValue(undefined);
+    render(<UrlsPage />);
+    await screen.findByText(/skyl\.app\/basvuru/);
+    const remove = screen.getByRole('button', { name: 'Sil' });
+    await waitFor(() => expect(remove).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Düzenle' })).toBeDisabled();
+    await clicker.click(remove);
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Bu link bir formun linki; silersen form linksiz kalır.');
+    await clicker.click(within(dialog).getByRole('button', { name: 'Linki sil' }));
+    await waitFor(() => expect(urlsApi.remove).toHaveBeenCalledWith('u2'));
+  });
+
+  it('keeps Sil off on a form link for anyone without url.moderateWrite', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: user({ roles: [], groups: ['/UYELER/DK'] }),
+    });
+    get.mockResolvedValue({ can: { 'url.moderate': true, 'url.moderateWrite': false } });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([formRow]);
+    render(<UrlsPage />);
+    await screen.findByText(/skyl\.app\/basvuru/);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('button', { name: 'Sil' })).toBeDisabled();
+    expect(screen.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+  });
+
+  it('explains a managed refusal of a delete from a stale list and reloads it', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
+    (urlsApi.remove as jest.Mock).mockRejectedValue(managed());
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([formRow]);
+    await clicker.click(within(dialog).getByRole('button', { name: 'Linki sil' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
+    );
+    expect(document.body).not.toHaveTextContent('Conflict');
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/skyl\.app\/basvuru/)).toBeInTheDocument();
+  });
+
+  it('explains a managed refusal of an edit from a stale list and reloads it', async () => {
+    const clicker = userEvent.setup();
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([short]);
+    (urlsApi.update as jest.Mock).mockRejectedValue(managed());
+    render(<UrlsPage />);
+    await clicker.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([eventRow]);
+    await clicker.click(within(drawer).getByRole('button', { name: 'Kaydet' }));
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent(
+      'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
+    );
+    await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
   });
 });
