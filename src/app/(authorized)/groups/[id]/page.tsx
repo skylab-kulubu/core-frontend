@@ -53,6 +53,7 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const [confirmAdd, confirmAddDialog] = useConfirm();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -110,6 +111,25 @@ export default function GroupDetailPage() {
       title: `${person.firstName} ${person.lastName}`.trim() || person.email,
       subtitle: person.email,
     }));
+
+  async function addMember(userId: string, unverifiedAck?: boolean) {
+    if (unverifiedAck) await identityApi.addMember(id, userId, { unverifiedAck });
+    else await identityApi.addMember(id, userId);
+    setMemberOpen(false);
+    notify.success('Üye eklendi');
+    await load();
+  }
+
+  // core never refuses the add: an unread check only means no warning
+  async function unverifiedWarning(userId: string): Promise<boolean> {
+    try {
+      const check = await identityApi.memberCheck(id, userId);
+      return check.warnings.includes('not_ytu_verified');
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') console.warn(err);
+      return false;
+    }
+  }
 
   const roleOptions = catalog
     .filter(
@@ -405,16 +425,29 @@ export default function GroupDetailPage() {
         error={pickError}
         onPick={async (userId) => {
           setPickError(null);
+          if (await unverifiedWarning(userId)) {
+            const person = memberOptions.find((option) => option.id === userId);
+            confirmAdd({
+              title: `${person?.title ?? 'Kişi'} ${group?.name ?? ''} grubuna eklensin mi?`,
+              description:
+                'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.',
+              actionLabel: 'Yine de ekle',
+              destructive: false,
+              onConfirm: () => addMember(userId, true),
+              failure: 'Üye eklenemedi',
+              closesDrawer: true,
+            });
+            return;
+          }
           try {
-            await identityApi.addMember(id, userId);
-            setMemberOpen(false);
-            notify.success('Üye eklendi');
-            await load();
+            await addMember(userId);
           } catch (err) {
             setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
           }
         }}
-      />
+      >
+        {confirmAddDialog}
+      </PickerDrawer>
       <PickerDrawer
         open={roleOpen}
         onClose={() => setRoleOpen(false)}

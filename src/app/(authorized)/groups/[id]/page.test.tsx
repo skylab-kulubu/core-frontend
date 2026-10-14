@@ -32,9 +32,12 @@ jest.mock('@/lib/api/identity', () => ({
     groupRoles: jest.fn(),
     listUsers: jest.fn(),
     addMember: jest.fn(),
+    memberCheck: jest.fn(),
     removeMember: jest.fn(),
   },
 }));
+
+const NO_WARNING = { privileged: false, ytuLinked: false, warnings: [] };
 
 describe('Group detail Üye ekle', () => {
   beforeEach(() => {
@@ -80,6 +83,7 @@ describe('Group detail feedback', () => {
     (identityApi.listUsers as jest.Mock).mockResolvedValue([
       { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' },
     ]);
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue(NO_WARNING);
   });
 
   it('says the member was added', async () => {
@@ -123,6 +127,105 @@ describe('Group detail feedback', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Gruptan çıkar' }));
     await waitFor(() => expect(identityApi.removeMember).toHaveBeenCalledWith('g1', 'u-bora'));
     expect(await screen.findByText('Üye çıkarıldı')).toBeInTheDocument();
+  });
+});
+
+describe('Group detail unverified account warning', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue({
+      id: 'g1',
+      name: 'YK',
+      path: '/UYELER/YK',
+    });
+    (identityApi.members as jest.Mock).mockResolvedValue([]);
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    (identityApi.listUsers as jest.Mock).mockResolvedValue([
+      { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' },
+    ]);
+    (identityApi.addMember as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  async function pickAda() {
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Üye ekle' });
+    await user.type(within(drawer).getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.click(await within(drawer).findByRole('button', { name: 'Ada L' }));
+    return user;
+  }
+
+  it('warns before adding an account not verified with YTÜ to a Privileged group, and adds once confirmed', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: true,
+      ytuLinked: false,
+      warnings: ['not_ytu_verified'],
+    });
+    const user = await pickAda();
+    const warning = await screen.findByRole('alertdialog', {
+      name: 'Ada L YK grubuna eklensin mi?',
+    });
+    expect(identityApi.memberCheck).toHaveBeenCalledWith('g1', 'u-ada');
+    expect(warning).toHaveTextContent(
+      'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.',
+    );
+    expect(identityApi.addMember).not.toHaveBeenCalled();
+    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    await waitFor(() =>
+      expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada', { unverifiedAck: true }),
+    );
+    expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
+  });
+
+  it('adds nobody when the warning is turned down', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: true,
+      ytuLinked: false,
+      warnings: ['not_ytu_verified'],
+    });
+    const user = await pickAda();
+    const warning = await screen.findByRole('alertdialog', {
+      name: 'Ada L YK grubuna eklensin mi?',
+    });
+    await user.click(within(warning).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(identityApi.addMember).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Üye ekle' })).toBeInTheDocument();
+  });
+
+  it('adds a YTÜ-linked account to a Privileged group without a question', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: true,
+      ytuLinked: true,
+      warnings: [],
+    });
+    await pickAda();
+    await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada'));
+    expect(identityApi.memberCheck).toHaveBeenCalledWith('g1', 'u-ada');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
+  });
+
+  it('adds an unverified account to an ordinary group without a question', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue(NO_WARNING);
+    await pickAda();
+    await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada'));
+    expect(identityApi.memberCheck).toHaveBeenCalledWith('g1', 'u-ada');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('still adds, without a warning, when the check cannot be read', async () => {
+    const failure = new TypeError('Failed to fetch');
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (identityApi.memberCheck as jest.Mock).mockRejectedValue(failure);
+    await pickAda();
+    await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada'));
+    expect(identityApi.memberCheck).toHaveBeenCalledWith('g1', 'u-ada');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
+    expect(warn).toHaveBeenCalledWith(failure);
+    warn.mockRestore();
   });
 });
 
