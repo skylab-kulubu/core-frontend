@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -18,7 +18,11 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
-import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
+import {
+  coreProblemMessage,
+  groupDeleteProblemMessage,
+  groupWriteProblemMessage,
+} from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
@@ -32,6 +36,7 @@ import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
 export default function GroupDetailPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [group, setGroup] = useState<Group | null>(null);
@@ -390,6 +395,36 @@ export default function GroupDetailPage() {
         ) : null}
       </section>
 
+      {group && canWrite ? (
+        <section className="space-y-3">
+          <SectionHeading
+            title="Grubu sil"
+            actions={
+              <ActionButton
+                icon={Trash2}
+                label="Grubu sil"
+                onClick={() =>
+                  confirm({
+                    title: `${group.name} silinsin mi?`,
+                    description:
+                      'Yalnız üyesi, alt grubu ve bağlı kaydı olmayan gruplar silinebilir. Silme geri alınamaz. Kontroller geçtikten sonra grup kodu kalıcı olarak ayrılır; silme tamamlanmasa bile aynı grupta tekrar deneyebilirsin.',
+                    actionLabel: 'Grubu sil',
+                    onConfirm: async () => {
+                      await identityApi.deleteGroup(group.id);
+                      notify.success('Grup silindi');
+                      router.push('/groups');
+                    },
+                    failure: groupDeleteProblemMessage,
+                  })
+                }
+              />
+            }
+          />
+          <p className="text-subtle-foreground text-sm">
+            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
+          </p>
+        </section>
+      ) : null}
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
