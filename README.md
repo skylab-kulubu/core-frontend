@@ -142,3 +142,15 @@ APP_URL=http://localhost:3000
 - Yerelde tarayıcı konsolunda CORS hatası: API adresleri `http://localhost:3000/sandbox-api` ile başlamalı (bkz. Çevre Değişkenleri).
 - 401/403: Cookie’de `__Host-auth_token` (yerel http’de `auth_token`) var mı; backend’da rol/yetki ayarlarını doğrulayın.
 - `Dynamic server usage` uyarıları: sayfanın SSG yerine dinamik render edilmesi normal; gerekirse dinamik bayrakları ekleyin.
+
+### Boş grubu silme
+
+Grup kartındaki **Grubu sil**, core'un `group.write` yeteneği varsa görünür.
+Onaydan sonra `DELETE /v1/groups/{id}` çağrılır; başarıda Gruplar listesine
+dönülür. Üyesi, alt grubu veya bağlı kaydı olan gruplar silinmez. Sistem,
+rol ve korunan gruplar core tarafından reddedilir; açıklama açık onay
+penceresinde kalır. Üye, rol veya alt grup kendiliğinden silinmez.
+Kontrolleri geçen silme girişimi grup kodunu kalıcı olarak ayırır; başarısız
+istek aynı grup için yeniden denenebilir. Backend sözleşmesi core-backend
+`docs/group-deletion.md` dosyasındadır. Bu arayüz backend DELETE desteğiyle
+birlikte yayımlanır; eski backend'e karşı silme başarı sayılmaz.
