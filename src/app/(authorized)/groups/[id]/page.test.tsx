@@ -93,7 +93,8 @@ describe('Group detail feedback', () => {
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
-    await user.click(await screen.findByRole('button', { name: 'Ada L' }));
+    await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
     await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada'));
     expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
   });
@@ -107,8 +108,87 @@ describe('Group detail feedback', () => {
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta'), 'ada');
-    await user.click(await within(dialog).findByRole('button', { name: 'Ada L' }));
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ada L/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Seçilenleri ekle' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
+  });
+
+  it('keeps picks across searches, submits once in order and retries only failures', async () => {
+    const user = userEvent.setup();
+    let finishFirst!: () => void;
+    const first = new Promise<void>((resolve) => {
+      finishFirst = resolve;
+    });
+    (identityApi.listUsers as jest.Mock).mockImplementation((query: string) =>
+      Promise.resolve(
+        query === 'ada'
+          ? [{ id: 'u-ada', firstName: 'Ada', lastName: 'L', email: 'ada@example.com' }]
+          : [{ id: 'u-cem', firstName: 'Cem', lastName: 'D', email: 'cem@example.com' }],
+      ),
+    );
+    (identityApi.addMember as jest.Mock)
+      .mockImplementationOnce(() => first)
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'))
+      .mockResolvedValueOnce(undefined);
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });
+    const search = within(dialog).getByPlaceholderText('Ad, e-posta');
+    await user.type(search, 'ada');
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Ada L/ }));
+    await user.clear(search);
+    await user.type(search, 'cem');
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Cem D/ }));
+    expect(within(dialog).getByText('2 kişi seçildi')).toBeInTheDocument();
+    expect(identityApi.addMember).not.toHaveBeenCalled();
+    await user.dblClick(within(dialog).getByRole('button', { name: 'Seçilenleri ekle' }));
+    expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+    expect(search).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+    await act(async () => finishFirst());
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cem D:');
+    expect(within(dialog).getByText('1 kişi seçildi')).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Ada L seçimini kaldır' }),
+    ).not.toBeInTheDocument();
+    expect(identityApi.members).toHaveBeenCalledTimes(2);
+    await user.click(within(dialog).getByRole('button', { name: 'Seçilenleri ekle' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Üye ekle' })).not.toBeInTheDocument(),
+    );
+    expect((identityApi.addMember as jest.Mock).mock.calls).toEqual([
+      ['g1', 'u-ada'],
+      ['g1', 'u-cem'],
+      ['g1', 'u-cem'],
+    ]);
+  });
+
+  it('allows adding a member again after removing them on the same page', async () => {
+    const user = userEvent.setup();
+    const ada = { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' };
+    (identityApi.members as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([ada])
+      .mockResolvedValue([]);
+    (identityApi.addMember as jest.Mock).mockReset().mockResolvedValue(undefined);
+    (identityApi.removeMember as jest.Mock).mockResolvedValue(undefined);
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
+    await user.click(await screen.findByRole('button', { name: 'Çıkar' }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gruptan çıkar' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
+    await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledTimes(2));
   });
 
   it('says the member was removed', async () => {
