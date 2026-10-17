@@ -12,8 +12,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.69.0(react@19.2.3))
       '@skylab-kulubu/skylcn-ui':
-        specifier: ^0.1.9
-        version: 0.1.9(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(redux@5.0.1)
+        specifier: ^0.1.10
+        version: 0.1.10(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(redux@5.0.1)
       lucide-react:
         specifier: ^1.46.0
         version: 1.46.0(react@19.2.3)
@@ -1006,8 +1006,8 @@ packages:
   '@sinonjs/fake-timers@13.0.5':
     resolution: {integrity: sha512-36/hTbH2uaWuGVERyC6da9YwGWnzUZXuPro/F2LfsdOsLnCojz/iSH8MxUt/FD2S5XBSVPhmArFUXcpCQ2Hkiw==}
 
-  '@skylab-kulubu/skylcn-ui@0.1.9':
-    resolution: {integrity: sha512-eB6QOwDiUA4Tq4OZTIXoEPnSHesPv/HeOkpNJVO3vOnwYj+PnhTwUdxHOK2v6okxbtzJqqFk3Re78j1eMj1oyQ==}
+  '@skylab-kulubu/skylcn-ui@0.1.10':
+    resolution: {integrity: sha512-so/iclUE6QXKzQ+0uJFRhZcJ/mmg/C5fuuI4TIS9yet6WSzIEWEhTW1PR/0bEdUZ/Zzb/Q9KWM44nReShJp2Ow==}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -5234,7 +5234,7 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@skylab-kulubu/skylcn-ui@0.1.9(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(redux@5.0.1)':
+  '@skylab-kulubu/skylcn-ui@0.1.10(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(redux@5.0.1)':
     dependencies:
       '@base-ui/react': 1.8.0(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-table': 9.2.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

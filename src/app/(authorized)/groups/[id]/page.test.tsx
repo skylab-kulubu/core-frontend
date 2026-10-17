@@ -7,7 +7,11 @@ import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
 import { useAuth } from '@/context/AuthContext';
 
-jest.mock('next/navigation', () => ({ useParams: () => ({ id: 'g1' }) }));
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({
+  useParams: () => ({ id: 'g1' }),
+  useRouter: () => ({ push: mockPush }),
+}));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(() => ({ user: { id: 'yk', groups: ['/UYELER/YK'] } })),
 }));
@@ -27,6 +31,7 @@ jest.mock('@/lib/api/identity', () => ({
     listClientRoles: jest.fn(),
     setGroupRoles: jest.fn(),
     updateGroup: jest.fn(),
+    deleteGroup: jest.fn(),
     getGroup: jest.fn(),
     members: jest.fn(),
     groupRoles: jest.fn(),
@@ -286,5 +291,61 @@ describe('Group detail role mapping', () => {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(screen.getByLabelText('Grup adı')).toBeDisabled();
+  });
+});
+
+describe('Group deletion', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue({
+      id: 'g1',
+      name: 'TANISMAYEMEGIGRUBU',
+      path: '/TANISMAYEMEGIGRUBU',
+    });
+    (identityApi.members as jest.Mock).mockResolvedValue([]);
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    (identityApi.deleteGroup as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  it('requires confirmation and returns to the group list only after success', async () => {
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Grubu sil' }));
+    expect(identityApi.deleteGroup).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'TANISMAYEMEGIGRUBU silinsin mi?',
+    });
+    expect(dialog).toHaveTextContent('geri alınamaz');
+    await user.click(within(dialog).getByRole('button', { name: 'Grubu sil' }));
+    await waitFor(() => expect(identityApi.deleteGroup).toHaveBeenCalledWith('g1'));
+    expect(mockPush).toHaveBeenCalledWith('/groups');
+    expect(await screen.findByText('Grup silindi')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['not_empty', 'Önce grubun üyelerini ve alt gruplarını taşı veya çıkar.'],
+    ['code_in_use', 'Bu gruba bağlı kayıtlar var; grup silinemez.'],
+    ['group_delete_protected', 'Bu sistem veya rol grubu buradan silinemez.'],
+    ['protected_group', 'Bu grup veya üst grubu korunan roller taşıyor; buradan silinemez.'],
+  ])('keeps a %s refusal in the dialog without leaving or cascading', async (code, message) => {
+    (identityApi.deleteGroup as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { code }),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Grubu sil' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Grubu sil' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(identityApi.removeMember).not.toHaveBeenCalled();
+    expect(identityApi.setGroupRoles).not.toHaveBeenCalled();
+  });
+
+  it('does not offer deletion without core group.write', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': false } });
+    render(<GroupDetailPage />);
+    await screen.findByText('TANISMAYEMEGIGRUBU', { selector: 'h1' });
+    expect(screen.queryByRole('button', { name: 'Grubu sil' })).not.toBeInTheDocument();
   });
 });
