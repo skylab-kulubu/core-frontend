@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -12,7 +12,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
@@ -47,6 +47,13 @@ export default function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<PickerOption[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const memberSubmit = useRef(false);
+  const [addedMembers, setAddedMembers] = useState<{ groupId: string; ids: Set<string> }>({
+    groupId: id,
+    ids: new Set(),
+  });
   const [roleOpen, setRoleOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
   const [memberRosterQuery, setMemberRosterQuery] = useState('');
@@ -109,7 +116,11 @@ export default function GroupDetailPage() {
       : null;
 
   const memberOptions = memberSearch.people
-    .filter((person) => !memberIds.has(person.id))
+    .filter(
+      (person) =>
+        !memberIds.has(person.id) &&
+        !(addedMembers.groupId === id && addedMembers.ids.has(person.id)),
+    )
     .map((person) => ({
       id: person.id,
       title: `${person.firstName} ${person.lastName}`.trim() || person.email,
@@ -125,6 +136,37 @@ export default function GroupDetailPage() {
       title: role.role,
       subtitle: role.clientId,
     }));
+
+  async function addSelectedMembers() {
+    if (memberSubmit.current || selectedMembers.length === 0) return;
+    memberSubmit.current = true;
+    setAddingMembers(true);
+    setPickError(null);
+    const failures: string[] = [];
+    let added = 0;
+    try {
+      for (const person of selectedMembers) {
+        try {
+          await identityApi.addMember(id, person.id);
+          added += 1;
+          setAddedMembers((current) => ({
+            groupId: id,
+            ids: new Set([...(current.groupId === id ? current.ids : []), person.id]),
+          }));
+          setSelectedMembers((current) => current.filter((row) => row.id !== person.id));
+        } catch (err) {
+          failures.push(`${person.title}: ${coreProblemMessage(err, 'Üye eklenemedi')}`);
+        }
+      }
+      if (added > 0) notify.success(added === 1 ? 'Üye eklendi' : `${added} üye eklendi`);
+      if (failures.length > 0) setPickError(failures.join(' '));
+      else setMemberOpen(false);
+      await load();
+    } finally {
+      memberSubmit.current = false;
+      setAddingMembers(false);
+    }
+  }
 
   if (error && !group) {
     return <StateCard title={error} description="Grup kartına dönemiyor." tone="danger" />;
@@ -172,6 +214,7 @@ export default function GroupDetailPage() {
                 label="Üye ekle"
                 onClick={() => {
                   setMemberQuery('');
+                  setSelectedMembers([]);
                   setPickError(null);
                   setMemberOpen(true);
                 }}
@@ -217,6 +260,12 @@ export default function GroupDetailPage() {
                           actionLabel: 'Gruptan çıkar',
                           onConfirm: async () => {
                             await identityApi.removeMember(id, m.id);
+                            setAddedMembers((current) => {
+                              if (current.groupId !== id) return current;
+                              const remaining = new Set(current.ids);
+                              remaining.delete(m.id);
+                              return { groupId: id, ids: remaining };
+                            });
                             notify.success('Üye çıkarıldı');
                             await load();
                           },
@@ -428,7 +477,9 @@ export default function GroupDetailPage() {
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
-        onClose={() => setMemberOpen(false)}
+        onClose={() => {
+          if (!memberSubmit.current) setMemberOpen(false);
+        }}
         title="Üye ekle"
         query={memberQuery}
         onQuery={setMemberQuery}
@@ -438,16 +489,12 @@ export default function GroupDetailPage() {
         options={memberOptions}
         emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
         error={pickError}
-        onPick={async (userId) => {
-          setPickError(null);
-          try {
-            await identityApi.addMember(id, userId);
-            setMemberOpen(false);
-            notify.success('Üye eklendi');
-            await load();
-          } catch (err) {
-            setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
-          }
+        selection={{
+          items: selectedMembers,
+          onChange: setSelectedMembers,
+          onSubmit: addSelectedMembers,
+          busy: addingMembers,
+          submitLabel: 'Seçilenleri ekle',
         }}
       />
       <PickerDrawer
