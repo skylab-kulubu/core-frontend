@@ -15,6 +15,7 @@ export type CoreEvent = {
   endDate?: string;
   linkedin?: string;
   active: boolean;
+  status?: 'draft' | 'published' | 'cancelled';
   ranked: boolean;
   prizeInfo?: string;
   seasonId?: string;
@@ -47,7 +48,6 @@ export type EventBody = {
   startDate?: string;
   endDate?: string;
   linkedin?: string;
-  active: boolean;
   ranked: boolean;
   prizeInfo?: string;
   coverImageId?: string;

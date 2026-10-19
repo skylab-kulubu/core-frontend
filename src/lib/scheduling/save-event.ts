@@ -22,7 +22,6 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
-    active: form.active,
     ranked: form.ranked,
     prizeInfo: form.prizeInfo || undefined,
     coverImageId: form.coverImageId || undefined,
