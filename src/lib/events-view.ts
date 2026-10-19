@@ -7,6 +7,7 @@ export type DatedEvent = {
   location?: string;
   ownerTeam?: string;
   active?: boolean;
+  status?: string;
   startDate?: string;
   endDate?: string;
 };
@@ -56,13 +57,38 @@ export function eventListSubtitle(event: DatedEvent): string {
   return bits.join(' · ');
 }
 
+/** How long an Event without an end date lasts after its start, as in core. */
+const UNDATED_ENDS_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When the Event ends, as core's `Event.EndsAt`: its end date, else a day
+ * after its start; null when it has neither (it never ends).
+ */
+export function eventEndsAt(event: Pick<DatedEvent, 'startDate' | 'endDate'>): number | null {
+  const end = event.endDate ? Date.parse(event.endDate) : NaN;
+  if (!Number.isNaN(end)) return end;
+  const start = event.startDate ? Date.parse(event.startDate) : NaN;
+  if (!Number.isNaN(start)) return start + UNDATED_ENDS_AFTER_MS;
+  return null;
+}
+
+/**
+ * Whether core opens Attendance finalization (`Event.FinalizeOpenAt`): the
+ * Event is published and has ended, or is undated.
+ */
+export function attendanceFinalizeOpen(
+  event: Pick<DatedEvent, 'status' | 'startDate' | 'endDate'>,
+  now = new Date(),
+): boolean {
+  if (event.status !== 'published') return false;
+  const end = eventEndsAt(event);
+  return end === null || end <= now.getTime();
+}
+
 function phase(event: DatedEvent, now: Date): 0 | 1 | 2 {
-  if (!event.startDate) return 1;
-  const start = Date.parse(event.startDate);
-  if (Number.isNaN(start)) return 1;
-  const end = event.endDate ? Date.parse(event.endDate) : start;
-  const endSafe = Number.isNaN(end) ? start : end;
-  if (endSafe < now.getTime()) return 2;
+  if (!event.startDate || Number.isNaN(Date.parse(event.startDate))) return 1;
+  const end = eventEndsAt(event);
+  if (end !== null && end <= now.getTime()) return 2;
   return 0;
 }
 

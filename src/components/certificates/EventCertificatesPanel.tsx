@@ -55,7 +55,7 @@ export function EventCertificatesPanel({
   ownerTeam,
   attendanceRule,
   attendanceRatio,
-  eventActive,
+  finalizeOpen,
   tickets,
   canIssue,
   canBind,
@@ -66,7 +66,7 @@ export function EventCertificatesPanel({
   ownerTeam: string;
   attendanceRule: string;
   attendanceRatio?: number;
-  eventActive: boolean;
+  finalizeOpen: boolean;
   tickets: Ticket[];
   canIssue: boolean;
   canBind: boolean;
@@ -197,8 +197,8 @@ export function EventCertificatesPanel({
               <p className="text-subtle-foreground mt-1 text-xs">
                 {summary.attendanceFinalizedAt
                   ? `Katılım ${new Date(summary.attendanceFinalizedAt).toLocaleString('tr-TR')} tarihinde kapatıldı.`
-                  : eventActive
-                    ? 'Etkinlik aktifken katılım kapatılamaz; otomatik sertifika verilmez.'
+                  : !finalizeOpen
+                    ? 'Etkinlik bitmeden katılım kapatılamaz; otomatik sertifika verilmez.'
                     : 'Katılım henüz kapatılmadı; otomatik sertifika verilmez.'}
               </p>
             </div>
@@ -220,7 +220,7 @@ export function EventCertificatesPanel({
               {canIssue && !summary.attendanceFinalizedAt ? (
                 <SaveButton
                   type="button"
-                  disabled={busy || attendanceRule === 'none' || eventActive}
+                  disabled={busy || attendanceRule === 'none' || !finalizeOpen}
                   onClick={() =>
                     confirm({
                       title: 'Katılım kapatılıp sertifikalar üretilsin mi?',
