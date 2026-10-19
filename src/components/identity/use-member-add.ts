@@ -2,7 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import { identityApi } from '@/lib/api/identity';
 import { useConfirm } from '@/lib/ui/use-confirm';
 
-const UNVERIFIED_ADD_TEXT =
+export const UNVERIFIED_ADD_TEXT =
   'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.';
 
 export type MemberAdd = {
@@ -23,7 +23,7 @@ export type MemberAdd = {
  * Group (grup-yonetimi 07). core never refuses the add, so a check that
  * cannot be read only means no warning.
  */
-async function warnsUnverified(groupId: string, userId: string): Promise<boolean> {
+export async function warnsUnverified(groupId: string, userId: string): Promise<boolean> {
   try {
     const check = await identityApi.memberCheck(groupId, userId);
     return check.warnings.includes('not_ytu_verified');

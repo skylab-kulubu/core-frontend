@@ -67,6 +67,8 @@ export const identityApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  deleteGroup: (id: string) =>
+    coreFetch<void>(`/v1/groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   members: (id: string) => coreFetch<Person[]>(`/v1/groups/${encodeURIComponent(id)}/members`),
   /** `unverifiedAck`: the reader confirmed the not_ytu_verified warning; core never refuses the add. */
   addMember: (

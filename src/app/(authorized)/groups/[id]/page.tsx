@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -12,14 +12,18 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
-import { useMemberAdd } from '@/components/identity/use-member-add';
+import { UNVERIFIED_ADD_TEXT, warnsUnverified } from '@/components/identity/use-member-add';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
-import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
+import {
+  coreProblemMessage,
+  groupDeleteProblemMessage,
+  groupWriteProblemMessage,
+} from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
@@ -32,7 +36,11 @@ import { useAppCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
+/** core refused some of the confirmed adds; the message says who and why. */
+class MembersRefused extends Error {}
+
 export default function GroupDetailPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [group, setGroup] = useState<Group | null>(null);
@@ -43,6 +51,13 @@ export default function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<PickerOption[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const memberSubmit = useRef(false);
+  const [addedMembers, setAddedMembers] = useState<{ groupId: string; ids: Set<string> }>({
+    groupId: id,
+    ids: new Set(),
+  });
   const [roleOpen, setRoleOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
   const [memberRosterQuery, setMemberRosterQuery] = useState('');
@@ -54,7 +69,8 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
-  const memberAdd = useMemberAdd();
+  // The YTÜ question opens over the Üye ekle drawer, so it has its own dialog
+  const [confirmMembers, membersDialog] = useConfirm();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -106,7 +122,11 @@ export default function GroupDetailPage() {
       : null;
 
   const memberOptions = memberSearch.people
-    .filter((person) => !memberIds.has(person.id))
+    .filter(
+      (person) =>
+        !memberIds.has(person.id) &&
+        !(addedMembers.groupId === id && addedMembers.ids.has(person.id)),
+    )
     .map((person) => ({
       id: person.id,
       title: `${person.firstName} ${person.lastName}`.trim() || person.email,
@@ -122,6 +142,104 @@ export default function GroupDetailPage() {
       title: role.role,
       subtitle: role.clientId,
     }));
+
+  /** Holds the picker while `work` runs: one submission at a time, and the drawer stays open. */
+  async function submitting<T>(work: () => Promise<T>): Promise<T> {
+    memberSubmit.current = true;
+    setAddingMembers(true);
+    setPickError(null);
+    try {
+      return await work();
+    } finally {
+      memberSubmit.current = false;
+      setAddingMembers(false);
+    }
+  }
+
+  /**
+   * Adds the people in order, sending unverifiedAck for the ones in `acked`.
+   * The ones core refuses stay selected; returns them with why.
+   */
+  async function addMembers(
+    people: PickerOption[],
+    acked: ReadonlySet<string>,
+  ): Promise<{ person: PickerOption; text: string }[]> {
+    const failures: { person: PickerOption; text: string }[] = [];
+    let added = 0;
+    for (const person of people) {
+      try {
+        if (acked.has(person.id)) {
+          await identityApi.addMember(id, person.id, { unverifiedAck: true });
+        } else {
+          await identityApi.addMember(id, person.id);
+        }
+        added += 1;
+        setAddedMembers((current) => ({
+          groupId: id,
+          ids: new Set([...(current.groupId === id ? current.ids : []), person.id]),
+        }));
+        setSelectedMembers((current) => current.filter((row) => row.id !== person.id));
+      } catch (err) {
+        failures.push({
+          person,
+          text: `${person.title}: ${coreProblemMessage(err, 'Üye eklenemedi')}`,
+        });
+      }
+    }
+    if (added > 0) notify.success(added === 1 ? 'Üye eklendi' : `${added} üye eklendi`);
+    if (failures.length > 0) setPickError(failures.map((failure) => failure.text).join(' '));
+    else setMemberOpen(false);
+    await load();
+    return failures;
+  }
+
+  /**
+   * Adds the selected people. When core warns that some are not verified
+   * with YTÜ (a Privileged target, grup-yonetimi 07), it asks first and sends
+   * the reader's confirmation as unverifiedAck; otherwise it adds at once.
+   * The Group's Privileged state comes only from core's answer, never its
+   * name, and a check that cannot be read only means no warning. Turning the
+   * question down adds nobody and keeps the selection.
+   */
+  async function addSelectedMembers() {
+    if (memberSubmit.current || selectedMembers.length === 0) return;
+    const people = selectedMembers;
+    const unverified = await submitting(async () => {
+      const warns = await Promise.all(people.map((person) => warnsUnverified(id, person.id)));
+      const flagged = people.filter((_, index) => warns[index]);
+      if (flagged.length === 0) await addMembers(people, new Set());
+      return flagged;
+    });
+    if (unverified.length === 0) return;
+    const acked = new Set(unverified.map((person) => person.id));
+    const groupName = group?.name ?? id;
+    // A retry from the question adds only the ones core refused the last time
+    let left = people;
+    confirmMembers({
+      title:
+        people.length === 1
+          ? `${people[0].title} ${groupName} grubuna eklensin mi?`
+          : `${people.length} kişi ${groupName} grubuna eklensin mi?`,
+      description:
+        people.length === 1
+          ? UNVERIFIED_ADD_TEXT
+          : `YTÜ ile doğrulanmamış hesap: ${unverified
+              .map((person) => person.title)
+              .join(', ')}. Aynı adlı başka biri olmadığından emin olun.`,
+      actionLabel: 'Yine de ekle',
+      destructive: false,
+      onConfirm: async () => {
+        const failures = await submitting(() => addMembers(left, acked));
+        left = failures.map((failure) => failure.person);
+        if (failures.length > 0) {
+          throw new MembersRefused(failures.map((failure) => failure.text).join(' '));
+        }
+      },
+      failure: (err) =>
+        err instanceof MembersRefused ? err.message : coreProblemMessage(err, 'Üye eklenemedi'),
+      closesDrawer: true,
+    });
+  }
 
   if (error && !group) {
     return <StateCard title={error} description="Grup kartına dönemiyor." tone="danger" />;
@@ -169,6 +287,7 @@ export default function GroupDetailPage() {
                 label="Üye ekle"
                 onClick={() => {
                   setMemberQuery('');
+                  setSelectedMembers([]);
                   setPickError(null);
                   setMemberOpen(true);
                 }}
@@ -214,6 +333,12 @@ export default function GroupDetailPage() {
                           actionLabel: 'Gruptan çıkar',
                           onConfirm: async () => {
                             await identityApi.removeMember(id, m.id);
+                            setAddedMembers((current) => {
+                              if (current.groupId !== id) return current;
+                              const remaining = new Set(current.ids);
+                              remaining.delete(m.id);
+                              return { groupId: id, ids: remaining };
+                            });
                             notify.success('Üye çıkarıldı');
                             await load();
                           },
@@ -392,12 +517,41 @@ export default function GroupDetailPage() {
         ) : null}
       </section>
 
+      {group && canWrite ? (
+        <section className="space-y-3">
+          <SectionHeading
+            title="Grubu sil"
+            actions={
+              <ActionButton
+                icon={Trash2}
+                label="Grubu sil"
+                onClick={() =>
+                  confirm({
+                    title: `${group.name} silinsin mi?`,
+                    description:
+                      'Yalnız üyesi, alt grubu ve bağlı kaydı olmayan gruplar silinebilir. Silme geri alınamaz. Kontroller geçtikten sonra grup kodu kalıcı olarak ayrılır; silme tamamlanmasa bile aynı grupta tekrar deneyebilirsin.',
+                    actionLabel: 'Grubu sil',
+                    onConfirm: async () => {
+                      await identityApi.deleteGroup(group.id);
+                      notify.success('Grup silindi');
+                      router.push('/groups');
+                    },
+                    failure: groupDeleteProblemMessage,
+                  })
+                }
+              />
+            }
+          />
+          <p className="text-subtle-foreground text-sm">
+            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
+          </p>
+        </section>
+      ) : null}
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
         onClose={() => {
-          memberAdd.cancel();
-          setMemberOpen(false);
+          if (!memberSubmit.current) setMemberOpen(false);
         }}
         title="Üye ekle"
         query={memberQuery}
@@ -408,28 +562,15 @@ export default function GroupDetailPage() {
         options={memberOptions}
         emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
         error={pickError}
-        onPick={async (userId) => {
-          setPickError(null);
-          const person = memberOptions.find((option) => option.id === userId);
-          try {
-            await memberAdd.add({
-              groupId: id,
-              userId,
-              personName: person?.title ?? 'Kişi',
-              groupName: group?.name ?? id,
-              failure: 'Üye eklenemedi',
-              onAdded: async () => {
-                setMemberOpen(false);
-                notify.success('Üye eklendi');
-                await load();
-              },
-            });
-          } catch (err) {
-            setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
-          }
+        selection={{
+          items: selectedMembers,
+          onChange: setSelectedMembers,
+          onSubmit: addSelectedMembers,
+          busy: addingMembers,
+          submitLabel: 'Seçilenleri ekle',
         }}
       >
-        {memberAdd.dialog}
+        {membersDialog}
       </PickerDrawer>
       <PickerDrawer
         open={roleOpen}
