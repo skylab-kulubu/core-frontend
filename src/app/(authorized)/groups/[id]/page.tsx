@@ -16,6 +16,7 @@ import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawe
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
+import { UNVERIFIED_ADD_TEXT, warnsUnverified } from '@/components/identity/use-member-add';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import {
@@ -34,6 +35,9 @@ import { ROLES_ROOT, rolePlacement, rolePlacementMessage } from '@/lib/role-plac
 import { useAppCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+
+/** core refused some of the confirmed adds; the message says who and why. */
+class MembersRefused extends Error {}
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -65,6 +69,8 @@ export default function GroupDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  // The YTÜ question opens over the Üye ekle drawer, so it has its own dialog
+  const [confirmMembers, membersDialog] = useConfirm();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -137,35 +143,102 @@ export default function GroupDetailPage() {
       subtitle: role.clientId,
     }));
 
-  async function addSelectedMembers() {
-    if (memberSubmit.current || selectedMembers.length === 0) return;
+  /** Holds the picker while `work` runs: one submission at a time, and the drawer stays open. */
+  async function submitting<T>(work: () => Promise<T>): Promise<T> {
     memberSubmit.current = true;
     setAddingMembers(true);
     setPickError(null);
-    const failures: string[] = [];
-    let added = 0;
     try {
-      for (const person of selectedMembers) {
-        try {
-          await identityApi.addMember(id, person.id);
-          added += 1;
-          setAddedMembers((current) => ({
-            groupId: id,
-            ids: new Set([...(current.groupId === id ? current.ids : []), person.id]),
-          }));
-          setSelectedMembers((current) => current.filter((row) => row.id !== person.id));
-        } catch (err) {
-          failures.push(`${person.title}: ${coreProblemMessage(err, 'Üye eklenemedi')}`);
-        }
-      }
-      if (added > 0) notify.success(added === 1 ? 'Üye eklendi' : `${added} üye eklendi`);
-      if (failures.length > 0) setPickError(failures.join(' '));
-      else setMemberOpen(false);
-      await load();
+      return await work();
     } finally {
       memberSubmit.current = false;
       setAddingMembers(false);
     }
+  }
+
+  /**
+   * Adds the people in order, sending unverifiedAck for the ones in `acked`.
+   * The ones core refuses stay selected; returns them with why.
+   */
+  async function addMembers(
+    people: PickerOption[],
+    acked: ReadonlySet<string>,
+  ): Promise<{ person: PickerOption; text: string }[]> {
+    const failures: { person: PickerOption; text: string }[] = [];
+    let added = 0;
+    for (const person of people) {
+      try {
+        if (acked.has(person.id)) {
+          await identityApi.addMember(id, person.id, { unverifiedAck: true });
+        } else {
+          await identityApi.addMember(id, person.id);
+        }
+        added += 1;
+        setAddedMembers((current) => ({
+          groupId: id,
+          ids: new Set([...(current.groupId === id ? current.ids : []), person.id]),
+        }));
+        setSelectedMembers((current) => current.filter((row) => row.id !== person.id));
+      } catch (err) {
+        failures.push({
+          person,
+          text: `${person.title}: ${coreProblemMessage(err, 'Üye eklenemedi')}`,
+        });
+      }
+    }
+    if (added > 0) notify.success(added === 1 ? 'Üye eklendi' : `${added} üye eklendi`);
+    if (failures.length > 0) setPickError(failures.map((failure) => failure.text).join(' '));
+    else setMemberOpen(false);
+    await load();
+    return failures;
+  }
+
+  /**
+   * Adds the selected people. When core warns that some are not verified
+   * with YTÜ (a Privileged target, grup-yonetimi 07), it asks first and sends
+   * the reader's confirmation as unverifiedAck; otherwise it adds at once.
+   * The Group's Privileged state comes only from core's answer, never its
+   * name, and a check that cannot be read only means no warning. Turning the
+   * question down adds nobody and keeps the selection.
+   */
+  async function addSelectedMembers() {
+    if (memberSubmit.current || selectedMembers.length === 0) return;
+    const people = selectedMembers;
+    const unverified = await submitting(async () => {
+      const warns = await Promise.all(people.map((person) => warnsUnverified(id, person.id)));
+      const flagged = people.filter((_, index) => warns[index]);
+      if (flagged.length === 0) await addMembers(people, new Set());
+      return flagged;
+    });
+    if (unverified.length === 0) return;
+    const acked = new Set(unverified.map((person) => person.id));
+    const groupName = group?.name ?? id;
+    // A retry from the question adds only the ones core refused the last time
+    let left = people;
+    confirmMembers({
+      title:
+        people.length === 1
+          ? `${people[0].title} ${groupName} grubuna eklensin mi?`
+          : `${people.length} kişi ${groupName} grubuna eklensin mi?`,
+      description:
+        people.length === 1
+          ? UNVERIFIED_ADD_TEXT
+          : `YTÜ ile doğrulanmamış hesap: ${unverified
+              .map((person) => person.title)
+              .join(', ')}. Aynı adlı başka biri olmadığından emin olun.`,
+      actionLabel: 'Yine de ekle',
+      destructive: false,
+      onConfirm: async () => {
+        const failures = await submitting(() => addMembers(left, acked));
+        left = failures.map((failure) => failure.person);
+        if (failures.length > 0) {
+          throw new MembersRefused(failures.map((failure) => failure.text).join(' '));
+        }
+      },
+      failure: (err) =>
+        err instanceof MembersRefused ? err.message : coreProblemMessage(err, 'Üye eklenemedi'),
+      closesDrawer: true,
+    });
   }
 
   if (error && !group) {
@@ -496,7 +569,9 @@ export default function GroupDetailPage() {
           busy: addingMembers,
           submitLabel: 'Seçilenleri ekle',
         }}
-      />
+      >
+        {membersDialog}
+      </PickerDrawer>
       <PickerDrawer
         open={roleOpen}
         onClose={() => setRoleOpen(false)}
