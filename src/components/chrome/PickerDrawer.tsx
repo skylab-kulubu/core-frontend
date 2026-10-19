@@ -6,6 +6,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { listStatus } from '@/lib/list-status';
+import type { ReactNode } from 'react';
 
 export type PickerOption = {
   id: string;
@@ -27,6 +28,7 @@ export function PickerDrawer({
   onPick,
   error,
   selection,
+  children,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,6 +51,8 @@ export function PickerDrawer({
   };
   /** Why the last pick failed, shown inside the drawer above the list. */
   error?: string | null;
+  /** A question asked about a pick (useConfirm's dialog), so it opens over the drawer. */
+  children?: ReactNode;
 }) {
   return (
     <Drawer
@@ -139,6 +143,7 @@ export function PickerDrawer({
           ),
         )}
       </ListPanel>
+      {children}
     </Drawer>
   );
 }
