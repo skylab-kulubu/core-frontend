@@ -5,6 +5,7 @@ import { Field } from '@/components/chrome/Field';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { listStatus } from '@/lib/list-status';
 import type { ReactNode } from 'react';
 
@@ -12,6 +13,8 @@ export type PickerOption = {
   id: string;
   title: string;
   subtitle?: string;
+  /** A short warning shown with the row, such as an account not verified with YTÜ. */
+  marker?: string;
 };
 
 export function PickerDrawer({
@@ -132,12 +135,16 @@ export function PickerDrawer({
                   <span className="text-muted-foreground block text-sm">{row.subtitle}</span>
                 ) : null}
               </span>
+              {row.marker ? (
+                <StatusChip kind="pending" label={row.marker} className="ml-auto shrink-0" />
+              ) : null}
             </label>
           ) : (
             <ListItem
               key={row.id}
               title={row.title}
               subtitle={row.subtitle}
+              trailing={row.marker ? <StatusChip kind="pending" label={row.marker} /> : undefined}
               onSelect={() => onPick?.(row.id)}
             />
           ),

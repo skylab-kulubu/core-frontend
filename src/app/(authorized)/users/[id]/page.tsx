@@ -182,6 +182,7 @@ export default function UserDetailPage() {
                 groupId,
                 userId: card.id,
                 personName: name,
+                personEmail: card.email,
                 groupName: groups.find((g) => g.id === groupId)?.name ?? groupId,
                 failure: 'Gruba eklenemedi',
                 onAdded: async () => {
