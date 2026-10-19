@@ -35,7 +35,8 @@ jest.mock('@/lib/api/identity', () => ({
     getGroup: jest.fn(),
     members: jest.fn(),
     groupRoles: jest.fn(),
-    listUsers: jest.fn(),
+    memberCandidates: jest.fn(),
+    getUser: jest.fn(),
     addMember: jest.fn(),
     memberCheck: jest.fn(),
     removeMember: jest.fn(),
@@ -43,6 +44,25 @@ jest.mock('@/lib/api/identity', () => ({
 }));
 
 const NO_WARNING = { privileged: false, ytuLinked: false, warnings: [] };
+
+/** A member-candidates row; `warnings` as core sends them for the Group. */
+function candidate(
+  id: string,
+  firstName: string,
+  lastName: string,
+  email: string,
+  warnings: string[] = [],
+) {
+  return {
+    id,
+    firstName,
+    lastName,
+    email,
+    alreadyMember: false,
+    ytuLinked: warnings.length === 0,
+    warnings,
+  };
+}
 
 describe('Group detail Üye ekle', () => {
   beforeEach(() => {
@@ -54,22 +74,74 @@ describe('Group detail Üye ekle', () => {
     });
     (identityApi.members as jest.Mock).mockResolvedValue([]);
     (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
-    (identityApi.listUsers as jest.Mock).mockResolvedValue([
-      { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' },
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      candidate('u-ada', 'Ada', 'L', 'a***@example.com'),
     ]);
   });
 
-  it('asks for two characters before searching the directory', async () => {
+  it('searches the Group’s member candidates once three characters are typed', async () => {
     const user = userEvent.setup();
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
-    expect(screen.getByText('En az 2 karakter yazın')).toBeInTheDocument();
-    expect(identityApi.listUsers).not.toHaveBeenCalled();
+    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('Ad veya tam e-posta');
+    await user.type(search, 'ad');
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(identityApi.memberCandidates).not.toHaveBeenCalled();
+    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ad');
-    await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalledWith('ad'));
-    expect(identityApi.listUsers).toHaveBeenCalledTimes(1);
+    await user.type(search, 'a');
+    await waitFor(() => expect(identityApi.memberCandidates).toHaveBeenCalledWith('g1', 'ada'));
+    expect(identityApi.memberCandidates).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Ada L')).toBeInTheDocument();
+    expect(screen.getByText('a***@example.com')).toBeInTheDocument();
+  });
+
+  it('says no one matched in the picker’s words', async () => {
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'zey');
+    expect(await screen.findByText('Kullanıcı yok')).toBeInTheDocument();
+  });
+
+  it('leaves out the ones core says are members already', async () => {
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      { ...candidate('u-ada', 'Ada', 'L', 'a***@example.com'), alreadyMember: true },
+      candidate('u-cem', 'Cem', 'D', 'c***@example.com'),
+    ]);
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'xyz');
+    expect(await screen.findByText('Cem D')).toBeInTheDocument();
+    expect(screen.queryByText('Ada L')).not.toBeInTheDocument();
+  });
+
+  it('marks only the candidates core warns of as not verified with YTÜ', async () => {
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      candidate('u-ada', 'Ada', 'L', 'a***@example.com', ['not_ytu_verified']),
+      candidate('u-cem', 'Cem', 'D', 'c***@example.com'),
+      // Not linked, but no warning: an ordinary Group, so no mark
+      { ...candidate('u-ece', 'Ece', 'K', 'e***@example.com'), ytuLinked: false },
+    ]);
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'xyz');
+    expect(await screen.findByRole('checkbox', { name: /Ada L/ })).toHaveAccessibleName(
+      /YTÜ ile doğrulanmamış/,
+    );
+    expect(screen.getByRole('checkbox', { name: /Cem D/ })).not.toHaveAccessibleName(
+      /YTÜ ile doğrulanmamış/,
+    );
+    expect(screen.getByRole('checkbox', { name: /Ece K/ })).not.toHaveAccessibleName(
+      /YTÜ ile doğrulanmamış/,
+    );
+    expect(screen.getAllByText('YTÜ ile doğrulanmamış')).toHaveLength(1);
   });
 });
 
@@ -85,8 +157,8 @@ describe('Group detail feedback', () => {
       { id: 'u-bora', email: 'bora@example.com', firstName: 'Bora', lastName: 'D' },
     ]);
     (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
-    (identityApi.listUsers as jest.Mock).mockResolvedValue([
-      { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' },
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      candidate('u-ada', 'Ada', 'L', 'a***@example.com'),
     ]);
     (identityApi.memberCheck as jest.Mock).mockResolvedValue(NO_WARNING);
   });
@@ -96,7 +168,7 @@ describe('Group detail feedback', () => {
     (identityApi.addMember as jest.Mock).mockResolvedValue(undefined);
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
-    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'ada');
     await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
     await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
     await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada'));
@@ -111,7 +183,7 @@ describe('Group detail feedback', () => {
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });
-    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.type(within(dialog).getByPlaceholderText('Ad veya tam e-posta'), 'ada');
     await user.click(await within(dialog).findByRole('checkbox', { name: /Ada L/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Seçilenleri ekle' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
@@ -123,12 +195,13 @@ describe('Group detail feedback', () => {
     const first = new Promise<void>((resolve) => {
       finishFirst = resolve;
     });
-    (identityApi.listUsers as jest.Mock).mockImplementation((query: string) =>
-      Promise.resolve(
-        query === 'ada'
-          ? [{ id: 'u-ada', firstName: 'Ada', lastName: 'L', email: 'ada@example.com' }]
-          : [{ id: 'u-cem', firstName: 'Cem', lastName: 'D', email: 'cem@example.com' }],
-      ),
+    (identityApi.memberCandidates as jest.Mock).mockImplementation(
+      (_groupId: string, query: string) =>
+        Promise.resolve(
+          query === 'ada'
+            ? [candidate('u-ada', 'Ada', 'L', 'a***@example.com')]
+            : [candidate('u-cem', 'Cem', 'D', 'c***@example.com')],
+        ),
     );
     (identityApi.addMember as jest.Mock)
       .mockImplementationOnce(() => first)
@@ -137,7 +210,7 @@ describe('Group detail feedback', () => {
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     const dialog = await screen.findByRole('dialog', { name: 'Üye ekle' });
-    const search = within(dialog).getByPlaceholderText('Ad, e-posta');
+    const search = within(dialog).getByPlaceholderText('Ad veya tam e-posta');
     await user.type(search, 'ada');
     await user.click(await within(dialog).findByRole('checkbox', { name: /Ada L/ }));
     await user.clear(search);
@@ -180,7 +253,7 @@ describe('Group detail feedback', () => {
     (identityApi.removeMember as jest.Mock).mockResolvedValue(undefined);
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
-    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'ada');
     await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
     await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
     await user.click(await screen.findByRole('button', { name: 'Çıkar' }));
@@ -189,7 +262,7 @@ describe('Group detail feedback', () => {
     );
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Üye ekle' }));
-    await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'ada');
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'ada');
     await user.click(await screen.findByRole('checkbox', { name: /Ada L/ }));
     await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
     await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledTimes(2));
@@ -227,11 +300,21 @@ describe('Group detail unverified account warning', () => {
     });
     (identityApi.members as jest.Mock).mockResolvedValue([]);
     (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
-    (identityApi.listUsers as jest.Mock).mockImplementation((query: string) =>
+    (identityApi.memberCandidates as jest.Mock).mockImplementation(
+      (_groupId: string, query: string) =>
+        Promise.resolve(
+          query === 'cem'
+            ? [candidate('u-cem', 'Cem', 'D', 'c***@example.com')]
+            : query === 'ada@example.com'
+              ? [candidate('u-ada', 'Ada', 'L', 'ada@example.com', ['not_ytu_verified'])]
+              : [candidate('u-ada', 'Ada', 'L', 'a***@example.com', ['not_ytu_verified'])],
+        ),
+    );
+    (identityApi.getUser as jest.Mock).mockImplementation((userId: string) =>
       Promise.resolve(
-        query === 'cem'
-          ? [{ id: 'u-cem', email: 'cem@example.com', firstName: 'Cem', lastName: 'D' }]
-          : [{ id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' }],
+        userId === 'u-cem'
+          ? { id: 'u-cem', email: 'cem@example.com', firstName: 'Cem', lastName: 'D' }
+          : { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'L' },
       ),
     );
     (identityApi.addMember as jest.Mock).mockResolvedValue(undefined);
@@ -239,7 +322,7 @@ describe('Group detail unverified account warning', () => {
 
   async function select(user: ReturnType<typeof userEvent.setup>, query: string, name: RegExp) {
     const drawer = await screen.findByRole('dialog', { name: 'Üye ekle' });
-    const search = within(drawer).getByPlaceholderText('Ad, e-posta');
+    const search = within(drawer).getByPlaceholderText('Ad veya tam e-posta');
     await user.clear(search);
     await user.type(search, query);
     await user.click(await within(drawer).findByRole('checkbox', { name }));
@@ -261,11 +344,13 @@ describe('Group detail unverified account warning', () => {
       name: 'Ada L YK grubuna eklensin mi?',
     });
     expect(identityApi.memberCheck).toHaveBeenCalledWith('g1', 'u-ada');
+    // The search masked the address, so the person's card names it whole
+    expect(identityApi.getUser).toHaveBeenCalledWith('u-ada');
     expect(warning).toHaveTextContent(
-      'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.',
+      'Bu hesap YTÜ hesabıyla doğrulanmamış. Yönetim yetkisi vermeden önce e-posta adresinin (ada@example.com) bu kişiye ait olduğunu kontrol et.',
     );
     expect(identityApi.addMember).not.toHaveBeenCalled();
-    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
     await waitFor(() =>
       expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada', { unverifiedAck: true }),
     );
@@ -325,11 +410,11 @@ describe('Group detail unverified account warning', () => {
       name: '2 kişi YK grubuna eklensin mi?',
     });
     expect(warning).toHaveTextContent(
-      'YTÜ ile doğrulanmamış hesap: Ada L. Aynı adlı başka biri olmadığından emin olun.',
+      "2 kişiden 1'i YTÜ ile doğrulanmamış: Ada L (ada@example.com). E-posta adresini kontrol et.",
     );
     expect(warning).not.toHaveTextContent('Cem D');
     expect(identityApi.addMember).not.toHaveBeenCalled();
-    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
     expect(await screen.findByText('2 üye eklendi')).toBeInTheDocument();
     expect((identityApi.addMember as jest.Mock).mock.calls).toEqual([
       ['g1', 'u-ada', { unverifiedAck: true }],
@@ -344,10 +429,12 @@ describe('Group detail unverified account warning', () => {
     const warning = await screen.findByRole('alertdialog', {
       name: 'Ada L YK grubuna eklensin mi?',
     });
-    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
     expect(await within(warning).findByRole('alert')).toHaveTextContent('Ada L: Üye eklenemedi');
     expect(identityApi.addMember).toHaveBeenCalledWith('g1', 'u-ada', { unverifiedAck: true });
     expect(screen.queryByText('Üye eklendi')).not.toBeInTheDocument();
+    // Said once, in the question, not again in the drawer under it
+    expect(screen.getAllByText(/Üye eklenemedi/)).toHaveLength(1);
   });
 
   it('retries from the question only the ones core refused', async () => {
@@ -369,10 +456,17 @@ describe('Group detail unverified account warning', () => {
     const warning = await screen.findByRole('alertdialog', {
       name: '2 kişi YK grubuna eklensin mi?',
     });
-    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
     expect(await within(warning).findByRole('alert')).toHaveTextContent('Cem D: Üye eklenemedi');
     expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
-    await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+    // The retry's question names only Cem, who is verified: no YTÜ text is left
+    expect(screen.getByRole('alertdialog', { name: 'Cem D YK grubuna eklensin mi?' })).toBe(
+      warning,
+    );
+    expect(warning).not.toHaveTextContent('Ada L');
+    expect(warning).not.toHaveTextContent('YTÜ');
+    expect(screen.getAllByText(/Üye eklenemedi/)).toHaveLength(1);
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Üye ekle' })).not.toBeInTheDocument(),
     );
@@ -420,6 +514,97 @@ describe('Group detail unverified account warning', () => {
     expect(await screen.findByText('Üye eklendi')).toBeInTheDocument();
     expect(identityApi.memberCheck).toHaveBeenCalledTimes(1);
     expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+  });
+
+  it('names every unverified one with a count, and only the ones left after a refusal', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue(UNVERIFIED);
+    (identityApi.addMember as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await select(user, 'ada', /Ada L/);
+    await select(user, 'cem', /Cem D/);
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
+    const warning = await screen.findByRole('alertdialog', {
+      name: '2 kişi YK grubuna eklensin mi?',
+    });
+    expect(warning).toHaveTextContent(
+      "2 kişiden 2'si YTÜ ile doğrulanmamış: Ada L (ada@example.com), Cem D (cem@example.com). E-posta adreslerini kontrol et.",
+    );
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
+    expect(await within(warning).findByRole('alert')).toHaveTextContent('Cem D: Üye eklenemedi');
+    expect(screen.getByRole('alertdialog', { name: 'Cem D YK grubuna eklensin mi?' })).toBe(
+      warning,
+    );
+    expect(warning).toHaveTextContent(
+      'Bu hesap YTÜ hesabıyla doğrulanmamış. Yönetim yetkisi vermeden önce e-posta adresinin (cem@example.com) bu kişiye ait olduğunu kontrol et.',
+    );
+    expect(warning).not.toHaveTextContent('Ada L');
+    await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Üye ekle' })).not.toBeInTheDocument(),
+    );
+    expect((identityApi.addMember as jest.Mock).mock.calls).toEqual([
+      ['g1', 'u-ada', { unverifiedAck: true }],
+      ['g1', 'u-cem', { unverifiedAck: true }],
+      ['g1', 'u-cem', { unverifiedAck: true }],
+    ]);
+  });
+
+  it('names the address as typed when the reader searched it whole', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue(UNVERIFIED);
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await select(user, 'ada@example.com', /Ada L/);
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
+    const warning = await screen.findByRole('alertdialog', {
+      name: 'Ada L YK grubuna eklensin mi?',
+    });
+    expect(warning).toHaveTextContent('e-posta adresinin (ada@example.com)');
+    expect(identityApi.getUser).not.toHaveBeenCalled();
+  });
+
+  it('names the masked address when the person’s card cannot be read', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue(UNVERIFIED);
+    (identityApi.getUser as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    await addAda();
+    const warning = await screen.findByRole('alertdialog', {
+      name: 'Ada L YK grubuna eklensin mi?',
+    });
+    expect(warning).toHaveTextContent('e-posta adresinin (a***@example.com)');
+  });
+
+  it('checks at most three of a selection at once', async () => {
+    const people = ['Ada', 'Cem', 'Ece', 'Can', 'Naz'].map((name, index) =>
+      candidate(`u-${index}`, name, 'K', `${name[0]!.toLowerCase()}***@example.com`),
+    );
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue(people);
+    let inFlight = 0;
+    let most = 0;
+    (identityApi.memberCheck as jest.Mock).mockImplementation(async () => {
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return NO_WARNING;
+    });
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
+    await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'xyz');
+    for (const person of people) {
+      await user.click(
+        await screen.findByRole('checkbox', { name: new RegExp(`${person.firstName} K`) }),
+      );
+    }
+    await user.click(screen.getByRole('button', { name: 'Seçilenleri ekle' }));
+    expect(await screen.findByText('5 üye eklendi')).toBeInTheDocument();
+    expect(identityApi.memberCheck).toHaveBeenCalledTimes(5);
+    expect(most).toBe(3);
   });
 
   it('still adds, without a warning, when the check cannot be read', async () => {
