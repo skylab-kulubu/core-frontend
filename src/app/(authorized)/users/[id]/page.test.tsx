@@ -282,10 +282,10 @@ describe('User detail feedback', () => {
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       );
       expect(warning).toHaveTextContent(
-        'Bu hesap YTÜ ile doğrulanmamış. Aynı adlı başka biri olmadığından emin olun.',
+        'Bu hesap YTÜ hesabıyla doğrulanmamış. Yönetim yetkisi vermeden önce e-posta adresinin (ada@example.com) bu kişiye ait olduğunu kontrol et.',
       );
       expect(identityApi.addMember).not.toHaveBeenCalled();
-      await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+      await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
       await waitFor(() =>
         expect(identityApi.addMember).toHaveBeenCalledWith(
           'g-yk',
@@ -317,6 +317,59 @@ describe('User detail feedback', () => {
       expect(identityApi.addMember).not.toHaveBeenCalled();
     });
 
+    it('sends no second add after a quick close and reopen while the first is still sent', async () => {
+      (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+        privileged: false,
+        ytuLinked: true,
+        warnings: [],
+      });
+      let finish: () => void = () => undefined;
+      (identityApi.addMember as jest.Mock).mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const user = await pickYk();
+      await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledTimes(1));
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Grup ekle' })).not.toBeInTheDocument(),
+      );
+      await user.click(screen.getByRole('button', { name: 'Grup ekle' }));
+      const drawer = await screen.findByRole('dialog', { name: 'Grup ekle' });
+      await user.click(await within(drawer).findByRole('button', { name: '/UYELER/YK' }));
+      expect(identityApi.memberCheck).toHaveBeenCalledTimes(1);
+      expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+      await act(async () => finish());
+      expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
+      expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets the next opening pick at once when the picker closed during the check', async () => {
+      let answer: (check: unknown) => void = () => undefined;
+      (identityApi.memberCheck as jest.Mock)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+        )
+        .mockResolvedValue({ privileged: false, ytuLinked: true, warnings: [] });
+      const user = await pickYk();
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Grup ekle' })).not.toBeInTheDocument(),
+      );
+      await user.click(screen.getByRole('button', { name: 'Grup ekle' }));
+      const drawer = await screen.findByRole('dialog', { name: 'Grup ekle' });
+      await user.click(await within(drawer).findByRole('button', { name: '/UYELER/YK' }));
+      await waitFor(() => expect(identityApi.addMember).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        answer({ privileged: true, ytuLinked: false, warnings: ['not_ytu_verified'] });
+      });
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(identityApi.addMember).toHaveBeenCalledTimes(1);
+    });
+
     it('says a refused add inside the question once confirmed', async () => {
       (identityApi.memberCheck as jest.Mock).mockResolvedValue({
         privileged: true,
@@ -328,7 +381,7 @@ describe('User detail feedback', () => {
       const warning = await screen.findByRole('alertdialog', {
         name: 'Ada Lovelace YK grubuna eklensin mi?',
       });
-      await user.click(within(warning).getByRole('button', { name: 'Yine de ekle' }));
+      await user.click(within(warning).getByRole('button', { name: 'Gruba ekle' }));
       expect(await within(warning).findByRole('alert')).toHaveTextContent('Gruba eklenemedi');
     });
 
