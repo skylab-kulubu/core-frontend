@@ -4,6 +4,7 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { attendanceFinalizeOpen } from '@/lib/events-view';
 
 /** Sertifikalar tab: the template, attendance and issued certificates of the event. */
 export default function EventCertificatesPage() {
@@ -29,7 +30,7 @@ export default function EventCertificatesPage() {
         ownerTeam={event.ownerTeam}
         attendanceRule={event.attendanceRule ?? 'none'}
         attendanceRatio={event.attendanceRatio}
-        eventActive={event.active}
+        finalizeOpen={attendanceFinalizeOpen(event)}
         tickets={tickets}
         canIssue={canIssueCertificate}
         canBind={canBindCertificate}
