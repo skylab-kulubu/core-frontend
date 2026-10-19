@@ -62,7 +62,7 @@ function renderPanel(canIssue = true) {
       eventId="e1"
       ownerTeam="GECEKODU"
       attendanceRule="once"
-      eventActive={false}
+      finalizeOpen
       tickets={[]}
       canIssue={canIssue}
       canBind={false}
@@ -71,6 +71,42 @@ function renderPanel(canIssue = true) {
     />,
   );
 }
+
+describe('EventCertificatesPanel finalization', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue({ ...summary(0), attendanceFinalizedAt: undefined });
+    api.templates.mockResolvedValue([]);
+    api.listIssued.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+  });
+
+  function renderFinalize(finalizeOpen: boolean) {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        finalizeOpen={finalizeOpen}
+        tickets={[]}
+        canIssue
+        canBind={false}
+        canRevoke={false}
+        canReadIssued={false}
+      />,
+    );
+  }
+
+  it('offers Katılımı kapat when core would open finalization', async () => {
+    renderFinalize(true);
+    expect(await screen.findByRole('button', { name: /Katılımı kapat/ })).toBeEnabled();
+  });
+
+  it('keeps Katılımı kapat disabled until core would open finalization', async () => {
+    renderFinalize(false);
+    expect(await screen.findByRole('button', { name: /Katılımı kapat/ })).toBeDisabled();
+  });
+});
 
 describe('EventCertificatesPanel failed batches', () => {
   beforeEach(() => {
@@ -214,7 +250,7 @@ describe('EventCertificatesPanel issued certificates', () => {
         eventId="e1"
         ownerTeam="GECEKODU"
         attendanceRule="once"
-        eventActive={false}
+        finalizeOpen
         tickets={[]}
         canIssue
         canBind={false}

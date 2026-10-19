@@ -548,7 +548,6 @@ describe('scheduling clients speak RFC 7807 resources', () => {
           location: 'YTÜ',
           ownerTeam: 'WEBLAB',
           capacity: 0,
-          active: true,
           ranked: false,
         }),
       );
@@ -560,7 +559,6 @@ describe('scheduling clients speak RFC 7807 resources', () => {
       location: 'YTÜ',
       ownerTeam: 'WEBLAB',
       capacity: 0,
-      active: true,
       ranked: false,
     });
     expect(created.name).toBe('N');

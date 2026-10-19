@@ -109,6 +109,14 @@ describe('saveEventWithSeason', () => {
     await expect(failure).rejects.toMatchObject({ code: 'media_not_linkable' });
   });
 
+  it('sends no active flag, which core derives from status and dates', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+
+    await saveEventWithSeason(formStateFromEvent(savedEvent), savedEvent.id);
+
+    expect(eventUpdate(calls)).not.toHaveProperty('active');
+  });
+
   it('re-saving a loaded Event keeps the aliases it already saved', async () => {
     const calls = coreWithTakenAliases(savedEvent, ['gecekodu-skydays2026', 'skydays-ctf2026']);
 

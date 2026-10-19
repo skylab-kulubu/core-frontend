@@ -59,7 +59,6 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     startDate: '',
     endDate: '',
     linkedin: '',
-    active: true,
     ranked: false,
     prizeInfo: '',
     seasonId: '',
@@ -229,11 +228,6 @@ export function EventEditor({
           </Select>
         </label>
       ) : null}
-      <Switch
-        checked={value.active}
-        onChange={(checked) => patch({ active: checked })}
-        label="Aktif"
-      />
       <Switch
         checked={value.ranked}
         onChange={(checked) => patch({ ranked: checked })}
