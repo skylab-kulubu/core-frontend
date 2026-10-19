@@ -7,6 +7,7 @@ import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
+import { useMemberAdd } from '@/components/identity/use-member-add';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { identityApi, type Group, type UserCard } from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
@@ -37,6 +38,7 @@ export default function UserDetailPage() {
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const memberAdd = useMemberAdd();
 
   async function load() {
     try {
@@ -160,7 +162,10 @@ export default function UserDetailPage() {
       {canAddGroup ? (
         <PickerDrawer
           open={groupOpen}
-          onClose={() => setGroupOpen(false)}
+          onClose={() => {
+            memberAdd.cancel();
+            setGroupOpen(false);
+          }}
           title="Grup ekle"
           query={groupQuery}
           onQuery={setGroupQuery}
@@ -173,15 +178,25 @@ export default function UserDetailPage() {
           onPick={async (groupId) => {
             setPickError(null);
             try {
-              await identityApi.addMember(groupId, card.id);
-              setGroupOpen(false);
-              notify.success('Gruba eklendi');
-              await load();
+              await memberAdd.add({
+                groupId,
+                userId: card.id,
+                personName: name,
+                groupName: groups.find((g) => g.id === groupId)?.name ?? groupId,
+                failure: 'Gruba eklenemedi',
+                onAdded: async () => {
+                  setGroupOpen(false);
+                  notify.success('Gruba eklendi');
+                  await load();
+                },
+              });
             } catch (err) {
               setPickError(coreProblemMessage(err, 'Gruba eklenemedi'));
             }
           }}
-        />
+        >
+          {memberAdd.dialog}
+        </PickerDrawer>
       ) : null}
     </div>
   );

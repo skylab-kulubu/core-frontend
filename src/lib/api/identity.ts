@@ -41,6 +41,18 @@ export type ClientRole = {
   role: string;
 };
 
+/**
+ * What adding a person to a Group would warn of (GET
+ * /v1/groups/{id}/member-check/{userId}). `privileged` says whether the Group
+ * is a Privileged root or under one; the panel never guesses it from a name.
+ */
+export type MemberCheck = {
+  privileged: boolean;
+  ytuLinked: boolean;
+  /** 'not_ytu_verified': the Group is Privileged and the person is not YTÜ-linked. */
+  warnings: string[];
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -58,11 +70,20 @@ export const identityApi = {
   deleteGroup: (id: string) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   members: (id: string) => coreFetch<Person[]>(`/v1/groups/${encodeURIComponent(id)}/members`),
-  addMember: (groupId: string, userId: string) =>
+  /** `unverifiedAck`: the reader confirmed the not_ytu_verified warning; core never refuses the add. */
+  addMember: (
+    groupId: string,
+    userId: string,
+    { unverifiedAck }: { unverifiedAck?: boolean } = {},
+  ) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(unverifiedAck ? { userId, unverifiedAck } : { userId }),
     }),
+  memberCheck: (groupId: string, userId: string) =>
+    coreFetch<MemberCheck>(
+      `/v1/groups/${encodeURIComponent(groupId)}/member-check/${encodeURIComponent(userId)}`,
+    ),
   removeMember: (groupId: string, userId: string) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members/${userId}`, {
       method: 'DELETE',
