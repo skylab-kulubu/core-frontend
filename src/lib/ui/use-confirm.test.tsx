@@ -133,6 +133,41 @@ describe('useConfirm', () => {
     expect(dialog).not.toHaveTextContent('boom');
   });
 
+  it('says what the request asks after a refusal, in the same open dialog', async () => {
+    const user = userEvent.setup();
+    function Batch() {
+      const [ask, dialog] = useConfirm();
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() =>
+              ask({
+                title: '2 kişi eklensin mi?',
+                description: 'Ada ve Cem',
+                actionLabel: 'Ekle',
+                destructive: false,
+                onConfirm: jest.fn().mockRejectedValue(new Error('boom')),
+                failure: 'Cem eklenemedi',
+                afterFailure: () => ({ title: 'Cem eklensin mi?', description: undefined }),
+              })
+            }
+          >
+            Ekle
+          </button>
+          {dialog}
+        </>
+      );
+    }
+    render(<Batch />);
+    await user.click(screen.getByRole('button', { name: 'Ekle' }));
+    const dialog = await screen.findByRole('alertdialog', { name: '2 kişi eklensin mi?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Ekle' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cem eklenemedi');
+    expect(screen.getByRole('alertdialog', { name: 'Cem eklensin mi?' })).toBe(dialog);
+    expect(dialog).not.toHaveTextContent('Ada ve Cem');
+  });
+
   it('closes on success and then shows the toast the action raised', async () => {
     const user = userEvent.setup();
     function Saver() {

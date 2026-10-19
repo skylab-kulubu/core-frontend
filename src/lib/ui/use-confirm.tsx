@@ -46,6 +46,11 @@ export type ConfirmRequest = {
    */
   failure?: string | ((error: unknown) => string);
   /**
+   * What the question says after `onConfirm` throws, when that changed: a
+   * retry of a partly refused batch names only the ones left.
+   */
+  afterFailure?: (error: unknown) => Partial<Pick<ConfirmRequest, 'title' | 'description'>> | void;
+  /**
    * The action closes the drawer the question sits in, so on success that
    * drawer, not this dialog, decides where focus goes.
    */
@@ -133,7 +138,11 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
       }
     } catch (err) {
       const text = failureText(request, err);
-      if (id === run.current && openRef.current) setError(text);
+      if (id === run.current && openRef.current) {
+        const next = request.afterFailure?.(err);
+        if (next) setRequest({ ...request, ...next });
+        setError(text);
+      }
       // The reader left the stalled dialog, maybe for another question: a toast is the only place left
       else
         add({ title: 'İşlem tamamlanamadı', description: text, type: 'error', priority: 'high' });

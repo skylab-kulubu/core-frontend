@@ -53,6 +53,25 @@ export type MemberCheck = {
   warnings: string[];
 };
 
+/**
+ * A person the reader may add to a Group (GET
+ * /v1/groups/{id}/member-candidates?q=): core's active accounts whose name
+ * holds `q` (at least three characters), at most ten. The
+ * address is masked (a***@example.com) unless `q` was that whole address.
+ */
+export type MemberCandidate = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profilePictureUrl?: string;
+  /** The person is directly in the Group already. */
+  alreadyMember: boolean;
+  ytuLinked: boolean;
+  /** As MemberCheck's: 'not_ytu_verified' only for a Privileged Group. */
+  warnings: string[];
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -83,6 +102,10 @@ export const identityApi = {
   memberCheck: (groupId: string, userId: string) =>
     coreFetch<MemberCheck>(
       `/v1/groups/${encodeURIComponent(groupId)}/member-check/${encodeURIComponent(userId)}`,
+    ),
+  memberCandidates: (groupId: string, q: string) =>
+    coreFetch<MemberCandidate[]>(
+      `/v1/groups/${encodeURIComponent(groupId)}/member-candidates?q=${encodeURIComponent(q.trim())}`,
     ),
   removeMember: (groupId: string, userId: string) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members/${userId}`, {

@@ -32,6 +32,17 @@ describe('identity member add calls', () => {
     expect(calls).toEqual([{ method: 'GET', path: '/v1/groups/g1/member-check/u-ada' }]);
   });
 
+  it('searches the Group’s member candidates with the trimmed query', async () => {
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      calls.push(`${url.pathname}${url.search}`);
+      return Response.json([]);
+    }) as typeof fetch;
+    await expect(identityApi.memberCandidates('g 1', ' ada@x.test ')).resolves.toEqual([]);
+    expect(calls).toEqual(['/v1/groups/g%201/member-candidates?q=ada%40x.test']);
+  });
+
   it('sends unverifiedAck only when the warning was confirmed', async () => {
     const calls = record();
     await identityApi.addMember('g1', 'u-ada');
