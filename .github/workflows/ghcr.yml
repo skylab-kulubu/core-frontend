@@ -1,41 +1,147 @@
 name: GHCR
 
+# The NEXT_PUBLIC_* addresses are baked in at build time, so there are two images per commit:
+# sandbox and production (build job, one matrix leg each). The scope job decides what to build:
+# - pull request: the production image, not pushed (does the build still work?). Skipped when only
+#   documentation changed.
+# - push to main (or a manual run on main): sandbox -> latest, sandbox, <sha> and the sandbox deploy;
+#   production -> production-candidate-<sha>, not deployed.
+# - push to production (or a manual run on it): production is a squash of main, so the tree is
+#   compared, not the commit. When main already built the production image of this tree, its tags
+#   are copied to production and <sha> (promote, no rebuild) and production deploys; otherwise
+#   (a hotfix straight on production) it is built as before.
+# - a v* tag: the production image -> <sha>; any other manual run: the sandbox image -> <sha>.
+# One check: gate.
 on:
+  pull_request:
   push:
     branches: [main, production]
     tags: ["v*.*.*"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's older run; pushes and manual runs are never cancelled.
+concurrency:
+  group: ghcr-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/skylab-kulubu/core-frontend
+
 jobs:
-  build-and-push:
+  scope:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    outputs:
+      builds: ${{ steps.scope.outputs.builds }}
+      promote-from: ${{ steps.scope.outputs.promote-from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A pull request checks out GitHub's merge commit: HEAD^1 is the base it merges into.
+          fetch-depth: 2
+
+      - uses: docker/login-action@v3
+        if: github.ref == 'refs/heads/production'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Choose what to build
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          sha=$GITHUB_SHA
+          build() { # variant, comma-separated tags (empty: not pushed), Dokploy hook (sandbox|production|none)
+            jq -cn --arg variant "$1" --arg tags "$2" --arg hook "$3" '{variant: $variant, tags: $tags, hook: $hook}'
+          }
+          out() {
+            printf 'builds=%s\n' "$(jq -cs . <<<"$1")" >> "$GITHUB_OUTPUT"
+            printf 'promote-from=%s\n' "${2:-}" >> "$GITHUB_OUTPUT"
+            echo "builds: $(jq -cs '[.[].variant]' <<<"$1") promote from: ${2:-none}" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          # The production-candidate image of a successful push to main of this same tree.
+          built_on_main() {
+            local tree run_id head_sha
+            tree=$(git rev-parse 'HEAD^{tree}')
+            while read -r run_id head_sha; do
+              [[ $run_id =~ ^[0-9]+$ && $head_sha =~ ^[0-9a-f]{40}$ ]] || continue
+              [[ $(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head_sha" --jq .tree.sha) == "$tree" ]] || continue
+              if docker buildx imagetools inspect "$IMAGE:production-candidate-$head_sha" >/dev/null 2>&1; then
+                echo "$IMAGE:production-candidate-$head_sha"
+                return 0
+              fi
+            done < <(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ghcr.yml/runs" \
+              -f branch=main -f event=push -f status=success -f per_page=50 \
+              --jq '.workflow_runs[] | "\(.id) \(.head_sha)"')
+            return 1
+          }
+
+          case $EVENT:$REF in
+            pull_request:*)
+              if ! changed=$(git diff --name-only --no-renames HEAD^1 HEAD) || [[ -z $changed ]]; then
+                out "$(build production '' none)"
+              fi
+              while IFS= read -r path; do
+                case $path in
+                  docs/* | *.md) ;;
+                  *) out "$(build production '' none)" ;;
+                esac
+              done <<<"$changed"
+              out '' ;;
+            *:refs/heads/main)
+              out "$(build sandbox "$IMAGE:latest,$IMAGE:sandbox,$IMAGE:$sha" sandbox)
+          $(build production "$IMAGE:production-candidate-$sha" none)" ;;
+            *:refs/heads/production)
+              if source=$(built_on_main); then
+                out '' "$source"
+              fi
+              out "$(build production "$IMAGE:production,$IMAGE:$sha" production)" ;;
+            *:refs/tags/v*)
+              out "$(build production "$IMAGE:$sha" none)" ;;
+            *)
+              out "$(build sandbox "$IMAGE:$sha" none)" ;;
+          esac
+
+  build:
+    name: build (${{ matrix.variant }})
+    needs: scope
+    if: needs.scope.outputs.builds != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.scope.outputs.builds) }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
+        if: matrix.tags != ''
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v3
-      - id: tags
-        run: |
-          img=ghcr.io/skylab-kulubu/core-frontend
-          sha='${{ github.sha }}'
-          ref='${{ github.ref_name }}'
-          if [ "$ref" = production ]; then
-            echo "list=${img}:production,${img}:${sha}" >> "$GITHUB_OUTPUT"
-          elif [ "$ref" = main ]; then
-            echo "list=${img}:latest,${img}:sandbox,${img}:${sha}" >> "$GITHUB_OUTPUT"
-          else
-            echo "list=${img}:${sha}" >> "$GITHUB_OUTPUT"
-          fi
       - id: environment
+        env:
+          VARIANT: ${{ matrix.variant }}
         run: |
-          ref='${{ github.ref_name }}'
-          if [ "$ref" = production ] || [[ "$ref" == v* ]]; then
+          if [ "$VARIANT" = production ]; then
             echo "api_url=https://api.yildizskylab.com" >> "$GITHUB_OUTPUT"
             echo "cms_url=https://api.yildizskylab.com/api" >> "$GITHUB_OUTPUT"
             echo "admin_url=https://admin.yildizskylab.com" >> "$GITHUB_OUTPUT"
@@ -57,9 +163,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: ${{ matrix.tags != '' }}
           platforms: linux/amd64
-          tags: ${{ steps.tags.outputs.list }}
+          tags: ${{ matrix.tags }}
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.environment.outputs.api_url }}
             NEXT_PUBLIC_CMS_URL=${{ steps.environment.outputs.cms_url }}
@@ -69,14 +175,17 @@ jobs:
             NEXT_PUBLIC_SHORT_ORIGIN=${{ steps.environment.outputs.short_origin }}
             NEXT_PUBLIC_GITHUB_ACTIVITY_URL=${{ steps.environment.outputs.github_activity_url }}
             NEXT_PUBLIC_INCLUDE_PLAYGROUND=${{ steps.environment.outputs.include_playground }}
+          # Layer cache per image (dependencies, the playground): a pull request reads main's.
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,mode=max,scope={0}', matrix.variant) || '' }}
       - name: Notify Dokploy
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+        if: matrix.hook != 'none'
         env:
-          REF_NAME: ${{ github.ref_name }}
+          REF_NAME: ${{ matrix.hook }}
           SANDBOX_HOOK: ${{ secrets.DOKPLOY_SANDBOX_DEPLOY_HOOK }}
           PRODUCTION_HOOK: ${{ secrets.DOKPLOY_DEPLOY_HOOK }}
         run: |
-          if [ "$REF_NAME" = main ]; then
+          if [ "$REF_NAME" = sandbox ]; then
             HOOK="$SANDBOX_HOOK"
           else
             HOOK="$PRODUCTION_HOOK"
@@ -86,3 +195,64 @@ jobs:
             exit 0
           fi
           curl -fsS -X POST "$HOOK"
+
+  # The production image main built from this tree gets the production tags; the registry copies
+  # the manifest, so production runs exactly those bytes.
+  promote:
+    needs: scope
+    if: needs.scope.outputs.promote-from != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote main's production image
+        env:
+          SOURCE: ${{ needs.scope.outputs.promote-from }}
+        run: |
+          set -euo pipefail
+          digest() { docker buildx imagetools inspect --raw "$1" | sha256sum | cut -d' ' -f1; }
+          source_digest=$(digest "$SOURCE")
+          targets=("$IMAGE:production" "$IMAGE:$GITHUB_SHA")
+          docker buildx imagetools create --prefer-index=false \
+            --tag "${targets[0]}" --tag "${targets[1]}" "$SOURCE"
+          for target in "${targets[@]}"; do
+            test "$(digest "$target")" = "$source_digest"
+          done
+          echo "Promoted, not rebuilt: \`$SOURCE\` (sha256:$source_digest) → \`production\`, \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Notify Dokploy
+        env:
+          PRODUCTION_HOOK: ${{ secrets.DOKPLOY_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$PRODUCTION_HOOK" ]; then
+            echo "Dokploy hook unset for production; skip"
+            exit 0
+          fi
+          curl -fsS -X POST "$PRODUCTION_HOOK"
+
+  # One check: green when no job failed or was cancelled.
+  gate:
+    if: always()
+    needs: [scope, build, promote]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every selected job passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key)=\(.value.result)"' <<<"$NEEDS"
+          test "$(jq -r '.scope.result' <<<"$NEEDS")" = success
+          bad=$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key' <<<"$NEEDS")
+          if [[ -n $bad ]]; then
+            echo "failed or cancelled: $bad" >&2
+            exit 1
+          fi
