@@ -8,9 +8,40 @@ import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { SectionHeading } from '@/components/chrome/PanelChart';
 import type { CoreEvent } from '@/lib/api/events';
 import { monthGrid, monthTitle, pad2, shiftMonth, weekdayLabels } from '@/lib/date-picker';
-import { eventListSubtitle, eventsByDateKey, localDateKey, undatedEvents } from '@/lib/events-view';
+import {
+  eventDisplayStatus,
+  eventListSubtitle,
+  eventsByDateKey,
+  localDateKey,
+  undatedEvents,
+} from '@/lib/events-view';
 import { listStatus } from '@/lib/list-status';
-import { activeStatus } from '@/lib/status-chip';
+
+/** A day cell's chip: a draft dashed, a cancelled Event struck through (SPEC §5.1). */
+export function calendarChipClass(event: CoreEvent): string {
+  const base = 'truncate rounded px-1 py-0.5 text-[10px] leading-4';
+  const status = eventDisplayStatus(event);
+  if (status === 'draft') {
+    return `${base} border border-dashed border-skylab-400/50 text-skylab-300`;
+  }
+  if (status === 'cancelled') {
+    return `${base} bg-white/5 text-subtle-foreground line-through`;
+  }
+  return `${base} bg-skylab-500/20 text-skylab-300`;
+}
+
+function EventRow({ event }: { event: CoreEvent }) {
+  const status = eventDisplayStatus(event);
+  return (
+    <ListItem
+      href={`/events/${event.id}`}
+      title={event.name}
+      subtitle={eventListSubtitle(event)}
+      leading={<StatusDot kind={status} />}
+      trailing={<StatusChip kind={status} />}
+    />
+  );
+}
 
 const CHIP_MAX = 3;
 
@@ -101,10 +132,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                   {day}
                 </span>
                 {rows.slice(0, CHIP_MAX).map((event) => (
-                  <span
-                    key={event.id}
-                    className="bg-skylab-500/20 text-skylab-300 truncate rounded px-1 py-0.5 text-[10px] leading-4"
-                  >
+                  <span key={event.id} className={calendarChipClass(event)}>
                     {event.name}
                   </span>
                 ))}
@@ -138,14 +166,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
           })}
         >
           {selectedEvents.map((event) => (
-            <ListItem
-              key={event.id}
-              href={`/events/${event.id}`}
-              title={event.name}
-              subtitle={eventListSubtitle(event)}
-              leading={<StatusDot kind={activeStatus(event.active)} />}
-              trailing={<StatusChip kind={activeStatus(event.active)} />}
-            />
+            <EventRow key={event.id} event={event} />
           ))}
         </ListPanel>
       </div>
@@ -160,14 +181,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
             })}
           >
             {undated.map((event) => (
-              <ListItem
-                key={event.id}
-                href={`/events/${event.id}`}
-                title={event.name}
-                subtitle={eventListSubtitle(event)}
-                leading={<StatusDot kind={activeStatus(event.active)} />}
-                trailing={<StatusChip kind={activeStatus(event.active)} />}
-              />
+              <EventRow key={event.id} event={event} />
             ))}
           </ListPanel>
         </div>
