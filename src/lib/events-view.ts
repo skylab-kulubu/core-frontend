@@ -53,7 +53,6 @@ export function eventListSubtitle(event: DatedEvent): string {
   if (event.location?.trim()) bits.push(event.location.trim());
   const when = formatEventWhen(event);
   if (when) bits.push(when);
-  if (event.active === false) bits.push('pasif');
   return bits.join(' · ');
 }
 
@@ -140,18 +139,93 @@ export function undatedEvents<T extends DatedEvent>(events: readonly T[]): T[] {
   );
 }
 
-export type EventPhaseFilter = 'all' | 'active' | 'upcoming' | 'past';
+/**
+ * What a list or a header shows for an Event (SPEC §2.6): its stored status,
+ * and for a published one where it stands in time by core's end rule.
+ */
+export type EventDisplayStatus = 'draft' | 'upcoming' | 'live' | 'ended' | 'undated' | 'cancelled';
 
-export function filterEventsByPhase<T extends DatedEvent>(
+export const EVENT_STATUS_LABELS: Record<EventDisplayStatus, string> = {
+  draft: 'Taslak',
+  upcoming: 'Yaklaşıyor',
+  live: 'Sürüyor',
+  ended: 'Bitti',
+  undated: 'Tarihsiz',
+  cancelled: 'İptal',
+};
+
+/** The stored status; an Event from an older core carries none and is published. */
+export function eventStatusOf(
+  event: Pick<DatedEvent, 'status'>,
+): 'draft' | 'published' | 'cancelled' {
+  if (event.status === 'draft' || event.status === 'cancelled') return event.status;
+  return 'published';
+}
+
+export function eventDisplayStatus(
+  event: Pick<DatedEvent, 'status' | 'startDate' | 'endDate'>,
+  now = new Date(),
+): EventDisplayStatus {
+  const status = eventStatusOf(event);
+  if (status !== 'published') return status;
+  const start = event.startDate ? Date.parse(event.startDate) : NaN;
+  if (Number.isNaN(start)) return 'undated';
+  const end = eventEndsAt(event);
+  if (end !== null && end <= now.getTime()) return 'ended';
+  return start > now.getTime() ? 'upcoming' : 'live';
+}
+
+/** The list's status filter: Tümü · Taslak · Yaklaşan · Sürüyor · Geçmiş · İptal. */
+export type EventStatusFilter = 'all' | 'draft' | 'upcoming' | 'live' | 'past' | 'cancelled';
+
+export const EVENT_STATUS_FILTERS: ReadonlyArray<{ value: EventStatusFilter; label: string }> = [
+  { value: 'all', label: 'Tümü' },
+  { value: 'draft', label: 'Taslak' },
+  { value: 'upcoming', label: 'Yaklaşan' },
+  { value: 'live', label: 'Sürüyor' },
+  { value: 'past', label: 'Geçmiş' },
+  { value: 'cancelled', label: 'İptal' },
+];
+
+/** An undated published Event is in no slice but Tümü. */
+const FILTER_OF: Record<EventDisplayStatus, EventStatusFilter | null> = {
+  draft: 'draft',
+  upcoming: 'upcoming',
+  live: 'live',
+  ended: 'past',
+  undated: null,
+  cancelled: 'cancelled',
+};
+
+/** The filter named in the address (`?status=`), Tümü for anything else. */
+export function eventStatusFilterFrom(raw: string | null | undefined): EventStatusFilter {
+  return EVENT_STATUS_FILTERS.some((row) => row.value === raw) ? (raw as EventStatusFilter) : 'all';
+}
+
+export function filterEventsByStatus<T extends DatedEvent>(
   events: readonly T[],
-  filter: EventPhaseFilter,
+  filter: EventStatusFilter,
   now = new Date(),
 ): T[] {
   if (filter === 'all') return [...events];
-  if (filter === 'active') return events.filter((event) => event.active !== false);
-  return events.filter((event) => {
-    const bucket = phase(event, now);
-    if (filter === 'upcoming') return bucket === 0;
-    return bucket === 2;
-  });
+  return events.filter((event) => FILTER_OF[eventDisplayStatus(event, now)] === filter);
+}
+
+export function countEventsByStatus(
+  events: readonly DatedEvent[],
+  now = new Date(),
+): Record<EventStatusFilter, number> {
+  const counts: Record<EventStatusFilter, number> = {
+    all: events.length,
+    draft: 0,
+    upcoming: 0,
+    live: 0,
+    past: 0,
+    cancelled: 0,
+  };
+  for (const event of events) {
+    const slice = FILTER_OF[eventDisplayStatus(event, now)];
+    if (slice) counts[slice] += 1;
+  }
+  return counts;
 }

@@ -29,6 +29,20 @@ export function useNotify() {
       success(title: string) {
         add({ title, type: 'success' });
       },
+      /** Says a write went through and offers the next step on the toast, such as a mail. */
+      withAction(title: string, label: string, onClick: () => void) {
+        const id = add({
+          title,
+          type: 'success',
+          actionProps: {
+            children: label,
+            onClick: () => {
+              close(id);
+              onClick();
+            },
+          },
+        });
+      },
       /**
        * Says a removal went through and offers Geri al while the toast shows.
        * How long each toast stays is skylcn-ui's (useToast): a plain one five

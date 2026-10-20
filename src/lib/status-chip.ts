@@ -7,7 +7,14 @@ export type StatusChipKind =
   | 'member'
   | 'featured'
   | 'winner'
-  | 'neutral';
+  | 'neutral'
+  // An Event's display status (events-view eventDisplayStatus)
+  | 'draft'
+  | 'upcoming'
+  | 'live'
+  | 'ended'
+  | 'undated'
+  | 'cancelled';
 
 export type StatusChipSpec = {
   label: string;
@@ -60,6 +67,36 @@ export const STATUS_CHIPS: Record<StatusChipKind, StatusChipSpec> = {
     label: 'Durumsuz',
     className: 'border-white/10 bg-white/5 text-neutral-400',
     dotClassName: 'bg-neutral-600',
+  },
+  draft: {
+    label: 'Taslak',
+    className: 'border-white/10 bg-white/5 text-neutral-400',
+    dotClassName: 'bg-neutral-600',
+  },
+  upcoming: {
+    label: 'Yaklaşıyor',
+    className: 'border-skylab-400/40 bg-skylab-500/10 text-skylab-300',
+    dotClassName: 'bg-skylab-400 shadow-[0_0_6px] shadow-skylab-400/40',
+  },
+  live: {
+    label: 'Sürüyor',
+    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+    dotClassName: 'bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/40',
+  },
+  ended: {
+    label: 'Bitti',
+    className: 'border-white/20 bg-white/10 text-neutral-200',
+    dotClassName: 'bg-neutral-400 shadow-[0_0_6px] shadow-neutral-400/40',
+  },
+  undated: {
+    label: 'Tarihsiz',
+    className: 'border-white/10 bg-white/5 text-neutral-400',
+    dotClassName: 'bg-neutral-600',
+  },
+  cancelled: {
+    label: 'İptal',
+    className: 'border-red-500/30 bg-red-500/10 text-red-200',
+    dotClassName: 'bg-red-400 shadow-[0_0_6px] shadow-red-400/40',
   },
 };
 
