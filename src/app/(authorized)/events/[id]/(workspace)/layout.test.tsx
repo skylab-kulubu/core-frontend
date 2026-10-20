@@ -45,6 +45,20 @@ jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
 
+/** core's capabilities: every Event write for GECEKODU. */
+function allowStatusActions(write = true) {
+  (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+    teams: [{ team: 'GECEKODU', can: { 'event.update': write, 'event.delete': write } }],
+  });
+}
+
+// Back to unreadable after a test that set core's answer
+afterEach(() => {
+  (capabilitiesApi.get as jest.Mock).mockImplementation(() =>
+    Promise.reject(new TypeError('Failed to fetch')),
+  );
+});
+
 const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.textContent);
 
 describe('Event workspace layout', () => {
@@ -242,14 +256,17 @@ describe('Event workspace layout', () => {
     expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
   });
 
-  it('asks before deleting the event, then offers Geri al that reopens it', async () => {
+  it('asks before deleting a draft, then offers Geri al that reopens it', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
+    allowStatusActions();
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, status: 'draft' });
     (eventsApi.delete as jest.Mock).mockResolvedValueOnce(undefined);
     (eventsApi.restore as jest.Mock).mockResolvedValueOnce({ id: 'e1' });
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
     await screen.findByRole('heading', { name: 'GeceKodu' });
-    await user.click(screen.getByRole('button', { name: 'Sil' }));
+    await user.click(await screen.findByRole('button', { name: 'Diğer eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Sil…' }));
     const confirm = await screen.findByRole('alertdialog', { name: '"GeceKodu" silinsin mi?' });
     expect(eventsApi.delete).not.toHaveBeenCalled();
     await user.click(within(confirm).getByRole('button', { name: 'Etkinliği sil' }));

@@ -69,6 +69,10 @@ export type EventBody = {
   attendanceRule?: string;
   attendanceRatio?: number;
   doorStaffIds?: string[];
+  /** The deadline of applying; `null` removes it. */
+  registrationClosesAt?: string | null;
+  /** Read on create alone: the panel opens every new Event as a draft (ADR 0066). */
+  status?: 'draft';
 };
 
 /** A partial update: a key left out keeps its value, `null` clears a field that may be empty. */

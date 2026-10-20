@@ -24,6 +24,11 @@ export const eventsModule = {
     restore: jest.fn(),
     list: jest.fn(),
     syncMailList: jest.fn(),
+    publish: jest.fn(),
+    unpublish: jest.fn(),
+    cancel: jest.fn(),
+    uncancel: jest.fn(),
+    patch: jest.fn(),
   },
 };
 export const eventDaysModule = {
