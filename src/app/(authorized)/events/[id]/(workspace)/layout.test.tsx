@@ -195,6 +195,8 @@ describe('Event workspace layout', () => {
       expect(saveEventWithSeason).toHaveBeenCalledWith(
         expect.objectContaining({ formUrl: 'https://forms.yildizskylab.com/forms/f1' }),
         'e1',
+        // the Event as read: only what Skyforms changed is sent
+        expect.objectContaining({ formUrl: '' }),
       ),
     );
     expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
@@ -254,6 +256,12 @@ describe('Event workspace layout', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
+    // The form it opened with goes along, so only the changed fields are written
+    expect(saveEventWithSeason).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'GeceKodu' }),
+      'e1',
+      expect.objectContaining({ name: 'GeceKodu', location: 'YTÜ' }),
+    );
   });
 
   it('asks before deleting a draft, then offers Geri al that reopens it', async () => {
