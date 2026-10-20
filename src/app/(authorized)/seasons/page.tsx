@@ -194,11 +194,12 @@ export default function SeasonsPage() {
             e.preventDefault();
             setFormError(null);
             try {
+              // On update an emptied date goes as null: core keeps a date left out
               const body: SeasonBody = {
                 name: form.name.trim(),
                 active: form.active,
-                startDate: toRfc3339(form.startLocal),
-                endDate: toRfc3339(form.endLocal),
+                startDate: toRfc3339(form.startLocal) ?? (editingId ? null : undefined),
+                endDate: toRfc3339(form.endLocal) ?? (editingId ? null : undefined),
               };
               const saved = editingId
                 ? await seasonsApi.update(editingId, body)
