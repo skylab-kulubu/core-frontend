@@ -1,5 +1,6 @@
 import {
   ROLE_PLACEMENT_MESSAGES,
+  appAssignmentTarget,
   rolePlacement,
   rolePlacementMessage,
   type RolePlacementReason,
@@ -37,6 +38,44 @@ describe('rolePlacement (core authz.RolePlacement)', () => {
   it('has a Turkish sentence for every reason core sends', () => {
     for (const [, , reason] of cases) {
       if (reason) expect(rolePlacementMessage(reason)).toBe(ROLE_PLACEMENT_MESSAGES[reason]);
+    }
+  });
+});
+
+describe('appAssignmentTarget (core authz.AppAssignmentTarget)', () => {
+  const cases: Array<[string, RolePlacementReason | null]> = [
+    // Teams, Sub-teams and their Leader groups take an app role
+    ['/UYELER/ARGE/WEBLAB', null],
+    ['/UYELER/ARGE/WEBLAB/LIDERLER', null],
+    ['/UYELER/ARGE/WEBLAB/FRONTEND', null],
+    ['/UYELER/ARGE/WEBLAB/FRONTEND/LIDERLER', null],
+    ['/UYELER/ORGANIZASYON/GECEKODU/KOORDINATORLER', null],
+    // The code's places
+    ['/ADMIN', 'code_area'],
+    ['/UYELER/YK', 'code_area'],
+    ['/UYELER/YK/BASKAN', 'code_area'],
+    ['/ROLLER', 'code_area'],
+    ['/ROLLER/FORMS-ACCESS', 'code_area'],
+    // Everyone below
+    ['/UYELER', 'members_root'],
+    ['/UYELER/ARGE', 'area'],
+    ['/UYELER/LIDERLER', 'outside_role_places'],
+    ['/KONSOL', 'outside_role_places'],
+  ];
+
+  it.each(cases)('%s → %s', (path, reason) => {
+    expect(appAssignmentTarget(path)).toBe(reason);
+  });
+
+  it('words every reason core sends for an app assignment', () => {
+    for (const reason of [
+      'top_team_admin_role',
+      'admin_role',
+      'code_area',
+      'service_account',
+      'inactive_user',
+    ] as const) {
+      expect(rolePlacementMessage(reason)).toBe(ROLE_PLACEMENT_MESSAGES[reason]);
     }
   });
 });

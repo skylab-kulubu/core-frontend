@@ -649,6 +649,33 @@ describe('Group detail role mapping', () => {
     expect(within(roles).getByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
   });
 
+  it('sends a Team’s app roles to Uygulamalar once core’s app assignments are on', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': true, 'apps.read': true },
+    });
+    for (const path of ['/UYELER/ARGE/WEBLAB', '/UYELER/ARGE/WEBLAB/FRONT/LIDERLER']) {
+      group(path);
+      const { unmount } = render(<GroupDetailPage />);
+      const link = await screen.findByRole('link', { name: 'Uygulamalar' });
+      expect(link).toHaveAttribute('href', '/apps');
+      expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
+      const roles = screen.getByText('Uygulama rolleri').closest('section') as HTMLElement;
+      expect(within(roles).getByText('skyforms:access')).toBeInTheDocument();
+      expect(within(roles).queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('keeps a Privileged root’s roles on the Groups page with app assignments on', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': true, 'apps.read': true },
+    });
+    group('/UYELER/YK');
+    render(<GroupDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Rol ekle' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Uygulamalar' })).not.toBeInTheDocument();
+  });
+
   it('offers a new role on a role group under /ROLLER with nothing under it', async () => {
     group('/ROLLER/SKYMAIL-OKUR');
     (identityApi.listGroups as jest.Mock).mockResolvedValue([

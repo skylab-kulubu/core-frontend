@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -42,7 +43,12 @@ import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { mapLimit } from '@/lib/map-limit';
 import { pickerMatch, roleKey } from '@/lib/picker';
-import { ROLES_ROOT, rolePlacement, rolePlacementMessage } from '@/lib/role-placement';
+import {
+  ROLES_ROOT,
+  appAssignmentTarget,
+  rolePlacement,
+  rolePlacementMessage,
+} from '@/lib/role-placement';
 import { useAppCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -126,7 +132,11 @@ export default function GroupDetailPage() {
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
-  const canWrite = useAppCan(isPrivileged(user?.groups ?? []))('group.write');
+  const can = useAppCan(isPrivileged(user?.groups ?? []));
+  const canWrite = can('group.write');
+  // With core's app assignments on (ticket 15), a Team's, Sub-team's or Leader
+  // group's app roles are given on Uygulamalar; here they only show
+  const appsOn = useAppCan(false)('apps.read');
   // Only a role group's own subgroups matter to the placement rule: the path
   // they were read for, so a role group shows no "Rol ekle" before they are known
   const [subgroupsOf, setSubgroupsOf] = useState<{ path: string; has: boolean } | null>(null);
@@ -172,6 +182,7 @@ export default function GroupDetailPage() {
     group && placementKnown
       ? rolePlacement(group.path, subgroupsOf?.path === group.path && subgroupsOf.has)
       : null;
+  const rolesOnApps = appsOn && !!group && appAssignmentTarget(group.path) === null;
 
   const memberOptions: PickerOption[] = memberSearch.people
     .filter(
@@ -423,7 +434,7 @@ export default function GroupDetailPage() {
           title="Uygulama rolleri"
           meta={`${roles.length} rol`}
           actions={
-            canWrite && placementKnown && !placement ? (
+            canWrite && placementKnown && !placement && !rolesOnApps ? (
               <ActionButton
                 icon={Plus}
                 variant="primary"
@@ -446,7 +457,15 @@ export default function GroupDetailPage() {
             ) : null
           }
         />
-        {canWrite && placement ? (
+        {rolesOnApps ? (
+          <p className="text-3xs text-subtle-foreground">
+            Bu grubun uygulama rolleri{' '}
+            <Link href="/apps" className="underline">
+              Uygulamalar
+            </Link>{' '}
+            sayfasından atanır ve kaldırılır.
+          </p>
+        ) : canWrite && placement ? (
           <p className="text-3xs text-subtle-foreground">
             {rolePlacementMessage(placement)}
             {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
@@ -466,7 +485,7 @@ export default function GroupDetailPage() {
               title={r.role}
               subtitle={r.clientId}
               trailing={
-                canWrite ? (
+                canWrite && !rolesOnApps ? (
                   <ActionButton
                     icon={X}
                     label="Kaldır"
