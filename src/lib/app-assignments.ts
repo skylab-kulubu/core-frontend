@@ -68,12 +68,10 @@ export function auditActionText(entry: Pick<AppAuditEntry, 'action' | 'outcome'>
   }
 }
 
-/** An audit row's second line: target, role, when, note. */
+/** An audit row's second line: target, role, when. */
 export function auditSubtitle(entry: AppAuditEntry): string {
   const target = entry.type === 'group' ? entry.path : entry.name || 'Kişi';
-  return [target, entry.role, formatInstant(entry.occurredAt), entry.note]
-    .filter(Boolean)
-    .join(' · ');
+  return [target, entry.role, formatInstant(entry.occurredAt)].filter(Boolean).join(' · ');
 }
 
 /** The roles to select first for a target: the app's suggestion, without what it holds already. */

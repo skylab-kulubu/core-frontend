@@ -110,7 +110,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     expect(screen.getByText('Ada L')).toBeInTheDocument();
   });
 
-  it('opens Ekle on the Grup tab, suggests SkyMail’s pair and assigns each role with the note', async () => {
+  it('opens Ekle on the Grup tab, suggests SkyMail’s pair and assigns each role, no note', async () => {
     writer();
     (appsApi.targets as jest.Mock).mockResolvedValue([
       {
@@ -135,20 +135,19 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     await user.click(await within(drawer).findByRole('button', { name: /ALGOLAB/ }));
     expect(within(drawer).getByRole('checkbox', { name: 'skymail:access' })).toBeChecked();
     expect(within(drawer).getByRole('checkbox', { name: 'skymail:templates:read' })).toBeChecked();
-    await user.type(within(drawer).getByRole('textbox'), 'ekip talebi');
+    // No free-text note: Entra's assignment has none, core keeps none.
+    expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: 'Ata' }));
     await waitFor(() => expect(appsApi.assign).toHaveBeenCalledTimes(2));
     expect(appsApi.assign).toHaveBeenNthCalledWith(1, 'skymail', {
       type: 'group',
       id: 'g-algo',
       role: 'skymail:access',
-      note: 'ekip talebi',
     });
     expect(appsApi.assign).toHaveBeenNthCalledWith(2, 'skymail', {
       type: 'group',
       id: 'g-algo',
       role: 'skymail:templates:read',
-      note: 'ekip talebi',
     });
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Ekle' })).not.toBeInTheDocument(),
@@ -233,7 +232,6 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
         targetId: 'g-web',
         path: '/UYELER/ARGE/WEBLAB',
         role: 'skymail:access',
-        note: 'ekip talebi',
       },
     ]);
     const user = userEvent.setup();
@@ -244,7 +242,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     await user.click(screen.getByRole('tab', { name: 'Denetim' }));
     expect(await screen.findByText('Yusuf A · Atama')).toBeInTheDocument();
     expect(
-      screen.getByText(/\/UYELER\/ARGE\/WEBLAB · skymail:access · .* · ekip talebi/),
+      screen.getByText(/^\/UYELER\/ARGE\/WEBLAB · skymail:access · [^·]+$/),
     ).toBeInTheDocument();
   });
 

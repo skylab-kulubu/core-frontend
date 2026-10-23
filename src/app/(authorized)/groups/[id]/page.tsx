@@ -459,11 +459,11 @@ export default function GroupDetailPage() {
         />
         {rolesOnApps ? (
           <p className="text-3xs text-subtle-foreground">
-            Bu grubun uygulama rolleri{' '}
+            Uygulama rolleri{' '}
             <Link href="/apps" className="underline">
               Uygulamalar
             </Link>{' '}
-            sayfasından atanır ve kaldırılır.
+            sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
           </p>
         ) : canWrite && placement ? (
           <p className="text-3xs text-subtle-foreground">

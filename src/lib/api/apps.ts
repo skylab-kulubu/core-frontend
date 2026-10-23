@@ -62,7 +62,6 @@ export type AppAuditEntry = {
   path?: string;
   name?: string;
   role: string;
-  note?: string;
 };
 
 export type AppTarget = {
@@ -82,7 +81,6 @@ export type AppAssignmentInput = {
   type: AppTargetType;
   id: string;
   role: string;
-  note?: string;
 };
 
 function app(clientId: string): string {

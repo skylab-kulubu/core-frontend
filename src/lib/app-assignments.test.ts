@@ -84,9 +84,8 @@ describe('app assignment texts', () => {
         targetId: 'u-ada',
         name: 'Ada L',
         role: 'skyforms:access',
-        note: 'ekip talebi',
       }),
-    ).toBe(`Ada L · skyforms:access · ${formatInstant('2026-10-23T09:30:00Z')} · ekip talebi`);
+    ).toBe(`Ada L · skyforms:access · ${formatInstant('2026-10-23T09:30:00Z')}`);
   });
 
   it('selects the suggested roles a target does not hold yet', () => {

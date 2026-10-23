@@ -662,6 +662,9 @@ describe('Group detail role mapping', () => {
       const roles = screen.getByText('Uygulama rolleri').closest('section') as HTMLElement;
       expect(within(roles).getByText('skyforms:access')).toBeInTheDocument();
       expect(within(roles).queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
+      expect(
+        within(roles).getByText(/Yönetici rolleri kodda tanımlı; burada yalnız görünür/),
+      ).toBeInTheDocument();
       unmount();
     }
   });

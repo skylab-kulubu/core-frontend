@@ -15,7 +15,6 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { Switch } from '@/components/chrome/Switch';
-import { TextArea } from '@/components/chrome/TextArea';
 import {
   MEMBER_CANDIDATE_HINT,
   MEMBER_CANDIDATE_MIN,
@@ -48,9 +47,6 @@ import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
 
-/** The longest note core keeps with a change. */
-const NOTE_MAX = 200;
-
 type PageTab = 'assignments' | 'audit';
 
 /**
@@ -81,7 +77,6 @@ export default function AppAssignmentsPage() {
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState<AppTarget | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
-  const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -140,7 +135,6 @@ export default function AppAssignmentsPage() {
     setQuery('');
     setTarget(null);
     setRoles([]);
-    setNote('');
     setAddError(null);
     setAddOpen(true);
   }
@@ -164,7 +158,6 @@ export default function AppAssignmentsPage() {
           type: target.type,
           id: target.id,
           role,
-          ...(note.trim() ? { note: note.trim() } : {}),
         });
         done += 1;
       } catch (err) {
@@ -344,16 +337,6 @@ export default function AppAssignmentsPage() {
                 );
               })}
             </fieldset>
-            <label className="block space-y-1">
-              <FieldLabel>Not (isteğe bağlı)</FieldLabel>
-              <TextArea
-                value={note}
-                maxLength={NOTE_MAX}
-                disabled={saving}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </label>
-            <p className="text-3xs text-subtle-foreground">Kişisel bilgi yazma.</p>
             {addError ? (
               <p role="alert" className="text-destructive text-sm">
                 {addError}

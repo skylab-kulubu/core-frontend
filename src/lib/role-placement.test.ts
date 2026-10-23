@@ -74,6 +74,7 @@ describe('appAssignmentTarget (core authz.AppAssignmentTarget)', () => {
       'code_area',
       'service_account',
       'inactive_user',
+      'use_app_assignments',
     ] as const) {
       expect(rolePlacementMessage(reason)).toBe(ROLE_PLACEMENT_MESSAGES[reason]);
     }

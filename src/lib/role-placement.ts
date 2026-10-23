@@ -31,7 +31,9 @@ export type RolePlacementReason =
   | 'admin_role'
   | 'code_area'
   | 'service_account'
-  | 'inactive_user';
+  | 'inactive_user'
+  // core's PUT /v1/groups/:id/client-roles with app assignments on
+  | 'use_app_assignments';
 
 /** A Turkish sentence for each reason core gives on a refused mapping. */
 export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
@@ -56,6 +58,7 @@ export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
   code_area: 'Yönetim kökleri ve /ROLLER kodda tanımlıdır; panelden değiştirilmez.',
   service_account: 'Servis hesaplarının rolleri kodda tanımlıdır.',
   inactive_user: 'Hesap kapalı ya da silinmiş; atama yapılamaz.',
+  use_app_assignments: 'Bu grubun uygulama rolleri Uygulamalar sayfasından atanır ve kaldırılır.',
 };
 
 const GENERAL_PLACEMENT =
