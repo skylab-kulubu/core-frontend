@@ -17,6 +17,8 @@ const URLS_LINK: SidebarNavLink = { href: '/urls', label: 'Kısa URL' };
 
 export type SidebarNavigationContext = Readonly<{
   hasDoorAssignment?: boolean;
+  /** core's `apps.read`: the app assignments are on and the reader may read them. */
+  appsVisible?: boolean;
   /** "Siteyi düzenle": the editor sign-in of each site the person may edit (external links). */
   editSites?: readonly SidebarNavLink[];
   activeEvent?: Readonly<{
@@ -51,6 +53,11 @@ const NAVIGATION_LINKS: ReadonlyArray<
     visibleWhen: ({ privileged, roles }) => privileged || roles.includes('users:read'),
   },
   { href: '/groups', label: 'Gruplar', visibleWhen: ({ privileged }) => privileged },
+  {
+    href: '/apps',
+    label: 'Uygulamalar',
+    visibleWhen: ({ privileged, context }) => privileged && context.appsVisible === true,
+  },
   { href: '/announcements', label: 'Duyurular', visibleWhen: ({ privileged }) => privileged },
   {
     href: '/events',
@@ -170,6 +177,7 @@ export function buildSidebarNavigation(
   const clubChildren = [
     { href: '/users', label: 'Kullanıcılar' },
     { href: '/groups', label: 'Gruplar' },
+    { href: '/apps', label: 'Uygulamalar' },
     { href: '/teams', label: 'Ekipler' },
   ].filter((item) => allowed.has(item.href));
   if (clubChildren.length) {

@@ -2,6 +2,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/dashboard': 'Özet',
   '/users': 'Kullanıcılar',
   '/groups': 'Gruplar',
+  '/apps': 'Uygulamalar',
   '/announcements': 'Duyurular',
   '/announcements/new': 'Yeni duyuru',
   '/events': 'Etkinlikler',

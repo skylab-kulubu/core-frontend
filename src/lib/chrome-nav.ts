@@ -5,7 +5,7 @@ export type ChromeNavSection = Readonly<{
   items: SidebarNavLink[];
 }>;
 
-const PLATFORM_HREFS = new Set(['/users', '/groups', '/announcements', '/urls']);
+const PLATFORM_HREFS = new Set(['/users', '/groups', '/apps', '/announcements', '/urls']);
 const PROGRAM_HREFS = new Set(['/events', '/seasons', '/teams', '/qr', '/certificates']);
 
 export function groupSidebarNav(links: readonly SidebarNavLink[]): ChromeNavSection[] {

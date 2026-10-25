@@ -325,6 +325,12 @@ describe('coreProblemMessage for any core refusal', () => {
     ['ytu_managed_field', 409, 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.'],
     ['event_not_published', 409, 'Etkinlik henüz yayımlanmadı.'],
     ['event_cancelled', 409, 'Etkinlik iptal edilmiş.'],
+    ['event_has_tickets', 409, 'Etkinliğin kaydı var; taslağa alınamaz.'],
+    ['event_has_competitors', 409, 'Etkinliğin yarışmacısı var; taslağa alınamaz.'],
+    ['event_ended', 409, 'Etkinlik bitmiş; iptal edilemez.'],
+    ['event_not_draft', 409, 'Yalnız taslak etkinlik silinir.'],
+    ['event_not_cancelled', 409, 'Etkinlik iptal edilmemiş.'],
+    ['registration_closed', 409, 'Etkinliğin başvurusu kapalı.'],
     [
       'invalid_name',
       422,
@@ -397,5 +403,17 @@ describe('groupWriteProblemMessage', () => {
     expect(groupWriteProblemMessage(problem(409, 'name_taken'), 'save', 'Kaydedilemedi')).toContain(
       'Bu ad başka bir grupta',
     );
+  });
+
+  it('names what a publish is missing', () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(400, 'Bad Request', {
+          code: 'event_incomplete',
+          fields: { missing: ['location', 'startDate'] },
+        }),
+        'x',
+      ),
+    ).toBe('Yayınlamak için eksik: konum, başlangıç tarihi.');
   });
 });

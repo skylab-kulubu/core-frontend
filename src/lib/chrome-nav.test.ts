@@ -56,6 +56,23 @@ describe('buildSidebarNavigation', () => {
     ]);
   });
 
+  it('lists Uygulamalar in Kulüp only once core says the app assignments are readable', () => {
+    const club = (context: { appsVisible?: boolean }) => {
+      const node = buildSidebarNavigation(privileged, context).find((row) => row.label === 'Kulüp');
+      if (node?.kind !== 'group') throw new Error('club group missing');
+      return node.children.map((item) => item.href);
+    };
+    expect(club({})).toEqual(['/users', '/groups', '/teams']);
+    expect(club({ appsVisible: false })).toEqual(['/users', '/groups', '/teams']);
+    expect(club({ appsVisible: true })).toEqual(['/users', '/groups', '/apps', '/teams']);
+    // A Leader never sees it, whatever the context says
+    const leader = filterSidebarNavForUser(
+      { ...privileged, id: '3', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] },
+      { appsVisible: true },
+    );
+    expect(leader.map((link) => link.href)).not.toContain('/apps');
+  });
+
   it('does not emit empty groups for a url-only member', () => {
     const nodes = buildSidebarNavigation({
       ...privileged,

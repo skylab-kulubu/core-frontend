@@ -86,6 +86,12 @@ const CODE_MESSAGES: Record<string, string> = {
   // Event status (ADR 0066): certificates, competitors and event writes refuse with these
   event_not_published: 'Etkinlik henüz yayımlanmadı.',
   event_cancelled: 'Etkinlik iptal edilmiş.',
+  event_has_tickets: 'Etkinliğin kaydı var; taslağa alınamaz.',
+  event_has_competitors: 'Etkinliğin yarışmacısı var; taslağa alınamaz.',
+  event_ended: 'Etkinlik bitmiş; iptal edilemez.',
+  event_not_draft: 'Yalnız taslak etkinlik silinir.',
+  event_not_cancelled: 'Etkinlik iptal edilmemiş.',
+  registration_closed: 'Etkinliğin başvurusu kapalı.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
   // Group name refusals (core teamcode)
   invalid_name:
@@ -100,6 +106,13 @@ const CODE_MESSAGES: Record<string, string> = {
     'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
   keycloak_admin_group:
     'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
+};
+
+/** The Event fields core names in `event_incomplete`. */
+const EVENT_FIELD_NAMES: Record<string, string> = {
+  name: 'ad',
+  location: 'konum',
+  startDate: 'başlangıç tarihi',
 };
 
 /** The sentence for a Group created under a role group (core roleGroupStaysLeaf). */
@@ -245,6 +258,16 @@ export function coreProblemMessage(
       return 'Seçilen dosya artık kullanılamıyor: silinmiş, arşivlenmiş ya da kaydedilmeden süresi dolmuş. Dosyayı yeniden yükle.';
     case 'role_placement':
       return rolePlacementMessage(fields.reason);
+    case 'event_incomplete': {
+      const missing = Array.isArray(fields.missing)
+        ? fields.missing
+            .map((field) => EVENT_FIELD_NAMES[text(field)] ?? text(field))
+            .filter(Boolean)
+        : [];
+      return missing.length
+        ? `Yayınlamak için eksik: ${missing.join(', ')}.`
+        : 'Yayınlamak için ad, konum ve başlangıç tarihi gerekli.';
+    }
     case 'media_team_mismatch':
       return 'Bu fotoğraf başka bir ekibin etkinliğinde kullanılıyor. Yalnız kendi ekibinin fotoğraflarını kullanabilirsin.';
     default:
