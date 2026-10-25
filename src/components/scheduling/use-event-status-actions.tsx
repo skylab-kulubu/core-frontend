@@ -54,7 +54,7 @@ export function eventStatusActions(event: CoreEvent, now = new Date()) {
     unpublish: status === 'published',
     cancel: status === 'published' && display !== 'ended',
     uncancel: status === 'cancelled',
-    // core #265 refuses the rest (event_not_draft); until it ships the panel holds the rule
+    // core refuses the rest for all but event:manage (event_not_draft, core #265)
     delete: status === 'draft',
     registration: status !== 'cancelled',
   };

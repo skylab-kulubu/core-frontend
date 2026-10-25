@@ -263,6 +263,8 @@ export function EventWorkspace({
   const [sessions, setSessions] = useState<EventSession[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  // Until the tickets are read (or when the read failed) the page has no count to give
+  const [ticketsLoaded, setTicketsLoaded] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
@@ -278,8 +280,19 @@ export function EventWorkspace({
   const statusActions = useEventStatusActions({
     onChanged: (next) => {
       setError(null);
-      // The transitions answer the Event without its media lists; keep what the page read
-      setEvent((current) => (current ? { ...current, ...next } : next));
+      // core answers the whole Event and leaves a cleared field out (an undone cancellation's
+      // reason and mail): take its answer, keeping only a media list an answer comes without
+      setEvent((current) =>
+        current
+          ? {
+              ...next,
+              images: next.images ?? current.images,
+              imageUrls: next.imageUrls ?? current.imageUrls,
+              files: next.files ?? current.files,
+              videos: next.videos ?? current.videos,
+            }
+          : next,
+      );
     },
     onError: setError,
   });
@@ -348,10 +361,18 @@ export function EventWorkspace({
       setSessions(sessionRows);
       const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
       setCompetitors(competitorRows);
+      let ticketsRead = false;
       const ticketRows = canListEventTickets(groups, ev.ownerTeam, roles)
-        ? await ticketsApi.listByEvent(id).catch(() => [] as Ticket[])
+        ? await ticketsApi
+            .listByEvent(id)
+            .then((rows) => {
+              ticketsRead = true;
+              return rows;
+            })
+            .catch(() => [] as Ticket[])
         : [];
       setTickets(ticketRows);
+      setTicketsLoaded(ticketsRead);
       // Tickets carry their owner; only competitors without a ticket are looked up by id.
       const ticketPeople = ticketOwnerPeople(ticketRows);
       const knownPeople = privileged
@@ -419,7 +440,8 @@ export function EventWorkspace({
           typeof window !== 'undefined' ? window.location.href : '',
         )
       : null;
-  const ticketCount = can.canTickets ? tickets.length : undefined;
+  // None while the tickets are not read: the cancel dialog then reads the count itself
+  const ticketCount = can.canTickets && ticketsLoaded ? tickets.length : undefined;
   const menuItems = [
     rights.canUpdate && offers.unpublish ? (
       <MenuItem

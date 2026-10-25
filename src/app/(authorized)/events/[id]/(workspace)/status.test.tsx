@@ -188,6 +188,95 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     expect(screen.getByRole('button', { name: 'İptali geri al' })).toBeInTheDocument();
   });
 
+  it('reads the ticket count itself when the page has not read the tickets yet', async () => {
+    const user = userEvent.setup();
+    opens({ status: 'published', active: true, startDate: future });
+    const twoTickets = [guestTicket, { ...guestTicket, id: 't2' }];
+    // The page's own read is still on its way when the menu is used
+    (ticketsApi.listByEvent as jest.Mock)
+      .mockReturnValueOnce(new Promise(() => {}))
+      .mockResolvedValue(twoTickets);
+    (eventsApi.cancel as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'cancelled',
+      active: false,
+      startDate: future,
+      cancelledAt: '2026-10-20T09:00:00Z',
+    });
+    await renderEventTab(<EventOverviewPage />);
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'İptal et…' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği iptal et' });
+    expect(await within(dialog).findByText('2 kayıt var.')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('checkbox', { name: 'Bilet sahiplerine bildir (2 kişi)' }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'İptal et' }));
+    expect(eventsApi.cancel).toHaveBeenCalledWith('e1', { notifyTicketHolders: true });
+  });
+
+  it('reads the ticket count itself when the page could not read the tickets', async () => {
+    const user = userEvent.setup();
+    opens({ status: 'published', active: true, startDate: future });
+    (ticketsApi.listByEvent as jest.Mock)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue([guestTicket, { ...guestTicket, id: 't2' }]);
+    await renderEventTab(<EventOverviewPage />);
+    await waitFor(() => expect(ticketsApi.listByEvent).toHaveBeenCalledTimes(1));
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'İptal et…' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği iptal et' });
+    expect(
+      await within(dialog).findByRole('checkbox', { name: 'Bilet sahiplerine bildir (2 kişi)' }),
+    ).toBeChecked();
+  });
+
+  it('forgets the cancel reason and mail of an undone cancellation', async () => {
+    const user = userEvent.setup();
+    opens({
+      status: 'cancelled',
+      active: false,
+      startDate: future,
+      cancelledAt: '2026-10-20T09:00:00Z',
+      cancelReason: 'Eski gerekçe',
+      cancelNotifiedAt: '2026-10-20T09:00:00Z',
+    });
+    // core leaves the cleared fields out of its answers (omitempty)
+    (eventsApi.uncancel as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'published',
+      active: true,
+      startDate: future,
+    });
+    (eventsApi.cancel as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'cancelled',
+      active: false,
+      startDate: future,
+      cancelledAt: '2026-10-21T09:00:00Z',
+    });
+    await renderEventTab(<EventOverviewPage />);
+    expect(await screen.findByText('Eski gerekçe')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'İptali geri al' }));
+    const undo = await screen.findByRole('alertdialog', { name: 'İptali geri al' });
+    await user.click(within(undo).getByRole('button', { name: 'Geri al' }));
+    await waitFor(() =>
+      expect(screen.queryByText(/tarihinde iptal edildi/)).not.toBeInTheDocument(),
+    );
+
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('menuitem', { name: 'İptal et…' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği iptal et' });
+    await user.click(within(dialog).getByRole('button', { name: 'İptal et' }));
+    expect(await screen.findByText('21 Ekim 2026 tarihinde iptal edildi.')).toBeInTheDocument();
+    expect(screen.queryByText('Eski gerekçe')).not.toBeInTheDocument();
+
+    // This cancellation sent no mail: undoing it offers none
+    await user.click(screen.getByRole('button', { name: 'İptali geri al' }));
+    const again = await screen.findByRole('alertdialog', { name: 'İptali geri al' });
+    expect(within(again).queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
   it('hides the door and adding people on a cancelled event, and links the form to close', async () => {
     opens({
       status: 'cancelled',
