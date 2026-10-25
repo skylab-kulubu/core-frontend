@@ -34,6 +34,10 @@ const knownKeys = new Set<string>([
  */
 export const TEAM_SETTING_ATTRS = ['members_manage_competitors'] as const;
 
+export function isTeamSettingAttr(key: string): boolean {
+  return (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
+}
+
 export function isKnownGroupAttr(key: string): boolean {
   return knownKeys.has(key) || (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
 }

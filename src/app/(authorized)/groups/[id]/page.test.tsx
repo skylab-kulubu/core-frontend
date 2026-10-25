@@ -1035,6 +1035,43 @@ describe('Group detail: the Team setting for competitors', () => {
     );
   });
 
+  it('takes no second change while the first is being saved', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    let finish: (value: unknown) => void = () => undefined;
+    (identityApi.setTeamSettings as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    const toggle = await screen.findByRole('switch', {
+      name: /Üyeler yarışmacı ekleyip düzenleyebilir/,
+    });
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-disabled', 'true'));
+    await user.click(toggle);
+    expect(identityApi.setTeamSettings).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ membersManageCompetitors: false }));
+    await waitFor(() => expect(toggle).not.toHaveAttribute('aria-disabled', 'true'));
+  });
+
+  it('points to the switch when Privileged types the setting as an extra attribute', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.type(await screen.findByLabelText('Anahtar'), 'members_manage_competitors');
+    await user.click(screen.getByRole('button', { name: 'Ekle' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Bu ayar yukarıdaki Ekip ayarları bölümünde.',
+    );
+    expect(identityApi.updateGroup).not.toHaveBeenCalled();
+  });
+
   it('reads the setting from the Team and lists it as no extra attribute', async () => {
     leads();
     (identityApi.getGroup as jest.Mock).mockResolvedValue(

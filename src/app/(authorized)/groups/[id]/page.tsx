@@ -43,6 +43,7 @@ import {
   TEAM_SETTING_ATTRS,
   extraGroupAttrs,
   isKnownGroupAttr,
+  isTeamSettingAttr,
   membersManageCompetitors,
 } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
@@ -113,6 +114,8 @@ export default function GroupDetailPage() {
   const [roles, setRoles] = useState<ClientRole[]>([]);
   // A Team's Leader reads no role mappings (core: Privileged's); the section hides
   const [rolesReadable, setRolesReadable] = useState(true);
+  // A Team setting is being saved: the switch waits for core's answer
+  const [savingSettings, setSavingSettings] = useState(false);
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -470,13 +473,18 @@ export default function GroupDetailPage() {
             checked={membersManageCompetitors(group.attributes)}
             label="Üyeler yarışmacı ekleyip düzenleyebilir"
             hint="Kapalıysa yalnız liderler."
+            disabled={savingSettings}
             onChange={async (next) => {
+              if (savingSettings) return;
+              setSavingSettings(true);
               try {
                 await identityApi.setTeamSettings(id, { membersManageCompetitors: next });
                 notify.success('Ayar kaydedildi');
                 await load();
               } catch (err) {
                 setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+              } finally {
+                setSavingSettings(false);
               }
             }}
           />
@@ -620,7 +628,11 @@ export default function GroupDetailPage() {
               e.preventDefault();
               if (!attrKey.trim()) return;
               if (isKnownGroupAttr(attrKey.trim())) {
-                setError('Bu alan yukarıdaki kulüp alanlarında.');
+                setError(
+                  isTeamSettingAttr(attrKey.trim())
+                    ? 'Bu ayar yukarıdaki Ekip ayarları bölümünde.'
+                    : 'Bu alan yukarıdaki kulüp alanlarında.',
+                );
                 return;
               }
               try {
