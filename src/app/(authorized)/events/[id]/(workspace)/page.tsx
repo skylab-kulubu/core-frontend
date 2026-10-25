@@ -1,13 +1,14 @@
 'use client';
 
 import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
+import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { publicShortUrl } from '@/lib/api/urls';
 import { publicMediaUrl } from '@/lib/event-media';
 
-/** Genel bakış tab: the event's cover, description and guest form link. */
+/** Genel bakış tab: the event's cover, description, guest form link and feedback form. */
 export default function EventOverviewPage() {
-  const { event } = useEventWorkspace();
+  const { event, canMutate } = useEventWorkspace();
 
   return (
     <div className="space-y-6">
@@ -30,6 +31,7 @@ export default function EventOverviewPage() {
           </a>
         </p>
       ) : null}
+      <EventFeedbackPanel event={event} canSend={canMutate} />
     </div>
   );
 }

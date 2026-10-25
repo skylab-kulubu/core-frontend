@@ -249,6 +249,66 @@ describe('eventPatchFromForm (core keeps a field left out)', () => {
   });
 });
 
+describe('the feedback form', () => {
+  const realFetch = global.fetch;
+  afterAll(() => {
+    global.fetch = realFetch;
+  });
+  const feedbackUrl = 'https://forms.yildizskylab.com/55555555-5555-4555-8555-555555555555';
+  const withFeedback: CoreEvent = {
+    ...savedEvent,
+    feedbackMode: 'event',
+    feedbackAutoSend: true,
+    feedbackFormUrl: feedbackUrl,
+    feedbackFormAlias: 'gecekodu-skydaysgeribildirim2026',
+  };
+  const loaded = formStateFromEvent(withFeedback);
+
+  it('sends only the feedback field that changed, and null to take the form off', () => {
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, feedbackMode: 'per_session' }, loaded)).toEqual({
+      feedbackMode: 'per_session',
+    });
+    expect(eventPatchFromForm({ ...loaded, feedbackAutoSend: false }, loaded)).toEqual({
+      feedbackAutoSend: false,
+    });
+    const cleared = { ...loaded, feedbackSlot: { ...loaded.feedbackSlot, url: '', alias: '' } };
+    expect(eventPatchFromForm(cleared, loaded)).toEqual({
+      feedbackFormUrl: null,
+      feedbackFormAlias: null,
+    });
+  });
+
+  it('gives a new feedback form its link, and keeps it out of the Form slots', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+    const base = formStateFromEvent(savedEvent);
+    const form = { ...base, feedbackSlot: { ...base.feedbackSlot, url: feedbackUrl } };
+
+    await saveEventWithSeason(form, savedEvent.id, base);
+
+    expect(urlPosts(calls)).toContainEqual({
+      url: feedbackUrl,
+      alias: 'gecekodu-skydaysgeribildirim2026',
+    });
+    const update = eventUpdate(calls);
+    expect(update).toMatchObject({
+      feedbackFormUrl: feedbackUrl,
+      feedbackFormAlias: 'gecekodu-skydaysgeribildirim2026',
+    });
+    expect(update).not.toHaveProperty('extraFormUrls');
+  });
+
+  it('creates a new Event with the mode and the box on by default', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+
+    await saveEventWithSeason({ ...form, imageIds: [] });
+
+    const create = calls.find((call) => call.method === 'POST' && call.url.endsWith('/v1/events'));
+    expect(create?.body).toMatchObject({ feedbackMode: 'event', feedbackAutoSend: true });
+    expect(create?.body).not.toHaveProperty('feedbackFormUrl');
+  });
+});
+
 describe('saveEventWithSeason and the season', () => {
   const realFetch = global.fetch;
   afterAll(() => {

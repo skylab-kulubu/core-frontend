@@ -70,3 +70,57 @@ describe('EventEditor fields', () => {
     expect(screen.getByText('Sıralamalı')).toBeInTheDocument();
   });
 });
+
+describe('EventEditor feedback form', () => {
+  function FeedbackEditor({ onValue }: { onValue: (value: EventFormState) => void }) {
+    const [value, setValue] = useState<EventFormState>(emptyEventForm('GECEKODU'));
+    return (
+      <EventEditor
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onValue(next);
+        }}
+        ownerOptions={['GECEKODU']}
+      />
+    );
+  }
+
+  it('picks the mode, keeps the box on by default and asks Skyforms for a feedback form', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    render(<FeedbackEditor onValue={onValue} />);
+
+    const mode = screen.getByRole('combobox', { name: 'Geri bildirim' });
+    expect(mode).toHaveValue('event');
+    expect(screen.getByRole('switch', { name: /Etkinlik bitince gönder/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByText('Cevapları kayıt yazmaz.')).toBeInTheDocument();
+    // The feedback form is fixed: one "Form ekle", for the Form slots alone
+    expect(screen.getAllByText('Form ekle')).toHaveLength(1);
+
+    await user.selectOptions(mode, 'per_session');
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ feedbackMode: 'per_session' }),
+    );
+
+    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Skyforms’ta oluştur' });
+    await user.click(feedbackSkyforms!);
+    const link = screen
+      .getAllByRole('link', { name: 'Skyforms’ta oluştur' })
+      .map((row) => new URL(row.getAttribute('href') ?? ''))
+      .find((url) => url.searchParams.get('purpose') === 'feedback');
+    expect(link).toBeDefined();
+    expect(new URL(link!.searchParams.get('returnTo') ?? '').searchParams.get('formSlot')).toBe(
+      'feedback',
+    );
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        feedbackSlot: expect.objectContaining({ key: 'feedback', mode: 'skyforms' }),
+        extraFormUrls: [],
+      }),
+    );
+  });
+});
