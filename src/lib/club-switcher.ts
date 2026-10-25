@@ -22,7 +22,7 @@ function clubConsoles(): ClubSwitcherLink[] {
     },
     {
       id: 'mail',
-      label: 'Mail',
+      label: 'İletişim',
       href: mailOrigin(),
     },
   ];
