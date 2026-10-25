@@ -3,6 +3,7 @@ import type { CoreEvent } from '@/lib/api/events';
 import {
   APPLY_SLOT_KEY,
   DEFAULT_FORMS_ADMIN_ORIGIN,
+  FEEDBACK_SLOT_KEY,
   emptyApplySlot,
   extraFormSlot,
   skyformsCreateHref,
@@ -189,6 +190,60 @@ describe('event editor draft', () => {
       key: APPLY_SLOT_KEY,
       url: 'https://forms.yildizskylab.com/form-1',
       mode: 'skyforms',
+    });
+  });
+
+  it('puts a feedback form back from Skyforms into its own field, not a Form slot', () => {
+    const eventHref =
+      'https://admin.yildizskylab.com/events/11111111-1111-4111-8111-111111111111?formSlot=feedback';
+    const loaded = {
+      ...emptyEventForm('GECEKODU'),
+      name: 'SkyDays',
+      formSlots: [{ ...emptyApplySlot(), url: 'https://apply.example.test' }],
+    };
+    const restored = restoreEventEditor(memoryStorage(), eventHref, loaded, {
+      formUrl: 'https://forms.yildizskylab.com/form-2',
+      formSlot: FEEDBACK_SLOT_KEY,
+    });
+    expect(restored.feedbackSlot).toMatchObject({
+      key: FEEDBACK_SLOT_KEY,
+      url: 'https://forms.yildizskylab.com/form-2',
+      mode: 'skyforms',
+    });
+    expect(restored.formSlots).toEqual(loaded.formSlots);
+    expect(restored.extraFormUrls).toEqual([]);
+  });
+
+  it('reads the feedback fields of a saved Event, and a mode and box of an older core', () => {
+    const base = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'SkyDays',
+      description: '',
+      location: 'YTÜ',
+      ownerTeam: 'GECEKODU',
+      capacity: 0,
+      active: true,
+      ranked: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } satisfies CoreEvent;
+    const state = formStateFromEvent({
+      ...base,
+      feedbackMode: 'per_session',
+      feedbackAutoSend: false,
+      feedbackFormUrl: 'https://forms.yildizskylab.com/33333333-3333-4333-8333-333333333333',
+      feedbackFormAlias: 'gecekodu-skydaysgeribildirim2026',
+    });
+    expect(state).toMatchObject({ feedbackMode: 'per_session', feedbackAutoSend: false });
+    expect(state.feedbackSlot).toMatchObject({
+      key: FEEDBACK_SLOT_KEY,
+      mode: 'skyforms',
+      alias: 'gecekodu-skydaysgeribildirim2026',
+    });
+    expect(formStateFromEvent(base)).toMatchObject({
+      feedbackMode: 'event',
+      feedbackAutoSend: true,
+      feedbackSlot: { key: FEEDBACK_SLOT_KEY, url: '', alias: '' },
     });
   });
 
