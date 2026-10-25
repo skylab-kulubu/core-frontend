@@ -21,7 +21,13 @@ const get = capabilitiesApi.get as jest.Mock;
 /** A DK member who leads WEBLAB: reads everything, writes only in WEBLAB. */
 const DK_LEADER: Capabilities = {
   can: { 'group.write': false, 'user.readFull': true },
-  teams: [{ team: 'WEBLAB', can: { 'event.create': true, 'event.update': true } }],
+  teams: [
+    {
+      team: 'WEBLAB',
+      levels: ['LEADER', 'MEMBER'],
+      can: { 'event.create': true, 'event.update': true },
+    },
+  ],
   otherTeams: { can: { 'event.create': false, 'event.update': false } },
   noOwnerTeam: { can: { 'event.create': false, 'certificateTemplate.create': false } },
 };
@@ -161,7 +167,12 @@ describe('teamDecision and leaderTeamsOf (a Leader of a Team above, ticket 12)',
   });
 
   it('lists core’s LEADER teams, the group rule’s until then', () => {
-    expect(leaderTeamsOf(ready, groups)).toEqual(['WEBLAB', 'MOBIL']);
+    expect(leaderTeamsOf(ready, groups)).toEqual(['MOBIL', 'WEBLAB']);
+    // Once core answered, a path only the group rule reads as a Leader group is no Leader team
+    expect(leaderTeamsOf(ready, [...groups, '/UYELER/ARGE/OLD/LIDERLER/ALT'])).toEqual([
+      'MOBIL',
+      'WEBLAB',
+    ]);
     expect(leaderTeamsOf({ status: 'loading' }, groups)).toEqual(['WEBLAB']);
     expect(leaderTeamsOf({ status: 'failed' }, groups)).toEqual(['WEBLAB']);
   });
@@ -177,7 +188,7 @@ describe('teamDecision and leaderTeamsOf (a Leader of a Team above, ticket 12)',
     const { result } = renderHook(() => useEventCreate(groups));
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.canCreate).toBe(true);
-    expect(result.current.leaderTeams).toEqual(['WEBLAB', 'MOBIL']);
+    expect(result.current.leaderTeams).toEqual(['MOBIL', 'WEBLAB']);
     expect(result.current.privilegedWriter).toBe(false);
   });
 });
