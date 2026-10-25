@@ -28,6 +28,9 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   const editableSites =
     capabilities.status === 'ready' ? capabilities.data.editableSites : undefined;
   const editSites = useMemo(() => siteEditLinks(editableSites), [editableSites]);
+  // Uygulamalar only once core says the app assignments are on and readable
+  const appsVisible =
+    capabilities.status === 'ready' && capabilities.data.can?.['apps.read'] === true;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,5 +98,5 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     };
   }, [doorEventIds, openEventId, user.groups, user.id, user.roles]);
 
-  return { hasDoorAssignment: doorEventIds.length > 0, editSites, activeEvent };
+  return { hasDoorAssignment: doorEventIds.length > 0, appsVisible, editSites, activeEvent };
 }
