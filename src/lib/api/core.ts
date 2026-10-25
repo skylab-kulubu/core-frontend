@@ -1,3 +1,5 @@
+import { noteAccessToken } from '@/lib/auth/session-renewal';
+
 export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(
   /\/+$/,
   '',
@@ -60,7 +62,9 @@ export async function bearer(): Promise<string | null> {
   const res = await fetch('/api/auth/token', { credentials: 'include' });
   if (!res.ok) return null;
   const body = (await res.json()) as { token?: string };
-  return body.token ?? null;
+  const token = body.token ?? null;
+  noteAccessToken(token);
+  return token;
 }
 
 export async function coreFetch<T>(path: string, init: RequestInit = {}): Promise<T> {

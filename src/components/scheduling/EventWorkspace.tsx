@@ -288,6 +288,12 @@ export function EventWorkspace({
     defaultValues: { event: emptyEventForm() },
   });
   const form = eventEditForm.watch('event');
+  // What the edit drawer opened with: a save sends only the fields changed since
+  const editBase = useRef<EventFormState | null>(null);
+  function resetEditor(next: EventFormState) {
+    editBase.current = next;
+    eventEditForm.reset({ event: next });
+  }
 
   async function load() {
     try {
@@ -306,7 +312,7 @@ export function EventWorkspace({
       setEvent(ev);
       const doorEvents = await ticketsApi.listDoorEvents().catch(() => []);
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
-      eventEditForm.reset({ event: nextForm });
+      resetEditor(nextForm);
       setError(null);
       // A DK member who comes back from Skyforms gets no editor: the save would be refused
       if (
@@ -316,18 +322,17 @@ export function EventWorkspace({
       ) {
         setEditing(true);
         try {
-          await saveEventWithSeason(nextForm, ev.id);
+          // The return from Skyforms changed the form fields alone
+          await saveEventWithSeason(nextForm, ev.id, loaded);
           window.history.replaceState(null, '', `/events/${ev.id}`);
           const saved = await eventsApi.get(id);
           setEvent(saved);
-          eventEditForm.reset({
-            event: {
-              ...formStateFromEvent(saved),
-              formUrl: saved.formUrl ?? nextForm.formUrl,
-              formAlias: saved.formAlias ?? nextForm.formAlias,
-              extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
-              coverImageId: saved.coverImageId ?? nextForm.coverImageId,
-            },
+          resetEditor({
+            ...formStateFromEvent(saved),
+            formUrl: saved.formUrl ?? nextForm.formUrl,
+            formAlias: saved.formAlias ?? nextForm.formAlias,
+            extraFormUrls: saved.extraFormUrls ?? nextForm.extraFormUrls,
+            coverImageId: saved.coverImageId ?? nextForm.coverImageId,
           });
           clearEventDraft(sessionStorage, window.location.href);
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
@@ -616,7 +621,7 @@ export function EventWorkspace({
             onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
               setEditError(null);
               try {
-                await saveEventWithSeason(eventForm, event.id);
+                await saveEventWithSeason(eventForm, event.id, editBase.current ?? undefined);
                 if (typeof window !== 'undefined') {
                   clearEventDraft(sessionStorage, window.location.href);
                 }

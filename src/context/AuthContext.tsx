@@ -13,6 +13,7 @@ import {
 import type { UserDto } from '@/types/api';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSessionDeadline } from '@/lib/auth/use-session-deadline';
+import { useRefreshOnReturn } from '@/lib/use-refresh-on-return';
 
 interface AuthContextType {
   user: UserDto | null;
@@ -153,6 +154,27 @@ export function AuthProvider({ children, initialUser, sessionExpiresIn }: AuthPr
 
     fetchUser();
   }, [fetchUser, initialUser]);
+
+  // The person's roles and groups come from the token; the sidebar shows them. Read them again
+  // when the person comes back to the tab or the token is renewed, quietly: only an answer that
+  // differs changes anything, and a failed read keeps the person shown (the session's own checks
+  // end a session that is over).
+  const revalidateUser = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = (await response.json()) as { authenticated?: boolean; user?: UserDto };
+      if (!data.authenticated || !data.user) return;
+      const next = data.user;
+      if (JSON.stringify(next) === JSON.stringify(memoryUserCache)) return;
+      memoryUserCache = next;
+      window.sessionStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(next));
+      setUser(next);
+    } catch {
+      // keep the person shown
+    }
+  }, []);
+  useRefreshOnReturn(() => void revalidateUser(), !!user);
 
   useEffect(() => {
     if (loading) return;

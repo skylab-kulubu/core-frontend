@@ -4,7 +4,12 @@ import { ProblemError } from '@/lib/api/core';
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
 import type { CoreEvent } from '@/lib/api/events';
 import { formStateFromEvent } from '@/lib/event-draft';
-import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
+import {
+  eventFieldsFromForm,
+  eventPatchFromForm,
+  EventSaveIncomplete,
+  saveEventWithSeason,
+} from '@/lib/scheduling/save-event';
 
 const form = {
   ...emptyEventForm('GECEKODU'),
@@ -73,7 +78,7 @@ function coreWithTakenAliases(event: CoreEvent, taken: string[]): CoreCall[] {
 }
 
 function eventUpdate(calls: CoreCall[]): Record<string, unknown> | undefined {
-  return calls.find((call) => call.method === 'PUT' && call.url.includes('/v1/events'))?.body;
+  return calls.find((call) => call.method === 'PATCH' && call.url.includes('/v1/events'))?.body;
 }
 
 function urlPosts(calls: CoreCall[]): unknown[] {
@@ -181,5 +186,87 @@ describe('saveEventWithSeason', () => {
     expect(eventUpdate(calls)).toMatchObject({
       extraFormUrls: [{ url: 'https://ctf2.example.test', alias: 'skydays-ctf2026-2026' }],
     });
+  });
+});
+
+describe('eventPatchFromForm (core keeps a field left out)', () => {
+  const loaded = formStateFromEvent({
+    ...savedEvent,
+    endDate: '2026-05-01T17:00:00.000Z',
+    linkedin: 'https://linkedin.com/x',
+    prizeInfo: 'Kupa',
+    capacity: 40,
+    coverImageId: '33333333-3333-4333-8333-333333333333',
+    attendanceRule: 'ratio',
+    attendanceRatio: 0.5,
+    seasonId: '44444444-4444-4444-8444-444444444444',
+  });
+
+  it('sends only what changed since the form opened', () => {
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, prizeInfo: 'Madalya' }, loaded)).toEqual({
+      prizeInfo: 'Madalya',
+    });
+  });
+
+  it.each([
+    ['end date', { endDate: '' }, { endDate: null }],
+    ['capacity', { capacity: 0 }, { capacity: 0 }],
+    ['prize', { prizeInfo: '' }, { prizeInfo: null }],
+    ['LinkedIn', { linkedin: '' }, { linkedin: null }],
+    ['cover', { coverImageId: '' }, { coverImageId: null }],
+    ['description', { description: 'x' }, { description: 'x' }],
+    [
+      'certificate rule (the ratio goes with it)',
+      { attendanceRule: 'once' },
+      { attendanceRule: 'once', attendanceRatio: null },
+    ],
+  ])('clears the %s with an explicit value', (_name, change, expected) => {
+    expect(eventPatchFromForm({ ...loaded, ...change }, loaded)).toEqual(expected);
+  });
+
+  it('clears the forms with null and an empty list', () => {
+    // The apply slot emptied and the extra form removed
+    const [apply] = loaded.formSlots;
+    const cleared = { ...loaded, formSlots: [{ ...apply!, url: '', alias: '', saved: undefined }] };
+    const patch = eventPatchFromForm(cleared, loaded);
+    expect(patch).toMatchObject({ formUrl: null, formAlias: null, extraFormUrls: [] });
+    expect(patch).not.toHaveProperty('name');
+  });
+
+  it('sends every field without a base, with null for the empty ones and no status', () => {
+    const fields = eventFieldsFromForm({ ...loaded, endDate: '', linkedin: '' });
+    expect(fields).toMatchObject({ name: 'SkyDays', endDate: null, linkedin: null, ranked: false });
+    expect(fields).not.toHaveProperty('status');
+    expect(fields).not.toHaveProperty('active');
+    expect(fields).not.toHaveProperty('id');
+  });
+
+  it('leaves out an empty Owner team, which core does not clear', () => {
+    expect(eventFieldsFromForm({ ...loaded, ownerTeam: ' ' })).not.toHaveProperty('ownerTeam');
+  });
+});
+
+describe('saveEventWithSeason and the season', () => {
+  const realFetch = global.fetch;
+  afterAll(() => {
+    global.fetch = realFetch;
+  });
+
+  it('takes an emptied season off the Event, and touches none it never had', async () => {
+    const withSeason = { ...savedEvent, seasonId: '44444444-4444-4444-8444-444444444444' };
+    let calls = coreWithTakenAliases(withSeason, []);
+    const loaded = formStateFromEvent(withSeason);
+
+    await saveEventWithSeason({ ...loaded, seasonId: '' }, withSeason.id, loaded);
+    expect(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toContain(
+      `DELETE /v1/events/${withSeason.id}/season`,
+    );
+
+    calls = coreWithTakenAliases(savedEvent, []);
+    const plain = formStateFromEvent(savedEvent);
+    await saveEventWithSeason(plain, savedEvent.id, plain);
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
+    expect(eventUpdate(calls)).toEqual({});
   });
 });
