@@ -12,6 +12,7 @@ import {
 import { Inbox, MoreHorizontal, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
+import { SideScroll } from '@/components/chrome/SideScroll';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
@@ -168,8 +169,8 @@ function EventsPageContent() {
         placeholder="Ad, ekip, konum"
         searchLabel="Etkinlik ara"
       >
-        {/* Six counted pills do not fit a phone: they scroll sideways instead of widening the page */}
-        <div className="max-w-full overflow-x-auto">
+        {/* Six counted pills do not fit a phone: they scroll sideways, the hidden side fades */}
+        <SideScroll>
           <FilterPills<EventStatusFilter>
             ariaLabel="Etkinlik durumu"
             value={statusFilter}
@@ -179,7 +180,7 @@ function EventsPageContent() {
             }}
             options={EVENT_STATUS_FILTERS.map((row) => ({ ...row, count: counts[row.value] }))}
           />
-        </div>
+        </SideScroll>
       </ListToolbar>
       {calendar ? (
         loading ? (
