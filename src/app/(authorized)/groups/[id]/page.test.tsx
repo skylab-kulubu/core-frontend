@@ -928,6 +928,30 @@ describe('Group detail for a Team Leader (Ekiplerim, ticket 08)', () => {
     expect(screen.queryByRole('button', { name: 'Grubu sil' })).toBeNull();
   });
 
+  it('opens no person card a Leader without users:read could not read', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': false, 'user.read': false },
+      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
+      { id: 'g1', code: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB', can: { 'members.write': true } },
+    ]);
+    render(<GroupDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Üye ekle' })).toBeInTheDocument();
+    expect(screen.getAllByText('Ada L').length).toBeGreaterThan(0);
+    expect(document.querySelector('a[href="/users/u-ada"]')).toBeNull();
+  });
+
+  it('links the rows to the person cards for someone core lets read people', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': true, 'user.read': true },
+    });
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    render(<GroupDetailPage />);
+    await waitFor(() => expect(document.querySelector('a[href="/users/u-ada"]')).not.toBeNull());
+  });
+
   it('shows no write button when core names no managed Team', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {}, managedTeams: [] });
     render(<GroupDetailPage />);

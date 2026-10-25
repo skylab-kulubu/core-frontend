@@ -23,7 +23,7 @@ export function isPrivileged(groups: readonly string[]): boolean {
 
 /** A Team's Leader group: `LIDERLER` or `KOORDINATORLER` as the path's last segment. */
 export function isLeaderGroupPath(path: string | undefined): boolean {
-  return !!path && /\/(LIDERLER|KOORDINATORLER)$/.test(path);
+  return !!path && /^\/[^/]+(\/[^/]+)*\/(LIDERLER|KOORDINATORLER)$/.test(path);
 }
 
 /**
@@ -32,11 +32,12 @@ export function isLeaderGroupPath(path: string | undefined): boolean {
  * `/ADMIN` is the narrowest group superadmin already treats as an administrator.
  */
 export function canManageHandoffTargets(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/ADMIN(\/|$)/.test(g));
+  return groups.some((g) => /^\/(UYELER\/)?ADMIN(\/|$)/.test(g));
 }
 
+/** In some Leader group: a Group whose last segment is LIDERLER or KOORDINATORLER (core's isAnyLeader). */
 export function isLeader(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/(LIDERLER|KOORDINATORLER)(\/|$)/.test(g));
+  return groups.some(isLeaderGroupPath);
 }
 
 export function leaderOwnerTeams(groups: readonly string[]): string[] {

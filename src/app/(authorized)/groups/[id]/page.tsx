@@ -143,6 +143,7 @@ export default function GroupDetailPage() {
   // group rule stands in only when the capabilities cannot be read
   const can = useAppCan(isPrivileged(user?.groups ?? []));
   const canWrite = can('group.write');
+  const canReadUsers = can('user.read');
   // A Leader adds and removes members of a Team they manage: core's managed
   // tree says which (members.write); a Leader group's own row stays read-only
   const managedGroups = useManagedGroups();
@@ -412,7 +413,8 @@ export default function GroupDetailPage() {
             .map((m) => (
               <ListItem
                 key={m.id}
-                href={`/users/${m.id}`}
+                // A Leader without users:read would get core's 403 on the person's card
+                href={canReadUsers ? `/users/${m.id}` : undefined}
                 title={`${m.firstName} ${m.lastName}`.trim() || m.email}
                 subtitle={memberSubtitle(group?.path ?? '', m)}
                 trailing={

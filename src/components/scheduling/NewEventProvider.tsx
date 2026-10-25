@@ -18,7 +18,6 @@ import { DatePicker } from '@/components/forms/DatePicker';
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useAuth } from '@/context/AuthContext';
 import { teamsApi } from '@/lib/api/teams';
-import { leaderOwnerTeams } from '@/lib/auth/groups';
 import { useEventCreate } from '@/lib/use-event-create';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ensureReservedEventId } from '@/lib/event-draft';
@@ -44,9 +43,9 @@ export function useNewEvent() {
 export function NewEventProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const groups = useMemo(() => user?.groups ?? [], [user?.groups]);
-  const leaderTeams = useMemo(() => leaderOwnerTeams(groups), [groups]);
-  // The group rule narrowed by core's event.create: a DK member creates nothing
-  const { canCreate, privilegedWriter } = useEventCreate(groups);
+  // core's event.create (the group rule only when unreadable): a DK member creates nothing,
+  // a Leader of a Team above creates for its Sub-teams too
+  const { canCreate, privilegedWriter, leaderTeams } = useEventCreate(groups);
   const [isOpen, setOpen] = useState(false);
   const open = useCallback(() => setOpen(true), []);
   const value = useMemo(() => ({ open, canCreate }), [open, canCreate]);
