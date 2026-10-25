@@ -3,7 +3,13 @@
 import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Inbox, Plus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+} from '@skylab-kulubu/skylcn-ui';
+import { Inbox, MoreHorizontal, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -12,20 +18,28 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
+import {
+  eventRowMenuItems,
+  useEventStatusActions,
+  useEventStatusRights,
+} from '@/components/scheduling/use-event-status-actions';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { useEventCreate } from '@/lib/use-event-create';
 import {
+  countEventsByStatus,
+  EVENT_STATUS_FILTERS,
+  eventDisplayStatus,
   eventListSubtitle,
-  filterEventsByPhase,
+  eventStatusFilterFrom,
+  filterEventsByStatus,
   sortEventsForList,
-  type EventPhaseFilter,
+  type EventStatusFilter,
 } from '@/lib/events-view';
 import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { formHandoffFromSearch } from '@/lib/event-forms';
-import { activeStatus } from '@/lib/status-chip';
 import { SaveButton } from '@/components/chrome/SaveButton';
 
 function EventsPageContent() {
@@ -34,28 +48,48 @@ function EventsPageContent() {
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get('ownerTeam')?.trim() || '';
   const calendar = searchParams.get('view') === 'calendar';
+  const statusFilter = eventStatusFilterFrom(searchParams.get('status'));
   const { user } = useAuth();
   const groups = user?.groups ?? [];
   const [events, setEvents] = useState<CoreEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const [phase, setPhase] = useState<EventPhaseFilter>('all');
   // The group rule narrowed by core's event.create: a DK member reads, creates nothing
   const { canCreate } = useEventCreate(groups);
+  const rightsFor = useEventStatusRights();
+  const replaceEvent = (next: CoreEvent) =>
+    setEvents((rows) =>
+      rows.some((row) => row.id === next.id)
+        ? rows.map((row) => (row.id === next.id ? next : row))
+        : [...rows, next],
+    );
+  const statusActions = useEventStatusActions({
+    onChanged: (next) => {
+      setActionError(null);
+      replaceEvent(next);
+    },
+    onError: setActionError,
+  });
 
-  function setView(next: 'list' | 'calendar') {
+  function setParam(name: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === 'calendar') params.set('view', 'calendar');
-    else params.delete('view');
+    if (value) params.set(name, value);
+    else params.delete(name);
     const q = params.toString();
     router.replace(q ? `/events?${q}` : '/events');
   }
 
+  function setView(next: 'list' | 'calendar') {
+    setParam('view', next === 'calendar' ? 'calendar' : null);
+  }
+
   async function load() {
     try {
-      setEvents(await eventsApi.list(ownerFilter || undefined));
+      // Drafts too: core adds the ones the reader may see (their editors, DK)
+      setEvents(await eventsApi.list(ownerFilter || undefined, undefined, { drafts: true }));
       setError(null);
     } catch (err) {
       setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi'));
@@ -79,10 +113,15 @@ function EventsPageContent() {
     router.replace(`/events/new?${next.toString()}`);
   }, [searchParams, router]);
 
-  const filtered = useMemo(() => {
-    const rows = filterEventsByPhase(sortEventsForList(events), phase);
-    return rows.filter((ev) => matchesQuery(query, ev.name, ev.ownerTeam, ev.location));
-  }, [events, query, phase]);
+  const searched = useMemo(
+    () => events.filter((ev) => matchesQuery(query, ev.name, ev.ownerTeam, ev.location)),
+    [events, query],
+  );
+  const counts = useMemo(() => countEventsByStatus(searched), [searched]);
+  const filtered = useMemo(
+    () => filterEventsByStatus(sortEventsForList(searched), statusFilter),
+    [searched, statusFilter],
+  );
   const paged = paginateRows(filtered, page);
 
   return (
@@ -115,6 +154,11 @@ function EventsPageContent() {
         }
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {actionError ? (
+        <p role="alert" className="text-destructive text-sm">
+          {actionError}
+        </p>
+      ) : null}
       <ListToolbar
         query={query}
         onQuery={(value) => {
@@ -124,20 +168,18 @@ function EventsPageContent() {
         placeholder="Ad, ekip, konum"
         searchLabel="Etkinlik ara"
       >
-        <FilterPills
-          ariaLabel="Etkinlik dilimi"
-          value={phase}
-          onChange={(value) => {
-            setPhase(value);
-            setPage(1);
-          }}
-          options={[
-            { value: 'all', label: 'Tümü' },
-            { value: 'upcoming', label: 'Yaklaşan' },
-            { value: 'active', label: 'Aktif' },
-            { value: 'past', label: 'Geçmiş' },
-          ]}
-        />
+        {/* Six counted pills do not fit a phone: they scroll sideways instead of widening the page */}
+        <div className="max-w-full overflow-x-auto">
+          <FilterPills<EventStatusFilter>
+            ariaLabel="Etkinlik durumu"
+            value={statusFilter}
+            onChange={(value) => {
+              setParam('status', value === 'all' ? null : value);
+              setPage(1);
+            }}
+            options={EVENT_STATUS_FILTERS.map((row) => ({ ...row, count: counts[row.value] }))}
+          />
+        </div>
       </ListToolbar>
       {calendar ? (
         loading ? (
@@ -152,39 +194,69 @@ function EventsPageContent() {
               loading,
               failed: Boolean(error),
               rowCount: filtered.length,
-              emptyMessage: emptyListCopy({
-                none: 'Etkinlik yok',
-                noneMatch: 'Eşleşen etkinlik yok',
-                query,
-                filtered: phase !== 'all',
-              }),
+              emptyMessage:
+                statusFilter === 'draft' && !query
+                  ? 'Taslak etkinlik yok'
+                  : emptyListCopy({
+                      none: 'Etkinlik yok',
+                      noneMatch: 'Eşleşen etkinlik yok',
+                      query,
+                      filtered: statusFilter !== 'all',
+                    }),
             })}
             emptyIcon={Inbox}
             emptyDescription={
               canCreate ? 'Yeni etkinlik ekle veya filtreyi temizle.' : 'Bu dilimde etkinlik yok.'
             }
             emptyAction={
-              canCreate && !query && phase === 'all' ? (
+              canCreate && !query && statusFilter === 'all' ? (
                 <SaveButton type="button" onClick={openNewEvent}>
                   Etkinlik ekle
                 </SaveButton>
               ) : null
             }
           >
-            {paged.slice.map((ev) => (
-              <ListItem
-                key={ev.id}
-                href={`/events/${ev.id}`}
-                title={ev.name}
-                subtitle={eventListSubtitle(ev)}
-                leading={<StatusDot kind={activeStatus(ev.active)} />}
-                trailing={<StatusChip kind={activeStatus(ev.active)} />}
-              />
-            ))}
+            {paged.slice.map((ev) => {
+              const status = eventDisplayStatus(ev);
+              const menu = eventRowMenuItems(ev, rightsFor(ev), statusActions, {
+                onDeleted: () => setEvents((rows) => rows.filter((row) => row.id !== ev.id)),
+                onRestored: replaceEvent,
+              });
+              return (
+                <ListItem
+                  key={ev.id}
+                  href={`/events/${ev.id}`}
+                  title={ev.name}
+                  subtitle={eventListSubtitle(ev)}
+                  leading={<StatusDot kind={status} />}
+                  trailing={
+                    <div className="flex items-center gap-1">
+                      <StatusChip kind={status} />
+                      {menu.length ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <IconButton
+                                icon={MoreHorizontal}
+                                size="icon-sm"
+                                variant="ghost"
+                                label={`${ev.name}: eylemler`}
+                              />
+                            }
+                          />
+                          <DropdownMenuContent align="end">{menu}</DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </div>
+                  }
+                />
+              );
+            })}
           </ListPanel>
           <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
         </>
       )}
+      {statusActions.dialog}
     </div>
   );
 }

@@ -14,8 +14,21 @@ export type CoreEvent = {
   startDate?: string;
   endDate?: string;
   linkedin?: string;
+  /** Derived by core: published and not ended (ADR 0066). */
   active: boolean;
-  status?: 'draft' | 'published' | 'cancelled';
+  /** The stored status; an older core sent none (read as published). */
+  status?: EventStatus;
+  publishedAt?: string;
+  cancelledAt?: string;
+  /** The public reason of a cancellation, empty when none was given. */
+  cancelReason?: string;
+  /** Set while the cancellation mail to the Ticket holders is queued or sent. */
+  cancelNotifiedAt?: string;
+  /** Closed by hand; `registrationClosesAt` is the deadline (none: no deadline). */
+  registrationClosed?: boolean;
+  registrationClosesAt?: string;
+  /** Derived by core: published, not ended, not closed by hand and before the deadline. */
+  registrationOpen?: boolean;
   ranked: boolean;
   prizeInfo?: string;
   seasonId?: string;
@@ -34,6 +47,8 @@ export type CoreEvent = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type EventStatus = 'draft' | 'published' | 'cancelled';
 
 export type EventBody = {
   id?: string;
@@ -59,8 +74,8 @@ export type EventBody = {
 /**
  * A partial update (PUT and PATCH alike in core, ADR 0066 addendum): a key
  * left out keeps its value; `null` (or `""`, `[]`) clears a field that may be
- * empty. `name`, `location` and `ownerTeam` cannot be cleared, `ranked`
- * takes no `null`.
+ * empty. `name`, `location` and `ownerTeam` cannot be cleared, `ranked` and
+ * `registrationClosed` take no `null`.
  */
 export type EventPatch = {
   name?: string;
@@ -80,18 +95,22 @@ export type EventPatch = {
   attendanceRule?: string | null;
   attendanceRatio?: number | null;
   doorStaffIds?: string[] | null;
+  registrationClosed?: boolean;
+  registrationClosesAt?: string | null;
+  cancelReason?: string | null;
 };
 
 export const eventsApi = {
   /**
    * The current Events, or with `lifecycle` the archived (`inactive`) ones
    * or both (`all`); core returns only the archived Events the caller may
-   * delete.
+   * delete. `drafts` adds the drafts the caller may see (their editors, DK).
    */
-  list: (ownerTeam?: string, lifecycle?: 'inactive' | 'all') => {
+  list: (ownerTeam?: string, lifecycle?: 'inactive' | 'all', options?: { drafts?: boolean }) => {
     const query = new URLSearchParams();
     if (ownerTeam) query.set('ownerTeam', ownerTeam);
     if (lifecycle) query.set('lifecycle', lifecycle);
+    if (options?.drafts) query.set('drafts', 'include');
     const q = query.toString();
     return coreFetch<CoreEvent[]>(`/v1/events${q ? `?${q}` : ''}`);
   },
@@ -100,6 +119,22 @@ export const eventsApi = {
     coreFetch<CoreEvent>('/v1/events', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** draft → published; core refuses an Event without a name, place or start (`event_incomplete`). */
+  publish: (id: string) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
+  /** published → draft, only while it has no Ticket (`event_has_tickets`). */
+  unpublish: (id: string) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/unpublish`, { method: 'POST' }),
+  cancel: (id: string, body: { reason?: string; notifyTicketHolders: boolean }) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  uncancel: (id: string, body: { notifyTicketHolders: boolean }) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/uncancel`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   /** Writes only the fields sent; core keeps every other one. */
   patch: (id: string, body: EventPatch) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`, {

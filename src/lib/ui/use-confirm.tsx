@@ -3,6 +3,7 @@
 import {
   Button,
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -30,6 +31,12 @@ export type ConfirmRequest = {
   title: string;
   /** What happens next: who is told, whether it can be undone. */
   description?: string;
+  /**
+   * Fields the question asks for before the action (a reason, a box to
+   * tick), below the description. They keep their own state; `onConfirm`
+   * reads it.
+   */
+  content?: ReactNode;
   /** A verb for the action, such as "Oturumu sil"; never "Tamam". */
   actionLabel: string;
   /** Off for a confirmed action that removes nothing, such as a retry. */
@@ -189,6 +196,9 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
             </p>
           ) : null}
         </DialogHeader>
+        {request?.content ? (
+          <DialogBody className="space-y-3 pt-0">{request.content}</DialogBody>
+        ) : null}
         <DialogFooter className="mt-4">
           <DialogClose
             render={<Button ref={cancel} disabled={locked} aria-disabled={locked || undefined} />}

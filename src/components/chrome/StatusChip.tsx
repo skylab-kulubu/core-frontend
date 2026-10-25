@@ -13,6 +13,12 @@ const TONE: Record<StatusChipKind, BadgeTone> = {
   featured: 'brand',
   winner: 'success',
   neutral: 'neutral',
+  draft: 'neutral',
+  upcoming: 'brand',
+  live: 'success',
+  ended: 'strong',
+  undated: 'neutral',
+  cancelled: 'danger',
 };
 
 const DOT_TONE: Record<StatusChipKind, 'neutral' | 'brand' | 'success' | 'warning' | 'danger'> = {
@@ -25,6 +31,12 @@ const DOT_TONE: Record<StatusChipKind, 'neutral' | 'brand' | 'success' | 'warnin
   featured: 'brand',
   winner: 'success',
   neutral: 'neutral',
+  draft: 'neutral',
+  upcoming: 'brand',
+  live: 'success',
+  ended: 'neutral',
+  undated: 'neutral',
+  cancelled: 'danger',
 };
 
 export function StatusChip({
