@@ -18,13 +18,30 @@ function fadeOf(el: HTMLElement): Fade {
 /**
  * A row that scrolls sideways when it does not fit (pills on a phone) and fades the edge that
  * still hides content, so the reader sees there is more.
+ *
+ * LTR only: `fadeOf` assumes scrollLeft grows from 0 and the gradients name physical sides. Under
+ * `dir="rtl"` it would need `Math.abs(scrollLeft)` and logical directions.
  */
-export function SideScroll({ className, children, ...props }: ComponentProps<'div'>) {
-  const ref = useRef<HTMLDivElement>(null);
+export function SideScroll({
+  className,
+  children,
+  ref: givenRef,
+  onScroll,
+  ...props
+}: ComponentProps<'div'>) {
+  const ref = useRef<HTMLDivElement | null>(null);
   const [fade, setFade] = useState<Fade>('none');
   const update = useCallback(() => {
     if (ref.current) setFade(fadeOf(ref.current));
   }, []);
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ref.current = el;
+      if (typeof givenRef === 'function') givenRef(el);
+      else if (givenRef) givenRef.current = el;
+    },
+    [givenRef],
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -39,11 +56,15 @@ export function SideScroll({ className, children, ...props }: ComponentProps<'di
   return (
     <div
       {...props}
-      ref={ref}
-      onScroll={update}
+      ref={setRef}
+      onScroll={(event) => {
+        update();
+        onScroll?.(event);
+      }}
       data-fade={fade}
       className={cn(
-        'max-w-full overflow-x-auto',
+        // scroll-px-6 matches the 1.5rem fade, so a pill reached with Tab stops outside it.
+        'max-w-full scroll-px-6 overflow-x-auto',
         'data-[fade=both]:[mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]',
         'data-[fade=end]:[mask-image:linear-gradient(to_left,transparent,black_1.5rem)]',
         'data-[fade=start]:[mask-image:linear-gradient(to_right,transparent,black_1.5rem)]',

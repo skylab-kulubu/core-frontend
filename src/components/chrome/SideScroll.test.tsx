@@ -55,4 +55,30 @@ describe('SideScroll', () => {
     );
     expect(screen.getByTestId('row')).toHaveClass('overflow-x-auto', 'max-w-full');
   });
+
+  it('keeps a focused pill clear of the faded edge', () => {
+    render(
+      <SideScroll data-testid="row">
+        <span>Tümü</span>
+      </SideScroll>,
+    );
+    expect(screen.getByTestId('row')).toHaveClass('scroll-px-6');
+  });
+
+  it('still calls the onScroll and ref it is given', () => {
+    const onScroll = jest.fn();
+    const ref = React.createRef<HTMLDivElement>();
+    render(
+      <SideScroll data-testid="row" onScroll={onScroll} ref={ref}>
+        <span>Tümü</span>
+      </SideScroll>,
+    );
+    const row = screen.getByTestId('row');
+    expect(ref.current).toBe(row);
+    sized(row, { scrollWidth: 600, clientWidth: 300 });
+
+    act(() => scrollTo(row, 150));
+    expect(onScroll).toHaveBeenCalledTimes(1);
+    expect(row).toHaveAttribute('data-fade', 'both');
+  });
 });
