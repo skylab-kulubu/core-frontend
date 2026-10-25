@@ -31,6 +31,9 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   // Uygulamalar only once core says the app assignments are on and readable
   const appsVisible =
     capabilities.status === 'ready' && capabilities.data.can?.['apps.read'] === true;
+  // Ekiplerim only once core names a Team the person leads (delegation on)
+  const managedTeamsVisible =
+    capabilities.status === 'ready' && (capabilities.data.managedTeams?.length ?? 0) > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -98,5 +101,11 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     };
   }, [doorEventIds, openEventId, user.groups, user.id, user.roles]);
 
-  return { hasDoorAssignment: doorEventIds.length > 0, appsVisible, editSites, activeEvent };
+  return {
+    hasDoorAssignment: doorEventIds.length > 0,
+    appsVisible,
+    managedTeamsVisible,
+    editSites,
+    activeEvent,
+  };
 }
