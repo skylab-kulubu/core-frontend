@@ -13,7 +13,7 @@ import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
-import { useTeamCan } from '@/lib/use-app-can';
+import { useTeamDecide } from '@/lib/use-app-can';
 import { eventTabHref } from '@/lib/event-workspace';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -22,7 +22,7 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const { user } = useAuth();
   const groups = user?.groups ?? [];
-  const teamCan = useTeamCan();
+  const decide = useTeamDecide();
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [userId, setUserId] = useState('');
   const [score, setScore] = useState('');
@@ -51,8 +51,11 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
           e.preventDefault();
           if (
             !event ||
-            !canManageCompetitors(groups, event.ownerTeam) ||
-            !teamCan(event.ownerTeam, 'competitor.create') ||
+            !decide(
+              event.ownerTeam,
+              'competitor.create',
+              canManageCompetitors(groups, event.ownerTeam),
+            ) ||
             !userId
           ) {
             setError('Bu etkinliğe yarışmacı ekleyemezsin.');

@@ -16,6 +16,7 @@ import {
 import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
+import { useCapabilities } from '@/lib/capabilities-context';
 import { useTeamCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -25,6 +26,15 @@ export default function CertificateDefaultsPage() {
   const groups = useMemo(() => user?.groups ?? [], [user?.groups]);
   const privileged = isPrivileged(groups);
   const teamCan = useTeamCan();
+  const capabilities = useCapabilities();
+  const coreTeamNames =
+    capabilities.status === 'ready'
+      ? (capabilities.data.teams ?? []).map((row) => row.team).join('\n')
+      : '';
+  const coreTeams = useMemo(
+    () => (coreTeamNames ? coreTeamNames.split('\n') : []),
+    [coreTeamNames],
+  );
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [bindings, setBindings] = useState<CertificateTemplateBinding[]>([]);
   const [teams, setTeams] = useState<string[]>([]);
@@ -44,13 +54,19 @@ export default function CertificateDefaultsPage() {
         setBindings(bindingRows);
         const allowed = teamRows
           .map((item) => item.team)
-          .filter((ownerTeam) => privileged || ownerLevels(groups, ownerTeam).length > 0);
+          .filter(
+            (ownerTeam) =>
+              privileged ||
+              ownerLevels(groups, ownerTeam).length > 0 ||
+              // a Sub-team led from above: core lists it among the caller's teams
+              coreTeams.includes(ownerTeam),
+          );
         setTeams(allowed);
         setTeam(allowed[0] ?? '');
       })
       .catch((cause) => setError(coreProblemMessage(cause, 'Varsayılanlar yüklenemedi')))
       .finally(() => setLoading(false));
-  }, [groups, privileged]);
+  }, [groups, privileged, coreTeams]);
 
   const availableTemplates = useMemo(
     () =>

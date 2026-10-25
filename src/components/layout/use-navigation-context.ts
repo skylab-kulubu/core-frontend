@@ -11,6 +11,7 @@ import { showsCompetitionTab } from '@/lib/event-workspace';
 import type { SidebarNavigationContext, SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import { siteEditLinks } from '@/lib/site-edit-links';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
+import { teamDecision } from '@/lib/use-app-can';
 import type { UserDto } from '@/types/api';
 
 /**
@@ -58,13 +59,24 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
       setActiveEvent(undefined);
       return;
     }
+    // The decisions below are core's: wait for its answer (or its failure) before reading
+    if (capabilities.status === 'loading') return;
     const eventId = openEventId;
     let cancelled = false;
     const groups = user.groups ?? [];
+    const roles = user.roles ?? [];
+    // core's decision for the event's Owner team (a Sub-team led from above included);
+    // the group rule only when the capabilities cannot be read
+    const decide = (team: string, key: string, groupRule: boolean) =>
+      teamDecision(capabilities, team, key, groupRule);
     eventsApi
       .get(eventId)
       .then(async (event) => {
-        const canManage = canManageCompetitors(groups, event.ownerTeam);
+        const canManage = decide(
+          event.ownerTeam,
+          'competitor.update',
+          canManageCompetitors(groups, event.ownerTeam),
+        );
         // Same rule as the event's tab bar; only a reader who cannot manage them needs the count
         const competitorCount = canManage
           ? 0
@@ -75,14 +87,23 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
         if (cancelled) return;
         const next = {
           id: event.id,
-          canSeeParticipants: canListEventTickets(groups, event.ownerTeam, user.roles ?? []),
+          canSeeParticipants: decide(
+            event.ownerTeam,
+            'ticket.read',
+            canListEventTickets(groups, event.ownerTeam, roles),
+          ),
           canSeeCompetitors: showsCompetitionTab(canManage, competitorCount),
           // A cancelled Event takes no check-in (core refuses it)
           canUseDoor:
             event.status !== 'cancelled' &&
-            (canDeskCheckIn(groups, event.ownerTeam, user.id, event.doorStaffIds ?? []) ||
+            ((event.doorStaffIds ?? []).includes(user.id) ||
+              decide(event.ownerTeam, 'door.checkIn', canDeskCheckIn(groups, event.ownerTeam)) ||
               doorEventIds.includes(event.id)),
-          canSeeCertificates: canReadCertificates(groups, user.roles ?? [], event.ownerTeam),
+          canSeeCertificates: decide(
+            event.ownerTeam,
+            'certificate.read',
+            canReadCertificates(groups, roles, event.ownerTeam),
+          ),
         };
         setActiveEvent(
           next.canSeeParticipants ||
@@ -99,7 +120,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     return () => {
       cancelled = true;
     };
-  }, [doorEventIds, openEventId, user.groups, user.id, user.roles]);
+  }, [capabilities, doorEventIds, openEventId, user.groups, user.id, user.roles]);
 
   return {
     hasDoorAssignment: doorEventIds.length > 0,

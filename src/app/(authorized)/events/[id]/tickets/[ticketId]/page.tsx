@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
+import { useCapabilities } from '@/lib/capabilities-context';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -17,6 +18,7 @@ import type { Person } from '@/lib/api/identity';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import type { EventSession } from '@/lib/api/sessions';
 import { lookupPeople } from '@/lib/people-lookup';
+import { teamDecision } from '@/lib/use-app-can';
 import {
   canListEventTickets,
   ticketApplicantName,
@@ -32,6 +34,8 @@ export default function TicketDetailPage({
 }) {
   const { id, ticketId } = use(params);
   const { user, loading: authLoading } = useAuth();
+  // core's ticket.read for the event's Owner team (a Sub-team led from above included)
+  const capabilities = useCapabilities();
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
@@ -39,12 +43,13 @@ export default function TicketDetailPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || capabilities.status === 'loading') return;
     let cancelled = false;
     async function load() {
       try {
         const ev = await eventsApi.get(id);
-        if (!canListEventTickets(user?.groups ?? [], ev.ownerTeam)) {
+        const groupRule = canListEventTickets(user?.groups ?? [], ev.ownerTeam);
+        if (!teamDecision(capabilities, ev.ownerTeam, 'ticket.read', groupRule)) {
           throw new ProblemError(403, 'Forbidden', { detail: 'Bu başvuruları görme yetkin yok' });
         }
         const [got, days] = await Promise.all([
@@ -77,7 +82,7 @@ export default function TicketDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [id, ticketId, user, authLoading]);
+  }, [id, ticketId, user, authLoading, capabilities]);
 
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
   useChromeCrumbName(`/events/${id}`, event?.name);
