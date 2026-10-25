@@ -152,6 +152,27 @@ describe('Kopya diyaloğu', () => {
     );
   });
 
+  it('shows the door staff box as it will be sent after a round trip through another team', async () => {
+    // AIRLAB: creates there, may not assign door staff
+    capabilities([...LEADER, { team: 'AIRLAB', can: { 'event.create': true } }]);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openDialog(user);
+    const doorBox = () =>
+      within(dialog).queryByRole('checkbox', { name: 'Kapı görevlilerini de kopyala (3 kişi)' });
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Kapı görevlilerini/ }));
+    const select = await within(dialog).findByRole('combobox');
+    await user.selectOptions(select, 'AIRLAB');
+    expect(doorBox()).not.toBeInTheDocument();
+    await user.selectOptions(select, 'GECEKODU');
+    expect(doorBox()).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(eventsApi.copy).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ includeDoorStaff: true }),
+    );
+  });
+
   it('leaves the Owner team out for a copy in the source team', async () => {
     capabilities(LEADER);
     const user = userEvent.setup();

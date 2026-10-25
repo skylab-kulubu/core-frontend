@@ -195,14 +195,15 @@ export function EventCopyDialog({
             {offersDoorStaff ? (
               <CheckboxRow
                 label={`Kapı görevlilerini de kopyala (${doorStaffCount} kişi)`}
-                defaultChecked={false}
+                // The box goes with a team that may not assign them: back, it shows what is sent
+                defaultChecked={withDoorStaff}
                 onChange={setWithDoorStaff}
               />
             ) : null}
             {competitionCount > 0 ? (
               <CheckboxRow
                 label={`Yarışmaları da kopyala (${competitionCount} yarışma)`}
-                defaultChecked={false}
+                defaultChecked={withCompetitions}
                 onChange={setWithCompetitions}
               />
             ) : null}
