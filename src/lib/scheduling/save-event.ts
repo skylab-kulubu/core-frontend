@@ -1,4 +1,4 @@
-import { eventsApi, type CoreEvent, type EventBody } from '@/lib/api/events';
+import { eventsApi, type CoreEvent, type EventBody, type EventPatch } from '@/lib/api/events';
 import { urlsApi } from '@/lib/api/urls';
 import { seasonsApi } from '@/lib/api/seasons';
 import { toRfc3339 } from '@/lib/datetime-local';
@@ -22,7 +22,6 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
-    active: form.active,
     ranked: form.ranked,
     prizeInfo: form.prizeInfo || undefined,
     coverImageId: form.coverImageId || undefined,
@@ -30,6 +29,52 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
     doorStaffIds: form.doorStaffIds ?? [],
   };
+}
+
+/**
+ * Every field the editor writes, as core's partial update reads it (bilet
+ * 17): a field core keeps when it is left out, so an emptied optional field
+ * is sent as `null` (`[]` for the lists) to clear it. The Owner team cannot
+ * be cleared and is left out when empty.
+ */
+export function eventFieldsFromForm(form: EventFormState): EventPatch {
+  const forms = persistableFormFields(form.formSlots ?? []);
+  const ownerTeam = form.ownerTeam.trim();
+  return {
+    name: form.name.trim(),
+    description: form.description,
+    location: form.location.trim(),
+    ...(ownerTeam ? { ownerTeam } : {}),
+    formUrl: forms.formUrl || null,
+    formAlias: forms.formAlias || null,
+    extraFormUrls: forms.extraFormUrls ?? [],
+    capacity: form.capacity,
+    startDate: toRfc3339(form.startDate ?? '') ?? null,
+    endDate: toRfc3339(form.endDate ?? '') ?? null,
+    linkedin: form.linkedin || null,
+    ranked: form.ranked,
+    prizeInfo: form.prizeInfo || null,
+    coverImageId: form.coverImageId || null,
+    attendanceRule: form.attendanceRule || 'none',
+    attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
+    doorStaffIds: form.doorStaffIds ?? [],
+  };
+}
+
+/**
+ * The update for an edited Event: with `base` (what the form opened with)
+ * only the fields the reader changed, so a save does not write back what
+ * another tab or person changed meanwhile; without it every field.
+ */
+export function eventPatchFromForm(form: EventFormState, base?: EventFormState): EventPatch {
+  const next = eventFieldsFromForm(form);
+  if (!base) return next;
+  const before: Record<string, unknown> = eventFieldsFromForm(base);
+  return Object.fromEntries(
+    Object.entries(next).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(before[key]),
+    ),
+  ) as EventPatch;
 }
 
 /**
@@ -46,9 +91,14 @@ export class EventSaveIncomplete extends Error {
   }
 }
 
+/**
+ * Creates the Event, or updates `existingId` with the fields that
+ * changed since `base`; then its season and gallery.
+ */
 export async function saveEventWithSeason(
   form: EventFormState,
   existingId?: string,
+  base?: EventFormState,
 ): Promise<string> {
   const slotted = await attachFormAliases(
     form.formSlots ?? [],
@@ -57,14 +107,10 @@ export async function saveEventWithSeason(
     (body) => urlsApi.create(body),
     form.ownerTeam,
   );
-  const body = eventBodyFromForm({
-    ...form,
-    formSlots: slotted,
-    ...persistableFormFields(slotted),
-  });
+  const slottedForm = { ...form, formSlots: slotted, ...persistableFormFields(slotted) };
   const saved = existingId
-    ? await eventsApi.update(existingId, body)
-    : await eventsApi.create(body);
+    ? await eventsApi.patch(existingId, eventPatchFromForm(slottedForm, base))
+    : await eventsApi.create(eventBodyFromForm(slottedForm));
   try {
     await finishSave(form, saved, existingId);
   } catch (cause) {
@@ -77,6 +123,9 @@ export async function saveEventWithSeason(
 async function finishSave(form: EventFormState, saved: CoreEvent, existingId?: string) {
   if (form.seasonId) {
     await seasonsApi.assignEvent(form.seasonId, saved.id);
+  } else if (existingId && saved.seasonId) {
+    // The season is not in the Event's body: emptying the select takes it off here
+    await seasonsApi.unassignEvent(saved.id);
   }
   const next = form.imageIds ?? [];
   const prev = (saved.images ?? []).map((image) => image.id);

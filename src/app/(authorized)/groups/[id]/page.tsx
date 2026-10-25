@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -12,26 +12,81 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
-import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
+import {
+  UNVERIFIED_ADD_ACTION,
+  UNVERIFIED_MARK,
+  unverifiedAddText,
+  unverifiedBatchText,
+  warnsUnverified,
+} from '@/components/identity/use-member-add';
+import {
+  MEMBER_CANDIDATE_HINT,
+  MEMBER_CANDIDATE_MIN,
+  usePickerSearch,
+} from '@/components/identity/use-person-search';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
-import { coreProblemMessage, groupWriteProblemMessage } from '@/lib/core-problems';
+import {
+  coreProblemMessage,
+  groupDeleteProblemMessage,
+  groupWriteProblemMessage,
+} from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { mapLimit } from '@/lib/map-limit';
 import { pickerMatch, roleKey } from '@/lib/picker';
 import { ROLES_ROOT, rolePlacement, rolePlacementMessage } from '@/lib/role-placement';
 import { useAppCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
+/** core refused some of the confirmed adds; the message says who and why. */
+class MembersRefused extends Error {}
+
+/** How many member checks (and address reads) run at once for a selection. */
+const CHECKS_AT_ONCE = 3;
+
+/** An address member-candidates masked (a***@example.com): the query was no whole address. */
+function masked(email: string): boolean {
+  return email.includes('***');
+}
+
+/**
+ * The question before adding `people` when core warned of the ones in
+ * `unverified` (id → the address to check). The description is left out when
+ * none of them is unverified, as for a retry of a refused verified one.
+ */
+function unverifiedQuestion(
+  people: readonly PickerOption[],
+  unverified: ReadonlyMap<string, string>,
+  groupName: string,
+): { title: string; description: string | undefined } {
+  const flagged = people.filter((person) => unverified.has(person.id));
+  const title =
+    people.length === 1
+      ? `${people[0]!.title} ${groupName} grubuna eklensin mi?`
+      : `${people.length} kişi ${groupName} grubuna eklensin mi?`;
+  if (flagged.length === 0) return { title, description: undefined };
+  if (people.length === 1)
+    return { title, description: unverifiedAddText(unverified.get(people[0]!.id)!) };
+  return {
+    title,
+    description: unverifiedBatchText(
+      people.length,
+      flagged.map((person) => ({ name: person.title, email: unverified.get(person.id)! })),
+    ),
+  };
+}
+
 export default function GroupDetailPage() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
   const [group, setGroup] = useState<Group | null>(null);
@@ -42,6 +97,13 @@ export default function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberOpen, setMemberOpen] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<PickerOption[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const memberSubmit = useRef(false);
+  const [addedMembers, setAddedMembers] = useState<{ groupId: string; ids: Set<string> }>({
+    groupId: id,
+    ids: new Set(),
+  });
   const [roleOpen, setRoleOpen] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
   const [memberRosterQuery, setMemberRosterQuery] = useState('');
@@ -49,10 +111,18 @@ export default function GroupDetailPage() {
   const [catalog, setCatalog] = useState<ClientRole[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerFailed, setPickerFailed] = useState(false);
-  const memberSearch = usePersonSearch(memberOpen, memberQuery);
+  // core's candidate search: names, or a whole address; masked addresses; YTÜ warnings
+  const memberSearch = usePickerSearch(
+    memberOpen,
+    memberQuery,
+    (query) => identityApi.memberCandidates(id, query),
+    MEMBER_CANDIDATE_MIN,
+  );
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  // The YTÜ question opens over the Üye ekle drawer, so it has its own dialog
+  const [confirmMembers, membersDialog] = useConfirm();
   const { user } = useAuth();
   // core's group.write decides every change here (a DK member reads only); the
   // group rule stands in only when the capabilities cannot be read
@@ -103,12 +173,19 @@ export default function GroupDetailPage() {
       ? rolePlacement(group.path, subgroupsOf?.path === group.path && subgroupsOf.has)
       : null;
 
-  const memberOptions = memberSearch.people
-    .filter((person) => !memberIds.has(person.id))
+  const memberOptions: PickerOption[] = memberSearch.people
+    .filter(
+      (person) =>
+        !person.alreadyMember &&
+        !memberIds.has(person.id) &&
+        !(addedMembers.groupId === id && addedMembers.ids.has(person.id)),
+    )
     .map((person) => ({
       id: person.id,
       title: `${person.firstName} ${person.lastName}`.trim() || person.email,
       subtitle: person.email,
+      // Only core's warning marks a person: a Privileged Group and an account not verified with YTÜ
+      marker: person.warnings.includes('not_ytu_verified') ? UNVERIFIED_MARK : undefined,
     }));
 
   const roleOptions = catalog
@@ -120,6 +197,114 @@ export default function GroupDetailPage() {
       title: role.role,
       subtitle: role.clientId,
     }));
+
+  /** Holds the picker while `work` runs: one submission at a time, and the drawer stays open. */
+  async function submitting<T>(work: () => Promise<T>): Promise<T> {
+    memberSubmit.current = true;
+    setAddingMembers(true);
+    setPickError(null);
+    try {
+      return await work();
+    } finally {
+      memberSubmit.current = false;
+      setAddingMembers(false);
+    }
+  }
+
+  /**
+   * Adds the people in order, sending unverifiedAck for the ones in `acked`.
+   * The ones core refuses stay selected; returns them with why, for the
+   * caller to say in one place.
+   */
+  async function addMembers(
+    people: PickerOption[],
+    acked: ReadonlySet<string>,
+  ): Promise<{ person: PickerOption; text: string }[]> {
+    const failures: { person: PickerOption; text: string }[] = [];
+    let added = 0;
+    for (const person of people) {
+      try {
+        if (acked.has(person.id)) {
+          await identityApi.addMember(id, person.id, { unverifiedAck: true });
+        } else {
+          await identityApi.addMember(id, person.id);
+        }
+        added += 1;
+        setAddedMembers((current) => ({
+          groupId: id,
+          ids: new Set([...(current.groupId === id ? current.ids : []), person.id]),
+        }));
+        setSelectedMembers((current) => current.filter((row) => row.id !== person.id));
+      } catch (err) {
+        failures.push({
+          person,
+          text: `${person.title}: ${coreProblemMessage(err, 'Üye eklenemedi')}`,
+        });
+      }
+    }
+    if (added > 0) notify.success(added === 1 ? 'Üye eklendi' : `${added} üye eklendi`);
+    if (failures.length === 0) setMemberOpen(false);
+    await load();
+    return failures;
+  }
+
+  /**
+   * Adds the selected people. When core warns that some are not verified
+   * with YTÜ (a Privileged target, grup-yonetimi 07), it asks first and sends
+   * the reader's confirmation as unverifiedAck; otherwise it adds at once.
+   * The Group's Privileged state comes only from core's answer, never its
+   * name, and a check that cannot be read only means no warning. Turning the
+   * question down adds nobody and keeps the selection.
+   *
+   * The question names the address to check. The candidate search masks it
+   * unless the reader typed it whole, so the person's card gives it then;
+   * when the card cannot be read, the masked address stands.
+   */
+  async function addSelectedMembers() {
+    if (memberSubmit.current || selectedMembers.length === 0) return;
+    const people = selectedMembers;
+    const unverified = await submitting(async () => {
+      const warns = await mapLimit(people, CHECKS_AT_ONCE, (person) =>
+        warnsUnverified(id, person.id),
+      );
+      const flagged = people.filter((_, index) => warns[index]);
+      if (flagged.length === 0) {
+        const failures = await addMembers(people, new Set());
+        if (failures.length > 0) setPickError(failures.map((failure) => failure.text).join(' '));
+        return new Map<string, string>();
+      }
+      const emails = await mapLimit(flagged, CHECKS_AT_ONCE, async (person) => {
+        const shown = person.subtitle ?? '';
+        if (!masked(shown)) return shown;
+        return identityApi
+          .getUser(person.id)
+          .then((card) => card.email || shown)
+          .catch(() => shown);
+      });
+      return new Map(flagged.map((person, index) => [person.id, emails[index]!]));
+    });
+    if (unverified.size === 0) return;
+    const acked = new Set(unverified.keys());
+    const groupName = group?.name ?? id;
+    // A retry from the question adds, and names, only the ones core refused the last time
+    let left = people;
+    confirmMembers({
+      ...unverifiedQuestion(people, unverified, groupName),
+      actionLabel: UNVERIFIED_ADD_ACTION,
+      destructive: false,
+      onConfirm: async () => {
+        const failures = await submitting(() => addMembers(left, acked));
+        left = failures.map((failure) => failure.person);
+        if (failures.length > 0) {
+          throw new MembersRefused(failures.map((failure) => failure.text).join(' '));
+        }
+      },
+      failure: (err) =>
+        err instanceof MembersRefused ? err.message : coreProblemMessage(err, 'Üye eklenemedi'),
+      afterFailure: () => unverifiedQuestion(left, unverified, groupName),
+      closesDrawer: true,
+    });
+  }
 
   if (error && !group) {
     return <StateCard title={error} description="Grup kartına dönemiyor." tone="danger" />;
@@ -167,6 +352,7 @@ export default function GroupDetailPage() {
                 label="Üye ekle"
                 onClick={() => {
                   setMemberQuery('');
+                  setSelectedMembers([]);
                   setPickError(null);
                   setMemberOpen(true);
                 }}
@@ -212,6 +398,12 @@ export default function GroupDetailPage() {
                           actionLabel: 'Gruptan çıkar',
                           onConfirm: async () => {
                             await identityApi.removeMember(id, m.id);
+                            setAddedMembers((current) => {
+                              if (current.groupId !== id) return current;
+                              const remaining = new Set(current.ids);
+                              remaining.delete(m.id);
+                              return { groupId: id, ids: remaining };
+                            });
                             notify.success('Üye çıkarıldı');
                             await load();
                           },
@@ -390,31 +582,61 @@ export default function GroupDetailPage() {
         ) : null}
       </section>
 
+      {group && canWrite ? (
+        <section className="space-y-3">
+          <SectionHeading
+            title="Grubu sil"
+            actions={
+              <ActionButton
+                icon={Trash2}
+                label="Grubu sil"
+                onClick={() =>
+                  confirm({
+                    title: `${group.name} silinsin mi?`,
+                    description:
+                      'Yalnız üyesi, alt grubu ve bağlı kaydı olmayan gruplar silinebilir. Silme geri alınamaz. Kontroller geçtikten sonra grup kodu kalıcı olarak ayrılır; silme tamamlanmasa bile aynı grupta tekrar deneyebilirsin.',
+                    actionLabel: 'Grubu sil',
+                    onConfirm: async () => {
+                      await identityApi.deleteGroup(group.id);
+                      notify.success('Grup silindi');
+                      router.push('/groups');
+                    },
+                    failure: groupDeleteProblemMessage,
+                  })
+                }
+              />
+            }
+          />
+          <p className="text-subtle-foreground text-sm">
+            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
+          </p>
+        </section>
+      ) : null}
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}
-        onClose={() => setMemberOpen(false)}
+        onClose={() => {
+          if (!memberSubmit.current) setMemberOpen(false);
+        }}
         title="Üye ekle"
         query={memberQuery}
         onQuery={setMemberQuery}
-        placeholder="Ad, e-posta"
+        placeholder="Ad veya tam e-posta"
         loading={memberSearch.loading}
         failed={memberSearch.failed}
         options={memberOptions}
-        emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
+        emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : MEMBER_CANDIDATE_HINT}
         error={pickError}
-        onPick={async (userId) => {
-          setPickError(null);
-          try {
-            await identityApi.addMember(id, userId);
-            setMemberOpen(false);
-            notify.success('Üye eklendi');
-            await load();
-          } catch (err) {
-            setPickError(coreProblemMessage(err, 'Üye eklenemedi'));
-          }
+        selection={{
+          items: selectedMembers,
+          onChange: setSelectedMembers,
+          onSubmit: addSelectedMembers,
+          busy: addingMembers,
+          submitLabel: 'Seçilenleri ekle',
         }}
-      />
+      >
+        {membersDialog}
+      </PickerDrawer>
       <PickerDrawer
         open={roleOpen}
         onClose={() => setRoleOpen(false)}

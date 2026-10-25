@@ -122,7 +122,6 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',
-    active: ev.active,
     ranked: ev.ranked,
     prizeInfo: ev.prizeInfo ?? '',
     seasonId: ev.seasonId ?? '',

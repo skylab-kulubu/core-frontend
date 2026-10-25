@@ -41,6 +41,37 @@ export type ClientRole = {
   role: string;
 };
 
+/**
+ * What adding a person to a Group would warn of (GET
+ * /v1/groups/{id}/member-check/{userId}). `privileged` says whether the Group
+ * is a Privileged root or under one; the panel never guesses it from a name.
+ */
+export type MemberCheck = {
+  privileged: boolean;
+  ytuLinked: boolean;
+  /** 'not_ytu_verified': the Group is Privileged and the person is not YTÜ-linked. */
+  warnings: string[];
+};
+
+/**
+ * A person the reader may add to a Group (GET
+ * /v1/groups/{id}/member-candidates?q=): core's active accounts whose name
+ * holds `q` (at least three characters), at most ten. The
+ * address is masked (a***@example.com) unless `q` was that whole address.
+ */
+export type MemberCandidate = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profilePictureUrl?: string;
+  /** The person is directly in the Group already. */
+  alreadyMember: boolean;
+  ytuLinked: boolean;
+  /** As MemberCheck's: 'not_ytu_verified' only for a Privileged Group. */
+  warnings: string[];
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -55,12 +86,27 @@ export const identityApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  deleteGroup: (id: string) =>
+    coreFetch<void>(`/v1/groups/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   members: (id: string) => coreFetch<Person[]>(`/v1/groups/${encodeURIComponent(id)}/members`),
-  addMember: (groupId: string, userId: string) =>
+  /** `unverifiedAck`: the reader confirmed the not_ytu_verified warning; core never refuses the add. */
+  addMember: (
+    groupId: string,
+    userId: string,
+    { unverifiedAck }: { unverifiedAck?: boolean } = {},
+  ) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(unverifiedAck ? { userId, unverifiedAck } : { userId }),
     }),
+  memberCheck: (groupId: string, userId: string) =>
+    coreFetch<MemberCheck>(
+      `/v1/groups/${encodeURIComponent(groupId)}/member-check/${encodeURIComponent(userId)}`,
+    ),
+  memberCandidates: (groupId: string, q: string) =>
+    coreFetch<MemberCandidate[]>(
+      `/v1/groups/${encodeURIComponent(groupId)}/member-candidates?q=${encodeURIComponent(q.trim())}`,
+    ),
   removeMember: (groupId: string, userId: string) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members/${userId}`, {
       method: 'DELETE',
