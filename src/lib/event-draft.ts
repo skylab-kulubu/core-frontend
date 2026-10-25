@@ -130,6 +130,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceRule: ev.attendanceRule ?? 'none',
     attendanceRatio: ev.attendanceRatio,
     doorStaffIds: ev.doorStaffIds ?? [],
+    registrationClosesAt: toDatetimeLocal(ev.registrationClosesAt),
     reservedId: ev.id,
   };
 }

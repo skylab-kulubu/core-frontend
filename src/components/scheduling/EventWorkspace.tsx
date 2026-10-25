@@ -11,7 +11,26 @@ import {
 } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
-import { Mail, Pencil, Trash2 } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+  MenuItem,
+  Notice,
+} from '@skylab-kulubu/skylcn-ui';
+import {
+  Ban,
+  DoorClosed,
+  DoorOpen,
+  FileEdit,
+  Mail,
+  MoreHorizontal,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -27,6 +46,11 @@ import {
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
+import {
+  eventStatusActions,
+  useEventStatusActions,
+  useEventStatusRights,
+} from '@/components/scheduling/use-event-status-actions';
 import { useAuth } from '@/context/AuthContext';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
@@ -49,7 +73,12 @@ import {
 } from '@/lib/auth/groups';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
-import { formHandoffFromSearch } from '@/lib/event-forms';
+import {
+  formHandoffFromSearch,
+  formsAdminOrigin,
+  skyformsEditHref,
+  skyformsFormId,
+} from '@/lib/event-forms';
 import { openEventMail } from '@/lib/event-mail';
 import { publicMediaUrl } from '@/lib/event-media';
 import {
@@ -57,10 +86,14 @@ import {
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
-import { eventFormIssue, eventListSubtitle } from '@/lib/events-view';
+import {
+  eventDisplayStatus,
+  eventFormIssue,
+  eventListSubtitle,
+  eventStatusOf,
+} from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
-import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import {
   canAssignEventTicket,
@@ -141,6 +174,27 @@ export function withTeamCapabilities(
   };
 }
 
+/**
+ * A cancelled Event takes no new person, check-in or certificate (core
+ * refuses them): its add, door and issue buttons go until the cancellation
+ * is undone. Reading stays.
+ */
+export function withEventStatus(can: EventPermissions, event: CoreEvent): EventPermissions {
+  if (eventStatusOf(event) !== 'cancelled') return can;
+  return { ...can, canAssign: false, canDesk: false, canIssueCertificate: false };
+}
+
+/** "12 Ekim 2026" for the cancellation band. */
+function cancelledOn(at: string | undefined): string {
+  const date = at ? new Date(at) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
 export type EventWorkspaceValue = EventPermissions & {
   event: CoreEvent;
   setEvent: (event: CoreEvent) => void;
@@ -209,6 +263,8 @@ export function EventWorkspace({
   const [sessions, setSessions] = useState<EventSession[]>([]);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  // Until the tickets are read (or when the read failed) the page has no count to give
+  const [ticketsLoaded, setTicketsLoaded] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
@@ -220,7 +276,26 @@ export function EventWorkspace({
   const [mailing, setMailing] = useState(false);
   const [doorAccess, setDoorAccess] = useState(false);
   const notify = useNotify();
-  const [confirm, confirmDialog] = useConfirm();
+  const rightsFor = useEventStatusRights();
+  const statusActions = useEventStatusActions({
+    onChanged: (next) => {
+      setError(null);
+      // core answers the whole Event and leaves a cleared field out (an undone cancellation's
+      // reason and mail): take its answer, keeping only a media list an answer comes without
+      setEvent((current) =>
+        current
+          ? {
+              ...next,
+              images: next.images ?? current.images,
+              imageUrls: next.imageUrls ?? current.imageUrls,
+              files: next.files ?? current.files,
+              videos: next.videos ?? current.videos,
+            }
+          : next,
+      );
+    },
+    onError: setError,
+  });
   const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
@@ -286,10 +361,18 @@ export function EventWorkspace({
       setSessions(sessionRows);
       const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
       setCompetitors(competitorRows);
+      let ticketsRead = false;
       const ticketRows = canListEventTickets(groups, ev.ownerTeam, roles)
-        ? await ticketsApi.listByEvent(id).catch(() => [] as Ticket[])
+        ? await ticketsApi
+            .listByEvent(id)
+            .then((rows) => {
+              ticketsRead = true;
+              return rows;
+            })
+            .catch(() => [] as Ticket[])
         : [];
       setTickets(ticketRows);
+      setTicketsLoaded(ticketsRead);
       // Tickets carry their owner; only competitors without a ticket are looked up by id.
       const ticketPeople = ticketOwnerPeople(ticketRows);
       const knownPeople = privileged
@@ -340,7 +423,81 @@ export function EventWorkspace({
   const current = event;
   // The group rule decides what is read (tabs); core's capabilities narrow the writes
   const readable = eventPermissions(groups, roles, event, doorAccess);
-  const can = withTeamCapabilities(readable, event.ownerTeam, teamCan, doorAccess);
+  const can = withEventStatus(
+    withTeamCapabilities(readable, event.ownerTeam, teamCan, doorAccess),
+    event,
+  );
+  // Status actions follow core's capabilities for the Owner team alone (DK: none)
+  const rights = rightsFor(event);
+  const offers = eventStatusActions(event);
+  const status = eventDisplayStatus(event);
+  const formId = event.formUrl ? skyformsFormId(event.formUrl) : null;
+  const closeFormHref =
+    formId && rights.canUpdate
+      ? skyformsEditHref(
+          formsAdminOrigin(),
+          formId,
+          typeof window !== 'undefined' ? window.location.href : '',
+        )
+      : null;
+  // None while the tickets are not read: the cancel dialog then reads the count itself
+  const ticketCount = can.canTickets && ticketsLoaded ? tickets.length : undefined;
+  const menuItems = [
+    rights.canUpdate && offers.unpublish ? (
+      <MenuItem
+        key="unpublish"
+        icon={FileEdit}
+        disabled={Boolean(ticketCount)}
+        onClick={() => void statusActions.unpublish(event)}
+      >
+        Taslağa al
+        {ticketCount ? (
+          <span className="text-subtle-foreground ml-auto pl-3 text-xs">
+            {ticketCount} kayıt var
+          </span>
+        ) : null}
+      </MenuItem>
+    ) : null,
+    rights.canUpdate && offers.registration ? (
+      <MenuItem
+        key="registration"
+        icon={event.registrationClosed ? DoorOpen : DoorClosed}
+        onClick={() => void statusActions.setRegistrationClosed(event, !event.registrationClosed)}
+      >
+        {event.registrationClosed ? 'Başvuruyu aç' : 'Başvuruyu kapat'}
+      </MenuItem>
+    ) : null,
+    rights.canUpdate && offers.cancel ? (
+      <MenuItem
+        key="cancel"
+        icon={Ban}
+        destructive
+        onClick={() => void statusActions.askCancel(event, ticketCount)}
+      >
+        İptal et…
+      </MenuItem>
+    ) : null,
+    rights.canUpdate && offers.uncancel ? (
+      <MenuItem key="uncancel" icon={RotateCcw} onClick={() => statusActions.askUncancel(event)}>
+        İptali geri al…
+      </MenuItem>
+    ) : null,
+    rights.canDelete && offers.delete ? (
+      <MenuItem
+        key="delete"
+        icon={Trash2}
+        destructive
+        onClick={() =>
+          statusActions.askDelete(event, {
+            onDeleted: () => router.push('/events'),
+            onRestored: (restored) => router.push(`/events/${encodeURIComponent(restored.id)}`),
+          })
+        }
+      >
+        Sil…
+      </MenuItem>
+    ) : null,
+  ].filter(Boolean);
   async function mailApplicants(ticketIds?: string[]) {
     setMailing(true);
     try {
@@ -387,7 +544,10 @@ export function EventWorkspace({
           description={eventListSubtitle(event)}
           meta={
             <>
-              <StatusChip kind={event.active ? 'active' : 'passive'} />
+              <StatusChip kind={status} />
+              {event.active && event.registrationOpen === false ? (
+                <StatusChip kind="neutral" label="Başvuru kapalı" />
+              ) : null}
               {can.canTickets ? (
                 <StatusChip kind="neutral" label={`${tickets.length} başvuru`} />
               ) : null}
@@ -395,6 +555,11 @@ export function EventWorkspace({
           }
           actions={
             <>
+              {rights.canUpdate && offers.publish ? (
+                <SaveButton type="button" onClick={() => void statusActions.publish(event)}>
+                  Yayınla
+                </SaveButton>
+              ) : null}
               {can.canMutate ? (
                 <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
               ) : null}
@@ -406,35 +571,47 @@ export function EventWorkspace({
                   onClick={() => void mailApplicants()}
                 />
               ) : null}
-              {can.canDelete ? (
-                <ActionButton
-                  icon={Trash2}
-                  label="Sil"
-                  onClick={() =>
-                    confirm({
-                      title: `"${event.name}" silinsin mi?`,
-                      description: `Etkinlik listeden kalkar. ${UNDO_HINT}`,
-                      actionLabel: 'Etkinliği sil',
-                      onConfirm: async () => {
-                        await eventsApi.delete(event.id);
-                        notify.undoable(
-                          'Etkinlik silindi',
-                          async () => {
-                            await eventsApi.restore(event.id);
-                            router.push(`/events/${encodeURIComponent(event.id)}`);
-                          },
-                          'Etkinlik geri alındı',
-                        );
-                        router.push('/events');
-                      },
-                      failure: 'Etkinlik silinemedi',
-                    })
-                  }
-                />
+              {menuItems.length ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <IconButton icon={MoreHorizontal} variant="ghost" label="Diğer eylemler" />
+                    }
+                  />
+                  <DropdownMenuContent align="end">{menuItems}</DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
             </>
           }
         />
+        {status === 'cancelled' ? (
+          <Notice
+            tone="danger"
+            title={
+              cancelledOn(event.cancelledAt)
+                ? `${cancelledOn(event.cancelledAt)} tarihinde iptal edildi.`
+                : 'İptal edildi.'
+            }
+            action={
+              rights.canUpdate || closeFormHref ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {rights.canUpdate ? (
+                    <Button size="sm" onClick={() => statusActions.askUncancel(event)}>
+                      İptali geri al
+                    </Button>
+                  ) : null}
+                  {closeFormHref ? (
+                    <a href={closeFormHref} className="text-skylab-300 text-xs hover:underline">
+                      SkyForms&apos;ta formu kapat
+                    </a>
+                  ) : null}
+                </div>
+              ) : undefined
+            }
+          >
+            {event.cancelReason || undefined}
+          </Notice>
+        ) : null}
         <EventWorkspaceNav
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
@@ -451,7 +628,7 @@ export function EventWorkspace({
         ) : null}
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}
-        {confirmDialog}
+        {statusActions.dialog}
         <Drawer
           open={editing}
           onClose={() => {

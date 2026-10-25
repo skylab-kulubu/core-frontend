@@ -28,6 +28,8 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
     doorStaffIds: form.doorStaffIds ?? [],
+    // Sent even when empty: null removes a deadline core keeps otherwise
+    registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };
 }
 
@@ -58,6 +60,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
     doorStaffIds: form.doorStaffIds ?? [],
+    registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };
 }
 
@@ -108,9 +111,10 @@ export async function saveEventWithSeason(
     form.ownerTeam,
   );
   const slottedForm = { ...form, formSlots: slotted, ...persistableFormFields(slotted) };
+  // A new Event opens as a draft: nobody sees it until it is published (ADR 0066)
   const saved = existingId
     ? await eventsApi.patch(existingId, eventPatchFromForm(slottedForm, base))
-    : await eventsApi.create(eventBodyFromForm(slottedForm));
+    : await eventsApi.create({ ...eventBodyFromForm(slottedForm), status: 'draft' });
   try {
     await finishSave(form, saved, existingId);
   } catch (cause) {

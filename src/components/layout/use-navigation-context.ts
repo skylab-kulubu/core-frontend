@@ -74,9 +74,11 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
           id: event.id,
           canSeeParticipants: canListEventTickets(groups, event.ownerTeam, user.roles ?? []),
           canSeeCompetitors: showsCompetitionTab(canManage, competitorCount),
+          // A cancelled Event takes no check-in (core refuses it)
           canUseDoor:
-            canDeskCheckIn(groups, event.ownerTeam, user.id, event.doorStaffIds ?? []) ||
-            doorEventIds.includes(event.id),
+            event.status !== 'cancelled' &&
+            (canDeskCheckIn(groups, event.ownerTeam, user.id, event.doorStaffIds ?? []) ||
+              doorEventIds.includes(event.id)),
           canSeeCertificates: canReadCertificates(groups, user.roles ?? [], event.ownerTeam),
         };
         setActiveEvent(

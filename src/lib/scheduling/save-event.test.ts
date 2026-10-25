@@ -122,6 +122,32 @@ describe('saveEventWithSeason', () => {
     expect(eventUpdate(calls)).not.toHaveProperty('active');
   });
 
+  it('creates every new Event as a draft, and never sends a status on update', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+
+    await saveEventWithSeason({ ...form, imageIds: [] });
+    await saveEventWithSeason(formStateFromEvent(savedEvent), savedEvent.id);
+
+    const create = calls.find((call) => call.method === 'POST' && call.url.endsWith('/v1/events'));
+    expect(create?.body).toMatchObject({ status: 'draft' });
+    expect(eventUpdate(calls)).not.toHaveProperty('status');
+  });
+
+  it('sends the applying deadline, and null to remove it', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+    const loaded = formStateFromEvent({
+      ...savedEvent,
+      registrationClosesAt: '2026-04-30T21:00:00.000Z',
+    });
+
+    await saveEventWithSeason(loaded, savedEvent.id);
+    expect(eventUpdate(calls)).toMatchObject({ registrationClosesAt: '2026-04-30T21:00:00.000Z' });
+
+    calls.length = 0;
+    await saveEventWithSeason({ ...loaded, registrationClosesAt: '' }, savedEvent.id);
+    expect(eventUpdate(calls)).toMatchObject({ registrationClosesAt: null });
+  });
+
   it('re-saving a loaded Event keeps the aliases it already saved', async () => {
     const calls = coreWithTakenAliases(savedEvent, ['gecekodu-skydays2026', 'skydays-ctf2026']);
 
