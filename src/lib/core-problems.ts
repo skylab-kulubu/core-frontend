@@ -132,6 +132,23 @@ export function groupWriteProblemMessage(
   return coreProblemMessage(error, fallback);
 }
 
+/** Deleting a Group has stricter safeguards than renaming or changing membership. */
+export function groupDeleteProblemMessage(error: unknown): string {
+  if (error instanceof ProblemError) {
+    const messages: Record<string, string> = {
+      not_empty: 'Önce grubun üyelerini ve alt gruplarını taşı veya çıkar.',
+      code_in_use: 'Bu gruba bağlı kayıtlar var; grup silinemez.',
+      group_delete_protected: 'Bu sistem veya rol grubu buradan silinemez.',
+      privileged_root: 'Yönetim grupları ve bunların üst veya alt grupları buradan silinemez.',
+      protected_group: 'Bu grup veya üst grubu korunan roller taşıyor; buradan silinemez.',
+      protection_unverified: 'Grubun rol koruması doğrulanamadı; daha sonra tekrar dene.',
+      group_tree_mismatch: 'Grup ağacı doğrulanamadı; yöneticiye haber ver.',
+    };
+    if (error.code && messages[error.code]) return messages[error.code];
+  }
+  return coreProblemMessage(error, 'Grup silinemedi');
+}
+
 /**
  * core's bare 409 on a competitor's create or save. It has no code and means
  * one of several things (the person already competes, their account is not

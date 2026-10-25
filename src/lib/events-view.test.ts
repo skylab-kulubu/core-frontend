@@ -1,4 +1,6 @@
 import {
+  attendanceFinalizeOpen,
+  eventEndsAt,
   eventFormIssue,
   eventListSubtitle,
   eventsByDateKey,
@@ -92,6 +94,42 @@ describe('filterEventsByPhase', () => {
     expect(filterEventsByPhase(rows, 'upcoming', now).map((row) => row.id)).toEqual(['next']);
     expect(filterEventsByPhase(rows, 'past', now).map((row) => row.id)).toEqual(['past']);
     expect(filterEventsByPhase(rows, 'active', now).map((row) => row.id)).toEqual(['past', 'on']);
+  });
+});
+
+describe('event end (core rule)', () => {
+  const now = new Date('2026-09-19T12:00:00+03:00');
+
+  it('ends at the end date, else a day after the start, and never when undated', () => {
+    expect(
+      eventEndsAt({
+        startDate: '2026-09-19T10:00:00+03:00',
+        endDate: '2026-09-19T11:00:00+03:00',
+      }),
+    ).toBe(Date.parse('2026-09-19T11:00:00+03:00'));
+    expect(eventEndsAt({ startDate: '2026-09-19T10:00:00+03:00' })).toBe(
+      Date.parse('2026-09-20T10:00:00+03:00'),
+    );
+    expect(eventEndsAt({})).toBeNull();
+  });
+
+  it('keeps a start-only event upcoming for a day after its start', () => {
+    const rows = [
+      { id: 'today', name: 'Bugün', startDate: '2026-09-19T10:00:00+03:00' },
+      { id: 'yesterday', name: 'Dün', startDate: '2026-09-18T11:00:00+03:00' },
+    ];
+    expect(filterEventsByPhase(rows, 'upcoming', now).map((row) => row.id)).toEqual(['today']);
+    expect(filterEventsByPhase(rows, 'past', now).map((row) => row.id)).toEqual(['yesterday']);
+  });
+
+  it('opens attendance finalization for a published event that ended or is undated', () => {
+    const ended = { startDate: '2026-09-18T11:00:00+03:00' };
+    const running = { startDate: '2026-09-19T10:00:00+03:00' };
+    expect(attendanceFinalizeOpen({ status: 'published', ...ended }, now)).toBe(true);
+    expect(attendanceFinalizeOpen({ status: 'published' }, now)).toBe(true);
+    expect(attendanceFinalizeOpen({ status: 'published', ...running }, now)).toBe(false);
+    expect(attendanceFinalizeOpen({ status: 'draft', ...ended }, now)).toBe(false);
+    expect(attendanceFinalizeOpen({ status: 'cancelled' }, now)).toBe(false);
   });
 });
 

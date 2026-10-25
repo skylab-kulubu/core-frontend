@@ -61,3 +61,12 @@ describe('EventEditor door staff', () => {
     expect(identityApi.getUser).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('EventEditor fields', () => {
+  it('has no Aktif switch, as core derives it', () => {
+    render(<Editor doorStaffIds={[]} />);
+    expect(screen.queryByRole('switch', { name: 'Aktif' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Aktif')).not.toBeInTheDocument();
+    expect(screen.getByText('Sıralamalı')).toBeInTheDocument();
+  });
+});
