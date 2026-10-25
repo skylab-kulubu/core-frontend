@@ -71,8 +71,30 @@ export type EventBody = {
   doorStaffIds?: string[];
 };
 
-/** A partial update: a key left out keeps its value, `null` clears a field that may be empty. */
+/**
+ * A partial update (PUT and PATCH alike in core, ADR 0066 addendum): a key
+ * left out keeps its value; `null` (or `""`, `[]`) clears a field that may be
+ * empty. `name`, `location` and `ownerTeam` cannot be cleared, `ranked` and
+ * `registrationClosed` take no `null`.
+ */
 export type EventPatch = {
+  name?: string;
+  description?: string;
+  location?: string;
+  ownerTeam?: string;
+  formUrl?: string | null;
+  formAlias?: string | null;
+  extraFormUrls?: { label: string; url: string; alias?: string }[] | null;
+  capacity?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  linkedin?: string | null;
+  ranked?: boolean;
+  prizeInfo?: string | null;
+  coverImageId?: string | null;
+  attendanceRule?: string | null;
+  attendanceRatio?: number | null;
+  doorStaffIds?: string[] | null;
   registrationClosed?: boolean;
   registrationClosesAt?: string | null;
   cancelReason?: string | null;
@@ -95,11 +117,6 @@ export const eventsApi = {
   get: (id: string) => coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`),
   create: (body: EventBody) =>
     coreFetch<CoreEvent>('/v1/events', { method: 'POST', body: JSON.stringify(body) }),
-  update: (id: string, body: EventBody) =>
-    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** draft → published; core refuses an Event without a name, place or start (`event_incomplete`). */
