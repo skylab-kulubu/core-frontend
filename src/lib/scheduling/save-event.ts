@@ -60,6 +60,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
     doorStaffIds: form.doorStaffIds ?? [],
+    registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };
 }
 
