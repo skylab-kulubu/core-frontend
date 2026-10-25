@@ -21,6 +21,20 @@ export function isPrivileged(groups: readonly string[]): boolean {
   return groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK|DK)(\/|$)/.test(g));
 }
 
+/**
+ * A Team's own Group, as core's TeamOf reads it: at least
+ * `/UYELER/<area>/<team>`, under no Privileged root, no Leader group on the way.
+ */
+export function isTeamGroupPath(path: string): boolean {
+  const parts = path.split('/').slice(1);
+  return (
+    path.startsWith('/UYELER/') &&
+    parts.length >= 3 &&
+    parts.every((part) => part !== '' && !LEADER_SUBGROUPS.some((leader) => leader === part)) &&
+    !isPrivileged([path])
+  );
+}
+
 /** A Team's Leader group: `LIDERLER` or `KOORDINATORLER` as the path's last segment. */
 export function isLeaderGroupPath(path: string | undefined): boolean {
   return !!path && /^\/[^/]+(\/[^/]+)*\/(LIDERLER|KOORDINATORLER)$/.test(path);

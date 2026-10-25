@@ -13,6 +13,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
+import { Switch } from '@/components/chrome/Switch';
 import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
@@ -36,9 +37,14 @@ import {
   groupDeleteProblemMessage,
   groupWriteProblemMessage,
 } from '@/lib/core-problems';
-import { isLeaderGroupPath, isPrivileged } from '@/lib/auth/groups';
+import { isLeaderGroupPath, isPrivileged, isTeamGroupPath } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
-import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
+import {
+  TEAM_SETTING_ATTRS,
+  extraGroupAttrs,
+  isKnownGroupAttr,
+  membersManageCompetitors,
+} from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
@@ -194,7 +200,14 @@ export default function GroupDetailPage() {
   useChromeCrumbName(`${base}/${id}`, group?.name);
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
-  const extraAttrs = extraGroupAttrs(group?.attributes);
+  // The Team's settings have their own switch below, not a row here
+  const extraAttrs = Object.fromEntries(
+    Object.entries(extraGroupAttrs(group?.attributes)).filter(
+      ([key]) => !(TEAM_SETTING_ATTRS as readonly string[]).includes(key),
+    ),
+  );
+  // Whoever manages the Team (its Leader, one above, Privileged) sets its own settings
+  const settingsWrite = !!group && memberWrite && isTeamGroupPath(group.path);
   // Why core would refuse a new role here (null: it takes one); removing one is always allowed
   const placementKnown =
     !!group && (!group.path.startsWith(`${ROLES_ROOT}/`) || subgroupsOf?.path === group.path);
@@ -449,6 +462,26 @@ export default function GroupDetailPage() {
             ))}
         </ListPanel>
       </section>
+
+      {settingsWrite && group ? (
+        <section className="space-y-3">
+          <SectionHeading title="Ekip ayarları" />
+          <Switch
+            checked={membersManageCompetitors(group.attributes)}
+            label="Üyeler yarışmacı ekleyip düzenleyebilir"
+            hint="Kapalıysa yalnız liderler."
+            onChange={async (next) => {
+              try {
+                await identityApi.setTeamSettings(id, { membersManageCompetitors: next });
+                notify.success('Ayar kaydedildi');
+                await load();
+              } catch (err) {
+                setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+              }
+            }}
+          />
+        </section>
+      ) : null}
 
       {rolesReadable ? (
         <section className="space-y-3">

@@ -101,15 +101,14 @@ export function useTeamDecide(): TeamDecide {
 }
 
 /**
- * The Owner teams the caller leads, by name: the group rule's, and once core's
- * answer is in, its `teams` with `LEADER` too (a Sub-team led from above). A
- * list of candidates: each write still asks teamDecision.
+ * The Owner teams the caller leads, by name: core's `teams` with `LEADER`
+ * once its answer is in (a Sub-team led from above included; a path the group
+ * rule misreads, such as `/X/LIDERLER/ALT`, left out), the group rule's until
+ * then or when it cannot be read. Each write still asks teamDecision.
  */
 export function leaderTeamsOf(state: CapabilitiesState, groups: readonly string[]): string[] {
-  const own = leaderOwnerTeams(groups);
-  if (state.status !== 'ready') return own;
-  const fromCore = (state.data.teams ?? [])
+  if (state.status !== 'ready') return leaderOwnerTeams(groups);
+  return (state.data.teams ?? [])
     .filter((row) => row.levels?.includes('LEADER'))
     .map((row) => row.team);
-  return [...new Set([...own, ...fromCore])];
 }

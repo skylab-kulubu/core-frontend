@@ -90,6 +90,12 @@ export type ManagedGroup = {
   children?: ManagedGroup[];
 };
 
+/** A Team's own settings, kept as its Group's attributes (core docs/team-delegation.md). */
+export type TeamSettings = {
+  /** Whether the Team's members add and edit its Events' competitors; off keeps it to Leaders. */
+  membersManageCompetitors: boolean;
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -130,6 +136,12 @@ export const identityApi = {
       method: 'DELETE',
     }),
   managedGroups: () => coreFetch<ManagedGroup[]>('/v1/users/me/managed-groups'),
+  /** A Team's own settings (PUT /v1/groups/{id}/settings): its manager or Privileged. */
+  setTeamSettings: (id: string, settings: TeamSettings) =>
+    coreFetch<TeamSettings>(`/v1/groups/${encodeURIComponent(id)}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
   groupRoles: (id: string) =>
     coreFetch<ClientRole[]>(`/v1/groups/${encodeURIComponent(id)}/client-roles`),
   setGroupRoles: (id: string, roles: ClientRole[]) =>

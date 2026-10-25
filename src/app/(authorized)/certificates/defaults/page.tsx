@@ -37,7 +37,7 @@ export default function CertificateDefaultsPage() {
   );
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [bindings, setBindings] = useState<CertificateTemplateBinding[]>([]);
-  const [teams, setTeams] = useState<string[]>([]);
+  const [teamNames, setTeamNames] = useState<string[]>([]);
   const [scope, setScope] = useState<'club' | 'ownerTeam'>('ownerTeam');
   const [team, setTeam] = useState('');
   const [templateId, setTemplateId] = useState('');
@@ -47,26 +47,32 @@ export default function CertificateDefaultsPage() {
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
 
+  // Read once; core's answer arriving later only widens the list, it reads nothing again
   useEffect(() => {
     Promise.all([certificatesApi.templates(), certificatesApi.bindings(), teamsApi.list()])
       .then(([templateRows, bindingRows, teamRows]) => {
         setTemplates(templateRows.filter((item) => item.publishedVersion));
         setBindings(bindingRows);
-        const allowed = teamRows
-          .map((item) => item.team)
-          .filter(
-            (ownerTeam) =>
-              privileged ||
-              ownerLevels(groups, ownerTeam).length > 0 ||
-              // a Sub-team led from above: core lists it among the caller's teams
-              coreTeams.includes(ownerTeam),
-          );
-        setTeams(allowed);
-        setTeam(allowed[0] ?? '');
+        setTeamNames(teamRows.map((item) => item.team));
       })
       .catch((cause) => setError(coreProblemMessage(cause, 'Varsayılanlar yüklenemedi')))
       .finally(() => setLoading(false));
-  }, [groups, privileged, coreTeams]);
+  }, []);
+  const teams = useMemo(
+    () =>
+      teamNames.filter(
+        (ownerTeam) =>
+          privileged ||
+          ownerLevels(groups, ownerTeam).length > 0 ||
+          // a Sub-team led from above: core lists it among the caller's teams
+          coreTeams.includes(ownerTeam),
+      ),
+    [teamNames, privileged, groups, coreTeams],
+  );
+  // The first team until one is picked; a pick stays while the list grows
+  useEffect(() => {
+    if (!teams.includes(team)) setTeam(teams[0] ?? '');
+  }, [teams, team]);
 
   const availableTemplates = useMemo(
     () =>

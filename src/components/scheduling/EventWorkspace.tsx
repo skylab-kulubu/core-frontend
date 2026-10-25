@@ -641,7 +641,7 @@ export function EventWorkspace({
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
           canSeeParticipants={can.canTickets}
-          canSeeCompetitors={showsCompetitionTab(readable.canCompetitors, competitors.length)}
+          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
           canUseDoor={can.canDesk}
           canSeeCertificates={can.canCertificates}
           canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
