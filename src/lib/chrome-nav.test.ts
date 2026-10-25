@@ -73,6 +73,20 @@ describe('buildSidebarNavigation', () => {
     expect(leader.map((link) => link.href)).not.toContain('/apps');
   });
 
+  it('lists Ekiplerim in Kulüp only once core names a Team the person leads', () => {
+    const leader = { ...privileged, id: '3', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
+    const club = (context: { managedTeamsVisible?: boolean }) => {
+      const node = buildSidebarNavigation(leader, context).find((row) => row.label === 'Kulüp');
+      return node?.kind === 'group' ? node.children.map((item) => item.href) : [];
+    };
+    expect(club({})).toEqual([]);
+    expect(club({ managedTeamsVisible: false })).toEqual([]);
+    expect(club({ managedTeamsVisible: true })).toEqual(['/my-teams']);
+    expect(
+      filterSidebarNavForUser(privileged, { managedTeamsVisible: true }).map((link) => link.href),
+    ).toContain('/my-teams');
+  });
+
   it('does not emit empty groups for a url-only member', () => {
     const nodes = buildSidebarNavigation({
       ...privileged,

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { Plus, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -29,18 +29,20 @@ import {
   MEMBER_CANDIDATE_MIN,
   usePickerSearch,
 } from '@/components/identity/use-person-search';
+import { ProblemError } from '@/lib/api/core';
 import { identityApi, type ClientRole, type Group, type Person } from '@/lib/api/identity';
 import {
   coreProblemMessage,
   groupDeleteProblemMessage,
   groupWriteProblemMessage,
 } from '@/lib/core-problems';
-import { isPrivileged } from '@/lib/auth/groups';
+import { isLeaderGroupPath, isPrivileged } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import { extraGroupAttrs, isKnownGroupAttr } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { findManagedGroup, useManagedGroups } from '@/lib/managed-groups';
 import { mapLimit } from '@/lib/map-limit';
 import { pickerMatch, roleKey } from '@/lib/picker';
 import {
@@ -55,6 +57,9 @@ import { useNotify } from '@/lib/ui/use-notify';
 
 /** core refused some of the confirmed adds; the message says who and why. */
 class MembersRefused extends Error {}
+
+/** No active account matched: the person signs up first (ticket 08; ticket 09's invite replaces it). */
+const NO_CANDIDATE = "Kullanıcı yok. Kişinin önce my.yildizskylab.com'dan kaydolması gerekir.";
 
 /** How many member checks (and address reads) run at once for a selection. */
 const CHECKS_AT_ONCE = 3;
@@ -95,9 +100,13 @@ export default function GroupDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(params.id);
+  // Ekiplerim opens this page under /my-teams (ticket 08): its trail stays there
+  const base = usePathname()?.startsWith('/my-teams/') ? '/my-teams' : '/groups';
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Person[]>([]);
   const [roles, setRoles] = useState<ClientRole[]>([]);
+  // A Team's Leader reads no role mappings (core: Privileged's); the section hides
+  const [rolesReadable, setRolesReadable] = useState(true);
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +143,12 @@ export default function GroupDetailPage() {
   // group rule stands in only when the capabilities cannot be read
   const can = useAppCan(isPrivileged(user?.groups ?? []));
   const canWrite = can('group.write');
+  // A Leader adds and removes members of a Team they manage: core's managed
+  // tree says which (members.write); a Leader group's own row stays read-only
+  const managedGroups = useManagedGroups();
+  const managed =
+    managedGroups.status === 'ready' ? findManagedGroup(managedGroups.groups, id) : undefined;
+  const memberWrite = canWrite || managed?.can?.['members.write'] === true;
   // With core's app assignments on (ticket 15), a Team's, Sub-team's or Leader
   // group's app roles are given on Uygulamalar; here they only show
   const appsOn = useAppCan(false)('apps.read');
@@ -146,11 +161,15 @@ export default function GroupDetailPage() {
       const [g, mem, mapped] = await Promise.all([
         identityApi.getGroup(id),
         identityApi.members(id),
-        identityApi.groupRoles(id),
+        identityApi.groupRoles(id).catch((err: unknown) => {
+          if (err instanceof ProblemError && err.status === 403) return null;
+          throw err;
+        }),
       ]);
       setGroup(g);
       setMembers(mem);
-      setRoles(mapped);
+      setRoles(mapped ?? []);
+      setRolesReadable(mapped !== null);
       setError(null);
       if (g.path.startsWith(`${ROLES_ROOT}/`)) {
         // An unread list counts as none: core still refuses a mapping that breaks the rule
@@ -171,7 +190,7 @@ export default function GroupDetailPage() {
     void load();
   }, [id]);
 
-  useChromeCrumbName(`/groups/${id}`, group?.name);
+  useChromeCrumbName(`${base}/${id}`, group?.name);
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const mappedKeys = useMemo(() => new Set(roles.map(roleKey)), [roles]);
   const extraAttrs = extraGroupAttrs(group?.attributes);
@@ -356,7 +375,7 @@ export default function GroupDetailPage() {
           title="Üyeler"
           meta={`${members.length} kişi`}
           actions={
-            canWrite ? (
+            memberWrite ? (
               <ActionButton
                 icon={Plus}
                 variant="primary"
@@ -397,7 +416,7 @@ export default function GroupDetailPage() {
                 title={`${m.firstName} ${m.lastName}`.trim() || m.email}
                 subtitle={memberSubtitle(group?.path ?? '', m)}
                 trailing={
-                  canWrite ? (
+                  canWrite || (memberWrite && !isLeaderGroupPath(m.sourceGroupPath)) ? (
                     <ActionButton
                       icon={X}
                       label="Çıkar"
@@ -429,89 +448,91 @@ export default function GroupDetailPage() {
         </ListPanel>
       </section>
 
-      <section className="space-y-3">
-        <SectionHeading
-          title="Uygulama rolleri"
-          meta={`${roles.length} rol`}
-          actions={
-            canWrite && placementKnown && !placement && !rolesOnApps ? (
-              <ActionButton
-                icon={Plus}
-                variant="primary"
-                label="Rol ekle"
-                onClick={async () => {
-                  setRoleQuery('');
-                  setPickError(null);
-                  setRoleOpen(true);
-                  setPickerLoading(true);
-                  try {
-                    setCatalog(await identityApi.listClientRoles());
-                    setPickerFailed(false);
-                  } catch {
-                    setPickerFailed(true);
-                  } finally {
-                    setPickerLoading(false);
-                  }
-                }}
-              />
-            ) : null
-          }
-        />
-        {rolesOnApps ? (
-          <p className="text-3xs text-subtle-foreground">
-            Uygulama rolleri{' '}
-            <Link href="/apps" className="underline">
-              Uygulamalar
-            </Link>{' '}
-            sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
-          </p>
-        ) : canWrite && placement ? (
-          <p className="text-3xs text-subtle-foreground">
-            {rolePlacementMessage(placement)}
-            {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
-          </p>
-        ) : null}
-        <ListPanel
-          status={listStatus({
-            loading: false,
-            failed: Boolean(error),
-            rowCount: roles.length,
-            emptyMessage: 'Client rol yok',
-          })}
-        >
-          {roles.map((r) => (
-            <ListItem
-              key={roleKey(r)}
-              title={r.role}
-              subtitle={r.clientId}
-              trailing={
-                canWrite && !rolesOnApps ? (
-                  <ActionButton
-                    icon={X}
-                    label="Kaldır"
-                    onClick={() =>
-                      confirm({
-                        title: `${r.role} rolü ${group?.name ?? ''} grubundan kaldırılsın mı?`,
-                        description: 'Grubun bütün üyeleri bu rolü kaybeder.',
-                        actionLabel: 'Rolü kaldır',
-                        onConfirm: async () => {
-                          await identityApi.setGroupRoles(
-                            id,
-                            roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
-                          );
-                          notify.success('Rol kaldırıldı');
-                          await load();
-                        },
-                        failure: 'Rol kaldırılamadı',
-                      })
+      {rolesReadable ? (
+        <section className="space-y-3">
+          <SectionHeading
+            title="Uygulama rolleri"
+            meta={`${roles.length} rol`}
+            actions={
+              canWrite && placementKnown && !placement && !rolesOnApps ? (
+                <ActionButton
+                  icon={Plus}
+                  variant="primary"
+                  label="Rol ekle"
+                  onClick={async () => {
+                    setRoleQuery('');
+                    setPickError(null);
+                    setRoleOpen(true);
+                    setPickerLoading(true);
+                    try {
+                      setCatalog(await identityApi.listClientRoles());
+                      setPickerFailed(false);
+                    } catch {
+                      setPickerFailed(true);
+                    } finally {
+                      setPickerLoading(false);
                     }
-                  />
-                ) : null
-              }
-            />
-          ))}
-        </ListPanel>
-      </section>
+                  }}
+                />
+              ) : null
+            }
+          />
+          {rolesOnApps ? (
+            <p className="text-3xs text-subtle-foreground">
+              Uygulama rolleri{' '}
+              <Link href="/apps" className="underline">
+                Uygulamalar
+              </Link>{' '}
+              sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
+            </p>
+          ) : canWrite && placement ? (
+            <p className="text-3xs text-subtle-foreground">
+              {rolePlacementMessage(placement)}
+              {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
+            </p>
+          ) : null}
+          <ListPanel
+            status={listStatus({
+              loading: false,
+              failed: Boolean(error),
+              rowCount: roles.length,
+              emptyMessage: 'Client rol yok',
+            })}
+          >
+            {roles.map((r) => (
+              <ListItem
+                key={roleKey(r)}
+                title={r.role}
+                subtitle={r.clientId}
+                trailing={
+                  canWrite && !rolesOnApps ? (
+                    <ActionButton
+                      icon={X}
+                      label="Kaldır"
+                      onClick={() =>
+                        confirm({
+                          title: `${r.role} rolü ${group?.name ?? ''} grubundan kaldırılsın mı?`,
+                          description: 'Grubun bütün üyeleri bu rolü kaybeder.',
+                          actionLabel: 'Rolü kaldır',
+                          onConfirm: async () => {
+                            await identityApi.setGroupRoles(
+                              id,
+                              roles.filter((x) => x.clientId !== r.clientId || x.role !== r.role),
+                            );
+                            notify.success('Rol kaldırıldı');
+                            await load();
+                          },
+                          failure: 'Rol kaldırılamadı',
+                        })
+                      }
+                    />
+                  ) : null
+                }
+              />
+            ))}
+          </ListPanel>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <SectionHeading title="Ekstra öznitelikler" />
@@ -644,7 +665,7 @@ export default function GroupDetailPage() {
         loading={memberSearch.loading}
         failed={memberSearch.failed}
         options={memberOptions}
-        emptyMessage={memberSearch.ready ? 'Kullanıcı yok' : MEMBER_CANDIDATE_HINT}
+        emptyMessage={memberSearch.ready ? NO_CANDIDATE : MEMBER_CANDIDATE_HINT}
         error={pickError}
         selection={{
           items: selectedMembers,

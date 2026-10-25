@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
   useParams: () => ({ id: 'g1' }),
+  usePathname: () => '/groups/g1',
   useRouter: () => ({ push: mockPush }),
 }));
 jest.mock('@/context/AuthContext', () => ({
@@ -22,6 +23,7 @@ jest.mock('@/lib/api/capabilities', () => ({
 
 beforeEach(() => {
   (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
+  (identityApi.managedGroups as jest.Mock).mockResolvedValue([]);
   (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
 });
 
@@ -40,6 +42,7 @@ jest.mock('@/lib/api/identity', () => ({
     addMember: jest.fn(),
     memberCheck: jest.fn(),
     removeMember: jest.fn(),
+    managedGroups: jest.fn(),
   },
 }));
 
@@ -105,7 +108,11 @@ describe('Group detail Üye ekle', () => {
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
     await user.type(screen.getByPlaceholderText('Ad veya tam e-posta'), 'zey');
-    expect(await screen.findByText('Kullanıcı yok')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Kullanıcı yok. Kişinin önce my.yildizskylab.com'dan kaydolması gerekir.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it('leaves out the ones core says are members already', async () => {
@@ -867,5 +874,86 @@ describe('Group deletion', () => {
     render(<GroupDetailPage />);
     await screen.findByText('TANISMAYEMEGIGRUBU', { selector: 'h1' });
     expect(screen.queryByRole('button', { name: 'Grubu sil' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Group detail for a Team Leader (Ekiplerim, ticket 08)', () => {
+  const leader = { user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] } };
+  const forbidden = new ProblemError(403, 'Forbidden');
+  const members = [
+    {
+      id: 'u-ada',
+      firstName: 'Ada',
+      lastName: 'L',
+      email: 'ada@example.com',
+      sourceGroupPath: '/UYELER/ARGE/WEBLAB',
+    },
+    {
+      id: 'u-lead',
+      firstName: 'Lider',
+      lastName: 'K',
+      email: 'lider@example.com',
+      sourceGroupPath: '/UYELER/ARGE/WEBLAB/LIDERLER',
+    },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (useAuth as jest.Mock).mockReturnValue(leader);
+    (identityApi.getGroup as jest.Mock).mockResolvedValue({
+      id: 'g1',
+      name: 'WEBLAB',
+      path: '/UYELER/ARGE/WEBLAB',
+    });
+    (identityApi.members as jest.Mock).mockResolvedValue(members);
+    (identityApi.groupRoles as jest.Mock).mockRejectedValue(forbidden);
+  });
+
+  it('adds and removes members of a Team core says the Leader manages, not a Leader group row', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': false },
+      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
+      { id: 'g1', code: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB', can: { 'members.write': true } },
+    ]);
+    render(<GroupDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Üye ekle' })).toBeInTheDocument();
+    // Ada's row has Çıkar; the Leader group's own row (Lider K) has none
+    expect(screen.getAllByText('Lider K').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Çıkar' })).toHaveLength(1);
+    // The role mappings are Privileged's: no section, no error
+    expect(screen.queryByText('Uygulama rolleri')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Grubu sil' })).toBeNull();
+  });
+
+  it('shows no write button when core names no managed Team', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {}, managedTeams: [] });
+    render(<GroupDetailPage />);
+    expect((await screen.findAllByText('Ada L')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Üye ekle' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Çıkar' })).toBeNull();
+    expect(identityApi.managedGroups).not.toHaveBeenCalled();
+  });
+
+  it('shows no write button for a Team the tree does not allow', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: {},
+      managedTeams: [{ id: 'g-other', path: '/UYELER/ARGE/GAMELAB', code: 'GAMELAB' }],
+    });
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
+      {
+        id: 'g-other',
+        code: 'GAMELAB',
+        path: '/UYELER/ARGE/GAMELAB',
+        can: { 'members.write': true },
+      },
+    ]);
+    render(<GroupDetailPage />);
+    expect((await screen.findAllByText('Ada L')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(identityApi.managedGroups).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Üye ekle' })).toBeNull();
   });
 });

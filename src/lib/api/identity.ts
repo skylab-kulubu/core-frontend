@@ -72,6 +72,24 @@ export type MemberCandidate = {
   warnings: string[];
 };
 
+/**
+ * A Team the reader manages, with the Teams below it (GET
+ * /v1/users/me/managed-groups; core's team delegation, docs/team-delegation.md
+ * "Managed tree"). `can` holds core's decisions for it: `group.read`,
+ * `members.write` and `leaders.write`.
+ */
+export type ManagedGroup = {
+  id: string;
+  code: string;
+  path: string;
+  displayName?: { tr?: string; en?: string };
+  memberCount?: number;
+  leaderCount?: number;
+  protected?: boolean;
+  can?: Record<string, boolean>;
+  children?: ManagedGroup[];
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -111,6 +129,7 @@ export const identityApi = {
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members/${userId}`, {
       method: 'DELETE',
     }),
+  managedGroups: () => coreFetch<ManagedGroup[]>('/v1/users/me/managed-groups'),
   groupRoles: (id: string) =>
     coreFetch<ClientRole[]>(`/v1/groups/${encodeURIComponent(id)}/client-roles`),
   setGroupRoles: (id: string, roles: ClientRole[]) =>

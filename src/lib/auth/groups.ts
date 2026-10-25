@@ -12,8 +12,18 @@ export function extractGroupsFromClaims(payload: Record<string, unknown> | null)
 
 const LEADER_SUBGROUPS = ['LIDERLER', 'KOORDINATORLER'] as const;
 
+/**
+ * Privileged: a member of one of core's six roots (`/ADMIN`, `/YK`, `/DK` and
+ * the same under `/UYELER`) or of a Group under one, anchored as core reads
+ * them (ADR 0065 decision 6): `/UYELER/ARGE/YK` is no Privileged root.
+ */
 export function isPrivileged(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/(ADMIN|YK|DK)(\/|$)/.test(g));
+  return groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK|DK)(\/|$)/.test(g));
+}
+
+/** A Team's Leader group: `LIDERLER` or `KOORDINATORLER` as the path's last segment. */
+export function isLeaderGroupPath(path: string | undefined): boolean {
+  return !!path && /\/(LIDERLER|KOORDINATORLER)$/.test(path);
 }
 
 /**

@@ -13,6 +13,14 @@ describe('isPrivileged', () => {
   it('team member is not', () => {
     expect(isPrivileged(['/UYELER/ARGE/WEBLAB'])).toBe(false);
   });
+  it('reads only the six roots and the Groups under them (ADR 0065 decision 6)', () => {
+    for (const path of ['/ADMIN', '/YK/BASKAN', '/DK', '/UYELER/ADMIN', '/UYELER/DK/X']) {
+      expect(isPrivileged([path])).toBe(true);
+    }
+    for (const path of ['/UYELER/ARGE/YK', '/UYELER/ARGE/WEBLAB/ADMIN', '/ROLLER/DK', '/YKX']) {
+      expect(isPrivileged([path])).toBe(false);
+    }
+  });
 });
 
 describe('filterSidebarNavForUser', () => {
