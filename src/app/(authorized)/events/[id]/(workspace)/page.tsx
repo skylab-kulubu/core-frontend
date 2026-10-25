@@ -4,6 +4,7 @@ import { buttonVariants } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState } from 'react';
 import { saveClass } from '@/components/chrome/SaveButton';
 import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
+import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { publicShortUrl } from '@/lib/api/urls';
@@ -63,7 +64,7 @@ function PreviousForms({ event }: { event: CoreEvent }) {
   );
 }
 
-/** Genel bakış tab: the event's cover, description and guest form link. */
+/** Genel bakış tab: the event's cover, description, guest form link and feedback form. */
 export default function EventOverviewPage() {
   const { event, canMutate } = useEventWorkspace();
 
@@ -89,6 +90,7 @@ export default function EventOverviewPage() {
           </a>
         </p>
       ) : null}
+      <EventFeedbackPanel event={event} canSend={canMutate} />
     </div>
   );
 }

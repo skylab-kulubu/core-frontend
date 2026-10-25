@@ -13,10 +13,16 @@ import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
-import type { EventBody } from '@/lib/api/events';
+import { ProblemError } from '@/lib/api/core';
+import { eventsApi, type EventBody, type FeedbackMode } from '@/lib/api/events';
 import type { Person } from '@/lib/api/identity';
 import type { Season } from '@/lib/api/seasons';
-import { emptyApplySlot, persistableFormFields, type EventFormSlot } from '@/lib/event-forms';
+import {
+  emptyApplySlot,
+  emptyFeedbackSlot,
+  persistableFormFields,
+  type EventFormSlot,
+} from '@/lib/event-forms';
 import type { EventMediaHint } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
@@ -28,8 +34,25 @@ export type EventFormState = EventBody & {
   seasonId: string;
   imageIds: string[];
   formSlots: EventFormSlot[];
+  /** The feedback form, saved as `feedbackFormUrl`/`feedbackFormAlias`. */
+  feedbackSlot: EventFormSlot;
   reservedId?: string;
 };
+
+const FEEDBACK_MODES: { value: FeedbackMode; label: string }[] = [
+  { value: 'event', label: 'Etkinlik formu' },
+  { value: 'per_session', label: 'Oturum başına form' },
+  { value: 'event_with_sessions', label: 'Etkinlik formunda oturumlar' },
+];
+
+/**
+ * The modes the editor offers: "Oturum başına form" waits for the Session
+ * forms in Program (bilet 09). An Event already in that mode (set elsewhere)
+ * still shows it, so the select does not misstate it.
+ */
+export function feedbackModeOptions(current: FeedbackMode | undefined) {
+  return FEEDBACK_MODES.filter((mode) => mode.value !== 'per_session' || current === 'per_session');
+}
 
 type EventEditorProps = {
   value: EventFormState;
@@ -55,6 +78,9 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     formAlias: '',
     extraFormUrls: [],
     formSlots: [emptyApplySlot()],
+    feedbackMode: 'event',
+    feedbackAutoSend: true,
+    feedbackSlot: emptyFeedbackSlot(),
     capacity: 0,
     startDate: '',
     endDate: '',
@@ -69,6 +95,21 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     doorStaffIds: [],
     registrationClosesAt: '',
   };
+}
+
+/**
+ * The feedback form was closed in Skyforms: core cancels its reminders still
+ * to go for good. An Event not created yet (its reserved id), or a core
+ * without the call, answers 404: it has none to cancel.
+ */
+export async function closeFeedbackReminders(eventId: string | undefined, gate: string) {
+  if (gate !== 'closed' || !eventId) return;
+  try {
+    await eventsApi.closeFeedback(eventId);
+  } catch (err) {
+    if (err instanceof ProblemError && err.status === 404) return;
+    throw err;
+  }
 }
 
 export function parseDoorStaffIds(raw: string): string[] {
@@ -212,6 +253,41 @@ export function EventEditor({
         onLeaveToSkyforms={onLeaveToSkyforms}
         onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
       />
+      <div className="space-y-2">
+        <label className="block space-y-1">
+          <FieldLabel>Geri bildirim</FieldLabel>
+          <Select
+            value={value.feedbackMode ?? 'event'}
+            onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
+          >
+            {feedbackModeOptions(value.feedbackMode).map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <EventFormSlots
+          slots={[value.feedbackSlot ?? emptyFeedbackSlot()]}
+          eventName={value.name}
+          ownerTeam={value.ownerTeam}
+          startLocal={value.startDate ?? ''}
+          reservedEventId={value.reservedId}
+          returnTo={returnTo}
+          onLeaveToSkyforms={onLeaveToSkyforms}
+          addable={false}
+          onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
+          onChange={([feedbackSlot]) =>
+            patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })
+          }
+        />
+        <Switch
+          checked={value.feedbackAutoSend ?? true}
+          onChange={(checked) => patch({ feedbackAutoSend: checked })}
+          label="Etkinlik bitince gönder"
+          hint="Bitişten 2 saat sonra yoklaması alınanlara posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+        />
+      </div>
       <label className="block space-y-1">
         <FieldLabel>LinkedIn</FieldLabel>
         <Field value={value.linkedin ?? ''} onChange={(e) => patch({ linkedin: e.target.value })} />
