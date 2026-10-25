@@ -86,7 +86,7 @@ describe('EventEditor feedback form', () => {
     );
   }
 
-  it('picks the mode, keeps the box on by default and asks Skyforms for a feedback form', async () => {
+  it('picks the mode, keeps the box on by default and brings a Skyforms form back to its own field', async () => {
     const user = userEvent.setup();
     const onValue = jest.fn();
     render(<FeedbackEditor onValue={onValue} />);
@@ -108,14 +108,12 @@ describe('EventEditor feedback form', () => {
 
     const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Skyforms’ta oluştur' });
     await user.click(feedbackSkyforms!);
-    const link = screen
+    // Skyforms brings the new form back to the feedback field
+    const links = screen
       .getAllByRole('link', { name: 'Skyforms’ta oluştur' })
       .map((row) => new URL(row.getAttribute('href') ?? ''))
-      .find((url) => url.searchParams.get('purpose') === 'feedback');
-    expect(link).toBeDefined();
-    expect(new URL(link!.searchParams.get('returnTo') ?? '').searchParams.get('formSlot')).toBe(
-      'feedback',
-    );
+      .map((url) => new URL(url.searchParams.get('returnTo') ?? '').searchParams.get('formSlot'));
+    expect(links).toContain('feedback');
     expect(onValue).toHaveBeenLastCalledWith(
       expect.objectContaining({
         feedbackSlot: expect.objectContaining({ key: 'feedback', mode: 'skyforms' }),

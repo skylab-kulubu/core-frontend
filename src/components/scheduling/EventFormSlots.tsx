@@ -41,8 +41,6 @@ type EventFormSlotsProps = {
   onChange: (slots: EventFormSlot[]) => void;
   /** Off: the slots are fixed, no "Form ekle". */
   addable?: boolean;
-  /** Sent to Skyforms with a new form (`purpose=feedback`). */
-  purpose?: string;
   /** After Skyforms opened or closed a slot's form. */
   onGateChange?: (slot: EventFormSlot, gate: FormGate) => void | Promise<void>;
 };
@@ -57,7 +55,6 @@ export function EventFormSlots({
   onLeaveToSkyforms,
   onChange,
   addable = true,
-  purpose,
   onGateChange,
 }: EventFormSlotsProps) {
   const [customLabel, setCustomLabel] = useState('');
@@ -125,7 +122,6 @@ export function EventFormSlots({
       title,
       ownerTeam,
       eventId: eventIdForForms(href, reservedEventId),
-      purpose,
     });
   };
 

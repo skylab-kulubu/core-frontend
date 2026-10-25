@@ -267,7 +267,6 @@ export function EventEditor({
           returnTo={returnTo}
           onLeaveToSkyforms={onLeaveToSkyforms}
           addable={false}
-          purpose="feedback"
           onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
           onChange={([feedbackSlot]) =>
             patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })

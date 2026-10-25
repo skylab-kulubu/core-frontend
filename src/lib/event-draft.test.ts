@@ -247,21 +247,6 @@ describe('event editor draft', () => {
     });
   });
 
-  it('asks Skyforms for a feedback form with purpose=feedback', () => {
-    const href = skyformsCreateHref(
-      DEFAULT_FORMS_ADMIN_ORIGIN,
-      'https://admin.example.test/events/new',
-      {
-        title: 'GECEKODU SkyDays 2026 Geri bildirim',
-        purpose: 'feedback',
-      },
-    );
-    expect(new URL(href ?? '').searchParams.get('purpose')).toBe('feedback');
-    expect(
-      new URL(skyformsCreateHref(DEFAULT_FORMS_ADMIN_ORIGIN, '') ?? '').searchParams.has('purpose'),
-    ).toBe(false);
-  });
-
   it('does not share the :new draft key with /events/{id}', () => {
     const storage = memoryStorage();
     writeEventDraft(storage, 'https://admin.yildizskylab.com/events/new', emptyEventForm());

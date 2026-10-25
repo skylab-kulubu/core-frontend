@@ -181,7 +181,7 @@ export function applyFormHandoff(
 export function skyformsCreateHref(
   origin: string,
   returnTo: string,
-  extras?: { title?: string; ownerTeam?: string; eventId?: string; purpose?: string },
+  extras?: { title?: string; ownerTeam?: string; eventId?: string },
 ): string | null {
   const trimmed = origin.trim().replace(/\/+$/, '');
   if (!trimmed) return null;
@@ -190,9 +190,6 @@ export function skyformsCreateHref(
   if (extras?.title) url.searchParams.set('title', extras.title);
   if (extras?.ownerTeam) url.searchParams.set('ownerTeam', extras.ownerTeam);
   if (extras?.eventId) url.searchParams.set('eventId', extras.eventId);
-  // Skyforms opens a feedback form without the applying identity fields
-  // once it reads this (Forms ticket 11); until then it is ignored.
-  if (extras?.purpose) url.searchParams.set('purpose', extras.purpose);
   return url.toString();
 }
 
