@@ -51,6 +51,24 @@ describe('Seasons page', () => {
     expect(await screen.findByText('Sezon eklendi')).toBeInTheDocument();
   });
 
+  it('sends an empty date as null on update, which core would otherwise keep', async () => {
+    const user = userEvent.setup();
+    (seasonsApi.update as jest.Mock).mockResolvedValue(season);
+    (seasonsApi.create as jest.Mock).mockResolvedValue({ ...season, id: 's2' });
+    render(<SeasonsPage />);
+    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Sezonu düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() =>
+      expect(seasonsApi.update).toHaveBeenCalledWith('s1', {
+        name: '2026-2027',
+        active: true,
+        startDate: null,
+        endDate: null,
+      }),
+    );
+  });
+
   it('shows a save error inside the open drawer and keeps the list', async () => {
     const user = userEvent.setup();
     (seasonsApi.update as jest.Mock).mockRejectedValue(
