@@ -1,4 +1,4 @@
-export const DEFAULT_MAIL_ORIGIN = 'https://mail.yildizskylab.com';
+export const DEFAULT_MAIL_ORIGIN = 'https://iletisim.yildizskylab.com';
 
 export function mailOrigin(env = process.env.NEXT_PUBLIC_MAIL_URL): string {
   return (env ?? '').trim().replace(/\/+$/, '') || DEFAULT_MAIL_ORIGIN;

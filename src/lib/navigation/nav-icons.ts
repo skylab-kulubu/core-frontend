@@ -71,7 +71,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 export const CONSOLE_DESCRIPTION: Record<string, string> = {
   admin: 'Üyeler ve etkinlikler',
   forms: 'Formlar ve başvurular',
-  mail: 'Toplu e-posta ve listeler',
+  mail: 'E-posta ve bildirim gönderimi',
   playground: 'Bileşen kütüphanesi',
 };
 

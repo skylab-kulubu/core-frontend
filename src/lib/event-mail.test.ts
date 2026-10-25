@@ -18,22 +18,22 @@ describe('event mail skymail links', () => {
   it('defaults the Skymail origin when the public env is empty', () => {
     expect(mailOrigin('')).toBe(DEFAULT_MAIL_ORIGIN);
     expect(mailOrigin('   ')).toBe(DEFAULT_MAIL_ORIGIN);
-    expect(mailOrigin(undefined)).toBe('https://mail.yildizskylab.com');
+    expect(mailOrigin(undefined)).toBe('https://iletisim.yildizskylab.com');
     process.env.NEXT_PUBLIC_MAIL_URL = '';
     expect(eventMailComposeHref(listId)).toBe(
-      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
   });
 
   it('opens skymail compose with the Event mailing list', () => {
     expect(eventMailComposeHref(listId)).toBe(
-      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
   });
 
   it('opens the skymail list show page for that Event', () => {
     expect(eventMailListHref(listId)).toBe(
-      'https://mail.yildizskylab.com/mailing-lists/show/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://iletisim.yildizskylab.com/mailing-lists/show/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
   });
 
@@ -58,7 +58,7 @@ describe('event mail skymail links', () => {
       },
     );
     expect(opened).toEqual([
-      'https://mail.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     ]);
   });
 });
