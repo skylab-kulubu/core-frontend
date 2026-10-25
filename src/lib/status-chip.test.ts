@@ -1,4 +1,5 @@
 import { activeStatus, statusChip, ticketCheckInStatus, ticketTypeStatus } from './status-chip';
+import { EVENT_STATUS_LABELS } from './events-view';
 
 describe('statusChip', () => {
   it('labels active and passive with glowing dots', () => {
@@ -28,5 +29,14 @@ describe('statusChip', () => {
     expect(statusChip('winner').label).toBe('Kazanan');
     expect(activeStatus(true)).toBe('active');
     expect(activeStatus(false)).toBe('passive');
+  });
+});
+
+describe('event status chips', () => {
+  it('labels every display status as the list and the header say it', () => {
+    for (const [kind, label] of Object.entries(EVENT_STATUS_LABELS)) {
+      expect(statusChip(kind as keyof typeof EVENT_STATUS_LABELS).label).toBe(label);
+    }
+    expect(statusChip('cancelled').dotClassName).toContain('bg-red-400');
   });
 });

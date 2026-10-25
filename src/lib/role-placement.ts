@@ -24,7 +24,16 @@ export type RolePlacementReason =
   | 'roles_root'
   | 'roles_group_not_leaf'
   | 'roles_nested'
-  | 'outside_role_places';
+  | 'outside_role_places'
+  // core ticket 04: a top Team takes app roles only
+  | 'top_team_admin_role'
+  // core's app assignments (ticket 15, /v1/apps)
+  | 'admin_role'
+  | 'code_area'
+  | 'service_account'
+  | 'inactive_user'
+  // core's PUT /v1/groups/:id/client-roles with app assignments on
+  | 'use_app_assignments';
 
 /** A Turkish sentence for each reason core gives on a refused mapping. */
 export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
@@ -43,6 +52,13 @@ export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
   roles_nested: 'Rol grubu doğrudan /ROLLER altında olmalı: /ROLLER/<UYGULAMA>-<ROL>.',
   outside_role_places:
     'Roller yalnız yönetim köküne, en üst ekibin lider grubuna ya da /ROLLER altındaki bir rol grubuna verilir.',
+  top_team_admin_role:
+    'En üst ekip grubuna yalnız uygulama rolü verilir (ör. Forms koltuğu, SkyMail erişimi). Yönetici rolünü lider grubuna ya da /ROLLER altındaki bir rol grubuna ver.',
+  admin_role: 'Panelden yalnız uygulama rolü atanır; yönetici rolleri kodda tanımlıdır.',
+  code_area: 'Yönetim kökleri ve /ROLLER kodda tanımlıdır; panelden değiştirilmez.',
+  service_account: 'Servis hesaplarının rolleri kodda tanımlıdır.',
+  inactive_user: 'Hesap kapalı ya da silinmiş; atama yapılamaz.',
+  use_app_assignments: 'Bu grubun uygulama rolleri Uygulamalar sayfasından atanır ve kaldırılır.',
 };
 
 const GENERAL_PLACEMENT =
@@ -102,6 +118,29 @@ export function rolePlacement(path: string, hasSubgroups: boolean): RolePlacemen
   const team = teamOf(path);
   if (team && !team.role) return 'team';
   if (team) return segments(team.team).length === MIN_TEAM_DEPTH ? null : 'sub_team_leader_group';
+  const parts = segments(path);
+  if (
+    path.startsWith(`${MEMBERS_ROOT}/`) &&
+    parts.length === 2 &&
+    !LEADER_SUBGROUPS.includes(parts[1])
+  ) {
+    return 'area';
+  }
+  return 'outside_role_places';
+}
+
+/**
+ * Why core's app assignments (/v1/apps, core authz.AppAssignmentTarget)
+ * would refuse an app role on the Group at `path`, or null when the panel
+ * assigns one there: a Team, a Sub-team or a Leader group of either. A
+ * Privileged root, /ROLLER and what is under them are code.
+ */
+export function appAssignmentTarget(path: string): RolePlacementReason | null {
+  if (privilegedRoot(path) || path === ROLES_ROOT || path.startsWith(`${ROLES_ROOT}/`)) {
+    return 'code_area';
+  }
+  if (path === MEMBERS_ROOT) return 'members_root';
+  if (teamOf(path)) return null;
   const parts = segments(path);
   if (
     path.startsWith(`${MEMBERS_ROOT}/`) &&

@@ -67,6 +67,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendanceRule: 'none',
     attendanceRatio: undefined,
     doorStaffIds: [],
+    registrationClosesAt: '',
   };
 }
 
@@ -177,6 +178,13 @@ export function EventEditor({
           <DatePicker value={value.endDate ?? ''} onChange={(endDate) => patch({ endDate })} />
         </label>
       </div>
+      <label className="block space-y-1">
+        <FieldLabel>Son başvuru</FieldLabel>
+        <DatePicker
+          value={value.registrationClosesAt ?? ''}
+          onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
+        />
+      </label>
       <label className="block space-y-1">
         <FieldLabel>Kapasite</FieldLabel>
         <Field
