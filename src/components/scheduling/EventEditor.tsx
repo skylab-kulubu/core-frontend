@@ -45,6 +45,15 @@ const FEEDBACK_MODES: { value: FeedbackMode; label: string }[] = [
   { value: 'event_with_sessions', label: 'Etkinlik formunda oturumlar' },
 ];
 
+/**
+ * The modes the editor offers: "Oturum başına form" waits for the Session
+ * forms in Program (bilet 09). An Event already in that mode (set elsewhere)
+ * still shows it, so the select does not misstate it.
+ */
+export function feedbackModeOptions(current: FeedbackMode | undefined) {
+  return FEEDBACK_MODES.filter((mode) => mode.value !== 'per_session' || current === 'per_session');
+}
+
 type EventEditorProps = {
   value: EventFormState;
   onChange: (next: EventFormState) => void;
@@ -251,7 +260,7 @@ export function EventEditor({
             value={value.feedbackMode ?? 'event'}
             onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
           >
-            {FEEDBACK_MODES.map((mode) => (
+            {feedbackModeOptions(value.feedbackMode).map((mode) => (
               <option key={mode.value} value={mode.value}>
                 {mode.label}
               </option>

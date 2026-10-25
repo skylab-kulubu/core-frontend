@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   EventEditor,
   emptyEventForm,
+  feedbackModeOptions,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
 import { identityApi } from '@/lib/api/identity';
@@ -101,9 +102,11 @@ describe('EventEditor feedback form', () => {
     // The feedback form is fixed: one "Form ekle", for the Form slots alone
     expect(screen.getAllByText('Form ekle')).toHaveLength(1);
 
-    await user.selectOptions(mode, 'per_session');
+    // "Oturum başına form" waits for the Session forms (bilet 09)
+    expect(screen.queryByRole('option', { name: 'Oturum başına form' })).not.toBeInTheDocument();
+    await user.selectOptions(mode, 'event_with_sessions');
     expect(onValue).toHaveBeenLastCalledWith(
-      expect.objectContaining({ feedbackMode: 'per_session' }),
+      expect.objectContaining({ feedbackMode: 'event_with_sessions' }),
     );
 
     const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Skyforms’ta oluştur' });
@@ -120,5 +123,15 @@ describe('EventEditor feedback form', () => {
         extraFormUrls: [],
       }),
     );
+  });
+});
+
+describe('feedbackModeOptions', () => {
+  it('hides the per-Session mode unless the Event is in it already', () => {
+    expect(feedbackModeOptions('event').map((mode) => mode.value)).toEqual([
+      'event',
+      'event_with_sessions',
+    ]);
+    expect(feedbackModeOptions('per_session').map((mode) => mode.value)).toContain('per_session');
   });
 });
