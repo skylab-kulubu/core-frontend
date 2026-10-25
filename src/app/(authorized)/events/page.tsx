@@ -18,6 +18,7 @@ import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
+import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import {
   eventRowMenuItems,
   useEventStatusActions,
@@ -73,6 +74,7 @@ function EventsPageContent() {
     },
     onError: setActionError,
   });
+  const copy = useEventCopy();
 
   function setParam(name: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -221,6 +223,7 @@ function EventsPageContent() {
               const menu = eventRowMenuItems(ev, rightsFor(ev), statusActions, {
                 onDeleted: () => setEvents((rows) => rows.filter((row) => row.id !== ev.id)),
                 onRestored: replaceEvent,
+                onCopy: copy.canCopy(ev) ? () => copy.askCopy(ev) : undefined,
               });
               return (
                 <ListItem
@@ -257,6 +260,7 @@ function EventsPageContent() {
         </>
       )}
       {statusActions.dialog}
+      {copy.dialog}
     </div>
   );
 }

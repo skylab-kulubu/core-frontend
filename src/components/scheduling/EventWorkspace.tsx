@@ -22,6 +22,7 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import {
   Ban,
+  Copy,
   DoorClosed,
   DoorOpen,
   FileEdit,
@@ -45,6 +46,7 @@ import {
   EventEditor,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import {
   eventStatusActions,
@@ -71,6 +73,7 @@ import {
   isPrivileged,
 } from '@/lib/auth/groups';
 import { coreProblemMessage } from '@/lib/core-problems';
+import { copySkippedLines, takeCopySkipped } from '@/lib/event-copy';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import {
   formHandoffFromSearch,
@@ -312,6 +315,12 @@ export function EventWorkspace({
     },
     onError: setError,
   });
+  const copy = useEventCopy();
+  // What core left out of the copy this page opened as, said once (the copy dialog keeps it)
+  const [copySkipped, setCopySkipped] = useState<string[]>([]);
+  useEffect(() => {
+    setCopySkipped(typeof window === 'undefined' ? [] : takeCopySkipped(sessionStorage, id));
+  }, [id]);
   const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
@@ -468,6 +477,11 @@ export function EventWorkspace({
   // None while the tickets are not read: the cancel dialog then reads the count itself
   const ticketCount = can.canTickets && ticketsLoaded ? tickets.length : undefined;
   const menuItems = [
+    copy.canCopy(event) ? (
+      <MenuItem key="copy" icon={Copy} onClick={() => copy.askCopy(event)}>
+        Kopyala…
+      </MenuItem>
+    ) : null,
     rights.canUpdate && offers.unpublish ? (
       <MenuItem
         key="unpublish"
@@ -637,6 +651,13 @@ export function EventWorkspace({
             {event.cancelReason || undefined}
           </Notice>
         ) : null}
+        {copySkipped.length ? (
+          <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
+            {copySkippedLines(copySkipped).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </Notice>
+        ) : null}
         <EventWorkspaceNav
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
@@ -654,6 +675,7 @@ export function EventWorkspace({
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}
         {statusActions.dialog}
+        {copy.dialog}
         <Drawer
           open={editing}
           onClose={() => {
