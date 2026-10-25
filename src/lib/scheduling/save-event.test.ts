@@ -199,6 +199,7 @@ describe('eventPatchFromForm (core keeps a field left out)', () => {
     coverImageId: '33333333-3333-4333-8333-333333333333',
     attendanceRule: 'ratio',
     attendanceRatio: 0.5,
+    registrationClosesAt: '2026-04-30T21:00:00.000Z',
     seasonId: '44444444-4444-4444-8444-444444444444',
   });
 
@@ -215,6 +216,7 @@ describe('eventPatchFromForm (core keeps a field left out)', () => {
     ['prize', { prizeInfo: '' }, { prizeInfo: null }],
     ['LinkedIn', { linkedin: '' }, { linkedin: null }],
     ['cover', { coverImageId: '' }, { coverImageId: null }],
+    ['deadline', { registrationClosesAt: '' }, { registrationClosesAt: null }],
     ['description', { description: 'x' }, { description: 'x' }],
     [
       'certificate rule (the ratio goes with it)',

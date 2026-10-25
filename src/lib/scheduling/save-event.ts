@@ -28,8 +28,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
     doorStaffIds: form.doorStaffIds ?? [],
-    // Sent even when empty: null removes a deadline core keeps otherwise
-    registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
+    registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') || undefined,
   };
 }
 
@@ -95,7 +94,7 @@ export class EventSaveIncomplete extends Error {
 }
 
 /**
- * Creates the Event, or updates `existingId` with the fields that
+ * Creates the Event (a draft), or updates `existingId` with the fields that
  * changed since `base`; then its season and gallery.
  */
 export async function saveEventWithSeason(

@@ -69,8 +69,8 @@ export type EventBody = {
   attendanceRule?: string;
   attendanceRatio?: number;
   doorStaffIds?: string[];
-  /** The deadline of applying; `null` removes it. */
-  registrationClosesAt?: string | null;
+  /** The deadline of applying; none: no deadline. */
+  registrationClosesAt?: string;
   /** Read on create alone: the panel opens every new Event as a draft (ADR 0066). */
   status?: 'draft';
 };
