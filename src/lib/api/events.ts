@@ -33,6 +33,8 @@ export type CoreEvent = {
   cancelReason?: string;
   /** Set while the cancellation mail to the Ticket holders is queued or sent. */
   cancelNotifiedAt?: string;
+  /** The Event this one was copied from (POST /v1/events/{id}/copy). */
+  copiedFromEventId?: string;
   /** Closed by hand; `registrationClosesAt` is the deadline (none: no deadline). */
   registrationClosed?: boolean;
   registrationClosesAt?: string;
@@ -58,6 +60,21 @@ export type CoreEvent = {
 };
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
+
+/** POST /v1/events/{id}/copy (core docs/event-copy.md). */
+export type EventCopyBody = {
+  /** Made once per dialog: a retried request answers the copy it made. */
+  id: string;
+  name: string;
+  startDate: string;
+  includeDoorStaff?: boolean;
+  includeCompetitions?: boolean;
+  /** None: the source's Owner team. */
+  ownerTeam?: string;
+};
+
+/** The copy, a draft, and the parts core left out (`cover`, `certificateTemplate`, …). */
+export type EventCopy = { event: CoreEvent; skipped: string[] };
 
 /**
  * Where the feedback questions are: the Event's one form (`event`), a form of
@@ -177,6 +194,17 @@ export const eventsApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  /** Copies the Event's structure into a new draft (ADR 0066); 200 or 201 alike. */
+  copy: (id: string, body: EventCopyBody) =>
+    coreFetch<EventCopy>(`/v1/events/${encodeURIComponent(id)}/copy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /** The Event's current Competitions (ADR 0068), for the copy dialog's count. */
+  listCompetitions: (id: string) =>
+    coreFetch<Array<{ id: string; name: string }>>(
+      `/v1/events/${encodeURIComponent(id)}/competitions`,
+    ),
   /** Brings back an Event its delete archived (Geri al). */
   restore: (id: string) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
