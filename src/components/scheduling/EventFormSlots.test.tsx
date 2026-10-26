@@ -69,3 +69,52 @@ describe('EventFormSlots short link button', () => {
     expect(screen.queryByText(/kısa linki zaten var/)).not.toBeInTheDocument();
   });
 });
+
+describe('EventFormSlots form gate', () => {
+  beforeEach(() => jest.clearAllMocks());
+  // jsdom has no PointerEvent; base-ui's Switch sends one on a click
+  beforeAll(() => {
+    if (!('PointerEvent' in window)) {
+      Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+    }
+  });
+
+  it('tells the caller once Skyforms closed the form, and says when that failed', async () => {
+    const { readFormGate, setFormGate } = jest.requireMock('@/lib/api/skyforms') as {
+      readFormGate: jest.Mock;
+      setFormGate: jest.Mock;
+    };
+    readFormGate.mockResolvedValue('open');
+    setFormGate.mockResolvedValue('closed');
+    const onGateChange = jest
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('down'));
+    const user = userEvent.setup();
+    const [slot] = slotsFromEvent({
+      formUrl: 'https://forms.yildizskylab.com/55555555-5555-4555-8555-555555555555',
+    });
+    render(
+      <EventFormSlots
+        slots={[slot!]}
+        eventName="SkyDays"
+        ownerTeam="GECEKODU"
+        startLocal="2026-05-01T12:00"
+        addable={false}
+        onGateChange={onGateChange}
+        onChange={jest.fn()}
+      />,
+    );
+
+    const gate = await screen.findByRole('switch', { name: /Form açık/ });
+    await user.click(gate);
+    expect(setFormGate).toHaveBeenCalledWith('55555555-5555-4555-8555-555555555555', false);
+    expect(onGateChange).toHaveBeenCalledWith(expect.objectContaining({ key: 'apply' }), 'closed');
+    expect(screen.queryByText('Form ekle')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('switch', { name: /Form kapalı/ }));
+    expect(
+      await screen.findByText('Form kapandı, ama bekleyen hatırlatmalar iptal edilemedi'),
+    ).toBeInTheDocument();
+  });
+});

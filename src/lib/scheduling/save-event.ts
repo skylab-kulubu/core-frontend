@@ -6,6 +6,16 @@ import { isEventId } from '@/lib/event-draft';
 import { attachFormAliases, persistableFormFields } from '@/lib/event-forms';
 import type { EventFormState } from '@/components/scheduling/EventEditor';
 
+/** The feedback fields of a new Event; an empty form is left out. */
+function feedbackBody(form: EventFormState): Partial<EventBody> {
+  return {
+    feedbackMode: form.feedbackMode ?? 'event',
+    feedbackFormUrl: form.feedbackSlot?.url.trim() || undefined,
+    feedbackFormAlias: form.feedbackSlot?.alias.trim() || undefined,
+    feedbackAutoSend: form.feedbackAutoSend ?? true,
+  };
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -18,6 +28,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     formUrl: forms.formUrl || undefined,
     formAlias: forms.formAlias || undefined,
     extraFormUrls: forms.extraFormUrls,
+    ...feedbackBody(form),
     capacity: form.capacity,
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
@@ -49,6 +60,10 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     formUrl: forms.formUrl || null,
     formAlias: forms.formAlias || null,
     extraFormUrls: forms.extraFormUrls ?? [],
+    feedbackMode: form.feedbackMode ?? 'event',
+    feedbackFormUrl: form.feedbackSlot?.url.trim() || null,
+    feedbackFormAlias: form.feedbackSlot?.alias.trim() || null,
+    feedbackAutoSend: form.feedbackAutoSend ?? true,
     capacity: form.capacity,
     startDate: toRfc3339(form.startDate ?? '') ?? null,
     endDate: toRfc3339(form.endDate ?? '') ?? null,
@@ -109,7 +124,22 @@ export async function saveEventWithSeason(
     (body) => urlsApi.create(body),
     form.ownerTeam,
   );
-  const slottedForm = { ...form, formSlots: slotted, ...persistableFormFields(slotted) };
+  // The feedback form gets its short link the same way (core binds it to the Event)
+  const [feedbackSlot] = form.feedbackSlot
+    ? await attachFormAliases(
+        [form.feedbackSlot],
+        form.name,
+        form.startDate ?? '',
+        (body) => urlsApi.create(body),
+        form.ownerTeam,
+      )
+    : [];
+  const slottedForm = {
+    ...form,
+    formSlots: slotted,
+    ...persistableFormFields(slotted),
+    ...(feedbackSlot ? { feedbackSlot } : {}),
+  };
   // A new Event opens as a draft: nobody sees it until it is published (ADR 0066)
   const saved = existingId
     ? await eventsApi.patch(existingId, eventPatchFromForm(slottedForm, base))

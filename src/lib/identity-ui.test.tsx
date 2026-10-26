@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { isPrivileged } from '@/lib/auth/groups';
+import { canManageHandoffTargets, isLeader, isPrivileged } from '@/lib/auth/groups';
 import { filterSidebarNavForUser } from '@/lib/navigation/sidebar-nav';
 import { UserCardView } from '@/components/identity/UserCardView';
 import type { UserDto } from '@/types/api';
@@ -12,6 +12,33 @@ describe('isPrivileged', () => {
   });
   it('team member is not', () => {
     expect(isPrivileged(['/UYELER/ARGE/WEBLAB'])).toBe(false);
+  });
+  it('reads only the six roots and the Groups under them (ADR 0065 decision 6)', () => {
+    for (const path of ['/ADMIN', '/YK/BASKAN', '/DK', '/UYELER/ADMIN', '/UYELER/DK/X']) {
+      expect(isPrivileged([path])).toBe(true);
+    }
+    for (const path of ['/UYELER/ARGE/YK', '/UYELER/ARGE/WEBLAB/ADMIN', '/ROLLER/DK', '/YKX']) {
+      expect(isPrivileged([path])).toBe(false);
+    }
+  });
+});
+
+describe('isLeader and canManageHandoffTargets (anchored as core reads them)', () => {
+  it('reads a Leader group as the last whole segment', () => {
+    expect(isLeader(['/UYELER/ARGE/WEBLAB/LIDERLER'])).toBe(true);
+    expect(isLeader(['/UYELER/ARGE/WEBLAB/MOBIL/KOORDINATORLER'])).toBe(true);
+    for (const path of [
+      '/UYELER/ARGE/WEBLAB/LIDERLER-ESKI',
+      '/UYELER/X/LIDERLER/ALT',
+      '/LIDERLER',
+    ]) {
+      expect(isLeader([path])).toBe(false);
+    }
+  });
+  it('offers the handoff settings only under the ADMIN roots', () => {
+    expect(canManageHandoffTargets(['/ADMIN'])).toBe(true);
+    expect(canManageHandoffTargets(['/UYELER/ADMIN/ALT'])).toBe(true);
+    expect(canManageHandoffTargets(['/UYELER/ARGE/ADMIN'])).toBe(false);
   });
 });
 
