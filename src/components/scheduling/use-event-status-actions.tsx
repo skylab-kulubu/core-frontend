@@ -1,7 +1,7 @@
 'use client';
 
 import { Checkbox, MenuItem } from '@skylab-kulubu/skylcn-ui';
-import { Ban, Link2, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { Ban, Copy, Link2, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { TextArea } from '@/components/chrome/TextArea';
@@ -60,7 +60,8 @@ export function eventStatusActions(event: CoreEvent, now = new Date()) {
   };
 }
 
-function CheckboxRow({
+/** A labelled checkbox for a dialog's question (cancel, undo the cancellation, copy). */
+export function CheckboxRow({
   label,
   defaultChecked,
   onChange,
@@ -302,13 +303,28 @@ export function eventRowMenuItems(
   event: CoreEvent,
   rights: EventStatusRights,
   actions: EventStatusActionsApi,
-  { onDeleted, onRestored }: { onDeleted: () => void; onRestored: (event: CoreEvent) => void },
+  {
+    onDeleted,
+    onRestored,
+    onCopy,
+  }: {
+    onDeleted: () => void;
+    onRestored: (event: CoreEvent) => void;
+    /** Opens the copy dialog; none when core lets the reader copy nothing of this Event. */
+    onCopy?: () => void;
+  },
   now = new Date(),
 ): ReactNode[] {
   const offers = eventStatusActions(event, now);
   const items: ReactNode[] = [];
   // "Herkese açık sayfa" comes here once the site reads Events from core (SPEC §5.1).
-  // "Kopyala…" comes with the copy dialog (ticket 10).
+  if (onCopy) {
+    items.push(
+      <MenuItem key="copy" icon={Copy} onClick={onCopy}>
+        Kopyala…
+      </MenuItem>,
+    );
+  }
   if (event.formAlias) {
     items.push(
       <MenuItem key="link" icon={Link2} onClick={() => void actions.copyApplyLink(event)}>

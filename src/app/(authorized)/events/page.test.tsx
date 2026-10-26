@@ -140,6 +140,8 @@ describe('Etkinlikler listesi', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Yayınla' })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Sil…' })).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'İptal et…' })).not.toBeInTheDocument();
+    // The row itself opens the event, where Düzenle lives (Kaan, #80)
+    expect(within(menu).queryByRole('menuitem', { name: /Düzenle/ })).not.toBeInTheDocument();
     await user.keyboard('{Escape}');
 
     menu = await openMenu(user, 'Yakın Kodu');

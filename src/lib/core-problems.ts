@@ -92,6 +92,11 @@ const CODE_MESSAGES: Record<string, string> = {
   event_not_draft: 'Yalnız taslak etkinlik silinir.',
   event_not_cancelled: 'Etkinlik iptal edilmemiş.',
   registration_closed: 'Etkinliğin başvurusu kapalı.',
+  // Feedback forms (etkinlik geri bildirim formu): one form in one place
+  form_in_use:
+    'Bu form başka bir yerde kullanılıyor (başvuru, ek ya da geri bildirim formu); başka bir form seç.',
+  feedback_form_missing: 'Geri bildirim formu bağlı değil.',
+  feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
   // Group name refusals (core teamcode)
   invalid_name:

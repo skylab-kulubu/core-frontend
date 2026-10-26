@@ -19,6 +19,8 @@ export type SidebarNavigationContext = Readonly<{
   hasDoorAssignment?: boolean;
   /** core's `apps.read`: the app assignments are on and the reader may read them. */
   appsVisible?: boolean;
+  /** core's `managedTeams` is not empty: team delegation is on and the reader leads a Team. */
+  managedTeamsVisible?: boolean;
   /** "Siteyi düzenle": the editor sign-in of each site the person may edit (external links). */
   editSites?: readonly SidebarNavLink[];
   activeEvent?: Readonly<{
@@ -67,6 +69,11 @@ const NAVIGATION_LINKS: ReadonlyArray<
   },
   { href: '/seasons', label: 'Sezonlar', visibleWhen: ({ privileged }) => privileged },
   { href: '/teams', label: 'Ekipler', visibleWhen: ({ privileged }) => privileged },
+  {
+    href: '/my-teams',
+    label: 'Ekiplerim',
+    visibleWhen: ({ context }) => context.managedTeamsVisible === true,
+  },
   {
     href: '/qr',
     label: 'Kapı',
@@ -179,6 +186,7 @@ export function buildSidebarNavigation(
     { href: '/groups', label: 'Gruplar' },
     { href: '/apps', label: 'Uygulamalar' },
     { href: '/teams', label: 'Ekipler' },
+    { href: '/my-teams', label: 'Ekiplerim' },
   ].filter((item) => allowed.has(item.href));
   if (clubChildren.length) {
     nodes.push({ kind: 'group', id: 'club', label: 'Kulüp', children: clubChildren });

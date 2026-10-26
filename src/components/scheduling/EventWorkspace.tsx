@@ -22,6 +22,7 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import {
   Ban,
+  Copy,
   DoorClosed,
   DoorOpen,
   FileEdit,
@@ -45,6 +46,7 @@ import {
   EventEditor,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import {
   eventStatusActions,
@@ -69,9 +71,9 @@ import {
   canUseCertificateWorkspace,
   canWriteEvent,
   isPrivileged,
-  leaderOwnerTeams,
 } from '@/lib/auth/groups';
 import { coreProblemMessage } from '@/lib/core-problems';
+import { copySkippedLines, takeCopySkipped } from '@/lib/event-copy';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import {
   formHandoffFromSearch,
@@ -102,7 +104,7 @@ import {
   ticketOwnerPeople,
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
-import { useTeamCan } from '@/lib/use-app-can';
+import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
 
 const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
@@ -149,28 +151,36 @@ export function eventPermissions(
 }
 
 /**
- * The group rule's permissions narrowed by core's capabilities for the event's
- * Owner team (`teamCan`, see useTeamCan): a DK member reads the event and its
- * tabs but gets no write. Reading parts (tickets, certificates) stay the group
- * rule's; door check-in stays open to the event's door staff.
+ * core's decisions for the event's Owner team (`decide`, see teamDecision),
+ * the group rule's permissions standing in only when core's capabilities cannot
+ * be read: a DK member reads the event and its tabs but gets no write, and a
+ * Leader of a Team above leads a Sub-team's event (core ticket 12), which the
+ * group rule cannot see. Door check-in stays open to the event's door staff.
  */
 export function withTeamCapabilities(
   can: EventPermissions,
   ownerTeam: string,
-  teamCan: (ownerTeam: string, key: string) => boolean,
+  decide: TeamDecide,
   doorAccess: boolean,
 ): EventPermissions {
-  const team = (key: string) => teamCan(ownerTeam, key);
+  const team = (key: string, groupRule: boolean) => decide(ownerTeam, key, groupRule);
   return {
-    ...can,
-    canMutate: can.canMutate && team('event.update'),
-    canDelete: can.canDelete && team('event.delete'),
-    canCompetitors: can.canCompetitors && team('competitor.update'),
-    canAssign: can.canAssign && team('ticket.assign'),
-    canDesk: doorAccess || (can.canDesk && team('door.checkIn')),
-    canIssueCertificate: can.canIssueCertificate && team('certificate.issue'),
-    canBindCertificate: can.canBindCertificate && team('certificateTemplate.assign'),
-    canRevokeCertificate: can.canRevokeCertificate && team('certificate.revoke'),
+    canMutate: team('event.update', can.canMutate),
+    canDelete: team('event.delete', can.canDelete),
+    canCompetitors: team('competitor.update', can.canCompetitors),
+    canTickets: team('ticket.read', can.canTickets),
+    canAssign: team('ticket.assign', can.canAssign),
+    canDesk: doorAccess || team('door.checkIn', can.canDesk),
+    // The tab: any certificate decision of the team
+    canCertificates:
+      team('certificate.read', can.canCertificates) ||
+      ['certificate.issue', 'certificate.revoke', 'certificateTemplate.assign'].some((key) =>
+        team(key, false),
+      ),
+    canReadIssuedCertificates: team('certificate.read', can.canReadIssuedCertificates),
+    canIssueCertificate: team('certificate.issue', can.canIssueCertificate),
+    canBindCertificate: team('certificateTemplate.assign', can.canBindCertificate),
+    canRevokeCertificate: team('certificate.revoke', can.canRevokeCertificate),
   };
 }
 
@@ -239,24 +249,33 @@ export function EventWorkspace({
   const groups = user?.groups ?? [];
   const roles = user?.roles ?? [];
   const privileged = isPrivileged(groups);
-  const teamCan = useTeamCan();
   // load() runs once per event, before core's capabilities may have arrived: it
   // reads the latest answer through this ref and waits for it to settle
   const capabilities = useCapabilities();
-  const capabilitiesRef = useRef({ settled: false, teamCan, waiters: [] as Array<() => void> });
+  const decide: TeamDecide = (ownerTeam, key, groupRule) =>
+    teamDecision(capabilities, ownerTeam, key, groupRule);
+  const capabilitiesRef = useRef({
+    settled: false,
+    state: capabilities,
+    waiters: [] as Array<() => void>,
+  });
   capabilitiesRef.current.settled = capabilities.status !== 'loading';
-  capabilitiesRef.current.teamCan = teamCan;
+  capabilitiesRef.current.state = capabilities;
   useEffect(() => {
     if (capabilities.status === 'loading') return;
     for (const wake of capabilitiesRef.current.waiters.splice(0)) wake();
   }, [capabilities.status]);
-  /** Resolves with core's decision for the event once the capabilities are in (or unreadable). */
-  function teamAllows(ownerTeam: string, key: string): Promise<boolean> {
-    const decide = () => capabilitiesRef.current.teamCan(ownerTeam, key);
-    if (capabilitiesRef.current.settled) return Promise.resolve(decide());
+  /** Resolves once the capabilities are in (or unreadable). */
+  function capabilitiesSettled(): Promise<void> {
+    if (capabilitiesRef.current.settled) return Promise.resolve();
     return new Promise((resolve) => {
-      capabilitiesRef.current.waiters.push(() => resolve(decide()));
+      capabilitiesRef.current.waiters.push(resolve);
     });
+  }
+  /** core's decision for the event once the capabilities are in; `groupRule` if unreadable. */
+  async function teamAllows(ownerTeam: string, key: string, groupRule: boolean): Promise<boolean> {
+    await capabilitiesSettled();
+    return teamDecision(capabilitiesRef.current.state, ownerTeam, key, groupRule);
   }
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
@@ -296,6 +315,12 @@ export function EventWorkspace({
     },
     onError: setError,
   });
+  const copy = useEventCopy();
+  // What core left out of the copy this page opened as, said once (the copy dialog keeps it)
+  const [copySkipped, setCopySkipped] = useState<string[]>([]);
+  useEffect(() => {
+    setCopySkipped(typeof window === 'undefined' ? [] : takeCopySkipped(sessionStorage, id));
+  }, [id]);
   const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
@@ -330,8 +355,11 @@ export function EventWorkspace({
       // A DK member who comes back from Skyforms gets no editor: the save would be refused
       if (
         handoff &&
-        canWriteEvent(groups, ev.ownerTeam, 'update') &&
-        (await teamAllows(ev.ownerTeam, 'event.update'))
+        (await teamAllows(
+          ev.ownerTeam,
+          'event.update',
+          canWriteEvent(groups, ev.ownerTeam, 'update'),
+        ))
       ) {
         setEditing(true);
         try {
@@ -362,7 +390,11 @@ export function EventWorkspace({
       const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
       setCompetitors(competitorRows);
       let ticketsRead = false;
-      const ticketRows = canListEventTickets(groups, ev.ownerTeam, roles)
+      const ticketRows = (await teamAllows(
+        ev.ownerTeam,
+        'ticket.read',
+        canListEventTickets(groups, ev.ownerTeam, roles),
+      ))
         ? await ticketsApi
             .listByEvent(id)
             .then((rows) => {
@@ -383,12 +415,14 @@ export function EventWorkspace({
         : ticketPeople;
       setPeople([...knownPeople.values()]);
       const teams = await teamsApi.list().catch(() => []);
-      const leaderTeams = leaderOwnerTeams(groups);
+      // core's LEADER teams (a Sub-team led from above included), always with the event's own
+      await capabilitiesSettled();
+      const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
       setOwnerOptions(
         privileged
           ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
           : leaderTeams.length
-            ? leaderTeams
+            ? [...new Set([...leaderTeams, ev.ownerTeam])]
             : [ev.ownerTeam],
       );
       if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
@@ -421,10 +455,10 @@ export function EventWorkspace({
   if (!event) return <StateCard title="Yükleniyor…" isLoading />;
 
   const current = event;
-  // The group rule decides what is read (tabs); core's capabilities narrow the writes
+  // core's capabilities decide; the group rule stands in only when they cannot be read
   const readable = eventPermissions(groups, roles, event, doorAccess);
   const can = withEventStatus(
-    withTeamCapabilities(readable, event.ownerTeam, teamCan, doorAccess),
+    withTeamCapabilities(readable, event.ownerTeam, decide, doorAccess),
     event,
   );
   // Status actions follow core's capabilities for the Owner team alone (DK: none)
@@ -443,6 +477,11 @@ export function EventWorkspace({
   // None while the tickets are not read: the cancel dialog then reads the count itself
   const ticketCount = can.canTickets && ticketsLoaded ? tickets.length : undefined;
   const menuItems = [
+    copy.canCopy(event) ? (
+      <MenuItem key="copy" icon={Copy} onClick={() => copy.askCopy(event)}>
+        Kopyala…
+      </MenuItem>
+    ) : null,
     rights.canUpdate && offers.unpublish ? (
       <MenuItem
         key="unpublish"
@@ -612,11 +651,18 @@ export function EventWorkspace({
             {event.cancelReason || undefined}
           </Notice>
         ) : null}
+        {copySkipped.length ? (
+          <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
+            {copySkippedLines(copySkipped).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </Notice>
+        ) : null}
         <EventWorkspaceNav
           eventId={event.id}
           active={eventTabFromPath(pathname ?? '') ?? 'overview'}
           canSeeParticipants={can.canTickets}
-          canSeeCompetitors={showsCompetitionTab(readable.canCompetitors, competitors.length)}
+          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
           canUseDoor={can.canDesk}
           canSeeCertificates={can.canCertificates}
           canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
@@ -629,6 +675,7 @@ export function EventWorkspace({
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}
         {statusActions.dialog}
+        {copy.dialog}
         <Drawer
           open={editing}
           onClose={() => {

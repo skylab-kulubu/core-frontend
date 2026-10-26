@@ -14,6 +14,7 @@ import { publicShortUrl, urlsApi } from '@/lib/api/urls';
 import { editorReturnTo, eventIdForForms } from '@/lib/event-draft';
 import {
   APPLY_SLOT_KEY,
+  FEEDBACK_SLOT_KEY,
   extraFormSlot,
   formsAdminOrigin,
   humanFormAlias,
@@ -38,6 +39,10 @@ type EventFormSlotsProps = {
   returnTo?: string;
   onLeaveToSkyforms?: () => void;
   onChange: (slots: EventFormSlot[]) => void;
+  /** Off: the slots are fixed, no "Form ekle". */
+  addable?: boolean;
+  /** After Skyforms opened or closed a slot's form. */
+  onGateChange?: (slot: EventFormSlot, gate: FormGate) => void | Promise<void>;
 };
 
 export function EventFormSlots({
@@ -49,6 +54,8 @@ export function EventFormSlots({
   returnTo,
   onLeaveToSkyforms,
   onChange,
+  addable = true,
+  onGateChange,
 }: EventFormSlotsProps) {
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -166,8 +173,9 @@ export function EventFormSlots({
     if (!formId) return;
     setGates((prev) => ({ ...prev, [slot.key]: 'loading' }));
     setError(null);
+    let next: FormGate;
     try {
-      const next = await setFormGate(formId, open);
+      next = await setFormGate(formId, open);
       setGates((prev) => ({ ...prev, [slot.key]: next }));
     } catch (err) {
       setError(coreProblemMessage(err, 'Form durumu güncellenemedi'));
@@ -177,6 +185,12 @@ export function EventFormSlots({
       } catch {
         setGates((prev) => ({ ...prev, [slot.key]: 'missing' }));
       }
+      return;
+    }
+    try {
+      await onGateChange?.(slot, next);
+    } catch (err) {
+      setError(coreProblemMessage(err, 'Form kapandı, ama bekleyen hatırlatmalar iptal edilemedi'));
     }
   }
 
@@ -193,6 +207,11 @@ export function EventFormSlots({
                   açmak istemeyenler içindir.
                 </p>
               </div>
+            ) : slot.key === FEEDBACK_SLOT_KEY ? (
+              <div className="space-y-1">
+                <FieldLabel>{slot.label}</FieldLabel>
+                <p className="text-2xs text-subtle-foreground">Cevapları kayıt yazmaz.</p>
+              </div>
             ) : (
               <Field
                 value={slot.label}
@@ -200,7 +219,7 @@ export function EventFormSlots({
                 placeholder="Form adı"
               />
             )}
-            {slot.key !== APPLY_SLOT_KEY ? (
+            {slot.key !== APPLY_SLOT_KEY && slot.key !== FEEDBACK_SLOT_KEY ? (
               <ActionButton
                 icon={X}
                 label="Kaldır"
@@ -304,34 +323,36 @@ export function EventFormSlots({
           </SaveButton>
         </div>
       ))}
-      <div className="space-y-2">
-        <FieldLabel>Form ekle</FieldLabel>
-        <div className="flex flex-wrap gap-2">
-          <SaveButton type="button" onClick={() => addSlot('Yarışma')}>
-            Yarışma
-          </SaveButton>
-          <SaveButton type="button" onClick={() => addSlot('CTF')}>
-            CTF
-          </SaveButton>
+      {addable ? (
+        <div className="space-y-2">
+          <FieldLabel>Form ekle</FieldLabel>
+          <div className="flex flex-wrap gap-2">
+            <SaveButton type="button" onClick={() => addSlot('Yarışma')}>
+              Yarışma
+            </SaveButton>
+            <SaveButton type="button" onClick={() => addSlot('CTF')}>
+              CTF
+            </SaveButton>
+          </div>
+          <div className="flex gap-2">
+            <Field
+              value={customLabel}
+              placeholder="Özel ad"
+              onChange={(e) => setCustomLabel(e.target.value)}
+            />
+            <SaveButton
+              type="button"
+              disabled={!customLabel.trim()}
+              onClick={() => {
+                addSlot(customLabel);
+                setCustomLabel('');
+              }}
+            >
+              Ekle
+            </SaveButton>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Field
-            value={customLabel}
-            placeholder="Özel ad"
-            onChange={(e) => setCustomLabel(e.target.value)}
-          />
-          <SaveButton
-            type="button"
-            disabled={!customLabel.trim()}
-            onClick={() => {
-              addSlot(customLabel);
-              setCustomLabel('');
-            }}
-          >
-            Ekle
-          </SaveButton>
-        </div>
-      </div>
+      ) : null}
       {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
     </div>

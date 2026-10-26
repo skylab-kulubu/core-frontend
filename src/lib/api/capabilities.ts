@@ -25,6 +25,17 @@ export type Capabilities = {
   otherTeams?: { can?: Record<string, boolean> };
   /** Decisions for a record without an Owner team. */
   noOwnerTeam?: { can?: Record<string, boolean> };
+  /**
+   * The Teams the person is a Leader of, read from Keycloak's current
+   * membership; `[]` while core's team delegation is off. A hint for the
+   * "Ekiplerim" menu: core decides every Group request.
+   */
+  managedTeams?: Array<{
+    id: string;
+    path: string;
+    code: string;
+    displayName?: { tr?: string; en?: string };
+  }>;
 };
 
 export const capabilitiesApi = {
