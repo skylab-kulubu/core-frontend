@@ -58,9 +58,6 @@ ARG NEXT_PUBLIC_SHORT_ORIGIN
 # Optional: the dashboard hides its GitHub section without it
 ARG NEXT_PUBLIC_GITHUB_ACTIVITY_URL
 ARG NEXT_PUBLIC_INCLUDE_PLAYGROUND
-# The commit (CI passes github.sha); next.config.ts turns it into deploymentId. Optional.
-ARG NEXT_DEPLOYMENT_ID
-ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_CMS_URL=$NEXT_PUBLIC_CMS_URL
 ENV NEXT_PUBLIC_ADMIN_URL=$NEXT_PUBLIC_ADMIN_URL
@@ -71,6 +68,10 @@ ENV NEXT_PUBLIC_GITHUB_ACTIVITY_URL=$NEXT_PUBLIC_GITHUB_ACTIVITY_URL
 ENV NEXT_PUBLIC_INCLUDE_PLAYGROUND=$NEXT_PUBLIC_INCLUDE_PLAYGROUND
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# The commit (CI passes github.sha): next build reads NEXT_DEPLOYMENT_ID as the deploymentId.
+# Optional. After COPY so a new commit does not rebuild the layers above.
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
 RUN test -n "$NEXT_PUBLIC_API_URL" \
     && test -n "$NEXT_PUBLIC_CMS_URL" \
     && test -n "$NEXT_PUBLIC_ADMIN_URL" \
