@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import { capabilitiesApi } from '@/lib/api/capabilities';
+import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { copySkippedStorageKey } from '@/lib/event-copy';
 import {
@@ -11,6 +12,7 @@ import {
   signInAs,
   workspaceEvent,
   workspaceRouter,
+  workspaceSession,
 } from '@/test/event-workspace';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
@@ -124,6 +126,53 @@ describe('Etkinlik sayfası: kopya', () => {
     expect(new URL(extra.getAttribute('href') ?? '').searchParams.get('fromForm')).toBe(FORM_B);
     expect(eventsApi.get).toHaveBeenCalledWith('src');
     expect(workspaceRouter.push).not.toHaveBeenCalled();
+  });
+
+  it('offers a new feedback form for the Event and each Session of a per-Session copy', async () => {
+    const FORM_C = '33333333-3333-4333-8333-333333333333';
+    const FORM_D = '44444444-4444-4444-8444-444444444444';
+    (eventsApi.get as jest.Mock).mockImplementation(async (id: string) =>
+      id === 'src'
+        ? {
+            ...workspaceEvent,
+            id: 'src',
+            feedbackMode: 'per_session',
+            feedbackFormUrl: formUrl(FORM_C),
+          }
+        : {
+            ...workspaceEvent,
+            id,
+            name: 'GeceKodu (kopya)',
+            copiedFromEventId: 'src',
+            feedbackMode: 'per_session',
+          },
+    );
+    (eventDaysApi.listByEvent as jest.Mock).mockImplementation(async (id: string) => [
+      { id: id === 'src' ? 'src-d1' : 'd1', eventId: id, name: 'Gün 1' },
+    ]);
+    (eventDaysApi.listSessions as jest.Mock).mockImplementation(async (dayId: string) =>
+      dayId === 'src-d1'
+        ? [{ ...workspaceSession, id: 'src-s1', feedbackFormUrl: formUrl(FORM_D) }]
+        : [workspaceSession],
+    );
+    await renderEventTab(<EventOverviewPage />);
+
+    const event = await screen.findByRole('link', {
+      name: 'Geçen seferin formundan yeni form: Geri bildirim',
+    });
+    const eventUrl = new URL(event.getAttribute('href') ?? '');
+    expect(eventUrl.searchParams.get('fromForm')).toBe(FORM_C);
+    expect(new URL(eventUrl.searchParams.get('returnTo') ?? '').searchParams.get('formSlot')).toBe(
+      'feedback',
+    );
+    const session = await screen.findByRole('link', {
+      name: 'Geçen seferin formundan yeni form: Geri bildirim · Açılış',
+    });
+    const sessionUrl = new URL(session.getAttribute('href') ?? '');
+    expect(sessionUrl.searchParams.get('fromForm')).toBe(FORM_D);
+    expect(
+      new URL(sessionUrl.searchParams.get('returnTo') ?? '').searchParams.get('formSlot'),
+    ).toBe('feedback-session:s1');
   });
 
   it('offers none once the copy has its own forms', async () => {

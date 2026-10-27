@@ -10,9 +10,11 @@ import {
   defaultCopyStart,
   previousFormHref,
   previousForms,
+  previousSessionForms,
   rememberCopySkipped,
   takeCopySkipped,
 } from './event-copy';
+import type { EventSession } from './api/sessions';
 import { DEFAULT_FORMS_ADMIN_ORIGIN } from './event-forms';
 
 const FORM_A = '11111111-1111-4111-8111-111111111111';
@@ -200,5 +202,89 @@ describe('Geçen seferin formundan yeni form', () => {
     expect(url.searchParams.get('returnTo')).toBe(
       'https://admin.yildizskylab.com/events/c1?formSlot=Mentor+formu',
     );
+  });
+});
+
+describe('Geçen seferin formundan yeni form: geri bildirim formları', () => {
+  const FORM_C = '33333333-3333-4333-8333-333333333333';
+  const FORM_D = '44444444-4444-4444-8444-444444444444';
+  const session = (row: Partial<EventSession>): EventSession => ({
+    id: 's',
+    eventDayId: 'd',
+    title: 'Açılış',
+    speakerName: 'Ada',
+    orderIndex: 0,
+    sessionType: 'KEYNOTE',
+    ...row,
+  });
+
+  it('offers the source feedback form until the copy has its own', () => {
+    const source = { feedbackFormUrl: formUrl(FORM_C) };
+    expect(previousForms(source, {}, DEFAULT_FORMS_ADMIN_ORIGIN)).toEqual([
+      { slotKey: 'feedback', label: 'Geri bildirim', formId: FORM_C },
+    ]);
+    expect(
+      previousForms(source, { feedbackFormUrl: formUrl(FORM_D) }, DEFAULT_FORMS_ADMIN_ORIGIN),
+    ).toEqual([]);
+  });
+
+  it('matches each Session form to the copy Session of the same title and order', () => {
+    const source = [
+      session({ id: 'a', title: 'Açılış', orderIndex: 0, feedbackFormUrl: formUrl(FORM_A) }),
+      session({ id: 'b', title: 'Atölye', orderIndex: 1, feedbackFormUrl: formUrl(FORM_B) }),
+      session({ id: 'c', title: 'Atölye', orderIndex: 1, feedbackFormUrl: formUrl(FORM_C) }),
+      session({ id: 'd', title: 'Kapanış', orderIndex: 2, feedbackFormUrl: 'https://x.test/f' }),
+      session({ id: 'e', title: 'Panel', orderIndex: 3, feedbackFormUrl: formUrl(FORM_D) }),
+    ];
+    const copy = [
+      session({ id: 'A', title: 'Açılış', orderIndex: 0, feedbackFormUrl: formUrl(FORM_D) }),
+      session({ id: 'B', title: 'Atölye', orderIndex: 1 }),
+      session({ id: 'C', title: 'Atölye', orderIndex: 1 }),
+      session({ id: 'D', title: 'Kapanış', orderIndex: 2 }),
+      session({ id: 'E', title: 'Panel', orderIndex: 4 }),
+    ];
+    // A has its own form, D's source form is not Skyforms', E moved
+    expect(previousSessionForms(source, copy, DEFAULT_FORMS_ADMIN_ORIGIN)).toEqual([
+      {
+        slotKey: 'feedback-session:B',
+        label: 'Geri bildirim · Atölye',
+        formId: FORM_B,
+        extra: 'Atölye',
+      },
+      {
+        slotKey: 'feedback-session:C',
+        label: 'Geri bildirim · Atölye',
+        formId: FORM_C,
+        extra: 'Atölye',
+      },
+    ]);
+  });
+
+  it('skips a cancelled copy Session', () => {
+    const source = [session({ id: 'a', feedbackFormUrl: formUrl(FORM_A) })];
+    const copy = [session({ id: 'A', cancelled: true })];
+    expect(previousSessionForms(source, copy, DEFAULT_FORMS_ADMIN_ORIGIN)).toEqual([]);
+  });
+
+  it('opens Skyforms titled after the Session, coming back to the copy Session', () => {
+    const href = previousFormHref(
+      DEFAULT_FORMS_ADMIN_ORIGIN,
+      'https://admin.yildizskylab.com/events/c1',
+      { id: 'c1', name: 'Gecekodu', ownerTeam: 'GECEKODU', startDate: iso(2027, 3, 14) },
+      {
+        slotKey: 'feedback-session:B',
+        label: 'Geri bildirim · Atölye',
+        formId: FORM_B,
+        extra: 'Atölye',
+      },
+    );
+    const url = new URL(href ?? '');
+    expect(url.searchParams.get('fromForm')).toBe(FORM_B);
+    expect(url.searchParams.get('eventId')).toBe('c1');
+    expect(url.searchParams.get('title')).toBe('GECEKODU Gecekodu 2027 Atölye');
+    expect(url.searchParams.get('returnTo')).toBe(
+      'https://admin.yildizskylab.com/events/c1?formSlot=feedback-session%3AB',
+    );
+    expect(url.searchParams.has('purpose')).toBe(false);
   });
 });
