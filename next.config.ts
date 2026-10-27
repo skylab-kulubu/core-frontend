@@ -7,6 +7,10 @@ const includePlayground = process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND === 'true';
 const nextConfig: NextConfig = {
   reactCompiler: true,
   output: 'standalone',
+  // The commit the image was built from (Dockerfile, NEXT_DEPLOYMENT_ID). While a deploy runs the
+  // old and the new task side by side, a page from one build that reaches the other gets a full
+  // reload instead of a missing chunk. Unset (a local build): no skew protection, as before.
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   // skylcn-ui ships ESM only; this also lets next/jest transform it for the tests
   transpilePackages: ['@skylab-kulubu/skylcn-ui'],
   // The skylcn-ui playground ships as static files in public/ (see the
