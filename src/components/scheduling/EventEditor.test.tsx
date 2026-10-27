@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   EventEditor,
   emptyEventForm,
-  feedbackModeOptions,
+  FEEDBACK_MODES,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
 import { identityApi } from '@/lib/api/identity';
@@ -126,12 +126,12 @@ describe('EventEditor feedback form', () => {
   });
 });
 
-describe('feedbackModeOptions', () => {
-  it('hides the per-Session mode unless the Event is in it already', () => {
-    expect(feedbackModeOptions('event').map((mode) => mode.value)).toEqual([
+describe('FEEDBACK_MODES', () => {
+  it('offers the three modes, the per-Session one too (its forms are in Program)', () => {
+    expect(FEEDBACK_MODES.map((mode) => mode.value)).toEqual([
       'event',
+      'per_session',
       'event_with_sessions',
     ]);
-    expect(feedbackModeOptions('per_session').map((mode) => mode.value)).toContain('per_session');
   });
 });

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import { CheckCircle2, MessageSquare, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -16,12 +16,16 @@ import { QrPreview } from '@/components/chrome/QrPreview';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
+import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
+import { eventsApi, type FeedbackCount } from '@/lib/api/events';
 import {
   sessionsApi,
   SESSION_TYPES,
@@ -32,9 +36,16 @@ import {
   type EventSession,
 } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
+import { urlsApi } from '@/lib/api/urls';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
+import { attachFormAliases, type EventFormSlot } from '@/lib/event-forms';
 import { listStatus } from '@/lib/list-status';
+import {
+  closeSessionFeedbackReminders,
+  sessionFeedbackFields,
+  sessionFeedbackSlot,
+} from '@/lib/session-feedback';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -110,6 +121,27 @@ export default function EventProgramPage() {
     defaultValues: { personId: '', email: '' },
   });
   const deskPersonId = deskForm.watch('personId');
+  // "Oturum başına form" (per_session): each Session's feedback form, in its drawer
+  const perSession = event.feedbackMode === 'per_session';
+  const [feedbackSlot, setFeedbackSlot] = useState<EventFormSlot | null>(null);
+  const [feedbackAutoSend, setFeedbackAutoSend] = useState(true);
+  const [feedbackSession, setFeedbackSession] = useState<EventSession | null>(null);
+  const [feedbackCount, setFeedbackCount] = useState<FeedbackCount | null>(null);
+  const sessionTitle = sessionForm.watch('title');
+
+  function openFeedback(session: EventSession) {
+    setFeedbackCount(null);
+    setFeedbackSession(session);
+    // The counts are the editors' and DK's; anyone else is refused and sees none
+    eventsApi
+      .feedbackCounts(event.id)
+      .then((counts) =>
+        setFeedbackCount(
+          counts.sessions.find((row) => row.sessionId === session.id) ?? { sent: 0, answered: 0 },
+        ),
+      )
+      .catch(() => setFeedbackCount(null));
+  }
   const deskQuery = deskForm.watch('email');
 
   const sessionsByDay = useMemo(() => {
@@ -150,6 +182,7 @@ export default function EventProgramPage() {
                   }
                   setSessionError(null);
                   setEditingSessionId(null);
+                  setFeedbackSlot(null);
                   sessionForm.reset(emptySession(days[0]?.id ?? ''));
                   sessionDeleted.current = false;
                   setSessionOpen(true);
@@ -243,6 +276,13 @@ export default function EventProgramPage() {
                             label="Oturum QR"
                             onClick={() => setQrSession(session)}
                           />
+                          {perSession && session.feedbackFormUrl ? (
+                            <ActionButton
+                              icon={MessageSquare}
+                              label="Geri bildirim"
+                              onClick={() => openFeedback(session)}
+                            />
+                          ) : null}
                           {canMutate ? (
                             <ActionButton
                               icon={Pencil}
@@ -250,6 +290,8 @@ export default function EventProgramPage() {
                               onClick={() => {
                                 setSessionError(null);
                                 setEditingSessionId(session.id);
+                                setFeedbackSlot(sessionFeedbackSlot(session));
+                                setFeedbackAutoSend(session.feedbackAutoSend ?? true);
                                 sessionForm.reset({
                                   eventDayId: session.eventDayId,
                                   title: session.title,
@@ -370,7 +412,18 @@ export default function EventProgramPage() {
                 sessionType: sessionDraft.sessionType,
               };
               if (editingSessionId) {
-                await sessionsApi.update(editingSessionId, body);
+                // Out of the per-Session mode the fields are left out: core keeps them
+                const feedback =
+                  perSession && feedbackSlot
+                    ? sessionFeedbackFields(
+                        await sessionFeedbackWithLink(
+                          { ...feedbackSlot, extra: body.title },
+                          event,
+                        ),
+                        feedbackAutoSend,
+                      )
+                    : {};
+                await sessionsApi.update(editingSessionId, { ...body, ...feedback });
               } else {
                 await sessionsApi.create(body);
               }
@@ -459,6 +512,28 @@ export default function EventProgramPage() {
               ))}
             </Select>
           </label>
+          {editingSessionId && perSession && feedbackSlot ? (
+            <div className="space-y-2">
+              <EventFormSlots
+                slots={[{ ...feedbackSlot, extra: sessionTitle.trim() || feedbackSlot.extra }]}
+                eventName={event.name}
+                ownerTeam={event.ownerTeam}
+                startLocal={toDatetimeLocal(event.startDate)}
+                reservedEventId={event.id}
+                addable={false}
+                onGateChange={(_, gate) => closeSessionFeedbackReminders(editingSessionId, gate)}
+                onChange={([slot]) => {
+                  if (slot) setFeedbackSlot(slot);
+                }}
+              />
+              <Switch
+                checked={feedbackAutoSend}
+                onChange={setFeedbackAutoSend}
+                label="Oturum bitince gönder"
+                hint="Bitişten 2 saat sonra oturumun yoklamasına posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+              />
+            </div>
+          ) : null}
           {editingSessionId ? (
             <button
               type="button"
@@ -505,6 +580,22 @@ export default function EventProgramPage() {
         </form>
       </Drawer>
       {dayConfirm}
+      <Drawer
+        open={feedbackSession !== null}
+        onClose={() => setFeedbackSession(null)}
+        title={feedbackSession ? `${feedbackSession.title} · Geri bildirim` : 'Geri bildirim'}
+      >
+        {feedbackSession ? (
+          <FeedbackFormPanel
+            url={feedbackSession.feedbackFormUrl}
+            alias={feedbackSession.feedbackFormAlias}
+            count={feedbackCount}
+            canSend={canMutate}
+            description="Oturumun yoklamasına kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; oturum bitince yeniden gitmez."
+            send={() => sessionsApi.sendFeedback(feedbackSession.id)}
+          />
+        ) : null}
+      </Drawer>
       <Drawer
         open={qrSession !== null}
         onClose={() => setQrSession(null)}
@@ -593,4 +684,19 @@ export default function EventProgramPage() {
       </Drawer>
     </div>
   );
+}
+
+/** The Session's feedback form with its short link made, as the Event's forms get theirs on save. */
+async function sessionFeedbackWithLink(
+  slot: EventFormSlot,
+  event: { name: string; ownerTeam: string; startDate?: string },
+): Promise<EventFormSlot> {
+  const [linked] = await attachFormAliases(
+    [slot],
+    event.name,
+    toDatetimeLocal(event.startDate),
+    (body) => urlsApi.create(body),
+    event.ownerTeam,
+  );
+  return linked ?? slot;
 }

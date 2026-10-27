@@ -59,9 +59,10 @@ import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import type { Person } from '@/lib/api/identity';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
-import type { EventSession } from '@/lib/api/sessions';
+import { sessionsApi, type EventSession } from '@/lib/api/sessions';
 import { teamsApi } from '@/lib/api/teams';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
+import { urlsApi } from '@/lib/api/urls';
 import {
   canBindCertificateTemplates,
   canIssueCertificates,
@@ -96,6 +97,7 @@ import {
 } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
+import { linkSessionFeedbackForm, sessionIdOfFeedbackSlot } from '@/lib/session-feedback';
 import { useNotify } from '@/lib/ui/use-notify';
 import {
   canAssignEventTicket,
@@ -337,10 +339,14 @@ export function EventWorkspace({
     try {
       const ev = await eventsApi.get(id);
       const loaded = formStateFromEvent(ev);
-      const handoff =
+      const returned =
         typeof window === 'undefined'
           ? null
           : formHandoffFromSearch(new URLSearchParams(window.location.search));
+      // A Session's feedback form comes back to its Session, not to the Event's editor
+      const sessionReturn =
+        returned && sessionIdOfFeedbackSlot(returned.formSlot) ? returned : null;
+      const handoff = sessionReturn ? null : returned;
       const nextForm = restoreEventEditor(
         typeof window === 'undefined' ? null : sessionStorage,
         typeof window === 'undefined' ? `/events/${id}` : window.location.href,
@@ -387,6 +393,7 @@ export function EventWorkspace({
       ).flat();
       setDays(dayRows);
       setSessions(sessionRows);
+      if (sessionReturn) await linkReturnedSessionForm(ev, sessionRows, sessionReturn);
       const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
       setCompetitors(competitorRows);
       let ticketsRead = false;
@@ -432,6 +439,41 @@ export function EventWorkspace({
           404: 'Etkinlik bulunamadı; silinmiş olabilir.',
         }),
       );
+    }
+  }
+
+  /**
+   * Back from Skyforms with a Session's feedback form: it is saved on the
+   * Session with its short link, and the Program tab opens.
+   */
+  async function linkReturnedSessionForm(
+    ev: CoreEvent,
+    rows: EventSession[],
+    back: { formUrl: string; formSlot: string },
+  ) {
+    const sessionId = sessionIdOfFeedbackSlot(back.formSlot);
+    const session = rows.find((row) => row.id === sessionId);
+    if (
+      !session ||
+      !(await teamAllows(
+        ev.ownerTeam,
+        'event.update',
+        canWriteEvent(groups, ev.ownerTeam, 'update'),
+      ))
+    ) {
+      return;
+    }
+    try {
+      await linkSessionFeedbackForm(ev, session, back.formUrl, {
+        create: (body) => urlsApi.create(body),
+        update: (sessionId, body) => sessionsApi.update(sessionId, body),
+      });
+      const fresh = await eventDaysApi.listSessions(session.eventDayId);
+      setSessions(rows.map((row) => fresh.find((next) => next.id === row.id) ?? row));
+      notify.success('Geri bildirim formu oturuma bağlandı');
+      router.replace(`/events/${encodeURIComponent(ev.id)}/program`);
+    } catch (err) {
+      setError(coreProblemMessage(err, 'Oturumun geri bildirim formu kaydedilemedi'));
     }
   }
 
