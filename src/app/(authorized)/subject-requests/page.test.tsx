@@ -149,6 +149,7 @@ describe('KVKK başvuruları', () => {
       expect(subjectRequestsApi.update).toHaveBeenCalledWith(
         'r1',
         expect.objectContaining({
+          updatedAt: '2026-10-01T10:00:00Z',
           status: 'answered',
           answeredOn: today,
           answerSummary: 'Hesap silindi.',
@@ -175,12 +176,28 @@ describe('KVKK başvuruları', () => {
     );
   });
 
+  it('says someone else changed the request when core refuses the stale version', async () => {
+    const user = userEvent.setup();
+    (subjectRequestsApi.update as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { code: 'subject_request_changed' }),
+    );
+    (subjectRequestsApi.get as jest.Mock).mockResolvedValue(request({}));
+    render(<SubjectRequestsPage />);
+    await screen.findByText('Ada Lovelace');
+    await user.click(screen.getAllByRole('button', { name: 'Düzenle' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Başvuruyu düzenle' });
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Başvuru sen açtıktan sonra başkası tarafından değiştirildi',
+    );
+  });
+
   it('reads nothing for someone core does not let in (DK)', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({
       can: { 'subjectRequest.manage': false },
     });
     render(<SubjectRequestsPage />);
-    expect(await screen.findByText('Bu kayda yalnız YK erişir')).toBeInTheDocument();
+    expect(await screen.findByText('Bu kayda yalnız YK ve yöneticiler erişir')).toBeInTheDocument();
     expect(subjectRequestsApi.list).not.toHaveBeenCalled();
   });
 });

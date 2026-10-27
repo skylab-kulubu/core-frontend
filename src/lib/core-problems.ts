@@ -116,7 +116,8 @@ const CODE_MESSAGES: Record<string, string> = {
   channel_invalid: 'Kanal seç.',
   requester_name_invalid: 'Ad soyad gerekli (en çok 200 karakter).',
   requester_contact_invalid: 'Cevabın gideceği adres gerekli (en çok 320 karakter).',
-  user_invalid: 'Hesap kimliği geçerli değil.',
+  user_invalid:
+    'Hesap kimliği geçerli değil: Kullanıcılar ekranındaki kimliği olduğu gibi yapıştır.',
   user_unknown: 'Bu kimlikte bir hesap yok.',
   request_types_invalid: 'En az bir talep türü seç.',
   status_invalid: 'Durum seç.',
@@ -125,6 +126,8 @@ const CODE_MESSAGES: Record<string, string> = {
     'Cevap tarihi başvurudan önce ya da bugünden sonra olamaz; açık başvuruda boş kalır.',
   answer_summary_invalid: 'Cevap özeti en çok 2000 karakter.',
   responder_invalid: 'Yanıtlayan en çok 100 karakter.',
+  subject_request_changed:
+    'Başvuru sen açtıktan sonra başkası tarafından değiştirildi. Çekmeceyi kapatıp yeniden aç, sonra tekrar kaydet.',
 };
 
 /** The Event fields core names in `event_incomplete`. */

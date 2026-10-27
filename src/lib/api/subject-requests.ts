@@ -69,8 +69,11 @@ export const subjectRequestsApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  /** Writes the fields sent; null empties userId and answeredOn. */
-  update: (id: string, body: Partial<SubjectRequestBody>) =>
+  /**
+   * Writes the fields sent; null empties userId and answeredOn. With updatedAt (as last
+   * read) core answers 409 subject_request_changed when someone changed it since.
+   */
+  update: (id: string, body: Partial<SubjectRequestBody> & { updatedAt?: string }) =>
     coreFetch<SubjectRequest>(`/v1/subject-requests/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(body),

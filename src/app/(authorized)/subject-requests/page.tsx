@@ -127,6 +127,8 @@ export default function SubjectRequestsPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // The version the drawer was opened on: core refuses the save if someone changed it since
+  const [editingVersion, setEditingVersion] = useState<string | undefined>();
   const [form, setForm] = useState<Form>(emptyForm(today));
   const [events, setEvents] = useState<SubjectRequestEvent[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,7 +166,7 @@ export default function SubjectRequestsPage() {
   const paged = paginateRows(filtered, page);
 
   if (capabilities.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
-  if (!canManage) return <StateCard title="Bu kayda yalnız YK erişir" />;
+  if (!canManage) return <StateCard title="Bu kayda yalnız YK ve yöneticiler erişir" />;
 
   const concluded = isConcluded(form.status);
 
@@ -180,6 +182,7 @@ export default function SubjectRequestsPage() {
             label="Başvuru ekle"
             onClick={() => {
               setEditingId(null);
+              setEditingVersion(undefined);
               setForm(emptyForm(today));
               setEvents([]);
               setFormError(null);
@@ -245,6 +248,7 @@ export default function SubjectRequestsPage() {
                     label="Düzenle"
                     onClick={() => {
                       setEditingId(request.id);
+                      setEditingVersion(request.updatedAt);
                       setForm(formOf(request));
                       setEvents([]);
                       setFormError(null);
@@ -278,7 +282,8 @@ export default function SubjectRequestsPage() {
             }
             try {
               const body = bodyOf(form);
-              if (editingId) await subjectRequestsApi.update(editingId, body);
+              if (editingId)
+                await subjectRequestsApi.update(editingId, { ...body, updatedAt: editingVersion });
               else await subjectRequestsApi.create(body);
               setOpen(false);
               notify.success(editingId ? 'Başvuru kaydedildi' : 'Başvuru eklendi');
@@ -289,7 +294,8 @@ export default function SubjectRequestsPage() {
           }}
         >
           <p className="text-muted-foreground text-xs">
-            T.C. kimlik no, adres, onay kodu ya da kimlik belgesi yazma.
+            T.C. kimlik no, ikamet adresi (cevabın gideceği adres dışında), onay kodu ya da kimlik
+            belgesi yazma.
           </p>
           <label className="block space-y-1">
             <FieldLabel>Başvuru tarihi</FieldLabel>
