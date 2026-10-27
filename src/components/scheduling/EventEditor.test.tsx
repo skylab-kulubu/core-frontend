@@ -102,8 +102,8 @@ describe('EventEditor feedback form', () => {
     // The feedback form is fixed: one "Form ekle", for the Form slots alone
     expect(screen.getAllByText('Form ekle')).toHaveLength(1);
 
-    // "Oturum başına form" waits for the Session forms (bilet 09)
-    expect(screen.queryByRole('option', { name: 'Oturum başına form' })).not.toBeInTheDocument();
+    // The Session forms are in Program (bilet 09)
+    expect(screen.getByRole('option', { name: 'Oturum başına form' })).toBeInTheDocument();
     await user.selectOptions(mode, 'event_with_sessions');
     expect(onValue).toHaveBeenLastCalledWith(
       expect.objectContaining({ feedbackMode: 'event_with_sessions' }),

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
@@ -42,6 +42,13 @@ jest.mock('@/lib/api/skyforms', () => ({
 jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
+
+// jsdom has no PointerEvent; base-ui's Switch sends one on a click
+beforeAll(() => {
+  if (!('PointerEvent' in window)) {
+    Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+  }
+});
 
 const FORM = 'https://forms.yildizskylab.com/55555555-5555-4555-8555-555555555555';
 const LEADER = ['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'];
@@ -98,7 +105,7 @@ describe('Program: a Session feedback form (per_session)', () => {
 
     const dialog = await openSessionEditor(user);
     await user.type(within(dialog).getByLabelText('Form adresi'), FORM);
-    fireEvent.click(within(dialog).getByRole('switch', { name: /Oturum bitince gönder/ }));
+    await user.click(within(dialog).getByRole('switch', { name: /Oturum bitince gönder/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
 
     await waitFor(() => expect(sessionsApi.update).toHaveBeenCalled());
