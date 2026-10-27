@@ -32,6 +32,9 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   // Uygulamalar only once core says the app assignments are on and readable
   const appsVisible =
     capabilities.status === 'ready' && capabilities.data.can?.['apps.read'] === true;
+  // KVKK başvuruları only once core says the register is the person's (ADMIN, YK)
+  const subjectRequestsVisible =
+    capabilities.status === 'ready' && capabilities.data.can?.['subjectRequest.manage'] === true;
   // Ekiplerim only once core names a Team the person leads (delegation on)
   const managedTeamsVisible =
     capabilities.status === 'ready' && (capabilities.data.managedTeams?.length ?? 0) > 0;
@@ -126,6 +129,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     hasDoorAssignment: doorEventIds.length > 0,
     appsVisible,
     managedTeamsVisible,
+    subjectRequestsVisible,
     editSites,
     activeEvent,
   };
