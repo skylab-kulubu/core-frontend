@@ -47,6 +47,17 @@ describe('proxy', () => {
     },
   );
 
+  it('lets the health check through without a session, so the container probe gets 200', () => {
+    expect(sentToLogin(visit('/api/health', ''))).toBe(false);
+  });
+
+  it.each(['/api/healthz', '/api/health/x'])(
+    'still sends %s without a session to /login',
+    (path) => {
+      expect(sentToLogin(visit(path, ''))).toBe(true);
+    },
+  );
+
   describe('under next dev', () => {
     afterEach(saveEnv('NODE_ENV'));
 
