@@ -78,11 +78,7 @@ export function MixChart({
 }
 
 function PanelTitle({ children }: { children: ReactNode }) {
-  return (
-    <span className="text-2xs tracking-label text-subtle-foreground font-medium uppercase">
-      {children}
-    </span>
-  );
+  return <span className="text-2xs text-subtle-foreground font-medium">{children}</span>;
 }
 
 export function MetricCard({
@@ -133,7 +129,7 @@ export function SectionHeading({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-3xs text-subtle-foreground tracking-[0.18em] uppercase">{title}</h2>
+        <h2 className="text-muted-foreground text-xs font-medium">{title}</h2>
         {meta ? <p className="text-2xs text-subtle-foreground mt-0.5">{meta}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
