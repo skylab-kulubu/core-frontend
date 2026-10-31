@@ -340,8 +340,10 @@ export function EventFormSlots({
               placeholder="Özel ad"
               onChange={(e) => setCustomLabel(e.target.value)}
             />
+            {/* lg is the 36px of the box beside it */}
             <SaveButton
               type="button"
+              size="lg"
               disabled={!customLabel.trim()}
               onClick={() => {
                 addSlot(customLabel);

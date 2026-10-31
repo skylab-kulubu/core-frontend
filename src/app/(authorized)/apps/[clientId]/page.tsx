@@ -216,12 +216,15 @@ export default function AppAssignmentsPage() {
               ) : null
             }
           />
-          <Switch
-            checked={peopleOnly}
-            onChange={setPeopleOnly}
-            label="Yalnız kişiler"
-            hint="Doğrudan kişiye yapılan atamalar"
-          />
+          {/* The panel is full width: a row this wide would part the label from its switch */}
+          <div className="max-w-3xl">
+            <Switch
+              checked={peopleOnly}
+              onChange={setPeopleOnly}
+              label="Yalnız kişiler"
+              hint="Doğrudan kişiye yapılan atamalar"
+            />
+          </div>
           <ListPanel
             status={listStatus({
               loading: false,
