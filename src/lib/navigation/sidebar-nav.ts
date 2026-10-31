@@ -21,6 +21,8 @@ export type SidebarNavigationContext = Readonly<{
   appsVisible?: boolean;
   /** core's `managedTeams` is not empty: team delegation is on and the reader leads a Team. */
   managedTeamsVisible?: boolean;
+  /** core's `subjectRequest.manage`: the KVKK md. 11 register (ADMIN and YK, never DK). */
+  subjectRequestsVisible?: boolean;
   /** "Siteyi düzenle": the editor sign-in of each site the person may edit (external links). */
   editSites?: readonly SidebarNavLink[];
   activeEvent?: Readonly<{
@@ -73,6 +75,11 @@ const NAVIGATION_LINKS: ReadonlyArray<
     href: '/my-teams',
     label: 'Ekiplerim',
     visibleWhen: ({ context }) => context.managedTeamsVisible === true,
+  },
+  {
+    href: '/subject-requests',
+    label: 'KVKK başvuruları',
+    visibleWhen: ({ context }) => context.subjectRequestsVisible === true,
   },
   {
     href: '/qr',
@@ -187,6 +194,7 @@ export function buildSidebarNavigation(
     { href: '/apps', label: 'Uygulamalar' },
     { href: '/teams', label: 'Ekipler' },
     { href: '/my-teams', label: 'Ekiplerim' },
+    { href: '/subject-requests', label: 'KVKK başvuruları' },
   ].filter((item) => allowed.has(item.href));
   if (clubChildren.length) {
     nodes.push({ kind: 'group', id: 'club', label: 'Kulüp', children: clubChildren });
