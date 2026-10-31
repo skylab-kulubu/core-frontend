@@ -142,7 +142,7 @@ export default function GroupsPage() {
             <FieldLabel>Üst grup</FieldLabel>
             <button
               type="button"
-              className="focus:border-skylab-400/50 border-border bg-card text-foreground h-8 w-full rounded-md border px-3 text-left text-xs"
+              className="focus:border-skylab-400/50 border-border bg-card text-foreground h-9 w-full rounded-lg border px-2.5 text-left text-xs pointer-coarse:h-11 pointer-coarse:text-base"
               onClick={() => {
                 setParentQuery('');
                 setParentOpen(true);
