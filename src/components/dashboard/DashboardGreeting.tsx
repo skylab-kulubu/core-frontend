@@ -35,7 +35,7 @@ export function DashboardGreeting({
       />
       <div className="relative flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-3xs tracking-label text-subtle-foreground min-h-4 font-medium uppercase">
+          <p className="text-2xs text-subtle-foreground min-h-4 font-medium">
             {now
               ? now.toLocaleDateString('tr-TR', {
                   weekday: 'long',

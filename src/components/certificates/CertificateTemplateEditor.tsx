@@ -634,7 +634,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
+                <p className="text-muted-foreground text-xs font-medium">
                   1 · Düzenleme bağlantısı
                 </p>
                 <label className="block space-y-1.5">
@@ -664,9 +664,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               </div>
 
               <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
-                  2 · Tasarımı dışa aktar
-                </p>
+                <p className="text-muted-foreground text-xs font-medium">2 · Tasarımı dışa aktar</p>
                 <p className="text-secondary-foreground text-xs leading-5">
                   {sourceName}&apos;da PNG, JPG, SVG veya tek sayfalık PDF olarak indir. Katılımcı
                   adı, etkinlik adı ve QR için tasarımda boş alan bırak.
@@ -674,7 +672,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               </div>
 
               <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-3xs text-subtle-foreground font-semibold tracking-[0.16em] uppercase">
+                <p className="text-muted-foreground text-xs font-medium">
                   3 · Export dosyasını yükle
                 </p>
                 <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs">
