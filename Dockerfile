@@ -21,7 +21,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 FROM --platform=linux/amd64 node:22-alpine AS playground-true
 WORKDIR /src
 RUN apk add --no-cache git && corepack enable
-ARG SKYLCN_UI_REF=7468ae195f08f7f6e9628e34b0afd3772feeb77a
+ARG SKYLCN_UI_REF=186d228c6aa6dd5dc8b8dde19a23dffb02f76c5a
 ARG NEXT_PUBLIC_ADMIN_URL
 ARG NEXT_PUBLIC_FORMS_ADMIN_URL
 ARG NEXT_PUBLIC_MAIL_URL
