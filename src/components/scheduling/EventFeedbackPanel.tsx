@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { SaveButton } from '@/components/chrome/SaveButton';
-import { eventsApi, type CoreEvent, type FeedbackCount } from '@/lib/api/events';
+import {
+  eventsApi,
+  type CoreEvent,
+  type FeedbackCount,
+  type FeedbackSendResult,
+} from '@/lib/api/events';
 import { publicShortUrl, shortQrFileName, shortQrPath, shortQrUrl } from '@/lib/api/urls';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -16,10 +21,7 @@ import { useNotify } from '@/lib/ui/use-notify';
  */
 export function EventFeedbackPanel({ event, canSend }: { event: CoreEvent; canSend: boolean }) {
   const [count, setCount] = useState<FeedbackCount | null>(null);
-  const [confirm, confirmDialog] = useConfirm();
-  const notify = useNotify();
   const url = event.feedbackFormUrl?.trim() ?? '';
-  const alias = event.feedbackFormAlias?.trim() ?? '';
 
   useEffect(() => {
     if (!url) return;
@@ -37,6 +39,43 @@ export function EventFeedbackPanel({ event, canSend }: { event: CoreEvent; canSe
       cancelled = true;
     };
   }, [event.id, url]);
+
+  return (
+    <FeedbackFormPanel
+      url={url}
+      alias={event.feedbackFormAlias}
+      count={count}
+      canSend={canSend}
+      description="Yoklaması alınanlara kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; etkinlik bitince yeniden gitmez."
+      send={() => eventsApi.sendFeedback(event.id)}
+    />
+  );
+}
+
+/**
+ * A feedback form (the Event's or a Session's): its link and QR, its counts
+ * and "Şimdi gönder" with its question. Nothing without a form.
+ */
+export function FeedbackFormPanel({
+  url: rawUrl,
+  alias: rawAlias,
+  count,
+  canSend,
+  description,
+  send,
+}: {
+  url?: string;
+  alias?: string;
+  count: FeedbackCount | null;
+  canSend: boolean;
+  /** The question's line under "şimdi gönderilsin mi?". */
+  description: string;
+  send: () => Promise<FeedbackSendResult>;
+}) {
+  const [confirm, confirmDialog] = useConfirm();
+  const notify = useNotify();
+  const url = rawUrl?.trim() ?? '';
+  const alias = rawAlias?.trim() ?? '';
 
   if (!url) return null;
   const link = alias ? publicShortUrl(alias) : url;
@@ -73,13 +112,12 @@ export function EventFeedbackPanel({ event, canSend }: { event: CoreEvent; canSe
           onClick={() =>
             confirm({
               title: 'Geri bildirim formu şimdi gönderilsin mi?',
-              description:
-                'Yoklaması alınanlara kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; etkinlik bitince yeniden gitmez.',
+              description,
               actionLabel: 'Şimdi gönder',
               destructive: false,
               failure: 'Form gönderilemedi',
               onConfirm: async () => {
-                const result = await eventsApi.sendFeedback(event.id);
+                const result = await send();
                 notify.success(
                   result.sent
                     ? `${result.recipients ?? 0} kişiye gönderiliyor`

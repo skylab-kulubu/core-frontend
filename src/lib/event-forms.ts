@@ -16,6 +16,11 @@ export type EventFormSlot = {
   url: string;
   alias: string;
   urlId?: string;
+  /**
+   * What the slot's short link and Skyforms title are named after when not its
+   * label: a Session's feedback form is named after the Session.
+   */
+  extra?: string;
   /** The address and alias the Event already saved for this slot. */
   saved?: { url: string; alias: string };
 };
@@ -29,6 +34,19 @@ export const DEFAULT_FORMS_ADMIN_ORIGIN = 'https://forms.yildizskylab.com/admin'
  */
 export const FEEDBACK_SLOT_KEY = 'feedback';
 export const FEEDBACK_SLOT_LABEL = 'Geri bildirim';
+/** A Session's feedback form's slot key: the prefix and the Session's id. */
+export const SESSION_FEEDBACK_SLOT_PREFIX = 'feedback-session:';
+
+/** The Event's or a Session's feedback form: a fixed slot whose answers write no Ticket. */
+export function isFeedbackSlotKey(key: string): boolean {
+  return key === FEEDBACK_SLOT_KEY || key.startsWith(SESSION_FEEDBACK_SLOT_PREFIX);
+}
+
+/** What a slot's short link and Skyforms title add to the Event's name: nothing for the application form. */
+export function slotExtra(slot: Pick<EventFormSlot, 'key' | 'label' | 'extra'>): string {
+  if (slot.key === APPLY_SLOT_KEY) return '';
+  return slot.extra ?? slot.label;
+}
 
 export function emptyApplySlot(): EventFormSlot {
   return {
@@ -372,7 +390,7 @@ export async function attachFormAliases(
       out.push({ ...slot, url });
       continue;
     }
-    const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+    const extra = slotExtra(slot);
     const alias =
       slot.alias.trim() ||
       humanFormAlias(ownerTeam, name, year, extra) ||
