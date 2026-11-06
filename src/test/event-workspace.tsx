@@ -29,6 +29,8 @@ export const eventsModule = {
     cancel: jest.fn(),
     uncancel: jest.fn(),
     patch: jest.fn(),
+    copy: jest.fn(),
+    listCompetitions: jest.fn(),
   },
 };
 export const eventDaysModule = {
@@ -121,6 +123,7 @@ export function primeEventWorkspace() {
   jest.clearAllMocks();
   eventsModule.eventsApi.get.mockResolvedValue(workspaceEvent);
   eventsModule.eventsApi.list.mockResolvedValue([]);
+  eventsModule.eventsApi.listCompetitions.mockResolvedValue([]);
   eventDaysModule.eventDaysApi.listByEvent.mockResolvedValue([
     { id: 'd1', eventId: 'e1', name: 'Gün 1' },
   ]);

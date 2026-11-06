@@ -71,4 +71,32 @@ describe('eventsApi status writes', () => {
       { method: 'PATCH', path: '/v1/events/e1', body: { registrationClosed: true } },
     ]);
   });
+
+  it('posts a copy with the id the dialog made', async () => {
+    const calls = recordFetch();
+    await eventsApi.copy('e1', {
+      id: 'c1',
+      name: 'Gecekodu 2027',
+      startDate: '2027-03-14T16:00:00.000Z',
+      includeDoorStaff: false,
+      includeCompetitions: true,
+      ownerTeam: 'AIRLAB',
+    });
+    await eventsApi.listCompetitions('e1');
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        path: '/v1/events/e1/copy',
+        body: {
+          id: 'c1',
+          name: 'Gecekodu 2027',
+          startDate: '2027-03-14T16:00:00.000Z',
+          includeDoorStaff: false,
+          includeCompetitions: true,
+          ownerTeam: 'AIRLAB',
+        },
+      },
+      { method: 'GET', path: '/v1/events/e1/competitions', body: undefined },
+    ]);
+  });
 });

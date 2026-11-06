@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   EventEditor,
   emptyEventForm,
+  feedbackModeOptions,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
 import { identityApi } from '@/lib/api/identity';
@@ -68,5 +69,69 @@ describe('EventEditor fields', () => {
     expect(screen.queryByRole('switch', { name: 'Aktif' })).not.toBeInTheDocument();
     expect(screen.queryByText('Aktif')).not.toBeInTheDocument();
     expect(screen.getByText('Sıralamalı')).toBeInTheDocument();
+  });
+});
+
+describe('EventEditor feedback form', () => {
+  function FeedbackEditor({ onValue }: { onValue: (value: EventFormState) => void }) {
+    const [value, setValue] = useState<EventFormState>(emptyEventForm('GECEKODU'));
+    return (
+      <EventEditor
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onValue(next);
+        }}
+        ownerOptions={['GECEKODU']}
+      />
+    );
+  }
+
+  it('picks the mode, keeps the box on by default and brings a Skyforms form back to its own field', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    render(<FeedbackEditor onValue={onValue} />);
+
+    const mode = screen.getByRole('combobox', { name: 'Geri bildirim' });
+    expect(mode).toHaveValue('event');
+    expect(screen.getByRole('switch', { name: /Etkinlik bitince gönder/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByText('Cevapları kayıt yazmaz.')).toBeInTheDocument();
+    // The feedback form is fixed: one "Form ekle", for the Form slots alone
+    expect(screen.getAllByText('Form ekle')).toHaveLength(1);
+
+    // "Oturum başına form" waits for the Session forms (bilet 09)
+    expect(screen.queryByRole('option', { name: 'Oturum başına form' })).not.toBeInTheDocument();
+    await user.selectOptions(mode, 'event_with_sessions');
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ feedbackMode: 'event_with_sessions' }),
+    );
+
+    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Skyforms’ta oluştur' });
+    await user.click(feedbackSkyforms!);
+    // Skyforms brings the new form back to the feedback field
+    const links = screen
+      .getAllByRole('link', { name: 'Skyforms’ta oluştur' })
+      .map((row) => new URL(row.getAttribute('href') ?? ''))
+      .map((url) => new URL(url.searchParams.get('returnTo') ?? '').searchParams.get('formSlot'));
+    expect(links).toContain('feedback');
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        feedbackSlot: expect.objectContaining({ key: 'feedback', mode: 'skyforms' }),
+        extraFormUrls: [],
+      }),
+    );
+  });
+});
+
+describe('feedbackModeOptions', () => {
+  it('hides the per-Session mode unless the Event is in it already', () => {
+    expect(feedbackModeOptions('event').map((mode) => mode.value)).toEqual([
+      'event',
+      'event_with_sessions',
+    ]);
+    expect(feedbackModeOptions('per_session').map((mode) => mode.value)).toContain('per_session');
   });
 });

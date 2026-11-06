@@ -47,7 +47,8 @@ export function GroupProfile({
 
   return (
     <form
-      className="space-y-4"
+      // The panel is full width; a form reads better narrow
+      className="max-w-3xl space-y-4"
       onSubmit={async (event) => {
         event.preventDefault();
         if (readOnly || !name.trim()) return;

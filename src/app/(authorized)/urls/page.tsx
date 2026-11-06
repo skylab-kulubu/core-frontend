@@ -227,7 +227,7 @@ export default function UrlsPage() {
             aria-describedby="alias-hint"
           />
         </label>
-        <SaveButton disabled={pending || Boolean(aliasHint?.blocks)} className="self-end">
+        <SaveButton size="lg" disabled={pending || Boolean(aliasHint?.blocks)} className="self-end">
           {pending ? 'Kısaltılıyor…' : 'Kısalt'}
         </SaveButton>
         <AliasHint id="alias-hint" hint={aliasHint} className="basis-full" />

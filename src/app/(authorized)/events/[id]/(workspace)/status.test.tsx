@@ -50,7 +50,12 @@ const future = '2099-10-01T10:00:00+03:00';
 /** core's capabilities for GECEKODU: the Event writes when `write`, none for a DK reader. */
 function capabilities(write: boolean) {
   (capabilitiesApi.get as jest.Mock).mockResolvedValue({
-    teams: [{ team: 'GECEKODU', can: { 'event.update': write, 'event.delete': write } }],
+    teams: [
+      {
+        team: 'GECEKODU',
+        can: { 'event.update': write, 'event.delete': write, 'ticket.read': true },
+      },
+    ],
   });
 }
 

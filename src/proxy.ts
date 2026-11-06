@@ -9,7 +9,8 @@ export function proxy(request: NextRequest) {
   const publicRoutes = ['/login', '/api/auth'];
   const pathname = request.nextUrl.pathname;
 
-  if (publicRoutes.some((route) => pathname.startsWith(route))) {
+  // The container health check (api/health/route.ts) asks without a session
+  if (pathname === '/api/health' || publicRoutes.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 

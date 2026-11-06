@@ -32,7 +32,7 @@ import {
 } from '@/lib/tickets-ui';
 
 const PAGE_SIZE = 10;
-const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-faint-foreground';
+const COLUMN_LABEL = 'text-2xs font-medium text-subtle-foreground';
 type RosterSort = 'name' | 'createdAt' | 'status';
 type RosterDensity = 'dense' | 'comfortable';
 type PersistedRosterState = {

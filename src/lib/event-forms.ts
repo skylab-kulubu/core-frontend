@@ -23,6 +23,12 @@ export type EventFormSlot = {
 export const APPLY_SLOT_KEY = 'apply';
 export const APPLY_SLOT_LABEL = 'Başvuru formu';
 export const DEFAULT_FORMS_ADMIN_ORIGIN = 'https://forms.yildizskylab.com/admin';
+/**
+ * The Event's feedback form: not a Form slot (its answers write no Ticket),
+ * kept apart from `formSlots` and saved as `feedbackFormUrl`/`feedbackFormAlias`.
+ */
+export const FEEDBACK_SLOT_KEY = 'feedback';
+export const FEEDBACK_SLOT_LABEL = 'Geri bildirim';
 
 export function emptyApplySlot(): EventFormSlot {
   return {
@@ -32,6 +38,29 @@ export function emptyApplySlot(): EventFormSlot {
     url: '',
     alias: '',
   };
+}
+
+export function emptyFeedbackSlot(): EventFormSlot {
+  return {
+    key: FEEDBACK_SLOT_KEY,
+    label: FEEDBACK_SLOT_LABEL,
+    mode: 'external',
+    url: '',
+    alias: '',
+  };
+}
+
+/** The Event's saved feedback form as the editor's slot. */
+export function feedbackSlotFromEvent(
+  event: { feedbackFormUrl?: string; feedbackFormAlias?: string },
+  origin?: string,
+): EventFormSlot {
+  const slot = emptyFeedbackSlot();
+  slot.url = event.feedbackFormUrl ?? '';
+  slot.alias = event.feedbackFormAlias ?? '';
+  slot.saved = savedLink(slot);
+  if (looksLikeSkyforms(slot.url, origin)) slot.mode = 'skyforms';
+  return slot;
 }
 
 export function extraFormSlot(label: string, key?: string): EventFormSlot {
@@ -152,7 +181,7 @@ export function applyFormHandoff(
 export function skyformsCreateHref(
   origin: string,
   returnTo: string,
-  extras?: { title?: string; ownerTeam?: string; eventId?: string },
+  extras?: { title?: string; ownerTeam?: string; eventId?: string; fromForm?: string },
 ): string | null {
   const trimmed = origin.trim().replace(/\/+$/, '');
   if (!trimmed) return null;
@@ -161,6 +190,8 @@ export function skyformsCreateHref(
   if (extras?.title) url.searchParams.set('title', extras.title);
   if (extras?.ownerTeam) url.searchParams.set('ownerTeam', extras.ownerTeam);
   if (extras?.eventId) url.searchParams.set('eventId', extras.eventId);
+  // Skyforms fills the new form with this form's questions (event-handoff.js)
+  if (extras?.fromForm) url.searchParams.set('fromForm', extras.fromForm);
   return url.toString();
 }
 

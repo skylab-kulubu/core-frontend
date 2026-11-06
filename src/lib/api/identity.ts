@@ -72,6 +72,30 @@ export type MemberCandidate = {
   warnings: string[];
 };
 
+/**
+ * A Team the reader manages, with the Teams below it (GET
+ * /v1/users/me/managed-groups; core's team delegation, docs/team-delegation.md
+ * "Managed tree"). `can` holds core's decisions for it: `group.read`,
+ * `members.write` and `leaders.write`.
+ */
+export type ManagedGroup = {
+  id: string;
+  code: string;
+  path: string;
+  displayName?: { tr?: string; en?: string };
+  memberCount?: number;
+  leaderCount?: number;
+  protected?: boolean;
+  can?: Record<string, boolean>;
+  children?: ManagedGroup[];
+};
+
+/** A Team's own settings, kept as its Group's attributes (core docs/team-delegation.md). */
+export type TeamSettings = {
+  /** Whether the Team's members add and edit its Events' competitors; off keeps it to Leaders. */
+  membersManageCompetitors: boolean;
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -110,6 +134,13 @@ export const identityApi = {
   removeMember: (groupId: string, userId: string) =>
     coreFetch<void>(`/v1/groups/${encodeURIComponent(groupId)}/members/${userId}`, {
       method: 'DELETE',
+    }),
+  managedGroups: () => coreFetch<ManagedGroup[]>('/v1/users/me/managed-groups'),
+  /** A Team's own settings (PUT /v1/groups/{id}/settings): its manager or Privileged. */
+  setTeamSettings: (id: string, settings: TeamSettings) =>
+    coreFetch<TeamSettings>(`/v1/groups/${encodeURIComponent(id)}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
     }),
   groupRoles: (id: string) =>
     coreFetch<ClientRole[]>(`/v1/groups/${encodeURIComponent(id)}/client-roles`),

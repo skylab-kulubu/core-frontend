@@ -28,20 +28,30 @@ const knownKeys = new Set<string>([
   ...GROUP_TEXTS.map((row) => row.key),
 ]);
 
-export function isKnownGroupAttr(key: string): boolean {
-  return knownKeys.has(key);
+/**
+ * A Team's settings, written through core's settings route (not the profile
+ * save, which keeps them as they are): not listed or added as extra attributes.
+ */
+export const TEAM_SETTING_ATTRS = ['members_manage_competitors'] as const;
+
+export function isTeamSettingAttr(key: string): boolean {
+  return (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
 }
 
-export function isToggleOn(
-  attrs: Record<string, string> | undefined,
-  key: string,
-): boolean {
+export function isKnownGroupAttr(key: string): boolean {
+  return knownKeys.has(key) || (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
+}
+
+/** members_manage_competitors: on unless it says false (core's default). */
+export function membersManageCompetitors(attrs: Record<string, string> | undefined): boolean {
+  return (attrs?.members_manage_competitors ?? '').trim().toLowerCase() !== 'false';
+}
+
+export function isToggleOn(attrs: Record<string, string> | undefined, key: string): boolean {
   return (attrs?.[key] ?? '').toLowerCase() === 'true';
 }
 
-export function extraGroupAttrs(
-  attrs: Record<string, string> | undefined,
-): Record<string, string> {
+export function extraGroupAttrs(attrs: Record<string, string> | undefined): Record<string, string> {
   const extra: Record<string, string> = {};
   for (const [key, value] of Object.entries(attrs ?? {})) {
     if (!knownKeys.has(key)) extra[key] = value;

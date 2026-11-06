@@ -12,8 +12,32 @@ export function extractGroupsFromClaims(payload: Record<string, unknown> | null)
 
 const LEADER_SUBGROUPS = ['LIDERLER', 'KOORDINATORLER'] as const;
 
+/**
+ * Privileged: a member of one of core's six roots (`/ADMIN`, `/YK`, `/DK` and
+ * the same under `/UYELER`) or of a Group under one, anchored as core reads
+ * them (ADR 0065 decision 6): `/UYELER/ARGE/YK` is no Privileged root.
+ */
 export function isPrivileged(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/(ADMIN|YK|DK)(\/|$)/.test(g));
+  return groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK|DK)(\/|$)/.test(g));
+}
+
+/**
+ * A Team's own Group, as core's TeamOf reads it: at least
+ * `/UYELER/<area>/<team>`, under no Privileged root, no Leader group on the way.
+ */
+export function isTeamGroupPath(path: string): boolean {
+  const parts = path.split('/').slice(1);
+  return (
+    path.startsWith('/UYELER/') &&
+    parts.length >= 3 &&
+    parts.every((part) => part !== '' && !LEADER_SUBGROUPS.some((leader) => leader === part)) &&
+    !isPrivileged([path])
+  );
+}
+
+/** A Team's Leader group: `LIDERLER` or `KOORDINATORLER` as the path's last segment. */
+export function isLeaderGroupPath(path: string | undefined): boolean {
+  return !!path && /^\/[^/]+(\/[^/]+)*\/(LIDERLER|KOORDINATORLER)$/.test(path);
 }
 
 /**
@@ -22,11 +46,12 @@ export function isPrivileged(groups: readonly string[]): boolean {
  * `/ADMIN` is the narrowest group superadmin already treats as an administrator.
  */
 export function canManageHandoffTargets(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/ADMIN(\/|$)/.test(g));
+  return groups.some((g) => /^\/(UYELER\/)?ADMIN(\/|$)/.test(g));
 }
 
+/** In some Leader group: a Group whose last segment is LIDERLER or KOORDINATORLER (core's isAnyLeader). */
 export function isLeader(groups: readonly string[]): boolean {
-  return groups.some((g) => /\/(LIDERLER|KOORDINATORLER)(\/|$)/.test(g));
+  return groups.some(isLeaderGroupPath);
 }
 
 export function leaderOwnerTeams(groups: readonly string[]): string[] {

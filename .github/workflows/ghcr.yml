@@ -175,6 +175,7 @@ jobs:
             NEXT_PUBLIC_SHORT_ORIGIN=${{ steps.environment.outputs.short_origin }}
             NEXT_PUBLIC_GITHUB_ACTIVITY_URL=${{ steps.environment.outputs.github_activity_url }}
             NEXT_PUBLIC_INCLUDE_PLAYGROUND=${{ steps.environment.outputs.include_playground }}
+            NEXT_DEPLOYMENT_ID=${{ github.sha }}
           # Layer cache per image (dependencies, the playground): a pull request reads main's.
           cache-from: type=gha,scope=${{ matrix.variant }}
           cache-to: ${{ github.event_name != 'pull_request' && format('type=gha,mode=max,scope={0}', matrix.variant) || '' }}

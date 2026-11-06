@@ -12,12 +12,14 @@ import {
 import { Inbox, MoreHorizontal, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
+import { SideScroll } from '@/components/chrome/SideScroll';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
+import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import {
   eventRowMenuItems,
   useEventStatusActions,
@@ -73,6 +75,7 @@ function EventsPageContent() {
     },
     onError: setActionError,
   });
+  const copy = useEventCopy();
 
   function setParam(name: string, value: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -168,8 +171,8 @@ function EventsPageContent() {
         placeholder="Ad, ekip, konum"
         searchLabel="Etkinlik ara"
       >
-        {/* Six counted pills do not fit a phone: they scroll sideways instead of widening the page */}
-        <div className="max-w-full overflow-x-auto">
+        {/* Six counted pills do not fit a phone: they scroll sideways, the hidden side fades */}
+        <SideScroll>
           <FilterPills<EventStatusFilter>
             ariaLabel="Etkinlik durumu"
             value={statusFilter}
@@ -179,7 +182,7 @@ function EventsPageContent() {
             }}
             options={EVENT_STATUS_FILTERS.map((row) => ({ ...row, count: counts[row.value] }))}
           />
-        </div>
+        </SideScroll>
       </ListToolbar>
       {calendar ? (
         loading ? (
@@ -221,6 +224,7 @@ function EventsPageContent() {
               const menu = eventRowMenuItems(ev, rightsFor(ev), statusActions, {
                 onDeleted: () => setEvents((rows) => rows.filter((row) => row.id !== ev.id)),
                 onRestored: replaceEvent,
+                onCopy: copy.canCopy(ev) ? () => copy.askCopy(ev) : undefined,
               });
               return (
                 <ListItem
@@ -257,6 +261,7 @@ function EventsPageContent() {
         </>
       )}
       {statusActions.dialog}
+      {copy.dialog}
     </div>
   );
 }

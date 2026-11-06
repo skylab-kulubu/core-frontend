@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
@@ -244,6 +244,63 @@ describe('Event workspace layout', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Düzenle' }));
     expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
+  });
+
+  /** core's answer for a GECEKODU member: competitor writes as the Team's Leader chose. */
+  const memberCompetitors = (manage: boolean) =>
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [
+        {
+          team: 'GECEKODU',
+          levels: ['MEMBER'],
+          can: {
+            'competitor.read': true,
+            'competitor.create': manage,
+            'competitor.update': manage,
+          },
+        },
+      ],
+    });
+
+  it('lets a member manage competitors when core does (the Team setting on)', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    memberCompetitors(true);
+    await renderEventTab(<EventCompetitionPage />, '/events/e1/competition');
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    // No competitor yet: the tab is there because core lets the member manage them
+    await waitFor(() => expect(tabNames()).toContain('Yarışma'));
+    expect((await screen.findAllByLabelText('Yarışmacı ekle')).length).toBeGreaterThan(0);
+  });
+
+  it('shows a member no competitor tools once the Leader turned the setting off', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    memberCompetitors(false);
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(tabNames()).not.toContain('Yarışma');
+  });
+
+  it('keeps the event’s own team among the owner choices of a Leader of the Team above', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, ownerTeam: 'MOBIL' });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [
+        { team: 'MOBIL', levels: ['LEADER'], can: { 'event.update': true } },
+        { team: 'WEBLAB', levels: ['LEADER', 'MEMBER'], can: { 'event.update': true } },
+      ],
+    });
+    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+    const owner = within(dialog).getByRole('combobox', { name: 'Sahip ekip' }) as HTMLSelectElement;
+    expect(owner.value).toBe('MOBIL');
+    expect([...owner.options].map((option) => option.value)).toEqual(
+      expect.arrayContaining(['MOBIL', 'WEBLAB']),
+    );
   });
 
   it('says the event was saved from the edit drawer', async () => {

@@ -7,12 +7,20 @@ type SwitchProps = {
   onChange: (checked: boolean) => void;
   label: string;
   hint?: string;
+  /** While a change is being saved: the switch takes no other. */
+  disabled?: boolean;
 };
 
 /** A labelled on/off row; skylcn-ui's ToggleRow. */
-export function Switch({ checked, onChange, label, hint }: SwitchProps) {
+export function Switch({ checked, onChange, label, hint, disabled }: SwitchProps) {
   return (
-    <ToggleRow checked={checked} onCheckedChange={onChange} title={label} description={hint} />
+    <ToggleRow
+      checked={checked}
+      onCheckedChange={onChange}
+      title={label}
+      description={hint}
+      disabled={disabled}
+    />
   );
 }
 

@@ -52,13 +52,30 @@ function NamedEvent() {
   return <p>İçerik</p>;
 }
 
+/** core's answer for a WEBLAB Leader who also leads its Sub-team MOBIL (core ticket 12). */
+const LEADER_CAN = {
+  'ticket.read': true,
+  'competitor.update': true,
+  'door.checkIn': true,
+  'certificate.read': true,
+};
+const WEBLAB_LEADER_CAPABILITIES = {
+  editableSites: [],
+  teams: [
+    { team: 'MOBIL', levels: ['LEADER'], can: LEADER_CAN },
+    { team: 'WEBLAB', levels: ['LEADER', 'MEMBER'], can: LEADER_CAN },
+  ],
+  otherTeams: { can: {} },
+  noOwnerTeam: { can: {} },
+};
+
 describe('AuthenticatedChrome', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     currentPathname = '/dashboard';
     window.localStorage.clear();
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([]);
-    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ editableSites: [] });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue(WEBLAB_LEADER_CAPABILITIES);
     (competitorsApi.listByEvent as jest.Mock).mockResolvedValue([]);
   });
 
@@ -174,6 +191,23 @@ describe('AuthenticatedChrome', () => {
     expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
       'href',
       '/events/event-1/participants',
+    );
+  });
+
+  it('shows a Sub-team event’s tools to the Leader of the Team above, as core decides', async () => {
+    currentPathname = '/events/event-3';
+    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
+    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-3', ownerTeam: 'MOBIL' });
+    render(
+      <AuthenticatedChrome sidebarUser={leader}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
+      'href',
+      '/events/event-3/participants',
     );
   });
 

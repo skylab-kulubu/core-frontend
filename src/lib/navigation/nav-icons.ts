@@ -41,6 +41,8 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/groups': FolderTree,
   '/apps': LayoutGrid,
   '/teams': UsersRound,
+  '/my-teams': UsersRound,
+  '/subject-requests': ShieldCheck,
   '/announcements': Newspaper,
   '/urls': Link2,
   '/certificates/templates': LayoutTemplate,

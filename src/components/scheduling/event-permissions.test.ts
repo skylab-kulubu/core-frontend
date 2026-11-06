@@ -18,8 +18,9 @@ const ALL: EventPermissions = {
 };
 
 describe('withTeamCapabilities', () => {
-  it('takes every write from a DK member and keeps every read', () => {
-    const can = withTeamCapabilities(ALL, 'WEBLAB', () => false, false);
+  it('takes every write from a DK member and keeps what core lets read', () => {
+    const reads = new Set(['ticket.read', 'certificate.read']);
+    const can = withTeamCapabilities(ALL, 'WEBLAB', (_, key) => reads.has(key), false);
     expect(can).toEqual({
       ...ALL,
       canMutate: false,
@@ -50,10 +51,16 @@ describe('withTeamCapabilities', () => {
     expect(asked.every((row) => row.startsWith('WEBLAB:'))).toBe(true);
   });
 
-  it('never widens the group rule', () => {
+  it('follows core where the group rule cannot see: a Leader of the Team above (ticket 12)', () => {
     const none = Object.fromEntries(
       Object.keys(ALL).map((key) => [key, false]),
     ) as EventPermissions;
-    expect(withTeamCapabilities(none, 'WEBLAB', () => true, false)).toEqual(none);
+    expect(withTeamCapabilities(none, 'MOBIL', () => true, false)).toEqual(ALL);
+  });
+
+  it('passes each group rule as the stand-in when core cannot be read', () => {
+    const some = { ...ALL, canDelete: false, canAssign: false, canRevokeCertificate: false };
+    const groupRule = (_team: string, _key: string, rule: boolean) => rule;
+    expect(withTeamCapabilities(some, 'WEBLAB', groupRule, false)).toEqual(some);
   });
 });

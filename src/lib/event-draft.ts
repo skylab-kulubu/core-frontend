@@ -3,8 +3,11 @@ import type { CoreEvent } from '@/lib/api/events';
 import { toDatetimeLocal } from '@/lib/datetime-local';
 import {
   APPLY_SLOT_KEY,
+  FEEDBACK_SLOT_KEY,
   applyFormHandoff,
   emptyApplySlot,
+  emptyFeedbackSlot,
+  feedbackSlotFromEvent,
   persistableFormFields,
   slotsFromEvent,
   withFormSlot,
@@ -118,6 +121,9 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     formAlias: ev.formAlias || '',
     extraFormUrls: ev.extraFormUrls ?? [],
     formSlots: slots,
+    feedbackMode: ev.feedbackMode ?? 'event',
+    feedbackAutoSend: ev.feedbackAutoSend ?? true,
+    feedbackSlot: feedbackSlotFromEvent(ev),
     capacity: ev.capacity,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
@@ -145,6 +151,11 @@ export function restoreEventEditor(
   const draft = existingId ? null : readEventDraft(storage, returnTo);
   const base = draft ?? fallback;
   if (!handoff) return base;
+  if (handoff.formSlot === FEEDBACK_SLOT_KEY) {
+    // The feedback form is no Form slot: it comes back to its own field
+    const feedbackSlot = base.feedbackSlot ?? emptyFeedbackSlot();
+    return { ...base, feedbackSlot: { ...feedbackSlot, url: handoff.formUrl, mode: 'skyforms' } };
+  }
   const slots = base.formSlots?.length ? base.formSlots : [emptyApplySlot()];
   const formSlots = applyFormHandoff(slots, handoff);
   return { ...base, formSlots, ...persistableFormFields(formSlots) };
@@ -163,6 +174,10 @@ function normalizeDraft(parsed: Partial<EventFormState>): EventFormState {
     location: typeof parsed.location === 'string' ? parsed.location : base.location,
     ownerTeam: typeof parsed.ownerTeam === 'string' ? parsed.ownerTeam : base.ownerTeam,
     formSlots: formSlots.length ? formSlots : [emptyApplySlot()],
+    feedbackSlot:
+      parsed.feedbackSlot && typeof parsed.feedbackSlot === 'object'
+        ? { ...normalizeSlot(parsed.feedbackSlot), key: FEEDBACK_SLOT_KEY }
+        : base.feedbackSlot,
     imageIds: Array.isArray(parsed.imageIds)
       ? parsed.imageIds.filter((id) => typeof id === 'string')
       : [],

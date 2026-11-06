@@ -10,6 +10,15 @@ export type CoreEvent = {
   formUrl?: string;
   formAlias?: string;
   extraFormUrls?: { label: string; url: string; alias?: string }[];
+  /**
+   * The feedback form (etkinlik geri bildirim formu): not a Form slot, its
+   * answers write no Ticket. `feedbackAutoSend` mails it two hours after the
+   * Event ends to whom checked in; an older core sends none of these.
+   */
+  feedbackMode?: FeedbackMode;
+  feedbackFormUrl?: string;
+  feedbackFormAlias?: string;
+  feedbackAutoSend?: boolean;
   capacity: number;
   startDate?: string;
   endDate?: string;
@@ -24,6 +33,8 @@ export type CoreEvent = {
   cancelReason?: string;
   /** Set while the cancellation mail to the Ticket holders is queued or sent. */
   cancelNotifiedAt?: string;
+  /** The Event this one was copied from (POST /v1/events/{id}/copy). */
+  copiedFromEventId?: string;
   /** Closed by hand; `registrationClosesAt` is the deadline (none: no deadline). */
   registrationClosed?: boolean;
   registrationClosesAt?: string;
@@ -50,6 +61,36 @@ export type CoreEvent = {
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
 
+/** POST /v1/events/{id}/copy (core docs/event-copy.md). */
+export type EventCopyBody = {
+  /** Made once per dialog: a retried request answers the copy it made. */
+  id: string;
+  name: string;
+  startDate: string;
+  includeDoorStaff?: boolean;
+  includeCompetitions?: boolean;
+  /** None: the source's Owner team. */
+  ownerTeam?: string;
+};
+
+/** The copy, a draft, and the parts core left out (`cover`, `certificateTemplate`, …). */
+export type EventCopy = { event: CoreEvent; skipped: string[] };
+
+/**
+ * Where the feedback questions are: the Event's one form (`event`), a form of
+ * each Session (`per_session`), or the Sessions asked inside the Event's form
+ * (`event_with_sessions`).
+ */
+export type FeedbackMode = 'event' | 'per_session' | 'event_with_sessions';
+
+/** How many invites a form went out in and how many were answered. */
+export type FeedbackCount = { sessionId?: string; sent: number; answered: number };
+
+export type FeedbackCounts = { event: FeedbackCount; sessions: FeedbackCount[] };
+
+/** "Şimdi gönder": `sent` false when the form went already. */
+export type FeedbackSendResult = { sent: boolean; recipients?: number };
+
 export type EventBody = {
   id?: string;
   name: string;
@@ -59,6 +100,10 @@ export type EventBody = {
   formUrl?: string;
   formAlias?: string;
   extraFormUrls?: { label: string; url: string; alias?: string }[];
+  feedbackMode?: FeedbackMode;
+  feedbackFormUrl?: string;
+  feedbackFormAlias?: string;
+  feedbackAutoSend?: boolean;
   capacity: number;
   startDate?: string;
   endDate?: string;
@@ -89,6 +134,10 @@ export type EventPatch = {
   formUrl?: string | null;
   formAlias?: string | null;
   extraFormUrls?: { label: string; url: string; alias?: string }[] | null;
+  feedbackMode?: FeedbackMode;
+  feedbackFormUrl?: string | null;
+  feedbackFormAlias?: string | null;
+  feedbackAutoSend?: boolean;
   capacity?: number | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -145,6 +194,17 @@ export const eventsApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  /** Copies the Event's structure into a new draft (ADR 0066); 200 or 201 alike. */
+  copy: (id: string, body: EventCopyBody) =>
+    coreFetch<EventCopy>(`/v1/events/${encodeURIComponent(id)}/copy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /** The Event's current Competitions (ADR 0068), for the copy dialog's count. */
+  listCompetitions: (id: string) =>
+    coreFetch<Array<{ id: string; name: string }>>(
+      `/v1/events/${encodeURIComponent(id)}/competitions`,
+    ),
   /** Brings back an Event its delete archived (Geri al). */
   restore: (id: string) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
@@ -157,6 +217,22 @@ export const eventsApi = {
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/images`, {
       method: 'DELETE',
       body: JSON.stringify(imageIds),
+    }),
+  /** The feedback forms' counts; the Event's editors and DK. */
+  feedbackCounts: (id: string) =>
+    coreFetch<FeedbackCounts>(`/v1/events/${encodeURIComponent(id)}/feedback`),
+  /**
+   * "Şimdi gönder": the Event's feedback form to whom checked in, at once and
+   * once (`feedback_form_missing`, `feedback_not_sendable` refuse it).
+   */
+  sendFeedback: (id: string) =>
+    coreFetch<FeedbackSendResult>(`/v1/events/${encodeURIComponent(id)}/feedback/send`, {
+      method: 'POST',
+    }),
+  /** The feedback form was closed in Skyforms: its reminders still to go are cancelled for good. */
+  closeFeedback: (id: string) =>
+    coreFetch<{ cancelled: number }>(`/v1/events/${encodeURIComponent(id)}/feedback/close`, {
+      method: 'POST',
     }),
   syncMailList: (id: string, ticketIds?: string[]) =>
     coreFetch<EventMailList>(`/v1/events/${encodeURIComponent(id)}/mail-list`, {

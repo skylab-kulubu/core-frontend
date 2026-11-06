@@ -92,6 +92,11 @@ const CODE_MESSAGES: Record<string, string> = {
   event_not_draft: 'Yalnız taslak etkinlik silinir.',
   event_not_cancelled: 'Etkinlik iptal edilmemiş.',
   registration_closed: 'Etkinliğin başvurusu kapalı.',
+  // Feedback forms (etkinlik geri bildirim formu): one form in one place
+  form_in_use:
+    'Bu form başka bir yerde kullanılıyor (başvuru, ek ya da geri bildirim formu); başka bir form seç.',
+  feedback_form_missing: 'Geri bildirim formu bağlı değil.',
+  feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
   // Group name refusals (core teamcode)
   invalid_name:
@@ -106,6 +111,23 @@ const CODE_MESSAGES: Record<string, string> = {
     'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
   keycloak_admin_group:
     'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
+  // KVKK md. 11 register (core docs/subject-requests.md)
+  received_on_invalid: 'Başvuru tarihi geçerli bir gün olmalı ve bugünden sonra olamaz.',
+  channel_invalid: 'Kanal seç.',
+  requester_name_invalid: 'Ad soyad gerekli (en çok 200 karakter).',
+  requester_contact_invalid: 'Cevabın gideceği adres gerekli (en çok 320 karakter).',
+  user_invalid:
+    'Hesap kimliği geçerli değil: Kullanıcılar ekranındaki kimliği olduğu gibi yapıştır.',
+  user_unknown: 'Bu kimlikte bir hesap yok.',
+  request_types_invalid: 'En az bir talep türü seç.',
+  status_invalid: 'Durum seç.',
+  answered_on_required: 'Sonuçlanan başvuruda cevap tarihi gerekli.',
+  answered_on_invalid:
+    'Cevap tarihi başvurudan önce ya da bugünden sonra olamaz; açık başvuruda boş kalır.',
+  answer_summary_invalid: 'Cevap özeti en çok 2000 karakter.',
+  responder_invalid: 'Yanıtlayan en çok 100 karakter.',
+  subject_request_changed:
+    'Başvuru sen açtıktan sonra başkası tarafından değiştirildi. Çekmeceyi kapatıp yeniden aç, sonra tekrar kaydet.',
 };
 
 /** The Event fields core names in `event_incomplete`. */

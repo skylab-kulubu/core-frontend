@@ -2,7 +2,14 @@ import { renderHook, waitFor } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
 import { capabilitiesApi, type Capabilities } from '@/lib/api/capabilities';
 import { CapabilitiesProvider } from '@/lib/capabilities-context';
-import { useAnyTeamCan, useAppCan, useAppCanSince, useTeamCan } from '@/lib/use-app-can';
+import {
+  leaderTeamsOf,
+  teamDecision,
+  useAnyTeamCan,
+  useAppCan,
+  useAppCanSince,
+  useTeamCan,
+} from '@/lib/use-app-can';
 import { useEventCreate } from '@/lib/use-event-create';
 
 jest.mock('@/lib/api/capabilities', () => ({
@@ -14,7 +21,13 @@ const get = capabilitiesApi.get as jest.Mock;
 /** A DK member who leads WEBLAB: reads everything, writes only in WEBLAB. */
 const DK_LEADER: Capabilities = {
   can: { 'group.write': false, 'user.readFull': true },
-  teams: [{ team: 'WEBLAB', can: { 'event.create': true, 'event.update': true } }],
+  teams: [
+    {
+      team: 'WEBLAB',
+      levels: ['LEADER', 'MEMBER'],
+      can: { 'event.create': true, 'event.update': true },
+    },
+  ],
   otherTeams: { can: { 'event.create': false, 'event.update': false } },
   noOwnerTeam: { can: { 'event.create': false, 'certificateTemplate.create': false } },
 };
@@ -124,5 +137,58 @@ describe('useEventCreate', () => {
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.canCreate).toBe(true);
     expect(result.current.privilegedWriter).toBe(true);
+  });
+});
+
+describe('teamDecision and leaderTeamsOf (a Leader of a Team above, ticket 12)', () => {
+  const WEBLAB_LEADER: Capabilities = {
+    teams: [
+      { team: 'MOBIL', levels: ['LEADER'], can: { 'event.update': true, 'ticket.read': true } },
+      { team: 'WEBLAB', levels: ['LEADER', 'MEMBER'], can: { 'event.update': true } },
+      { team: 'ARGE', levels: ['MEMBER'], can: { 'event.update': false } },
+    ],
+    otherTeams: { can: { 'event.update': false } },
+    noOwnerTeam: { can: { 'event.update': false } },
+  };
+  const ready = { status: 'ready' as const, data: WEBLAB_LEADER };
+  const groups = ['/UYELER/ARGE/WEBLAB/LIDERLER'];
+
+  it('takes core’s answer over the group rule once it is in', () => {
+    expect(teamDecision(ready, 'MOBIL', 'event.update', false)).toBe(true);
+    expect(teamDecision(ready, 'MOBIL', 'ticket.read', false)).toBe(true);
+    expect(teamDecision(ready, 'GAMELAB', 'event.update', true)).toBe(false);
+    expect(teamDecision(ready, '', 'event.update', true)).toBe(false);
+  });
+
+  it('is false while the answer comes and the group rule when it cannot be read', () => {
+    expect(teamDecision({ status: 'loading' }, 'WEBLAB', 'event.update', true)).toBe(false);
+    expect(teamDecision({ status: 'failed' }, 'MOBIL', 'event.update', false)).toBe(false);
+    expect(teamDecision({ status: 'failed' }, 'WEBLAB', 'event.update', true)).toBe(true);
+  });
+
+  it('lists core’s LEADER teams, the group rule’s until then', () => {
+    expect(leaderTeamsOf(ready, groups)).toEqual(['MOBIL', 'WEBLAB']);
+    // Once core answered, a path only the group rule reads as a Leader group is no Leader team
+    expect(leaderTeamsOf(ready, [...groups, '/UYELER/ARGE/OLD/LIDERLER/ALT'])).toEqual([
+      'MOBIL',
+      'WEBLAB',
+    ]);
+    expect(leaderTeamsOf({ status: 'loading' }, groups)).toEqual(['WEBLAB']);
+    expect(leaderTeamsOf({ status: 'failed' }, groups)).toEqual(['WEBLAB']);
+  });
+
+  it('lets a Leader of the Team above create for its Sub-teams', async () => {
+    get.mockResolvedValue({
+      ...WEBLAB_LEADER,
+      teams: WEBLAB_LEADER.teams!.map((row) => ({
+        ...row,
+        can: { ...row.can, 'event.create': row.levels?.includes('LEADER') ?? false },
+      })),
+    });
+    const { result } = renderHook(() => useEventCreate(groups));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.canCreate).toBe(true);
+    expect(result.current.leaderTeams).toEqual(['MOBIL', 'WEBLAB']);
+    expect(result.current.privilegedWriter).toBe(false);
   });
 });
