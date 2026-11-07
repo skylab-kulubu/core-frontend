@@ -1004,7 +1004,12 @@ describe('Group detail: the Team setting for competitors', () => {
       managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
     });
     (identityApi.managedGroups as jest.Mock).mockResolvedValue([
-      { id: 'g1', code: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB', can: { 'members.write': true } },
+      {
+        id: 'g1',
+        code: 'WEBLAB',
+        path: '/UYELER/ARGE/WEBLAB',
+        can: { 'members.write': true, 'team.settings': true },
+      },
     ]);
   };
 
@@ -1084,13 +1089,14 @@ describe('Group detail: the Team setting for competitors', () => {
     expect(screen.queryByText('members_manage_competitors')).toBeNull();
   });
 
-  it('offers it neither to someone who does not manage the Team nor on a Leader group', async () => {
+  it('shows it read-only to someone who does not manage the Team, and not on a Leader group', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {}, managedTeams: [] });
     (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
     const view = render(<GroupDetailPage />);
-    expect((await screen.findAllByText('WEBLAB')).length).toBeGreaterThan(0);
-    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
-    expect(screen.queryByRole('switch', { name: /yarışmacı/ })).toBeNull();
+    // Who does not manage the Team reads its settings, and why they cannot change them
+    const toggle = await screen.findByRole('switch', { name: /yarışmacı/ });
+    expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    expect(await screen.findByText(/Bu ayarları ekibin liderleri/)).toBeInTheDocument();
     view.unmount();
 
     (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
@@ -1105,5 +1111,164 @@ describe('Group detail: the Team setting for competitors', () => {
     expect((await screen.findAllByText('LIDERLER')).length).toBeGreaterThan(0);
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(screen.queryByRole('switch', { name: /yarışmacı/ })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Yarışmaları kim yönetir' })).toBeNull();
+  });
+});
+
+describe('Group detail: who manages the Team’s Competitions (yarışma 27)', () => {
+  beforeAll(() => {
+    if (typeof window.PointerEvent === 'undefined') {
+      Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+    }
+  });
+
+  const weblab = (attributes?: Record<string, string>) => ({
+    id: 'g1',
+    name: 'WEBLAB',
+    path: '/UYELER/ARGE/WEBLAB',
+    attributes,
+  });
+  const leads = (
+    can: Record<string, boolean> = { 'members.write': true, 'team.settings': true },
+  ) => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] },
+    });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': false },
+      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
+      { id: 'g1', code: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB', can },
+    ]);
+  };
+  const choice = (name: RegExp) => screen.findByRole('radio', { name });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.members as jest.Mock).mockResolvedValue([]);
+    (identityApi.groupRoles as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    (identityApi.setTeamSettings as jest.Mock).mockResolvedValue({
+      membersManageCompetitors: true,
+      competitionManagers: 'leaders',
+    });
+  });
+
+  it('reads the Leaders by default and all members only on true', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    const view = render(<GroupDetailPage />);
+    expect(await choice(/Liderler ve koordinatörler/)).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Tüm üyeler/ })).not.toBeChecked();
+    view.unmount();
+
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ team_competition_manage: 'TRUE' }),
+    );
+    render(<GroupDetailPage />);
+    expect(await choice(/Tüm üyeler/)).toBeChecked();
+    // A Team setting, not an extra attribute
+    expect(screen.queryByText('team_competition_manage')).toBeNull();
+  });
+
+  it('asks before letting all members manage them, and writes only on the answer', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await choice(/Tüm üyeler/));
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'WEBLAB ekibinin yarışmalarını tüm üyeler yönetsin mi?',
+    });
+    expect(identityApi.setTeamSettings).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(identityApi.setTeamSettings).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: /Liderler ve koordinatörler/ })).toBeChecked();
+
+    await user.click(screen.getByRole('radio', { name: /Tüm üyeler/ }));
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Tüm üyelere aç',
+      }),
+    );
+    await waitFor(() =>
+      expect(identityApi.setTeamSettings).toHaveBeenCalledWith('g1', {
+        competitionManagers: 'members',
+      }),
+    );
+    expect(await screen.findByText('Ayar kaydedildi')).toBeInTheDocument();
+  });
+
+  it('narrows to the Leaders without asking and offers Geri al', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ team_competition_manage: 'true' }),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await choice(/Liderler ve koordinatörler/));
+    await waitFor(() =>
+      expect(identityApi.setTeamSettings).toHaveBeenCalledWith('g1', {
+        competitionManagers: 'leaders',
+      }),
+    );
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(
+      await screen.findByText('Yarışmaları artık liderler ve koordinatörler yönetiyor'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Geri al' }));
+    await waitFor(() =>
+      expect(identityApi.setTeamSettings).toHaveBeenLastCalledWith('g1', {
+        competitionManagers: 'members',
+      }),
+    );
+    expect(await screen.findByText('Ayar geri alındı')).toBeInTheDocument();
+  });
+
+  it('says core’s refusal of a narrowing on the page', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ team_competition_manage: 'true' }),
+    );
+    (identityApi.setTeamSettings as jest.Mock).mockRejectedValue(
+      new ProblemError(503, 'Service Unavailable'),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await choice(/Liderler ve koordinatörler/));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Geri al' })).toBeNull();
+  });
+
+  it('keeps it read-only, with the reason, without core’s team.settings', async () => {
+    // members.write alone is not the settings rule: core answers team.settings for it
+    leads({ 'members.write': true, 'team.settings': false });
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    const members = await choice(/Tüm üyeler/);
+    expect(await screen.findByText(/Bu ayarları ekibin liderleri/)).toBeInTheDocument();
+    await user.click(members);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(identityApi.setTeamSettings).not.toHaveBeenCalled();
+  });
+
+  it('lets Privileged change it on any Team', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ team_competition_manage: 'true' }),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await choice(/Liderler ve koordinatörler/));
+    await waitFor(() =>
+      expect(identityApi.setTeamSettings).toHaveBeenCalledWith('g1', {
+        competitionManagers: 'leaders',
+      }),
+    );
+    expect(screen.queryByText(/Bu ayarları ekibin liderleri/)).toBeNull();
   });
 });

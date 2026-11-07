@@ -32,7 +32,10 @@ const knownKeys = new Set<string>([
  * A Team's settings, written through core's settings route (not the profile
  * save, which keeps them as they are): not listed or added as extra attributes.
  */
-export const TEAM_SETTING_ATTRS = ['members_manage_competitors'] as const;
+export const TEAM_SETTING_ATTRS = [
+  'members_manage_competitors',
+  'team_competition_manage',
+] as const;
 
 export function isTeamSettingAttr(key: string): boolean {
   return (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
@@ -45,6 +48,21 @@ export function isKnownGroupAttr(key: string): boolean {
 /** members_manage_competitors: on unless it says false (core's default). */
 export function membersManageCompetitors(attrs: Record<string, string> | undefined): boolean {
   return (attrs?.members_manage_competitors ?? '').trim().toLowerCase() !== 'false';
+}
+
+/** Who manages a Team's Competitions ("Yarışmaları kim yönetir"); core's values. */
+export type CompetitionManagers = 'leaders' | 'members';
+
+/**
+ * team_competition_manage: all members only when it says true (case and
+ * blanks aside), the Leaders otherwise; core reads it the same way.
+ */
+export function competitionManagers(
+  attrs: Record<string, string> | undefined,
+): CompetitionManagers {
+  return (attrs?.team_competition_manage ?? '').trim().toLowerCase() === 'true'
+    ? 'members'
+    : 'leaders';
 }
 
 export function isToggleOn(attrs: Record<string, string> | undefined, key: string): boolean {
