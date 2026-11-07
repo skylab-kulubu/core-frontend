@@ -78,6 +78,9 @@ const MEMBERS_MANAGE_COMPETITIONS =
 const SETTINGS_READ_ONLY =
   'Bu ayarları ekibin liderleri ve koordinatörleri, üst ekiplerin liderleri ve YK değiştirir.';
 
+/** core's managed tree could not be read: whether the reader may change the settings is unknown. */
+const SETTINGS_UNKNOWN = 'Yetkin okunamadı; sayfayı yenile.';
+
 /** How many member checks (and address reads) run at once for a selection. */
 const CHECKS_AT_ONCE = 3;
 
@@ -490,7 +493,9 @@ export default function GroupDetailPage() {
           {/* The panel is full width: a row this wide would part the label from its switch */}
           <div className="max-w-3xl space-y-4">
             {settingsKnown && !settingsWrite ? (
-              <p className="text-3xs text-subtle-foreground">{SETTINGS_READ_ONLY}</p>
+              <p className="text-3xs text-subtle-foreground">
+                {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
+              </p>
             ) : null}
             <Switch
               checked={membersManageCompetitors(group.attributes)}
@@ -542,7 +547,15 @@ export default function GroupDetailPage() {
                     await saveTeamSettings({ competitionManagers: 'leaders' });
                     notify.undoable(
                       'Yarışmaları artık liderler ve koordinatörler yönetiyor',
-                      () => saveTeamSettings({ competitionManagers: 'members' }),
+                      // Both settings wait for the undo too: no second write meanwhile
+                      async () => {
+                        setSavingSettings(true);
+                        try {
+                          await saveTeamSettings({ competitionManagers: 'members' });
+                        } finally {
+                          setSavingSettings(false);
+                        }
+                      },
                       'Ayar geri alındı',
                     );
                   } catch (err) {

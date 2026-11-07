@@ -1226,6 +1226,60 @@ describe('Group detail: who manages the Team’s Competitions (yarışma 27)', (
     expect(await screen.findByText('Ayar geri alındı')).toBeInTheDocument();
   });
 
+  it('keeps both settings disabled while Geri al is being saved', async () => {
+    leads();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ team_competition_manage: 'true' }),
+    );
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.click(await choice(/Liderler ve koordinatörler/));
+    await screen.findByText('Yarışmaları artık liderler ve koordinatörler yönetiyor');
+    let finish: (value: unknown) => void = () => undefined;
+    (identityApi.setTeamSettings as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Geri al' }));
+    const toggle = screen.getByRole('switch', { name: /yarışmacı/ });
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-disabled', 'true'));
+    expect(screen.getByRole('radio', { name: /Tüm üyeler/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await user.click(toggle);
+    await user.click(screen.getByRole('radio', { name: /Tüm üyeler/ }));
+    expect(identityApi.setTeamSettings).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await act(async () =>
+      finish({ membersManageCompetitors: true, competitionManagers: 'members' }),
+    );
+    await waitFor(() => expect(toggle).not.toHaveAttribute('aria-disabled', 'true'));
+    expect(await screen.findByText('Ayar geri alındı')).toBeInTheDocument();
+  });
+
+  it('says the rights could not be read when core’s managed tree fails', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] },
+    });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': false },
+      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    (identityApi.managedGroups as jest.Mock).mockRejectedValue(
+      new ProblemError(503, 'Unavailable'),
+    );
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    render(<GroupDetailPage />);
+    expect(await screen.findByText('Yetkin okunamadı; sayfayı yenile.')).toBeInTheDocument();
+    expect(screen.queryByText(/Bu ayarları ekibin liderleri/)).toBeNull();
+    expect(screen.getByRole('radio', { name: /Tüm üyeler/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
   it('says core’s refusal of a narrowing on the page', async () => {
     leads();
     (identityApi.getGroup as jest.Mock).mockResolvedValue(
