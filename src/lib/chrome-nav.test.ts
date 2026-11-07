@@ -73,6 +73,26 @@ describe('buildSidebarNavigation', () => {
     expect(leader.map((link) => link.href)).not.toContain('/apps');
   });
 
+  it('lists KVKK başvuruları in Kulüp only once core says the register is theirs', () => {
+    const club = (user: UserDto, context: { subjectRequestsVisible?: boolean }) => {
+      const node = buildSidebarNavigation(user, context).find((row) => row.label === 'Kulüp');
+      return node?.kind === 'group' ? node.children.map((item) => item.href) : [];
+    };
+    expect(club(privileged, {})).not.toContain('/subject-requests');
+    expect(club(privileged, { subjectRequestsVisible: false })).not.toContain('/subject-requests');
+    expect(club(privileged, { subjectRequestsVisible: true })).toEqual([
+      '/users',
+      '/groups',
+      '/teams',
+      '/subject-requests',
+    ]);
+    // DK is Privileged by its Group but core answers false: no link
+    const dk = { ...privileged, id: '4', groups: ['/UYELER/DK'] };
+    expect(filterSidebarNavForUser(dk, {}).map((link) => link.href)).not.toContain(
+      '/subject-requests',
+    );
+  });
+
   it('lists Ekiplerim in Kulüp only once core names a Team the person leads', () => {
     const leader = { ...privileged, id: '3', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
     const club = (context: { managedTeamsVisible?: boolean }) => {

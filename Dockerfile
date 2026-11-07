@@ -21,7 +21,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 FROM --platform=linux/amd64 node:22-alpine AS playground-true
 WORKDIR /src
 RUN apk add --no-cache git && corepack enable
-ARG SKYLCN_UI_REF=35af40aaf66b118cc42bf44f10ed7703926dba19
+ARG SKYLCN_UI_REF=186d228c6aa6dd5dc8b8dde19a23dffb02f76c5a
 ARG NEXT_PUBLIC_ADMIN_URL
 ARG NEXT_PUBLIC_FORMS_ADMIN_URL
 ARG NEXT_PUBLIC_MAIL_URL
@@ -68,6 +68,10 @@ ENV NEXT_PUBLIC_GITHUB_ACTIVITY_URL=$NEXT_PUBLIC_GITHUB_ACTIVITY_URL
 ENV NEXT_PUBLIC_INCLUDE_PLAYGROUND=$NEXT_PUBLIC_INCLUDE_PLAYGROUND
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# The commit (CI passes github.sha): next build reads NEXT_DEPLOYMENT_ID as the deploymentId.
+# Optional. After COPY so a new commit does not rebuild the layers above.
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
 RUN test -n "$NEXT_PUBLIC_API_URL" \
     && test -n "$NEXT_PUBLIC_CMS_URL" \
     && test -n "$NEXT_PUBLIC_ADMIN_URL" \

@@ -42,6 +42,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/apps': LayoutGrid,
   '/teams': UsersRound,
   '/my-teams': UsersRound,
+  '/subject-requests': ShieldCheck,
   '/announcements': Newspaper,
   '/urls': Link2,
   '/certificates/templates': LayoutTemplate,
@@ -72,7 +73,7 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 export const CONSOLE_DESCRIPTION: Record<string, string> = {
   admin: 'Üyeler ve etkinlikler',
   forms: 'Formlar ve başvurular',
-  mail: 'Toplu e-posta ve listeler',
+  mail: 'E-posta ve bildirim gönderimi',
   playground: 'Bileşen kütüphanesi',
 };
 

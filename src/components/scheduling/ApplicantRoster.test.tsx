@@ -48,7 +48,7 @@ describe('ApplicantRoster', () => {
           formAlias: 'skydays2026',
           formUrl: 'https://forms.yildizskylab.com/apply',
         }}
-        mailHref="https://mail.yildizskylab.com/mailing-lists/create"
+        mailHref="https://iletisim.yildizskylab.com/mailing-lists/create"
       />,
     );
     expect(screen.getByRole('searchbox', { name: 'Başvuran ara' })).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe('ApplicantRoster', () => {
         tickets={[guest, member]}
         people={people}
         event={{ id: 'e1' }}
-        mailHref="https://mail.yildizskylab.com/mailing-lists/create"
+        mailHref="https://iletisim.yildizskylab.com/mailing-lists/create"
       />,
     );
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();

@@ -469,25 +469,28 @@ export default function GroupDetailPage() {
       {settingsWrite && group ? (
         <section className="space-y-3">
           <SectionHeading title="Ekip ayarları" />
-          <Switch
-            checked={membersManageCompetitors(group.attributes)}
-            label="Üyeler yarışmacı ekleyip düzenleyebilir"
-            hint="Kapalıysa yalnız liderler."
-            disabled={savingSettings}
-            onChange={async (next) => {
-              if (savingSettings) return;
-              setSavingSettings(true);
-              try {
-                await identityApi.setTeamSettings(id, { membersManageCompetitors: next });
-                notify.success('Ayar kaydedildi');
-                await load();
-              } catch (err) {
-                setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
-              } finally {
-                setSavingSettings(false);
-              }
-            }}
-          />
+          {/* The panel is full width: a row this wide would part the label from its switch */}
+          <div className="max-w-3xl">
+            <Switch
+              checked={membersManageCompetitors(group.attributes)}
+              label="Üyeler yarışmacı ekleyip düzenleyebilir"
+              hint="Kapalıysa yalnız liderler."
+              disabled={savingSettings}
+              onChange={async (next) => {
+                if (savingSettings) return;
+                setSavingSettings(true);
+                try {
+                  await identityApi.setTeamSettings(id, { membersManageCompetitors: next });
+                  notify.success('Ayar kaydedildi');
+                  await load();
+                } catch (err) {
+                  setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+                } finally {
+                  setSavingSettings(false);
+                }
+              }}
+            />
+          </div>
         </section>
       ) : null}
 
@@ -664,7 +667,10 @@ export default function GroupDetailPage() {
                 onChange={(e) => setAttrValue(e.target.value)}
               />
             </label>
-            <SaveButton className="self-end">Ekle</SaveButton>
+            {/* lg is the 36px of the boxes beside it */}
+            <SaveButton size="lg" className="self-end">
+              Ekle
+            </SaveButton>
           </form>
         ) : null}
       </section>
