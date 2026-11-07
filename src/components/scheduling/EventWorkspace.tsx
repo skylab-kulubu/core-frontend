@@ -453,14 +453,22 @@ export function EventWorkspace({
   ) {
     const sessionId = sessionIdOfFeedbackSlot(back.formSlot);
     const session = rows.find((row) => row.id === sessionId);
-    if (
-      !session ||
-      !(await teamAllows(
-        ev.ownerTeam,
-        'event.update',
-        canWriteEvent(groups, ev.ownerTeam, 'update'),
-      ))
-    ) {
+    const refused = !session
+      ? 'Oturum bulunamadı; form bağlanmadı.'
+      : !(await teamAllows(
+            ev.ownerTeam,
+            'event.update',
+            canWriteEvent(groups, ev.ownerTeam, 'update'),
+          ))
+        ? 'Bu oturumu düzenleme yetkin yok; form bağlanmadı.'
+        : null;
+    if (!session || refused) {
+      // The return is dropped from the address: a reload would not try it again
+      const url = new URL(window.location.href);
+      url.searchParams.delete('formUrl');
+      url.searchParams.delete('formSlot');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      setError(refused);
       return;
     }
     try {

@@ -203,6 +203,44 @@ describe('Back from Skyforms with a Session feedback form', () => {
     await waitFor(() => expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/program'));
     expect(screen.queryByRole('dialog', { name: 'Etkinliği düzenle' })).not.toBeInTheDocument();
   });
+
+  it('says so and clears the address when the Session is gone', async () => {
+    signInAs(['/UYELER/YK']);
+    inMode('per_session');
+    window.history.replaceState(
+      null,
+      '',
+      `/events/e1?formSlot=feedback-session%3As9&formUrl=${encodeURIComponent(FORM)}`,
+    );
+
+    await renderEventTab(<EventOverviewPage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Oturum bulunamadı; form bağlanmadı.',
+    );
+    expect(window.location.pathname).toBe('/events/e1');
+    expect(window.location.search).toBe('');
+    expect(sessionsApi.update).not.toHaveBeenCalled();
+    expect(urlsApi.create).not.toHaveBeenCalled();
+  });
+
+  it('says so and clears the address when the editor may not change the Session', async () => {
+    signInAs(['/UYELER']);
+    inMode('per_session');
+    window.history.replaceState(
+      null,
+      '',
+      `/events/e1?formSlot=feedback-session%3As1&formUrl=${encodeURIComponent(FORM)}`,
+    );
+
+    await renderEventTab(<EventOverviewPage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Bu oturumu düzenleme yetkin yok; form bağlanmadı.',
+    );
+    expect(window.location.search).toBe('');
+    expect(sessionsApi.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('Overview: the Sessions for the Event form (event_with_sessions)', () => {
