@@ -31,6 +31,9 @@ export const eventsModule = {
     patch: jest.fn(),
     copy: jest.fn(),
     listCompetitions: jest.fn(),
+    feedbackCounts: jest.fn(),
+    sendFeedback: jest.fn(),
+    closeFeedback: jest.fn(),
   },
 };
 export const eventDaysModule = {
@@ -45,7 +48,14 @@ export const eventDaysModule = {
 export function sessionsModule() {
   return {
     ...jest.requireActual('@/lib/api/sessions'),
-    sessionsApi: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), restore: jest.fn() },
+    sessionsApi: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      restore: jest.fn(),
+      sendFeedback: jest.fn(),
+      closeFeedback: jest.fn(),
+    },
   };
 }
 export const ticketsModule = {
@@ -61,6 +71,12 @@ export const identityModule = { identityApi: { listUsers: jest.fn(), getUser: je
 export const competitorsModule = { competitorsApi: { listByEvent: jest.fn() } };
 export const teamsModule = { teamsApi: { list: jest.fn() } };
 export const seasonsModule = { seasonsApi: { list: jest.fn() } };
+export function urlsModule() {
+  return {
+    ...jest.requireActual('@/lib/api/urls'),
+    urlsApi: { create: jest.fn(), update: jest.fn() },
+  };
+}
 export function saveEventModule() {
   return {
     ...jest.requireActual('@/lib/scheduling/save-event'),

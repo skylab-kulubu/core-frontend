@@ -14,7 +14,7 @@ import { publicShortUrl, urlsApi } from '@/lib/api/urls';
 import { editorReturnTo, eventIdForForms } from '@/lib/event-draft';
 import {
   APPLY_SLOT_KEY,
-  FEEDBACK_SLOT_KEY,
+  isFeedbackSlotKey,
   extraFormSlot,
   formsAdminOrigin,
   humanFormAlias,
@@ -22,6 +22,7 @@ import {
   skyformsEditHref,
   skyformsFormId,
   shortAliasFromSlug,
+  slotExtra,
   slugYearAlias,
   aliasYear,
   eventFormTitle,
@@ -113,7 +114,7 @@ export function EventFormSlots({
 
   const bounceFor = (slot: EventFormSlot) => {
     const href = typeof window !== 'undefined' ? window.location.href : returnTo || '';
-    const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+    const extra = slotExtra(slot);
     const title = eventFormTitle(ownerTeam, eventName, year, extra);
     const returnHref = href ? editorReturnTo(href, slot.key) : '';
     const formId = skyformsFormId(slot.url, origin);
@@ -138,7 +139,7 @@ export function EventFormSlots({
   async function createShort(slot: EventFormSlot) {
     const url = slot.url.trim();
     if (!url) return;
-    const extra = slot.key === APPLY_SLOT_KEY ? '' : slot.label;
+    const extra = slotExtra(slot);
     const alias = shortAliasFromSlug(
       slot.alias.trim() ||
         humanFormAlias(ownerTeam, eventName, year, extra) ||
@@ -207,7 +208,7 @@ export function EventFormSlots({
                   açmak istemeyenler içindir.
                 </p>
               </div>
-            ) : slot.key === FEEDBACK_SLOT_KEY ? (
+            ) : isFeedbackSlotKey(slot.key) ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
                 <p className="text-2xs text-subtle-foreground">Cevapları kayıt yazmaz.</p>
@@ -219,7 +220,7 @@ export function EventFormSlots({
                 placeholder="Form adı"
               />
             )}
-            {slot.key !== APPLY_SLOT_KEY && slot.key !== FEEDBACK_SLOT_KEY ? (
+            {slot.key !== APPLY_SLOT_KEY && !isFeedbackSlotKey(slot.key) ? (
               <ActionButton
                 icon={X}
                 label="Kaldır"
@@ -289,7 +290,7 @@ export function EventFormSlots({
                       ownerTeam,
                       eventName,
                       aliasYear(startLocal),
-                      slot.key === APPLY_SLOT_KEY ? '' : slot.label,
+                      slotExtra(slot),
                     ),
                   });
                 }
@@ -304,7 +305,7 @@ export function EventFormSlots({
                 ownerTeam,
                 eventName,
                 aliasYear(startLocal),
-                slot.key === APPLY_SLOT_KEY ? '' : slot.label,
+                slotExtra(slot),
               )}
               onChange={(e) => patchSlot(slot.key, { alias: e.target.value })}
             />
