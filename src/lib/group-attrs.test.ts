@@ -1,5 +1,6 @@
 import {
   buildGroupAttrs,
+  competitionManagers,
   extraGroupAttrs,
   isKnownGroupAttr,
   isToggleOn,
@@ -14,6 +15,20 @@ describe('group attributes', () => {
   it('treats description_en as a known field, not an extra key', () => {
     expect(isKnownGroupAttr('description_en')).toBe(true);
     expect(isKnownGroupAttr('slack_channel')).toBe(false);
+  });
+
+  it('reads who manages the Competitions as core does: members only on true', () => {
+    expect(competitionManagers(undefined)).toBe('leaders');
+    expect(competitionManagers({})).toBe('leaders');
+    expect(competitionManagers({ team_competition_manage: 'false' })).toBe('leaders');
+    expect(competitionManagers({ team_competition_manage: 'yes' })).toBe('leaders');
+    expect(competitionManagers({ team_competition_manage: 'true' })).toBe('members');
+    expect(competitionManagers({ team_competition_manage: ' TRUE ' })).toBe('members');
+  });
+
+  it('knows both Team settings as attributes set elsewhere', () => {
+    expect(isKnownGroupAttr('members_manage_competitors')).toBe(true);
+    expect(isKnownGroupAttr('team_competition_manage')).toBe(true);
   });
 
   it('keeps unknown keys as extras', () => {
