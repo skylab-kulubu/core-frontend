@@ -76,7 +76,7 @@ export function FeaturedEventCard({
             {live ? (
               <Badge tone="success">Şu an sürüyor</Badge>
             ) : (
-              <span className="text-3xs tracking-label text-subtle-foreground font-medium uppercase">
+              <span className="text-2xs text-subtle-foreground font-medium">
                 Sıradaki etkinlik · {fromNow(event.startDate ?? '')}
               </span>
             )}

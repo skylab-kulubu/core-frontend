@@ -39,20 +39,12 @@ export type EventFormState = EventBody & {
   reservedId?: string;
 };
 
-const FEEDBACK_MODES: { value: FeedbackMode; label: string }[] = [
+/** Where the feedback questions are (SPEC §2.1); "Oturum başına form" puts a form on each Session in Program. */
+export const FEEDBACK_MODES: { value: FeedbackMode; label: string }[] = [
   { value: 'event', label: 'Etkinlik formu' },
   { value: 'per_session', label: 'Oturum başına form' },
   { value: 'event_with_sessions', label: 'Etkinlik formunda oturumlar' },
 ];
-
-/**
- * The modes the editor offers: "Oturum başına form" waits for the Session
- * forms in Program (bilet 09). An Event already in that mode (set elsewhere)
- * still shows it, so the select does not misstate it.
- */
-export function feedbackModeOptions(current: FeedbackMode | undefined) {
-  return FEEDBACK_MODES.filter((mode) => mode.value !== 'per_session' || current === 'per_session');
-}
 
 type EventEditorProps = {
   value: EventFormState;
@@ -260,7 +252,7 @@ export function EventEditor({
             value={value.feedbackMode ?? 'event'}
             onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
           >
-            {feedbackModeOptions(value.feedbackMode).map((mode) => (
+            {FEEDBACK_MODES.map((mode) => (
               <option key={mode.value} value={mode.value}>
                 {mode.label}
               </option>

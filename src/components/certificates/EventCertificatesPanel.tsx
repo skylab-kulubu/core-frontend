@@ -170,9 +170,7 @@ export function EventCertificatesPanel({
               ['İptal', summary.revokedCount],
             ].map(([label, value]) => (
               <div key={label} className="border-border bg-sidebar/40 rounded-lg border p-3">
-                <p className="text-3xs text-subtle-foreground tracking-[.16em] uppercase">
-                  {label}
-                </p>
+                <p className="text-2xs text-subtle-foreground font-medium">{label}</p>
                 <p className="text-foreground mt-1 text-2xl font-semibold">{value}</p>
               </div>
             ))}
