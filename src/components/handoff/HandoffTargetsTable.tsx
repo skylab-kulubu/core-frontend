@@ -16,7 +16,7 @@ import {
   type HandoffTargetInput,
 } from '@/lib/handoff/targets';
 
-const COLUMN_LABEL = 'text-3xs font-medium uppercase tracking-[0.18em] text-faint-foreground';
+const COLUMN_LABEL = 'text-2xs font-medium text-subtle-foreground';
 
 function targetTitle(target: HandoffTarget): string {
   const name = target.name?.trim();

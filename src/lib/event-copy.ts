@@ -6,11 +6,15 @@ import {
   aliasYear,
   APPLY_SLOT_KEY,
   APPLY_SLOT_LABEL,
+  FEEDBACK_SLOT_KEY,
+  FEEDBACK_SLOT_LABEL,
   eventFormTitle,
   skyformsCreateHref,
   skyformsFormId,
   type EventFormLink,
 } from '@/lib/event-forms';
+import type { EventSession } from '@/lib/api/sessions';
+import { sessionFeedbackSlotKey } from '@/lib/session-feedback';
 import { teamDecision } from '@/lib/use-app-can';
 
 /** The parts core may leave out of a copy (POST /v1/events/{id}/copy `skipped`). */
@@ -169,14 +173,17 @@ export type PreviousForm = {
   label: string;
   /** The source's Skyforms form, for Skyforms' `fromForm`. */
   formId: string;
+  /** What the new form's title adds to the copy's name when not the label: a Session's title. */
+  extra?: string;
 };
 
-type FormsOf = { formUrl?: string; extraFormUrls?: EventFormLink[] };
+type FormsOf = { formUrl?: string; extraFormUrls?: EventFormLink[]; feedbackFormUrl?: string };
 
 /**
  * The source's Skyforms forms whose place on the copy is still empty: its
- * application form, then each extra form by label. A form outside Skyforms
- * has nothing to start from.
+ * application form, each extra form by label, then its feedback form (the
+ * copy takes the mode, not the form). A form outside Skyforms has nothing to
+ * start from.
  */
 export function previousForms(source: FormsOf, copy: FormsOf, origin?: string): PreviousForm[] {
   const out: PreviousForm[] = [];
@@ -194,6 +201,43 @@ export function previousForms(source: FormsOf, copy: FormsOf, origin?: string): 
     taken.add(label);
     out.push({ slotKey: label, label, formId });
   }
+  const feedbackId = source.feedbackFormUrl ? skyformsFormId(source.feedbackFormUrl, origin) : null;
+  if (feedbackId && !copy.feedbackFormUrl?.trim()) {
+    out.push({ slotKey: FEEDBACK_SLOT_KEY, label: FEEDBACK_SLOT_LABEL, formId: feedbackId });
+  }
+  return out;
+}
+
+/**
+ * The source's Sessions' Skyforms feedback forms whose Session on the copy has
+ * none (`per_session`). A copied Session has a new id: it is the copy's
+ * Session with the same title and order, the n-th such for the n-th one.
+ */
+export function previousSessionForms(
+  sourceSessions: readonly EventSession[],
+  copySessions: readonly EventSession[],
+  origin?: string,
+): PreviousForm[] {
+  const sameKey = (session: EventSession) => `${session.orderIndex}|${session.title.trim()}`;
+  const copies = new Map<string, EventSession[]>();
+  for (const session of copySessions) {
+    const rows = copies.get(sameKey(session)) ?? [];
+    rows.push(session);
+    copies.set(sameKey(session), rows);
+  }
+  const out: PreviousForm[] = [];
+  for (const session of sourceSessions) {
+    const match = copies.get(sameKey(session))?.shift();
+    const formId = session.feedbackFormUrl ? skyformsFormId(session.feedbackFormUrl, origin) : null;
+    if (!match || !formId || match.cancelled || match.feedbackFormUrl?.trim()) continue;
+    const title = match.title.trim();
+    out.push({
+      slotKey: sessionFeedbackSlotKey(match.id),
+      label: `${FEEDBACK_SLOT_LABEL} · ${title}`,
+      formId,
+      extra: title,
+    });
+  }
   return out;
 }
 
@@ -208,7 +252,7 @@ export function previousFormHref(
   copy: { id: string; name: string; ownerTeam: string; startDate?: string },
   form: PreviousForm,
 ): string | null {
-  const extra = form.slotKey === APPLY_SLOT_KEY ? '' : form.label;
+  const extra = form.extra ?? (form.slotKey === APPLY_SLOT_KEY ? '' : form.label);
   const year = aliasYear(toDatetimeLocal(copy.startDate));
   return skyformsCreateHref(origin, currentHref ? editorReturnTo(currentHref, form.slotKey) : '', {
     title: eventFormTitle(copy.ownerTeam, copy.name, year, extra),
