@@ -1,6 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { SESSION_RENEWED_EVENT } from '@/lib/auth/session-renewal';
-import { RETURN_REFRESH_MIN_MS, useRefreshOnReturn } from '@/lib/use-refresh-on-return';
+import {
+  OPEN_REFRESH_INTERVAL_MS,
+  RETURN_REFRESH_MIN_MS,
+  useRefreshOnReturn,
+} from '@/lib/use-refresh-on-return';
 
 let visibility: DocumentVisibilityState = 'visible';
 
@@ -72,6 +76,63 @@ describe('useRefreshOnReturn', () => {
     jest.advanceTimersByTime(RETURN_REFRESH_MIN_MS);
     come('focus');
     come('renewed');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('reads an open, shown tab again once the interval has passed', () => {
+    const refresh = jest.fn();
+    renderHook(() => useRefreshOnReturn(refresh));
+
+    act(() => {
+      jest.advanceTimersByTime(OPEN_REFRESH_INTERVAL_MS - 60_000);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(60_000);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      jest.advanceTimersByTime(OPEN_REFRESH_INTERVAL_MS);
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts the interval from the last read, so a return read postpones it', () => {
+    const refresh = jest.fn();
+    renderHook(() => useRefreshOnReturn(refresh));
+
+    act(() => {
+      jest.advanceTimersByTime(OPEN_REFRESH_INTERVAL_MS - 60_000);
+    });
+    come('focus');
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      jest.advanceTimersByTime(OPEN_REFRESH_INTERVAL_MS - 60_000);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not read a hidden tab on the interval', () => {
+    const refresh = jest.fn();
+    renderHook(() => useRefreshOnReturn(refresh));
+    visibility = 'hidden';
+    act(() => {
+      jest.advanceTimersByTime(3 * OPEN_REFRESH_INTERVAL_MS);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('stops the interval when unmounted or disabled', () => {
+    const refresh = jest.fn();
+    const { unmount } = renderHook(() => useRefreshOnReturn(refresh));
+    unmount();
+    renderHook(() => useRefreshOnReturn(refresh, false));
+    act(() => {
+      jest.advanceTimersByTime(3 * OPEN_REFRESH_INTERVAL_MS);
+    });
     expect(refresh).not.toHaveBeenCalled();
   });
 });
