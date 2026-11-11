@@ -81,6 +81,8 @@ export function TeamLeaders({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const kind = useRef<LeaderKind>('LIDERLER');
+  // Each question starts its choice afresh, as the ref does
+  const asked = useRef(0);
   const writes = team.can?.['leaders.write'] === true;
   const search = usePickerSearch(
     open,
@@ -114,10 +116,11 @@ export function TeamLeaders({
     const person = search.people.find((row) => row.id === userId);
     if (!person) return;
     kind.current = 'LIDERLER';
+    asked.current += 1;
     confirmAdd({
       title: `${personName(person)} ${teamName(team)} ekibine atansın mı?`,
       description: ADD_TEXT,
-      content: <KindChoice onChange={(next) => (kind.current = next)} />,
+      content: <KindChoice key={asked.current} onChange={(next) => (kind.current = next)} />,
       actionLabel: 'Ata',
       destructive: false,
       closesDrawer: true,
