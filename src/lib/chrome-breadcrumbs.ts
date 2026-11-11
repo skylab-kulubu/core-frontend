@@ -11,6 +11,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/sessions': 'Oturumlar',
   '/teams': 'Ekipler',
   '/my-teams': 'Ekiplerim',
+  '/management-memberships': 'Dönem devri',
   '/subject-requests': 'KVKK başvuruları',
   '/qr': 'Kapı',
   '/urls': 'Kısa URL',
