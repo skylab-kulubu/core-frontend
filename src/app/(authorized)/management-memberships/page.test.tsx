@@ -42,6 +42,13 @@ const term = (over: Partial<ManagementTerm>): ManagementTerm => ({
 
 const writer = { can: { 'group.read': true, 'group.write': true } };
 
+// jsdom has no PointerEvent; base-ui's Checkbox (the table's row picks) sends one on a click
+beforeAll(() => {
+  if (!('PointerEvent' in window)) {
+    Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+  }
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   (capabilitiesApi.get as jest.Mock).mockResolvedValue(writer);
@@ -156,7 +163,12 @@ describe('Dönem devri', () => {
         warnings: ['not_ytu_verified'],
       },
     ]);
-    (identityApi.getUser as jest.Mock).mockResolvedValue({ id: 'u9', email: 'kat@example.test' });
+    let answerCard: (card: { id: string; email: string }) => void = () => undefined;
+    (identityApi.getUser as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        answerCard = resolve;
+      }),
+    );
     (managementMembershipsApi.handover as jest.Mock).mockResolvedValue(
       term({ id: 't9', userId: 'u9' }),
     );
@@ -165,12 +177,21 @@ describe('Dönem devri', () => {
     await user.click(await within(rowOf('Ada Lovelace')).findByRole('button', { name: 'Devret' }));
     const picker = await screen.findByRole('dialog', { name: 'Devret: /UYELER/YK' });
     await user.type(within(picker).getByRole('searchbox'), 'kat');
-    await user.click(await within(picker).findByRole('button', { name: 'Katherine Johnson' }));
+    const candidate = await within(picker).findByRole('button', { name: 'Katherine Johnson' });
+    // A second pick while the whole address is read asks nothing more
+    await user.click(candidate);
+    await user.click(candidate);
+    answerCard({ id: 'u9', email: 'kat@example.test' });
     expect(identityApi.memberCandidates).toHaveBeenCalledWith('g-yk', 'kat');
     const question = await screen.findByRole('alertdialog');
+    expect(identityApi.getUser).toHaveBeenCalledTimes(1);
     expect(question).toHaveTextContent('Ada Lovelace → Katherine Johnson');
     expect(question).toHaveTextContent(/YTÜ hesabıyla doğrulanmamış.*\(kat@example\.test\)/);
-    await user.selectOptions(within(question).getByLabelText('Eski üye'), 'at_term_end');
+    // The holder stays to their end unless the reader says otherwise
+    expect(within(question).getByLabelText('Eski üye')).toHaveValue('at_term_end');
+    expect(within(question).getByRole('button', { name: 'Devret' }).className).not.toMatch(
+      /bg-destructive/,
+    );
     await user.click(within(question).getByRole('button', { name: 'Devret' }));
     await waitFor(() =>
       expect(managementMembershipsApi.handover).toHaveBeenCalledWith('t1', {
@@ -179,5 +200,135 @@ describe('Dönem devri', () => {
         unverifiedAck: true,
       }),
     );
+  });
+
+  it('hands over at once with a destructive question, and reloads after a refusal', async () => {
+    const user = userEvent.setup();
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      {
+        id: 'u8',
+        firstName: 'Mary',
+        lastName: 'Jackson',
+        email: 'mary@example.test',
+        alreadyMember: false,
+        ytuLinked: true,
+        warnings: [],
+      },
+    ]);
+    (managementMembershipsApi.handover as jest.Mock)
+      .mockRejectedValueOnce(
+        new ProblemError(503, 'Service Unavailable', { code: 'audit_unavailable' }),
+      )
+      .mockResolvedValueOnce(term({ id: 't8', userId: 'u8' }));
+    render(<ManagementMembershipsPage />);
+    await screen.findByText('Ada Lovelace');
+    await user.click(await within(rowOf('Ada Lovelace')).findByRole('button', { name: 'Devret' }));
+    const picker = await screen.findByRole('dialog', { name: 'Devret: /UYELER/YK' });
+    await user.type(within(picker).getByRole('searchbox'), 'mar');
+    await user.click(await within(picker).findByRole('button', { name: 'Mary Jackson' }));
+    const question = await screen.findByRole('alertdialog');
+    await user.selectOptions(within(question).getByLabelText('Eski üye'), 'immediate');
+    await waitFor(() =>
+      expect(within(question).getByRole('button', { name: 'Devret' }).className).toMatch(
+        /bg-destructive/,
+      ),
+    );
+    expect(within(question).getByLabelText('Eski üye')).toHaveValue('immediate');
+    await user.click(within(question).getByRole('button', { name: 'Devret' }));
+    expect(await within(question).findByRole('alert')).toHaveTextContent(
+      /Denetim kaydı yazılamadı/,
+    );
+    expect(managementMembershipsApi.list).toHaveBeenCalledTimes(2);
+    await user.click(within(question).getByRole('button', { name: 'Devret' }));
+    await waitFor(() => expect(managementMembershipsApi.handover).toHaveBeenCalledTimes(2));
+    expect(managementMembershipsApi.handover).toHaveBeenLastCalledWith('t1', {
+      userId: 'u8',
+      mode: 'immediate',
+    });
+  });
+
+  it('extends the picked rows and says how many went through when some are refused', async () => {
+    const user = userEvent.setup();
+    (managementMembershipsApi.extend as jest.Mock)
+      .mockResolvedValueOnce(term({}))
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'));
+    render(<ManagementMembershipsPage />);
+    await screen.findByText('Ada Lovelace');
+    await user.click(within(rowOf('Grace Hopper')).getByRole('checkbox'));
+    await user.click(within(rowOf('Ada Lovelace')).getByRole('checkbox'));
+    await user.click(await screen.findByRole('button', { name: 'Seçilenleri uzat' }));
+    const dialog = await screen.findByRole('dialog', { name: '2 görevi uzat' });
+    await user.type(within(dialog).getByLabelText('Yeni bitiş'), '2099-09-30');
+    await user.click(within(dialog).getByRole('button', { name: 'Uzat' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '1/2 görev uzatıldı. Bu işlem için yetkin yok.',
+    );
+    expect(managementMembershipsApi.extend).toHaveBeenCalledTimes(2);
+    // The one that went through shows: the list is read again
+    await waitFor(() => expect(managementMembershipsApi.list).toHaveBeenCalledTimes(2));
+  });
+
+  it('removes the picked expired holders and says how many were refused', async () => {
+    const user = userEvent.setup();
+    (managementMembershipsApi.list as jest.Mock).mockResolvedValue([
+      term({ id: 't3', status: 'expired', endsAt: '2026-06-30T20:59:59Z' }),
+      term({
+        id: 't4',
+        userId: 'u4',
+        firstName: 'Cem',
+        lastName: 'Yıldız',
+        status: 'expired',
+        endsAt: '2026-06-30T20:59:59Z',
+      }),
+    ]);
+    (managementMembershipsApi.remove as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ProblemError(409, 'Conflict', { code: 'term_not_expired' }));
+    render(<ManagementMembershipsPage />);
+    await screen.findByText('Cem Yıldız');
+    await user.click(within(rowOf('Ada Lovelace')).getByRole('checkbox'));
+    await user.click(within(rowOf('Cem Yıldız')).getByRole('checkbox'));
+    await user.click(await screen.findByRole('button', { name: 'Süresi dolmuşları çıkar' }));
+    const question = await screen.findByRole('alertdialog', {
+      name: '2 kişi grubundan çıkarılsın mı?',
+    });
+    await user.click(within(question).getByRole('button', { name: 'Gruptan çıkar' }));
+    expect(await within(question).findByRole('alert')).toHaveTextContent(
+      /^1\/2 kişi çıkarıldı\. Süresi dolmamış görev/,
+    );
+    expect(managementMembershipsApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives a Leader who reads no Groups the buttons on the terms core lists them', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.read': false, 'group.write': false },
+      managedTeams: [{ id: 'g-arge', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    render(<ManagementMembershipsPage />);
+    await screen.findByText('Grace Hopper');
+    expect(
+      await within(rowOf('Grace Hopper')).findByRole('button', { name: 'Uzat' }),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf('Grace Hopper')).getByRole('button', { name: 'Devret' }),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf('Grace Hopper')).getByRole('button', { name: 'Gruptan çıkar' }),
+    ).toBeInTheDocument();
+  });
+
+  it('says why the list is empty: nothing to change, or no term at all', async () => {
+    (managementMembershipsApi.list as jest.Mock).mockResolvedValue([]);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: {},
+      managedTeams: [{ id: 'g-arge', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    const { unmount } = render(<ManagementMembershipsPage />);
+    expect(await screen.findByText('Değiştirebileceğin süreli üyelik yok.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+    unmount();
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue(writer);
+    render(<ManagementMembershipsPage />);
+    expect(await screen.findByText('Süreli yönetim üyeliği yok.')).toBeInTheDocument();
   });
 });

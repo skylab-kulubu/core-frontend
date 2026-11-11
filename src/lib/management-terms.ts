@@ -137,3 +137,15 @@ export function termWritesAllowed(state: CapabilitiesState): boolean {
   const can = state.data.can ?? {};
   return can['group.read'] !== true || can['group.write'] === true;
 }
+
+/**
+ * The empty list's line. A reader of Groups is listed every term, so none
+ * means none at all; anyone else is listed only the terms they may change,
+ * and a top Team's Leaders cannot change their own Leader group (only the
+ * Team above can).
+ */
+export function emptyTermsText(state: CapabilitiesState): string {
+  return state.status === 'ready' && state.data.can?.['group.read'] === true
+    ? 'Süreli yönetim üyeliği yok.'
+    : 'Değiştirebileceğin süreli üyelik yok.';
+}

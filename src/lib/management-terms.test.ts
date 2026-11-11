@@ -3,6 +3,7 @@ import type { ManagementTerm } from '@/lib/api/management-memberships';
 import {
   daysLeftLabel,
   earliestNewEnd,
+  emptyTermsText,
   endLabel,
   holderName,
   showsManagementTerms,
@@ -116,5 +117,14 @@ describe('management terms', () => {
     expect(termWritesAllowed(ready({ 'group.read': false }))).toBe(true);
     expect(termWritesAllowed({ status: 'loading' })).toBe(false);
     expect(termWritesAllowed({ status: 'failed' })).toBe(true);
+  });
+
+  it('words the empty list for a reader of every term and for the others', () => {
+    expect(emptyTermsText({ status: 'ready', data: { can: { 'group.read': true } } })).toBe(
+      'Süreli yönetim üyeliği yok.',
+    );
+    expect(emptyTermsText({ status: 'ready', data: { can: {} } })).toBe(
+      'Değiştirebileceğin süreli üyelik yok.',
+    );
   });
 });

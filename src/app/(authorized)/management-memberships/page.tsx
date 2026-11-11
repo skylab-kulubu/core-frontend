@@ -29,6 +29,7 @@ import {
 import { useCapabilities } from '@/lib/capabilities-context';
 import {
   daysLeftLabel,
+  emptyTermsText,
   earliestNewEnd,
   endLabel,
   holderName,
@@ -48,7 +49,15 @@ import { useNotify } from '@/lib/ui/use-notify';
 /** The successor's choices, read by the question's action. */
 type HandoverChoice = { mode: HandoverMode; endsAt: string };
 
-function HandoverFields({ choice, min }: { choice: { current: HandoverChoice }; min: string }) {
+function HandoverFields({
+  choice,
+  min,
+  onModeChange,
+}: {
+  choice: { current: HandoverChoice };
+  min: string;
+  onModeChange: (mode: HandoverMode) => void;
+}) {
   const [mode, setMode] = useState<HandoverMode>(choice.current.mode);
   const [endsAt, setEndsAt] = useState(choice.current.endsAt);
   return (
@@ -61,10 +70,11 @@ function HandoverFields({ choice, min }: { choice: { current: HandoverChoice }; 
             const next = e.target.value as HandoverMode;
             setMode(next);
             choice.current = { ...choice.current, mode: next };
+            onModeChange(next);
           }}
         >
-          <option value="immediate">Hemen çıkar</option>
           <option value="at_term_end">Bitişine kadar kalsın</option>
+          <option value="immediate">Hemen çıkar</option>
         </Select>
       </label>
       <label className="block space-y-1">
@@ -128,7 +138,10 @@ export default function ManagementMembershipsPage() {
   // Devret: the term handed over and the successor search in its Group
   const [handing, setHanding] = useState<ManagementTerm | null>(null);
   const [handQuery, setHandQuery] = useState('');
-  const handChoice = useRef<HandoverChoice>({ mode: 'immediate', endsAt: '' });
+  const handChoice = useRef<HandoverChoice>({ mode: 'at_term_end', endsAt: '' });
+  // A pick being read (the whole address) holds the next one; closing the picker drops it
+  const handPicking = useRef(false);
+  const handOpening = useRef(0);
   const handSearch = usePickerSearch(
     handing !== null,
     handQuery,
@@ -215,40 +228,65 @@ export default function ManagementMembershipsPage() {
   }
 
   async function askHandover(term: ManagementTerm, successor: MemberCandidate) {
-    handChoice.current = { mode: 'immediate', endsAt: '' };
-    const name = `${successor.firstName} ${successor.lastName}`.trim() || successor.email;
-    const warns = successor.warnings.includes('not_ytu_verified');
-    // The search masks the address (a***@…); the warning asks to check the whole one, as on Üye ekle
-    const email =
-      warns && successor.email.includes('***')
-        ? await identityApi
-            .getUser(successor.id)
-            .then((card) => card.email || successor.email)
-            .catch(() => successor.email)
-        : successor.email;
-    confirmHandover({
-      title: `${term.groupPath} görevi devredilsin mi?`,
-      description: [`${holderName(term)} → ${name}`, warns ? unverifiedAddText(email) : '']
-        .filter(Boolean)
-        .join(' '),
-      content: <HandoverFields choice={handChoice} min={minEnd} />,
-      actionLabel: 'Devret',
-      destructive: false,
-      closesDrawer: true,
-      onConfirm: async () => {
-        const { mode, endsAt } = handChoice.current;
-        await managementMembershipsApi.handover(term.id, {
-          userId: successor.id,
-          mode,
-          ...(endsAt ? { endsAt } : {}),
-          ...(warns ? { unverifiedAck: true } : {}),
+    if (handPicking.current) return;
+    handPicking.current = true;
+    const opening = handOpening.current;
+    try {
+      const name = `${successor.firstName} ${successor.lastName}`.trim() || successor.email;
+      const warns = successor.warnings.includes('not_ytu_verified');
+      // The search masks the address (a***@…); the warning asks to check the whole one, as on Üye ekle
+      const email =
+        warns && successor.email.includes('***')
+          ? await identityApi
+              .getUser(successor.id)
+              .then((card) => card.email || successor.email)
+              .catch(() => successor.email)
+          : successor.email;
+      if (opening !== handOpening.current) return;
+      handChoice.current = { mode: 'at_term_end', endsAt: '' };
+      // Hemen çıkar takes the holder out of the Group: the question turns destructive
+      const ask = (immediate: boolean) =>
+        confirmHandover({
+          title: `${term.groupPath} görevi devredilsin mi?`,
+          description: [`${holderName(term)} → ${name}`, warns ? unverifiedAddText(email) : '']
+            .filter(Boolean)
+            .join(' '),
+          content: (
+            <HandoverFields
+              choice={handChoice}
+              min={minEnd}
+              onModeChange={(mode) => {
+                if ((mode === 'immediate') !== immediate) ask(mode === 'immediate');
+              }}
+            />
+          ),
+          actionLabel: 'Devret',
+          destructive: immediate,
+          closesDrawer: true,
+          onConfirm: async () => {
+            const { mode, endsAt } = handChoice.current;
+            try {
+              await managementMembershipsApi.handover(term.id, {
+                userId: successor.id,
+                mode,
+                ...(endsAt ? { endsAt } : {}),
+                ...(warns ? { unverifiedAck: true } : {}),
+              });
+            } catch (err) {
+              // The add may have gone through before the refusal: show the list as core has it
+              await load();
+              throw err;
+            }
+            setHanding(null);
+            notify.success('Görev devredildi');
+            await load();
+          },
+          failure: (err) => termProblemMessage(err, 'Devredilemedi'),
         });
-        setHanding(null);
-        notify.success('Görev devredildi');
-        await load();
-      },
-      failure: (err) => termProblemMessage(err, 'Devredilemedi'),
-    });
+      ask(false);
+    } finally {
+      handPicking.current = false;
+    }
   }
 
   const columns: DataTableColumn<ManagementTerm>[] = [
@@ -340,37 +378,41 @@ export default function ManagementMembershipsPage() {
           Gruptan çıkarılana kadar yetki sürer.
         </Notice>
       ) : null}
-      <DataTable
-        aria-label="Yönetim üyelikleri"
-        data={rows}
-        columns={columns}
-        getRowId={(term) => term.id}
-        searchPlaceholder="Kişi ya da grup"
-        facets={[
-          { column: 'status', label: 'Durum', format: statusLabel },
-          { column: 'role', label: 'Görev', format: roleLabel },
-        ]}
-        bulkActions={
-          canWrite
-            ? (selected, clear) => (
-                <>
-                  <Button size="sm" onClick={() => openExtend(selected, clear)}>
-                    Uzat
-                  </Button>
-                  {selected.some((term) => term.status === 'expired') ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => askRemove(selected, clear)}
-                    >
-                      Süresi dolmuşları çıkar
+      {rows.length === 0 && !error ? (
+        <StateCard title={emptyTermsText(capabilities)} />
+      ) : (
+        <DataTable
+          aria-label="Yönetim üyelikleri"
+          data={rows}
+          columns={columns}
+          getRowId={(term) => term.id}
+          searchPlaceholder="Kişi ya da grup"
+          facets={[
+            { column: 'status', label: 'Durum', format: statusLabel },
+            { column: 'role', label: 'Görev', format: roleLabel },
+          ]}
+          bulkActions={
+            canWrite
+              ? (selected, clear) => (
+                  <>
+                    <Button size="sm" onClick={() => openExtend(selected, clear)}>
+                      Seçilenleri uzat
                     </Button>
-                  ) : null}
-                </>
-              )
-            : undefined
-        }
-      />
+                    {selected.some((term) => term.status === 'expired') ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => askRemove(selected, clear)}
+                      >
+                        Süresi dolmuşları çıkar
+                      </Button>
+                    ) : null}
+                  </>
+                )
+              : undefined
+          }
+        />
+      )}
       {confirmDialog}
       <Drawer
         open={extending !== null}
@@ -415,7 +457,10 @@ export default function ManagementMembershipsPage() {
       </Drawer>
       <PickerDrawer
         open={handing !== null}
-        onClose={() => setHanding(null)}
+        onClose={() => {
+          handOpening.current += 1;
+          setHanding(null);
+        }}
         title={handing ? `Devret: ${handing.groupPath}` : 'Devret'}
         query={handQuery}
         onQuery={setHandQuery}
