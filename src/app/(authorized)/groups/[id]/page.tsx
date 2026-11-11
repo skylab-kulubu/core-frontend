@@ -19,6 +19,8 @@ import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawe
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
+import { SubTeams } from '@/components/identity/SubTeams';
+import { TeamLeaders } from '@/components/identity/TeamLeaders';
 import {
   UNVERIFIED_ADD_ACTION,
   UNVERIFIED_MARK,
@@ -167,8 +169,13 @@ export default function GroupDetailPage() {
   const canWrite = can('group.write');
   const canReadUsers = can('user.read');
   // A Leader adds and removes members of a Team they manage: core's managed
-  // tree says which (members.write); a Leader group's own row stays read-only
-  const managedGroups = useManagedGroups();
+  // tree says which (members.write); a Leader group's own row stays read-only.
+  // A Privileged reader reads it on a Team too: core's decisions on its
+  // Leaders and Sub-teams (ticket 11), with team delegation on or off
+  const isTeam = !!group && isTeamGroupPath(group.path);
+  const managedGroups = useManagedGroups({
+    privileged: isTeam && (canWrite || can('group.read')),
+  });
   const managed =
     managedGroups.status === 'ready' ? findManagedGroup(managedGroups.groups, id) : undefined;
   const memberWrite = canWrite || managed?.can?.['members.write'] === true;
@@ -224,7 +231,6 @@ export default function GroupDetailPage() {
   );
   // A Team's settings show to whoever reads the Team; whoever manages it (its
   // Leader, one above: core's team.settings; Privileged: group.write) changes them
-  const isTeam = !!group && isTeamGroupPath(group.path);
   const settingsWrite = isTeam && (canWrite || managed?.can?.['team.settings'] === true);
   const settingsKnown = canWrite || managedGroups.status !== 'loading';
 
@@ -486,6 +492,25 @@ export default function GroupDetailPage() {
             ))}
         </ListPanel>
       </section>
+
+      {managed ? (
+        <>
+          <TeamLeaders
+            team={managed}
+            personHref={canReadUsers ? (userId) => `/users/${userId}` : undefined}
+            onChanged={() => {
+              managedGroups.reload();
+              void load();
+            }}
+          />
+          <SubTeams
+            team={managed}
+            tree={managedGroups.status === 'ready' ? managedGroups.groups : []}
+            base={base}
+            onChanged={managedGroups.reload}
+          />
+        </>
+      ) : null}
 
       {isTeam && group ? (
         <section className="space-y-3">

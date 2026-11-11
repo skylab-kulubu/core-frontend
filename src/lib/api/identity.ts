@@ -76,7 +76,8 @@ export type MemberCandidate = {
  * A Team the reader manages, with the Teams below it (GET
  * /v1/users/me/managed-groups; core's team delegation, docs/team-delegation.md
  * "Managed tree"). `can` holds core's decisions for it: `group.read`,
- * `members.write` and `leaders.write`.
+ * `members.write`, `leaders.write`, `subteams.write`, `code.write`,
+ * `team.delete`, `team.move` and `team.settings`.
  */
 export type ManagedGroup = {
   id: string;
@@ -96,6 +97,29 @@ export type TeamSettings = {
   membersManageCompetitors: boolean;
   /** Who manages its Events' Competitions: the Leaders (default) or all its members too. */
   competitionManagers: 'leaders' | 'members';
+};
+
+/** A Team's Leader group: Leaders (`LIDERLER`) or Coordinators (`KOORDINATORLER`). */
+export type LeaderKind = 'LIDERLER' | 'KOORDINATORLER';
+
+/** One Leader or Coordinator of a Team (GET /v1/groups/{id}/leaders). */
+export type TeamLeader = Person & { kind: string; groupId: string };
+
+/**
+ * What moving a Team would do (GET /v1/groups/{id}/move-preview): whether
+ * core's rules allow it (`refusal` names the one it breaks), the paths, the
+ * people in the Team and below it, the client roles the Groups above give it
+ * after and before, and the new parent's Leaders.
+ */
+export type MovePreview = {
+  allowed: boolean;
+  refusal?: string;
+  oldPath: string;
+  newPath: string;
+  members: number;
+  rolesGained: string[];
+  rolesLost: string[];
+  newParentLeaders: number;
 };
 
 export type UserCard = Person & {
@@ -144,6 +168,43 @@ export const identityApi = {
     coreFetch<TeamSettings>(`/v1/groups/${encodeURIComponent(id)}/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
+    }),
+  /** Opens a Sub-team under the Team `parentId` (core docs/team-delegation.md "Team structure"). */
+  createSubTeam: (
+    parentId: string,
+    body: { code: string; displayNameTr: string; displayNameEn?: string },
+  ) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(parentId)}/children`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  changeTeamCode: (id: string, code: string) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(id)}/code`, {
+      method: 'PUT',
+      body: JSON.stringify({ code }),
+    }),
+  teamLeaders: (id: string) =>
+    coreFetch<TeamLeader[]>(`/v1/groups/${encodeURIComponent(id)}/leaders`),
+  /** core opens the Leader group when the Team has none. */
+  addTeamLeader: (id: string, userId: string, kind: LeaderKind) =>
+    coreFetch<void>(`/v1/groups/${encodeURIComponent(id)}/leaders`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, kind }),
+    }),
+  /** `lastLeader`: the Team has no Leader or Coordinator left. */
+  removeTeamLeader: (id: string, userId: string) =>
+    coreFetch<{ lastLeader: boolean }>(
+      `/v1/groups/${encodeURIComponent(id)}/leaders/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
+  movePreview: (id: string, parentId: string) =>
+    coreFetch<MovePreview>(
+      `/v1/groups/${encodeURIComponent(id)}/move-preview?parentId=${encodeURIComponent(parentId)}`,
+    ),
+  moveTeam: (id: string, parentId: string) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(id)}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ parentId }),
     }),
   groupRoles: (id: string) =>
     coreFetch<ClientRole[]>(`/v1/groups/${encodeURIComponent(id)}/client-roles`),
