@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { Plus, Trash2, X } from 'lucide-react';
+import { Radio, RadioGroup } from '@skylab-kulubu/skylcn-ui';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -41,6 +42,7 @@ import { isLeaderGroupPath, isPrivileged, isTeamGroupPath } from '@/lib/auth/gro
 import { useAuth } from '@/context/AuthContext';
 import {
   TEAM_SETTING_ATTRS,
+  competitionManagers,
   extraGroupAttrs,
   isKnownGroupAttr,
   isTeamSettingAttr,
@@ -67,6 +69,17 @@ class MembersRefused extends Error {}
 
 /** No active account matched: the person signs up first (ticket 08; ticket 09's invite replaces it). */
 const NO_CANDIDATE = "Kullanıcı yok. Kişinin önce my.yildizskylab.com'dan kaydolması gerekir.";
+
+/** What all members may do once the Team's Competitions are theirs too (core docs/competitions.md "Who"). */
+const MEMBERS_MANAGE_COMPETITIONS =
+  'Tüm üyeler, alt ekiplerin üyeleri dahil, bu ekibin etkinliklerindeki yarışmaları açar, düzenler, yarışmacı ekler ve puan girer. Arşivleyemez.';
+
+/** Why a reader who does not manage the Team sees its settings read-only (core: Manages or Privileged). */
+const SETTINGS_READ_ONLY =
+  'Bu ayarları ekibin liderleri ve koordinatörleri, üst ekiplerin liderleri ve YK değiştirir.';
+
+/** core's managed tree could not be read: whether the reader may change the settings is unknown. */
+const SETTINGS_UNKNOWN = 'Yetkin okunamadı; sayfayı yenile.';
 
 /** How many member checks (and address reads) run at once for a selection. */
 const CHECKS_AT_ONCE = 3;
@@ -209,8 +222,16 @@ export default function GroupDetailPage() {
       ([key]) => !(TEAM_SETTING_ATTRS as readonly string[]).includes(key),
     ),
   );
-  // Whoever manages the Team (its Leader, one above, Privileged) sets its own settings
-  const settingsWrite = !!group && memberWrite && isTeamGroupPath(group.path);
+  // A Team's settings show to whoever reads the Team; whoever manages it (its
+  // Leader, one above: core's team.settings; Privileged: group.write) changes them
+  const isTeam = !!group && isTeamGroupPath(group.path);
+  const settingsWrite = isTeam && (canWrite || managed?.can?.['team.settings'] === true);
+  const settingsKnown = canWrite || managedGroups.status !== 'loading';
+
+  async function saveTeamSettings(change: Parameters<typeof identityApi.setTeamSettings>[1]) {
+    await identityApi.setTeamSettings(id, change);
+    await load();
+  }
   // Why core would refuse a new role here (null: it takes one); removing one is always allowed
   const placementKnown =
     !!group && (!group.path.startsWith(`${ROLES_ROOT}/`) || subgroupsOf?.path === group.path);
@@ -466,23 +487,27 @@ export default function GroupDetailPage() {
         </ListPanel>
       </section>
 
-      {settingsWrite && group ? (
+      {isTeam && group ? (
         <section className="space-y-3">
           <SectionHeading title="Ekip ayarları" />
           {/* The panel is full width: a row this wide would part the label from its switch */}
-          <div className="max-w-3xl">
+          <div className="max-w-3xl space-y-4">
+            {settingsKnown && !settingsWrite ? (
+              <p className="text-3xs text-subtle-foreground">
+                {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
+              </p>
+            ) : null}
             <Switch
               checked={membersManageCompetitors(group.attributes)}
               label="Üyeler yarışmacı ekleyip düzenleyebilir"
               hint="Kapalıysa yalnız liderler."
-              disabled={savingSettings}
+              disabled={!settingsWrite || savingSettings}
               onChange={async (next) => {
-                if (savingSettings) return;
+                if (!settingsWrite || savingSettings) return;
                 setSavingSettings(true);
                 try {
-                  await identityApi.setTeamSettings(id, { membersManageCompetitors: next });
+                  await saveTeamSettings({ membersManageCompetitors: next });
                   notify.success('Ayar kaydedildi');
-                  await load();
                 } catch (err) {
                   setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
                 } finally {
@@ -490,6 +515,64 @@ export default function GroupDetailPage() {
                 }
               }}
             />
+            <div className="space-y-2">
+              <span id="competition-managers" className="text-xs font-medium">
+                Yarışmaları kim yönetir
+              </span>
+              <RadioGroup
+                aria-labelledby="competition-managers"
+                value={competitionManagers(group.attributes)}
+                disabled={!settingsWrite || savingSettings}
+                onValueChange={async (value) => {
+                  if (!settingsWrite || savingSettings) return;
+                  if (value === competitionManagers(group.attributes)) return;
+                  if (value === 'members') {
+                    // Widening asks first; core writes it only on the confirmed answer
+                    confirm({
+                      title: `${group.name} ekibinin yarışmalarını tüm üyeler yönetsin mi?`,
+                      description: MEMBERS_MANAGE_COMPETITIONS,
+                      actionLabel: 'Tüm üyelere aç',
+                      destructive: false,
+                      onConfirm: async () => {
+                        await saveTeamSettings({ competitionManagers: 'members' });
+                        notify.success('Ayar kaydedildi');
+                      },
+                      failure: 'Ayar kaydedilemedi',
+                    });
+                    return;
+                  }
+                  // Narrowing takes nothing from the Leaders: no question, Geri al instead
+                  setSavingSettings(true);
+                  try {
+                    await saveTeamSettings({ competitionManagers: 'leaders' });
+                    notify.undoable(
+                      'Yarışmaları artık liderler ve koordinatörler yönetiyor',
+                      // Both settings wait for the undo too: no second write meanwhile
+                      async () => {
+                        setSavingSettings(true);
+                        try {
+                          await saveTeamSettings({ competitionManagers: 'members' });
+                        } finally {
+                          setSavingSettings(false);
+                        }
+                      },
+                      'Ayar geri alındı',
+                    );
+                  } catch (err) {
+                    setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+                  } finally {
+                    setSavingSettings(false);
+                  }
+                }}
+              >
+                <Radio value="leaders" label="Liderler ve koordinatörler (varsayılan)" />
+                <Radio
+                  value="members"
+                  label="Tüm üyeler"
+                  description={MEMBERS_MANAGE_COMPETITIONS}
+                />
+              </RadioGroup>
+            </div>
           </div>
         </section>
       ) : null}

@@ -94,6 +94,8 @@ export type ManagedGroup = {
 export type TeamSettings = {
   /** Whether the Team's members add and edit its Events' competitors; off keeps it to Leaders. */
   membersManageCompetitors: boolean;
+  /** Who manages its Events' Competitions: the Leaders (default) or all its members too. */
+  competitionManagers: 'leaders' | 'members';
 };
 
 export type UserCard = Person & {
@@ -137,7 +139,8 @@ export const identityApi = {
     }),
   managedGroups: () => coreFetch<ManagedGroup[]>('/v1/users/me/managed-groups'),
   /** A Team's own settings (PUT /v1/groups/{id}/settings): its manager or Privileged. */
-  setTeamSettings: (id: string, settings: TeamSettings) =>
+  /** A field left out keeps its value (core: at least one is given). */
+  setTeamSettings: (id: string, settings: Partial<TeamSettings>) =>
     coreFetch<TeamSettings>(`/v1/groups/${encodeURIComponent(id)}/settings`, {
       method: 'PUT',
       body: JSON.stringify(settings),
