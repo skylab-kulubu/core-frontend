@@ -41,9 +41,14 @@ const CEM = {
   kind: 'KOORDINATORLER',
 };
 
-function show(can: Record<string, boolean>, onChanged = jest.fn()) {
+function show(can: Record<string, boolean>, onChanged = jest.fn(), top = false) {
   render(
-    <TeamLeaders team={team(can)} personHref={(id) => `/users/${id}`} onChanged={onChanged} />,
+    <TeamLeaders
+      team={team(can)}
+      top={top}
+      personHref={(id) => `/users/${id}`}
+      onChanged={onChanged}
+    />,
   );
   return onChanged;
 }
@@ -101,6 +106,7 @@ describe('Liderler', () => {
     const dialog = await screen.findByRole('alertdialog', {
       name: 'Ece K FRONTEND ekibine atansın mı?',
     });
+    expect(dialog).not.toHaveTextContent('cms:access');
     await user.click(within(dialog).getByRole('radio', { name: 'Koordinatör' }));
     await user.click(within(dialog).getByRole('button', { name: 'Ata' }));
     await waitFor(() =>
@@ -169,5 +175,29 @@ describe('Liderler', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Liderlikten çıkar' }));
     await waitFor(() => expect(identityApi.removeTeamLeader).toHaveBeenCalledWith('fe', 'u-cem'));
     expect(await screen.findByText('Lider çıkarıldı')).toBeInTheDocument();
+  });
+
+  it('says on a top Team that its Leader group may give the site’s cms:access', async () => {
+    (identityApi.memberCandidates as jest.Mock).mockResolvedValue([
+      {
+        id: 'u-ece',
+        firstName: 'Ece',
+        lastName: 'K',
+        email: 'e***@example.com',
+        alreadyMember: false,
+        ytuLinked: true,
+        warnings: [],
+      },
+    ]);
+    const user = userEvent.setup();
+    show({ 'leaders.write': true }, jest.fn(), true);
+    await screen.findByText('Lider · ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Lider ata' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Lider ata' });
+    await user.type(within(drawer).getByPlaceholderText('Ad veya tam e-posta'), 'ece');
+    await user.click(await within(drawer).findByRole('button', { name: 'Ece K' }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      'En üst ekipte lider grubu sitenin içerik yönetimini (cms:access) de verebilir.',
+    );
   });
 });

@@ -161,7 +161,7 @@ describe('subTeamDeleteMessage', () => {
           fields: { members: 0, children: 2 },
         }),
       ),
-    ).toBe('Alt ekibin altında 2 grup var; altında grup olan ekip silinemez.');
+    ).toBe('Alt ekibin altında 2 grup var (lider grubu dahil); altında grup olan ekip silinemez.');
   });
 
   it('names the records that hold a code and keeps the Group delete’s words otherwise', () => {

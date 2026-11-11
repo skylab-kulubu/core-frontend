@@ -54,6 +54,7 @@ import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { findManagedGroup, useManagedGroups } from '@/lib/managed-groups';
+import { managedParentOf } from '@/lib/sub-teams';
 import { mapLimit } from '@/lib/map-limit';
 import { pickerMatch, roleKey } from '@/lib/picker';
 import {
@@ -497,6 +498,10 @@ export default function GroupDetailPage() {
         <>
           <TeamLeaders
             team={managed}
+            // A Team the tree starts at: for Privileged, who alone names its Leaders, a top Team
+            top={
+              managedGroups.status === 'ready' && !managedParentOf(managedGroups.groups, managed.id)
+            }
             personHref={canReadUsers ? (userId) => `/users/${userId}` : undefined}
             onChanged={() => {
               managedGroups.reload();

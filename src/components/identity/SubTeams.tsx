@@ -30,7 +30,10 @@ const DELETE_TEXT =
   'Yalnız kimsesi olmayan alt ekip silinir. Silme geri alınamaz; kodu bir daha kullanılamaz.';
 const MOVE_TEXT =
   'Ekip, altındaki gruplar ve üyeleriyle taşınır. Bundan sonra yeni üst ekibin liderleri yönetir.';
-const CODE_HINT = 'Eski kod bir daha kullanılamaz. Koda bağlı kayıt varsa değiştirilemez.';
+/** core refuses only for its own records; what else holds the code is not checked (docs/team-codes.md). */
+const CODE_HINT = 'Etkinlik ya da sertifika kaydında geçen kodu core değiştirmez.';
+const CODE_TEXT =
+  "Geri alınamaz; eski kod bir daha kullanılamaz. Sitede, CMS'te, Forms'ta ya da kapı taramasında kodla eşleşen yerler kırılabilir.";
 /** core's code.write: a Leader's is false unless core opens it (TEAM_DELEGATION_LEADER_CODES). */
 const CODE_BY_YK = 'Alt ekip kodunu YK değiştirir.';
 const PROTECTED_BY_YK = 'Korunan alt ekipleri yalnız YK değiştirir.';
@@ -77,6 +80,8 @@ export function SubTeams({
   const [confirm, confirmDialog] = useConfirm();
   // The move's question opens over its drawer
   const [confirmMove, moveDialog] = useConfirm();
+  // So does the code change's, over its drawer
+  const [confirmCode, codeDialog] = useConfirm();
   const subTeams = team.children ?? [];
   const opens = team.can?.['subteams.write'] === true;
 
@@ -89,8 +94,6 @@ export function SubTeams({
 
   const [coding, setCoding] = useState<ManagedGroup | null>(null);
   const [newCode, setNewCode] = useState('');
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [codeBusy, setCodeBusy] = useState(false);
 
   const [moving, setMoving] = useState<ManagedGroup | null>(null);
   const [moveQuery, setMoveQuery] = useState('');
@@ -138,25 +141,29 @@ export function SubTeams({
     }
   }
 
-  async function changeCode(event: FormEvent) {
+  /** A code change cannot be undone: it asks first, and core writes it only on the answer. */
+  function changeCode(event: FormEvent) {
     event.preventDefault();
-    if (!coding || codeBusy || !newCode.trim()) return;
-    if (newCode.trim() === coding.code) {
+    const next = newCode.trim();
+    if (!coding || !next) return;
+    if (next === coding.code) {
       setCoding(null);
       return;
     }
-    setCodeBusy(true);
-    setCodeError(null);
-    try {
-      await identityApi.changeTeamCode(coding.id, newCode.trim());
-      setCoding(null);
-      notify.success('Kod değiştirildi');
-      onChanged();
-    } catch (err) {
-      setCodeError(teamStructureMessage(err, 'Kod değiştirilemedi'));
-    } finally {
-      setCodeBusy(false);
-    }
+    const team = coding;
+    confirmCode({
+      title: `${teamName(team)} ekibinin kodu ${next} olsun mu?`,
+      description: CODE_TEXT,
+      actionLabel: 'Kodu değiştir',
+      closesDrawer: true,
+      onConfirm: async () => {
+        await identityApi.changeTeamCode(team.id, next);
+        setCoding(null);
+        notify.success('Kod değiştirildi');
+        onChanged();
+      },
+      failure: (err) => teamStructureMessage(err, 'Kod değiştirilemedi'),
+    });
   }
 
   /** Reads core's preview of the pick; asks with its summary only when core allows the move. */
@@ -243,7 +250,6 @@ export function SubTeams({
                       label="Kodu değiştir"
                       onClick={() => {
                         setNewCode(row.code);
-                        setCodeError(null);
                         setCoding(row);
                       }}
                     />
@@ -299,7 +305,7 @@ export function SubTeams({
               <FieldLabel>Kod</FieldLabel>
               <Field
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
                 placeholder="ör. FRONTEND"
                 autoCapitalize="characters"
                 spellCheck={false}
@@ -332,9 +338,7 @@ export function SubTeams({
 
       <Drawer
         open={coding !== null}
-        onClose={() => {
-          if (!codeBusy) setCoding(null);
-        }}
+        onClose={() => setCoding(null)}
         title={coding ? `Kodu değiştir: ${teamName(coding)}` : 'Kodu değiştir'}
       >
         <form className="space-y-3" onSubmit={changeCode}>
@@ -343,7 +347,7 @@ export function SubTeams({
               <FieldLabel>Yeni kod</FieldLabel>
               <Field
                 value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
+                onChange={(e) => setNewCode(e.target.value.toUpperCase())}
                 autoCapitalize="characters"
                 spellCheck={false}
                 required
@@ -351,15 +355,9 @@ export function SubTeams({
             </label>
             <p className="text-3xs text-subtle-foreground">{CODE_HINT}</p>
           </div>
-          {codeError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {codeError}
-            </p>
-          ) : null}
-          <SaveButton disabled={codeBusy}>
-            {codeBusy ? 'Değiştiriliyor…' : 'Kodu değiştir'}
-          </SaveButton>
+          <SaveButton>Kodu değiştir</SaveButton>
         </form>
+        {codeDialog}
       </Drawer>
 
       <PickerDrawer

@@ -103,7 +103,7 @@ describe('Alt ekipler', () => {
     const onChanged = show(weblab([]));
     await user.click(screen.getByRole('button', { name: 'Alt ekip aç' }));
     const drawer = await screen.findByRole('dialog', { name: 'Alt ekip aç' });
-    await user.type(within(drawer).getByLabelText('Kod'), 'FRONTEND');
+    await user.type(within(drawer).getByLabelText('Kod'), 'frontend');
     await user.type(within(drawer).getByLabelText('Görünen ad'), 'Ön yüz');
     await user.click(within(drawer).getByRole('button', { name: 'Alt ekibi aç' }));
     await waitFor(() =>
@@ -133,19 +133,57 @@ describe('Alt ekipler', () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
-  it('changes a code when core allows it', async () => {
-    (identityApi.changeTeamCode as jest.Mock).mockResolvedValue({ id: 'fe' });
+  it('asks before a code change, says it cannot be undone and changes it only on the answer', async () => {
+    (identityApi.changeTeamCode as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(409, 'Conflict', { code: 'code_in_use', fields: { records: ['event'] } }),
+    );
+    (identityApi.changeTeamCode as jest.Mock).mockResolvedValueOnce({ id: 'fe' });
     const user = userEvent.setup();
     const onChanged = show(weblab([sub('fe', 'FRONTEND', YK)]));
     await user.click(screen.getByRole('button', { name: 'Kodu değiştir' }));
     const drawer = await screen.findByRole('dialog', { name: 'Kodu değiştir: FRONTEND' });
+    // The hint names only core's own records
+    expect(drawer).toHaveTextContent(
+      'Etkinlik ya da sertifika kaydında geçen kodu core değiştirmez.',
+    );
     const field = within(drawer).getByLabelText('Yeni kod');
     expect(field).toHaveValue('FRONTEND');
     await user.clear(field);
-    await user.type(field, 'WEB-UI');
+    // Typed in lower case, sent in upper case
+    await user.type(field, 'web-ui');
+    expect(field).toHaveValue('WEB-UI');
     await user.click(within(drawer).getByRole('button', { name: 'Kodu değiştir' }));
-    await waitFor(() => expect(identityApi.changeTeamCode).toHaveBeenCalledWith('fe', 'WEB-UI'));
+
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'FRONTEND ekibinin kodu WEB-UI olsun mu?',
+    });
+    expect(dialog).toHaveTextContent('Geri alınamaz; eski kod bir daha kullanılamaz.');
+    expect(dialog).toHaveTextContent("Sitede, CMS'te, Forms'ta ya da kapı taramasında");
+    expect(identityApi.changeTeamCode).not.toHaveBeenCalled();
+
+    const change = within(dialog).getByRole('button', { name: 'Kodu değiştir' });
+    await user.click(change);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu koda bağlı kayıt var (etkinlik); kod değiştirilemez.',
+    );
+    expect(onChanged).not.toHaveBeenCalled();
+
+    await user.click(change);
+    await waitFor(() =>
+      expect(identityApi.changeTeamCode).toHaveBeenLastCalledWith('fe', 'WEB-UI'),
+    );
+    expect(await screen.findByText('Kod değiştirildi')).toBeInTheDocument();
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('writes nothing when the code was left as it is', async () => {
+    const user = userEvent.setup();
+    show(weblab([sub('fe', 'FRONTEND', YK)]));
+    await user.click(screen.getByRole('button', { name: 'Kodu değiştir' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Kodu değiştir: FRONTEND' });
+    await user.click(within(drawer).getByRole('button', { name: 'Kodu değiştir' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(identityApi.changeTeamCode).not.toHaveBeenCalled();
   });
 
   it('asks before deleting, says it cannot be undone and says who is still in it', async () => {

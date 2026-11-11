@@ -30,6 +30,8 @@ const READ_ONLY = 'Bu ekibin liderlerini üst ekibin liderleri ya da YK değişt
 const ADD_TEXT = 'Kişi ekibin lider grubuna eklenir. Bu ona e-postayla bildirilir.';
 const REMOVE_TEXT = 'Kişi ekibin lider grubundan çıkar. Bu ona e-postayla bildirilir.';
 const LAST_TEXT = 'Ekibin başka lideri kalmaz.';
+/** A top Team's Leader group may map a site's cms:access (ADR-0056 site editors; core docs/team-delegation.md). */
+const TOP_TEXT = 'En üst ekipte lider grubu sitenin içerik yönetimini (cms:access) de verebilir.';
 const NOT_ACTIVE = { 404: 'Kişinin etkin bir hesabı yok.' };
 
 function personName(person: { firstName: string; lastName: string; email: string }): string {
@@ -63,10 +65,13 @@ function KindChoice({ onChange }: { onChange: (kind: LeaderKind) => void }) {
  */
 export function TeamLeaders({
   team,
+  top = false,
   personHref,
   onChanged,
 }: {
   team: ManagedGroup;
+  /** A top Team (only Privileged names its Leaders): the question says what its Leader group may carry. */
+  top?: boolean;
   /** The person card's link, when core lets the reader open it. */
   personHref?: (userId: string) => string;
   onChanged: () => void;
@@ -119,7 +124,7 @@ export function TeamLeaders({
     asked.current += 1;
     confirmAdd({
       title: `${personName(person)} ${teamName(team)} ekibine atansın mı?`,
-      description: ADD_TEXT,
+      description: top ? `${ADD_TEXT} ${TOP_TEXT}` : ADD_TEXT,
       content: <KindChoice key={asked.current} onChange={(next) => (kind.current = next)} />,
       actionLabel: 'Ata',
       destructive: false,
