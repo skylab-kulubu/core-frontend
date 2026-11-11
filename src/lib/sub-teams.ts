@@ -151,7 +151,8 @@ export function subTeamDeleteMessage(error: unknown): string {
       if (members > 0) {
         return `Alt ekipte ya da altındaki gruplarda ${members} kişi var (liderler dahil); önce onları çıkar.`;
       }
-      if (children > 0) return `Alt ekibin altında ${children} grup var; önce onları sil.`;
+      if (children > 0)
+        return `Alt ekibin altında ${children} grup var; altında grup olan ekip silinemez.`;
       return 'Alt ekip boş değil.';
     }
     if (error.code === 'code_in_use') {
