@@ -15,7 +15,7 @@ const CapabilitiesContext = createContext<CapabilitiesState | null>(null);
 /**
  * Reads GET /v1/users/me/capabilities once per person while `enabled`; with
  * `live`, again when the person comes back to the tab and when their token is
- * renewed (useRefreshOnReturn), so a group joined while the panel was open
+ * renewed (useRefreshOnReturn) and every five minutes while shown, so a group joined while the panel was open
  * shows without signing in again. Those reads keep the answer on screen
  * meanwhile, and a read that fails keeps it too: "failed" opens every gate.
  */

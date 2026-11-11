@@ -3,6 +3,7 @@ import React, { type ReactNode } from 'react';
 import { capabilitiesApi, type Capabilities } from '@/lib/api/capabilities';
 import { SESSION_RENEWED_EVENT } from '@/lib/auth/session-renewal';
 import { CapabilitiesProvider, useCapabilities } from '@/lib/capabilities-context';
+import { OPEN_REFRESH_INTERVAL_MS } from '@/lib/use-refresh-on-return';
 
 jest.mock('@/lib/api/capabilities', () => ({
   capabilitiesApi: { get: jest.fn() },
@@ -66,5 +67,23 @@ describe('CapabilitiesProvider', () => {
 
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     expect(result.current).toBe(before);
+  });
+
+  it('reads again after the interval in a tab left open', async () => {
+    jest.useFakeTimers();
+    try {
+      get.mockResolvedValueOnce(MEMBER).mockResolvedValueOnce(LEADER);
+      const { result } = renderHook(() => useCapabilities(), { wrapper });
+      await waitFor(() => expect(result.current).toEqual({ status: 'ready', data: MEMBER }));
+
+      act(() => {
+        jest.advanceTimersByTime(OPEN_REFRESH_INTERVAL_MS);
+      });
+
+      await waitFor(() => expect(result.current).toEqual({ status: 'ready', data: LEADER }));
+      expect(get).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
