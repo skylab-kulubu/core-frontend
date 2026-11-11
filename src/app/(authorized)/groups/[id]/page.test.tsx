@@ -24,6 +24,7 @@ jest.mock('@/lib/api/capabilities', () => ({
 beforeEach(() => {
   (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
   (identityApi.managedGroups as jest.Mock).mockResolvedValue([]);
+  (identityApi.teamLeaders as jest.Mock).mockResolvedValue([]);
   (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
 });
 
@@ -44,6 +45,13 @@ jest.mock('@/lib/api/identity', () => ({
     removeMember: jest.fn(),
     managedGroups: jest.fn(),
     setTeamSettings: jest.fn(),
+    teamLeaders: jest.fn(),
+    addTeamLeader: jest.fn(),
+    removeTeamLeader: jest.fn(),
+    createSubTeam: jest.fn(),
+    changeTeamCode: jest.fn(),
+    movePreview: jest.fn(),
+    moveTeam: jest.fn(),
   },
 }));
 
@@ -1324,5 +1332,135 @@ describe('Group detail: who manages the Team’s Competitions (yarışma 27)', (
       }),
     );
     expect(screen.queryByText(/Bu ayarları ekibin liderleri/)).toBeNull();
+  });
+});
+
+describe('Group detail: Leaders and Sub-teams (ekip yetki devri 11)', () => {
+  const weblab = { id: 'g1', name: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB' };
+  const node = (can: Record<string, boolean>, childCan: Record<string, boolean>) => ({
+    id: 'g1',
+    code: 'WEBLAB',
+    path: '/UYELER/ARGE/WEBLAB',
+    can,
+    children: [
+      {
+        id: 'g-fe',
+        code: 'FRONTEND',
+        path: '/UYELER/ARGE/WEBLAB/FRONTEND',
+        memberCount: 3,
+        leaderCount: 1,
+        can: childCan,
+        children: [],
+      },
+    ],
+  });
+  const ALL = {
+    'group.read': true,
+    'members.write': true,
+    'leaders.write': true,
+    'subteams.write': true,
+    'code.write': true,
+    'team.delete': true,
+    'team.move': true,
+    'team.settings': true,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab);
+    (identityApi.members as jest.Mock).mockResolvedValue([]);
+    (identityApi.teamLeaders as jest.Mock).mockResolvedValue([
+      {
+        id: 'u-lid',
+        firstName: 'Lider',
+        lastName: 'K',
+        email: 'lider@example.com',
+        kind: 'LIDERLER',
+        groupId: 'g-lid',
+      },
+    ]);
+  });
+
+  it('reads core’s tree for Privileged on a Team and offers what core allows', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.read': true, 'group.write': true },
+      managedTeams: [],
+    });
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([node(ALL, ALL)]);
+    render(<GroupDetailPage />);
+    expect(await screen.findByRole('button', { name: 'Lider ata' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Alt ekip aç' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'FRONTEND' })).toHaveAttribute('href', '/groups/g-fe');
+    expect(screen.getByRole('button', { name: 'Kodu değiştir' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Taşı' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sil' })).toBeInTheDocument();
+    expect(identityApi.teamLeaders).toHaveBeenCalledWith('g1');
+  });
+
+  it('gives a Privileged reader (DK) the lists without a write', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'dk', groups: ['/UYELER/DK'] } });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.read': true, 'group.write': false },
+      managedTeams: [],
+    });
+    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+    const read = { 'group.read': true };
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([node(read, read)]);
+    render(<GroupDetailPage />);
+    expect(await screen.findByText('Lider · lider@example.com')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'FRONTEND' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lider ata' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Alt ekip aç' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sil' })).toBeNull();
+  });
+
+  it('gives a Team’s own Leader its Sub-teams’ actions and its own Leaders read-only', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] },
+    });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      can: { 'group.write': false },
+      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
+    });
+    (identityApi.groupRoles as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
+      node(
+        {
+          ...ALL,
+          'leaders.write': false,
+          'code.write': false,
+          'team.delete': false,
+          'team.move': false,
+        },
+        { ...ALL, 'code.write': false },
+      ),
+    ]);
+    render(<GroupDetailPage />);
+    expect(
+      await screen.findByText('Bu ekibin liderlerini üst ekibin liderleri ya da YK değiştirir.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lider ata' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Alt ekip aç' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'FRONTEND' })).toHaveAttribute('href', '/groups/g-fe');
+    expect(screen.getByRole('button', { name: 'Taşı' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kodu değiştir' })).toBeNull();
+    expect(screen.getByText('Alt ekip kodunu YK değiştirir.')).toBeInTheDocument();
+  });
+
+  it('shows neither section while core names no managed Team (team delegation off)', async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] },
+    });
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {}, managedTeams: [] });
+    (identityApi.groupRoles as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    render(<GroupDetailPage />);
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    expect(await screen.findByText('Üyeler')).toBeInTheDocument();
+    expect(screen.queryByText('Liderler')).toBeNull();
+    expect(screen.queryByText('Alt ekipler')).toBeNull();
+    expect(identityApi.managedGroups).not.toHaveBeenCalled();
+    expect(identityApi.teamLeaders).not.toHaveBeenCalled();
   });
 });
