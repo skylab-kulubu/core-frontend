@@ -10,6 +10,7 @@ import type { UserDto } from '@/types/api';
 import { AdminSearch } from './AdminSearch';
 import { AdminSidebar } from './AdminSidebar';
 import { ChromeCrumbNamesProvider, useChromeCrumbNames } from './chrome-crumb-names';
+import { ExpiredTermsBanner } from './ExpiredTermsBanner';
 import { useNavigationContext } from './use-navigation-context';
 
 type AuthenticatedChromeProps = Readonly<{
@@ -47,6 +48,7 @@ function SignedInChrome({ children, current }: { children: React.ReactNode; curr
           <AppShellActions>
             <AdminSearch user={current} navigationContext={navigationContext} />
           </AppShellActions>
+          <ExpiredTermsBanner />
           {children}
         </AppShell>
       </ChromeCrumbNamesProvider>

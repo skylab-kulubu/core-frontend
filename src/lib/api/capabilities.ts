@@ -36,6 +36,19 @@ export type Capabilities = {
     code: string;
     displayName?: { tr?: string; en?: string };
   }>;
+  /**
+   * The person's YK, DK and Team Leader memberships whose term expired while
+   * they are still in the Group (core's management terms); `[]` while the
+   * terms are off. A hint for the banner: the rights stay until removed.
+   */
+  expiredManagementMemberships?: Array<{
+    termId: string;
+    groupId: string;
+    groupPath: string;
+    role: string;
+    endsAt: string | null;
+    expiredAt: string | null;
+  }>;
 };
 
 export const capabilitiesApi = {

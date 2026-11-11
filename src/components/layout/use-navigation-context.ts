@@ -9,6 +9,7 @@ import { ticketsApi } from '@/lib/api/tickets';
 import { canManageCompetitors, canReadCertificates } from '@/lib/auth/groups';
 import { showsCompetitionTab } from '@/lib/event-workspace';
 import type { SidebarNavigationContext, SidebarNavLink } from '@/lib/navigation/sidebar-nav';
+import { showsManagementTerms } from '@/lib/management-terms';
 import { siteEditLinks } from '@/lib/site-edit-links';
 import { canDeskCheckIn, canListEventTickets } from '@/lib/tickets-ui';
 import { teamDecision } from '@/lib/use-app-can';
@@ -35,6 +36,8 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   // KVKK başvuruları only once core says the register is the person's (ADMIN, YK)
   const subjectRequestsVisible =
     capabilities.status === 'ready' && capabilities.data.can?.['subjectRequest.manage'] === true;
+  // Dönem devri only once core says the person reads Groups or leads a Team
+  const managementTermsVisible = showsManagementTerms(capabilities);
   // Ekiplerim only once core names a Team the person leads (delegation on)
   const managedTeamsVisible =
     capabilities.status === 'ready' && (capabilities.data.managedTeams?.length ?? 0) > 0;
@@ -129,6 +132,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     hasDoorAssignment: doorEventIds.length > 0,
     appsVisible,
     managedTeamsVisible,
+    managementTermsVisible,
     subjectRequestsVisible,
     editSites,
     activeEvent,
