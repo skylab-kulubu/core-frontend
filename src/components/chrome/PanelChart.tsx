@@ -46,6 +46,7 @@ export function HorizontalBars({
       {hasData ? (
         <BarList
           className="mt-3"
+          highlightTop
           max={Math.max(...data.map((row) => row.count))}
           items={data.map((row) => ({ key: row.label, label: row.label, value: row.count }))}
         />
