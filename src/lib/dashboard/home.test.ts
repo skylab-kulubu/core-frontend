@@ -1,5 +1,5 @@
 import type { DashboardHome, DashboardSummary, EventStat } from '@/lib/api/dashboard';
-import { changeLabel, homeView, numberRows, todoRows, weekDays } from './home';
+import { changeLabel, homeView, todoRows, upcomingRows, weekDays } from './home';
 
 // Sunday 22 November 2026, 15:00 in Istanbul
 const now = new Date('2026-11-22T12:00:00Z');
@@ -171,31 +171,20 @@ describe('weekDays', () => {
     expect(days[0].rows[0]).toMatchObject({ time: 'Sürüyor', title: 'Hackathon', live: true });
   });
 
+  it('lists from now on: what is over today is left out, what runs stays', () => {
+    const rows = upcomingRows(weekDays(week, new Date('2026-11-22T18:30:00Z')));
+    expect(rows.map((row) => `${row.day} ${row.time} ${row.title}`)).toEqual([
+      'Yarın 13:00 Jüri sunumları',
+      '28 Kasım Cumartesi 13:00 Robotik Seçmeleri',
+    ]);
+  });
+
   it('is empty when nothing runs', () => {
     expect(weekDays({ ...week, events: [], sessions: [] }, now)).toEqual([]);
   });
 });
 
-describe('numbers', () => {
-  it('lists new members only when core gives them', () => {
-    const compare = {
-      days: 30,
-      applications: { current: 40, previous: 25 },
-      attendees: { current: 12, previous: 18 },
-      events: { current: 3, previous: 0 },
-      newMembers: null,
-    };
-    expect(numberRows(compare)?.map((row) => row.label)).toEqual([
-      'Başvuru',
-      'Katılan',
-      'Etkinlik',
-    ]);
-    expect(
-      numberRows({ ...compare, newMembers: { current: 9, previous: 4 } })?.map((row) => row.label),
-    ).toContain('Yeni üye');
-    expect(numberRows(null)).toBeNull();
-  });
-
+describe('changeLabel', () => {
   it('says the change in Turkish percent, with nothing to set against a zero', () => {
     expect(changeLabel({ current: 40, previous: 25 })).toBe('+%60');
     expect(changeLabel({ current: 12, previous: 18 })).toBe('−%33');
@@ -253,7 +242,6 @@ describe('homeView on an older core', () => {
       'Yarınki',
       'Sonraki',
     ]);
-    expect(view.numbers).toBeNull();
   });
 
   it('gives a DK reader no to-dos', () => {
@@ -263,9 +251,20 @@ describe('homeView on an older core', () => {
   it('uses core home when it is there', () => {
     const withHome = {
       ...summary(stats),
-      home: { todo: null, week: { from: '', to: '', events: [], sessions: [] }, compare: null },
+      home: {
+        todo: null,
+        week: { from: '', to: '', events: [], sessions: [] },
+        compare: null,
+        daily: [],
+        monthly: [],
+        teams: [],
+        sessions: 0,
+        certificates: null,
+        season: null,
+        club: { eventsByMonth: [], eventsByTeam: [] },
+      },
     };
     const view = homeView(withHome, ['/YK'], now);
-    expect(view).toEqual({ todo: null, week: [], numbers: null, fallback: false });
+    expect(view).toEqual({ home: withHome.home, todo: null, week: [], fallback: false });
   });
 });

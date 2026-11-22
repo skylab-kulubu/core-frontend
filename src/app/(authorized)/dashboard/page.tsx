@@ -1,14 +1,37 @@
 'use client';
 
-import { Notice } from '@skylab-kulubu/skylcn-ui';
+import { Notice, Skeleton } from '@skylab-kulubu/skylcn-ui';
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
-import { NumbersSection, TodoSection, WeekSection } from '@/components/dashboard/HomeSections';
+import { TodoCard, WeekCard } from '@/components/dashboard/HomeSections';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { dashboardApi, type DashboardSummary } from '@/lib/api/dashboard';
-import { canSeeSchedulingNav } from '@/lib/auth/groups';
+import { canSeeSchedulingNav, isPrivileged } from '@/lib/auth/groups';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { homeView } from '@/lib/dashboard/home';
+
+// The charts and their library load on their own, after the strip
+const HomeCharts = dynamic(() => import('@/components/dashboard/HomeCharts'), {
+  ssr: false,
+  loading: () => <ChartsSkeleton />,
+});
+
+function ChartsSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-hidden>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-72 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-72 rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 type SummaryState =
   | { kind: 'loading' }
@@ -16,9 +39,9 @@ type SummaryState =
   | { kind: 'ok'; summary: DashboardSummary };
 
 /**
- * The home page, top to bottom: what waits on the reader, the week from today,
- * then a few figures against the 30 days before. One request to core
- * (GET /v1/dashboard/summary), scoped by core to the reader's role and teams.
+ * The home page: a thin strip of what waits on the reader and the week, then
+ * the graphic summary. One request to core (GET /v1/dashboard/summary), scoped
+ * by core to the reader's role and teams.
  */
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -49,9 +72,10 @@ export default function DashboardPage() {
     [state, groups, now],
   );
   const loading = state.kind === 'loading' || !now;
+  const showTodo = loading || Boolean(view?.todo);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-8">
+    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-6">
       <PageHeader
         title="Özet"
         meta={
@@ -67,24 +91,26 @@ export default function DashboardPage() {
         <Notice tone="danger" title="Özet yüklenemedi">
           {state.message}
         </Notice>
-      ) : null}
+      ) : (
+        <div className={`grid min-w-0 gap-4 ${showTodo ? 'lg:grid-cols-2' : ''}`}>
+          {showTodo ? <TodoCard rows={view?.todo ?? []} loading={loading} /> : null}
+          <WeekCard
+            days={view?.week ?? []}
+            loading={loading}
+            linked={canSeeSchedulingNav(groups ?? [])}
+          />
+        </div>
+      )}
 
-      {loading ? (
-        <TodoSection rows={[]} loading />
-      ) : view?.todo ? (
-        <TodoSection rows={view.todo} loading={false} />
-      ) : null}
-
-      {state.kind !== 'error' ? (
-        <WeekSection
-          days={view?.week ?? []}
-          loading={loading}
-          linked={canSeeSchedulingNav(groups ?? [])}
+      {state.kind === 'ok' && view && now ? (
+        <HomeCharts
+          summary={state.summary}
+          home={view.home}
+          privileged={isPrivileged(groups ?? [])}
+          now={now}
         />
-      ) : null}
-
-      {view?.numbers && state.kind === 'ok' && state.summary.home?.compare ? (
-        <NumbersSection rows={view.numbers} days={state.summary.home.compare.days} />
+      ) : state.kind === 'loading' ? (
+        <ChartsSkeleton />
       ) : null}
     </div>
   );

@@ -31,23 +31,19 @@ export type WeekRow = {
   title: string;
   subtitle: string;
   live: boolean;
+  /** Over already, today. */
+  ended: boolean;
+  eventId: string;
 };
 
 export type WeekDay = { date: string; label: string; rows: WeekRow[] };
 
-export type NumberRow = {
-  key: string;
-  label: string;
-  href?: string;
-  current: number;
-  previous: number;
-};
-
-/** The page's three parts; null where the reader has nothing of that kind. */
+/** The strip above the charts; todo is null where the reader can act on nothing. */
 export type HomeView = {
+  /** The home section, core's or the one made from an older core's summary. */
+  home: DashboardHome;
   todo: TodoRow[] | null;
   week: WeekDay[];
-  numbers: NumberRow[] | null;
   /** True when core is older and the page made what it could from the summary. */
   fallback: boolean;
 };
@@ -174,7 +170,7 @@ export function weekDays(week: DashboardHome['week'], now = new Date()): WeekDay
     // An Event that began before today and still runs shows today, as running
     const key = startKey < today ? (event.live ? today : null) : startKey;
     if (!key || withSessions.has(`${event.id}|${key}`)) continue;
-    index.get(key)?.rows.push(eventRow(event, startKey < today));
+    index.get(key)?.rows.push(eventRow(event, startKey < today, now));
   }
   for (const day of days) day.rows.sort(byTime);
   return days.filter((day) => day.rows.length > 0);
@@ -196,10 +192,12 @@ function sessionRow(session: WeekSession, event: WeekEvent | undefined, now: Dat
     title: session.title,
     subtitle: [session.eventName, event?.location].filter(Boolean).join(' · '),
     live: start <= now.getTime() && now.getTime() <= end,
+    ended: end < now.getTime(),
+    eventId: session.eventId,
   };
 }
 
-function eventRow(event: WeekEvent, running: boolean): WeekRow {
+function eventRow(event: WeekEvent, running: boolean, now: Date): WeekRow {
   return {
     key: `event-${event.id}`,
     href: `/events/${event.id}`,
@@ -207,21 +205,9 @@ function eventRow(event: WeekEvent, running: boolean): WeekRow {
     title: event.name,
     subtitle: [event.ownerTeam, event.location].filter(Boolean).join(' · '),
     live: event.live,
+    ended: !event.live && Date.parse(event.startDate ?? '') < now.getTime(),
+    eventId: event.id,
   };
-}
-
-/** The last 30 days against the 30 before; new members only for who may read people. */
-export function numberRows(compare: DashboardHome['compare']): NumberRow[] | null {
-  if (!compare) return null;
-  const rows: NumberRow[] = [
-    { key: 'applications', label: 'Başvuru', href: '/events', ...compare.applications },
-    { key: 'attendees', label: 'Katılan', href: '/events', ...compare.attendees },
-    { key: 'events', label: 'Etkinlik', href: '/events?status=past', ...compare.events },
-  ];
-  if (compare.newMembers) {
-    rows.push({ key: 'new-members', label: 'Yeni üye', href: '/users', ...compare.newMembers });
-  }
-  return rows;
 }
 
 /** "+%60", "−%28", "%0"; null when there is nothing to set it against. */
@@ -311,6 +297,13 @@ function fallbackHome(
       sessions: [],
     },
     compare: null,
+    daily: [],
+    monthly: [],
+    teams: [],
+    sessions: 0,
+    certificates: null,
+    season: null,
+    club: { eventsByMonth: [], eventsByTeam: [] },
   };
 }
 
@@ -322,9 +315,16 @@ export function homeView(
 ): HomeView {
   const home = summary.home ?? fallbackHome(summary, groups, now);
   return {
+    home,
     todo: todoRows(home.todo, now),
     week: weekDays(home.week, now),
-    numbers: numberRows(home.compare),
     fallback: !summary.home,
   };
+}
+
+/** The week as one list from now on: what is over today is left out. */
+export function upcomingRows(days: readonly WeekDay[]): Array<WeekRow & { day: string }> {
+  return days.flatMap((day) =>
+    day.rows.filter((row) => !row.ended || row.live).map((row) => ({ ...row, day: day.label })),
+  );
 }

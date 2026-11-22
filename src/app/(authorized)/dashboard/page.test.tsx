@@ -7,6 +7,27 @@ import { ProblemError } from '@/lib/api/core';
 
 jest.mock('@/context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('@/lib/api/dashboard', () => ({ dashboardApi: { summary: jest.fn() } }));
+// The charts load on their own (next/dynamic); here a stand-in that shows what it was given
+jest.mock('next/dynamic', () => () => {
+  function ChartsStandIn(props: { summary: { ownerTeams: string[] }; privileged: boolean }) {
+    return (
+      <div data-testid="charts">
+        {props.summary.ownerTeams.join(',')}|{String(props.privileged)}
+      </div>
+    );
+  }
+  return ChartsStandIn;
+});
+
+const charts = {
+  daily: [],
+  monthly: [],
+  teams: [],
+  sessions: 0,
+  certificates: null,
+  season: null,
+  club: { eventsByMonth: [], eventsByTeam: [] },
+};
 
 const base: DashboardSummary = {
   generatedAt: '2026-11-22T12:00:00Z',
@@ -33,11 +54,13 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-it('asks core once and shows the to-dos first, then the week, then the figures', async () => {
+it('asks core once and shows the strip of to-dos and the week above the charts', async () => {
   signIn(['/YK']);
   (dashboardApi.summary as jest.Mock).mockResolvedValue({
     ...base,
+    ownerTeams: ['GECEKODU'],
     home: {
+      ...charts,
       todo: {
         drafts: [],
         incomplete: [],
@@ -71,7 +94,7 @@ it('asks core once and shows the to-dos first, then the week, then the figures',
   render(<DashboardPage />);
 
   await screen.findByRole('link', { name: /1 KVKK başvurusu yanıt bekliyor/ });
-  const todo = screen.getByRole('region', { name: 'Yapılacaklar' });
+  const todo = screen.getByRole('region', { name: /^Yapılacaklar/ });
   expect(
     within(todo).getByRole('link', { name: /1 KVKK başvurusu yanıt bekliyor/ }),
   ).toHaveAttribute('href', '/subject-requests');
@@ -81,36 +104,38 @@ it('asks core once and shows the to-dos first, then the week, then the figures',
   );
   expect(within(todo).getByText('3 sertifika basılamadı')).toBeInTheDocument();
 
-  const week = screen.getByRole('region', { name: 'Bu hafta' });
+  const week = screen.getByRole('region', { name: /^Bu hafta/ });
   expect(within(week).getByRole('link', { name: /Hackathon/ })).toHaveAttribute(
     'href',
     '/events/e1',
   );
 
-  const numbers = screen.getByRole('region', { name: 'Son 30 gün' });
-  expect(
-    within(numbers).getByRole('link', { name: /Başvuru 40 Önceki: 25 · \+%60/ }),
-  ).toBeInTheDocument();
-  expect(within(numbers).getByRole('link', { name: /Yeni üye/ })).toBeInTheDocument();
+  const chartsPart = await screen.findByTestId('charts');
+  expect(chartsPart).toHaveTextContent('GECEKODU|true');
 
   const follows = (a: Element, b: Element) =>
     Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-  expect(follows(todo, week) && follows(week, numbers)).toBe(true);
+  expect(follows(todo, week) && follows(week, chartsPart)).toBe(true);
   expect(dashboardApi.summary).toHaveBeenCalledTimes(1);
 });
 
-it('gives a Member without a team role only the week, with a plain empty state', async () => {
+it('gives a Member without a team role the week without links, and the club charts', async () => {
   signIn(['/UYELER/ARGE/WEBLAB']);
   (dashboardApi.summary as jest.Mock).mockResolvedValue({
     ...base,
-    home: { todo: null, week: { from: '', to: '', events: [], sessions: [] }, compare: null },
+    home: {
+      ...charts,
+      todo: null,
+      week: { from: '', to: '', events: [], sessions: [] },
+      compare: null,
+    },
   } satisfies DashboardSummary);
   render(<DashboardPage />);
 
   expect(await screen.findByText('Bu hafta etkinlik yok')).toBeInTheDocument();
+  expect(screen.getByTestId('charts')).toHaveTextContent('|false');
   expect(screen.queryByRole('link', { name: 'Takvim' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('region', { name: 'Yapılacaklar' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('region', { name: /Son 30 gün/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: /^Yapılacaklar/ })).not.toBeInTheDocument();
 });
 
 it('says when nothing waits on the reader', async () => {
@@ -118,6 +143,7 @@ it('says when nothing waits on the reader', async () => {
   (dashboardApi.summary as jest.Mock).mockResolvedValue({
     ...base,
     home: {
+      ...charts,
       todo: { drafts: [], incomplete: [], failedCertificates: [], subjectRequests: null },
       week: { from: '', to: '', events: [], sessions: [] },
       compare: null,
@@ -134,5 +160,5 @@ it('shows core’s problem when the summary cannot be read', async () => {
   );
   render(<DashboardPage />);
   expect(await screen.findByText('Özet yüklenemedi')).toBeInTheDocument();
-  expect(screen.queryByRole('region', { name: 'Bu hafta' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: /^Bu hafta/ })).not.toBeInTheDocument();
 });

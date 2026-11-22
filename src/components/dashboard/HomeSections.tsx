@@ -1,37 +1,41 @@
 'use client';
 
-import { StatusDot } from '@skylab-kulubu/skylcn-ui';
+import { Card, StatusDot } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { changeLabel, type NumberRow, type TodoRow, type WeekDay } from '@/lib/dashboard/home';
+import { upcomingRows, type TodoRow, type WeekDay } from '@/lib/dashboard/home';
 
-/**
- * A titled region of the page. skylcn's Section draws its title as a 12 px
- * caption; the home page's three parts need a real heading.
- */
-function HomeSection({
+/** A compact titled card of the strip above the charts. */
+function StripCard({
   title,
+  meta,
   action,
   children,
 }: {
   title: string;
+  meta?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id={id} className="text-foreground text-base font-semibold">
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </section>
+    <Card className="min-w-0 p-0">
+      <section aria-labelledby={id} className="flex min-w-0 flex-col">
+        <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
+          <h2 id={id} className="text-foreground text-sm font-semibold">
+            {title}
+            {meta ? (
+              <span className="text-muted-foreground ml-2 font-normal tabular-nums">{meta}</span>
+            ) : null}
+          </h2>
+          {action}
+        </div>
+        {children}
+      </section>
+    </Card>
   );
 }
 
@@ -41,38 +45,56 @@ const DOT: Record<TodoRow['tone'], { tone: 'danger' | 'warning' | 'neutral'; lab
   neutral: { tone: 'neutral', label: 'Bekliyor' },
 };
 
-/** Each row goes straight to where the thing is done. */
-export function TodoSection({ rows, loading }: { rows: TodoRow[]; loading: boolean }) {
+const TODO_LIMIT = 4;
+
+/** What waits on the reader; each row goes straight to where it is done. */
+export function TodoCard({ rows, loading }: { rows: TodoRow[]; loading: boolean }) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? rows : rows.slice(0, TODO_LIMIT);
   return (
-    <HomeSection title="Yapılacaklar">
-      <ListPanel
-        framed
-        status={
-          loading
-            ? { kind: 'loading' }
-            : rows.length
-              ? { kind: 'ready' }
-              : { kind: 'empty', message: 'Bekleyen iş yok' }
-        }
-      >
-        {rows.map((row) => (
-          <ListItem
-            key={row.key}
-            href={row.href}
-            leading={<StatusDot tone={DOT[row.tone].tone} label={DOT[row.tone].label} />}
-            title={row.title}
-            subtitle={row.detail}
-          />
-        ))}
-      </ListPanel>
-    </HomeSection>
+    <StripCard
+      title="Yapılacaklar"
+      meta={loading || rows.length === 0 ? null : rows.length}
+      action={
+        rows.length > TODO_LIMIT ? (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="text-muted-foreground hover:text-foreground text-sm"
+          >
+            {open ? 'Daha az' : `${rows.length - TODO_LIMIT} tane daha`}
+          </button>
+        ) : null
+      }
+    >
+      {loading || rows.length === 0 ? (
+        <p className="text-muted-foreground px-4 pb-4 text-sm">
+          {loading ? 'Yükleniyor…' : 'Bekleyen iş yok'}
+        </p>
+      ) : (
+        <ListPanel status={{ kind: 'ready' }}>
+          {shown.map((row) => (
+            <ListItem
+              key={row.key}
+              href={row.href}
+              leading={<StatusDot tone={DOT[row.tone].tone} label={DOT[row.tone].label} />}
+              title={row.title}
+              subtitle={row.detail}
+            />
+          ))}
+        </ListPanel>
+      )}
+    </StripCard>
   );
 }
 
-const DAY_LIMIT = 6;
+const WEEK_LIMIT = 5;
 
-/** linked is false for a reader who cannot open the Event pages: the rows only inform. */
-export function WeekSection({
+/**
+ * The week from now on, one list. linked is false for a reader who cannot open
+ * the Event pages: the rows only inform. A running Event offers its door.
+ */
+export function WeekCard({
   days,
   loading,
   linked = true,
@@ -81,9 +103,11 @@ export function WeekSection({
   loading: boolean;
   linked?: boolean;
 }) {
+  const rows = upcomingRows(days);
   return (
-    <HomeSection
+    <StripCard
       title="Bu hafta"
+      meta={loading || rows.length === 0 ? null : rows.length}
       action={
         linked ? (
           <Link
@@ -95,82 +119,50 @@ export function WeekSection({
         ) : null
       }
     >
-      {loading || days.length === 0 ? (
-        <ListPanel
-          framed
-          status={
-            loading ? { kind: 'loading' } : { kind: 'empty', message: 'Bu hafta etkinlik yok' }
-          }
-        />
+      {loading || rows.length === 0 ? (
+        <p className="text-muted-foreground px-4 pb-4 text-sm">
+          {loading ? 'Yükleniyor…' : 'Bu hafta etkinlik yok'}
+        </p>
       ) : (
-        <div className="flex flex-col gap-5">
-          {days.map((day) => (
-            <div key={day.date} className="flex flex-col gap-2">
-              <h3 className="text-foreground text-sm font-medium">{day.label}</h3>
-              <ListPanel framed status={{ kind: 'ready' }}>
-                {day.rows.slice(0, DAY_LIMIT).map((row) => (
-                  <ListItem
-                    key={row.key}
-                    href={linked ? row.href : undefined}
-                    leading={
-                      <span className="text-muted-foreground w-11 shrink-0 text-sm tabular-nums sm:w-14">
-                        {row.time}
-                      </span>
-                    }
-                    title={row.title}
-                    subtitle={row.subtitle}
-                    trailing={row.live ? <StatusChip kind="live" /> : undefined}
-                  />
-                ))}
-                {linked && day.rows.length > DAY_LIMIT ? (
-                  <ListItem
-                    href="/events?view=calendar"
-                    title={`${day.rows.length - DAY_LIMIT} tane daha`}
-                  />
-                ) : null}
-              </ListPanel>
-            </div>
-          ))}
-        </div>
-      )}
-    </HomeSection>
-  );
-}
-
-/** A few figures, each set against the period before; no colour, the words carry the change. */
-export function NumbersSection({ rows, days }: { rows: NumberRow[]; days: number }) {
-  return (
-    <HomeSection title={`Son ${days} gün`}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {rows.map((row) => {
-          const change = changeLabel(row);
-          const body = (
-            <dl>
-              <dt className="text-muted-foreground text-sm">{row.label}</dt>
-              <dd className="text-foreground mt-1 text-2xl font-semibold tabular-nums">
-                {row.current.toLocaleString('tr-TR')}
-              </dd>
-              <dd className="text-muted-foreground mt-1 text-sm tabular-nums">
-                Önceki: {row.previous.toLocaleString('tr-TR')}
-                {change ? ` · ${change}` : ''}
-              </dd>
-            </dl>
-          );
-          return row.href ? (
-            <Link
+        <ListPanel status={{ kind: 'ready' }}>
+          {rows.slice(0, WEEK_LIMIT).map((row) => (
+            <ListItem
               key={row.key}
-              href={row.href}
-              className="border-border hover:bg-accent focus-visible:ring-ring rounded-xl border p-4 outline-hidden transition-colors focus-visible:ring-2"
-            >
-              {body}
-            </Link>
-          ) : (
-            <div key={row.key} className="border-border rounded-xl border p-4">
-              {body}
-            </div>
-          );
-        })}
-      </div>
-    </HomeSection>
+              href={linked ? row.href : undefined}
+              leading={
+                <span className="text-muted-foreground w-20 shrink-0 text-xs leading-tight tabular-nums">
+                  <span className="block">{row.day}</span>
+                  <span className="text-foreground block text-sm">{row.time}</span>
+                </span>
+              }
+              title={row.title}
+              subtitle={row.subtitle}
+              trailing={
+                row.live ? (
+                  <span className="flex items-center gap-2">
+                    <StatusChip kind="live" />
+                    {linked ? (
+                      <Link
+                        href={`/events/${row.eventId}/door`}
+                        prefetch={false}
+                        className="text-muted-foreground hover:text-foreground hidden text-sm sm:inline"
+                      >
+                        Kapı
+                      </Link>
+                    ) : null}
+                  </span>
+                ) : undefined
+              }
+            />
+          ))}
+          {rows.length > WEEK_LIMIT && linked ? (
+            <ListItem
+              href="/events?view=calendar"
+              title={`${rows.length - WEEK_LIMIT} tane daha`}
+            />
+          ) : null}
+        </ListPanel>
+      )}
+    </StripCard>
   );
 }

@@ -122,6 +122,26 @@ export type DashboardHome = {
     events: Period;
     newMembers: Period | null;
   } | null;
+  /** 60 days, oldest first: the last 30 and the 30 before. Empty without covered Events. */
+  daily: Array<{ date: string; applications: number; attendees: number }>;
+  /** 12 months, oldest first. Attendees are summed over days (a Ticket counts once a day). */
+  monthly: Array<{ month: string; applications: number; attendees: number; events: number }>;
+  /** Owner teams over the 12 months, most applications first; team '' is the club itself. */
+  teams: Array<{ team: string; events: number; applications: number; attendees: number }>;
+  sessions: number;
+  certificates: { issued: number; revoked: number; period: Period } | null;
+  season: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    events: Array<{ id: string; name: string; ownerTeam: string; startDate: string }>;
+  } | null;
+  /** Published Events, whoever owns them: what every signed-in person may see. */
+  club: {
+    eventsByMonth: MonthCount[];
+    eventsByTeam: Array<{ team: string; count: number }>;
+  };
 };
 
 export const dashboardApi = {
