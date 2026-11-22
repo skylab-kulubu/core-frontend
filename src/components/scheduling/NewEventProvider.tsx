@@ -16,6 +16,7 @@ import { Drawer } from '@/components/chrome/Drawer';
 import { Select } from '@/components/chrome/Select';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
+import { EventLocationFields } from '@/components/scheduling/EventLocationFields';
 import { useAuth } from '@/context/AuthContext';
 import { teamsApi } from '@/lib/api/teams';
 import { useEventCreate } from '@/lib/use-event-create';
@@ -190,15 +191,12 @@ function QuickEventDrawer({
             />
           </Row>
         </div>
-        <Row id={`${id}-location`} label="Konum">
-          <Input
-            id={`${id}-location`}
-            value={form.location}
-            onChange={(change) => patch({ location: change.target.value })}
-            placeholder="Davutpaşa Kongre Merkezi"
-            required
-          />
-        </Row>
+        <EventLocationFields
+          value={form}
+          ownerTeam={form.ownerTeam}
+          onChange={patch}
+          placeholder="Davutpaşa Kongre Merkezi"
+        />
         <Row id={`${id}-capacity`} label="Kapasite" hint="Sınırsızsa 0">
           <Input
             id={`${id}-capacity`}

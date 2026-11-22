@@ -88,9 +88,9 @@ describe('Event Program tab Katıldı', () => {
     await user.click(deskButtons[deskButtons.length - 1]);
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     expect(within(dialog).getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
-    const field = within(dialog).getByLabelText('Ad veya e-posta') as HTMLInputElement;
+    const field = within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu') as HTMLInputElement;
     expect(field).toHaveAttribute('type', 'text');
-    expect(field).toHaveAttribute('placeholder', 'Ad veya e-posta');
+    expect(field).toHaveAttribute('placeholder', 'Ad, e-posta ya da bilet kodu');
     await user.type(field, 'Ada Lovelace');
     expect(field.checkValidity()).toBe(true);
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
@@ -286,7 +286,7 @@ describe('Event Program tab days and sessions', () => {
     const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
     await user.click(deskButtons[deskButtons.length - 1]);
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
-    await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Yok Kişi');
+    await user.type(within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu'), 'Yok Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Kayıt bulunamadı; silinmiş olabilir.',
@@ -303,7 +303,7 @@ describe('Event Program tab days and sessions', () => {
     const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
     await user.click(deskButtons[deskButtons.length - 1]);
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
-    await user.type(within(dialog).getByLabelText('Ad veya e-posta'), 'Ada Lovelace');
+    await user.type(within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada Lovelace');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu kişi bu oturuma zaten girmiş.',

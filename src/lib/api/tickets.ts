@@ -68,6 +68,8 @@ export type Ticket = {
   guestFaculty?: string;
   guestDepartment?: string;
   guestGrade?: string;
+  /** The Ticket's code, `XXXX-XXXX` (Crockford Base32): found at the desk, not a credential. */
+  code?: string;
   sent?: boolean;
   formId?: string;
   formUrl?: string;
@@ -77,6 +79,12 @@ export type Ticket = {
   updatedAt: string;
   event?: { id?: string; name?: string };
 };
+
+/** "Bileti yeniden gönder": the n-th resend; `replayed` when the same key was sent before. */
+export type TicketResend = { resend: number; replayed: boolean; queued: boolean };
+
+/** "Bağlantıyı yenile": the Ticket (its code, never its key) and whether its mail was queued. */
+export type RenewedTicket = Ticket & { notificationQueued: boolean; resend?: number };
 
 export type GuestApplyBody = {
   firstName: string;
@@ -136,6 +144,26 @@ export const ticketsApi = {
   createDoorQr: (sessionId: string) =>
     coreFetch<DoorQr>(`/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1`, {
       method: 'POST',
+    }),
+  /**
+   * The Ticket's "biletin hazır" mail again (core docs/ticket-resend.md):
+   * 429 `ticket_resend_rate_limited` (3 an hour, 6 a day), 409 for a draft,
+   * cancelled or ended Event, mails off or an erased holder, 503
+   * `audit_unavailable`. The same `Idempotency-Key` sends one mail.
+   */
+  resend: (ticketId: string, idempotencyKey: string) =>
+    coreFetch<TicketResend>(`/v1/tickets/${encodeURIComponent(ticketId)}/notification`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    }),
+  /**
+   * A new link and QR, the old ones void, and the mail with the new link; the
+   * same refusals as `resend`, in which case nothing is renewed.
+   */
+  renewLink: (ticketId: string, idempotencyKey: string) =>
+    coreFetch<RenewedTicket>(`/v1/tickets/${encodeURIComponent(ticketId)}/access-key/rotate`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
     }),
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`),

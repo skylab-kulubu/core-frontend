@@ -662,10 +662,10 @@ export default function EventProgramPage() {
               }}
             />
             <label className="block space-y-1">
-              <FieldLabel>Ad veya e-posta</FieldLabel>
+              <FieldLabel>Ad, e-posta ya da bilet kodu</FieldLabel>
               <Field
                 type="text"
-                placeholder="Ad veya e-posta"
+                placeholder="Ad, e-posta ya da bilet kodu"
                 {...deskForm.register('email', {
                   onChange: () => deskForm.setValue('personId', ''),
                 })}

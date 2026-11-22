@@ -35,6 +35,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// map/: the point picker's glyphs, sprites and MapLibre worker (public/map), static like the icons
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|map/).*)'],
 };

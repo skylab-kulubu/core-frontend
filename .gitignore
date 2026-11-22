@@ -46,3 +46,6 @@ notes/
 /public/playground.html
 /public/playground.txt
 /public/playground-assets/
+
+# MapLibre worker, copied by scripts/copy-map-worker.mjs
+/public/map/maplibre-gl-worker.mjs
