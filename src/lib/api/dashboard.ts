@@ -122,9 +122,9 @@ export type DashboardHome = {
     events: Period;
     newMembers: Period | null;
   } | null;
-  /** 60 days, oldest first: the last 30 and the 30 before. Empty without covered Events. */
+  /** 60 days, oldest first: the last 30 and the 30 before; attendees each once a day. Empty without covered Events. */
   daily: Array<{ date: string; applications: number; attendees: number }>;
-  /** 12 months, oldest first. Attendees are summed over days (a Ticket counts once a day). */
+  /** 12 months, oldest first. Attendees: Tickets checked in that month, each once. */
   monthly: Array<{ month: string; applications: number; attendees: number; events: number }>;
   /** Owner teams over the 12 months, most applications first; team '' is the club itself. */
   teams: Array<{ team: string; events: number; applications: number; attendees: number }>;

@@ -161,7 +161,7 @@ export default function HomeCharts({
           <BarChart
             className="min-w-0 lg:col-span-2"
             title="Aylık başvuru ve katılım"
-            description="Son 12 ay; katılım günlük girişlerin toplamı"
+            description="Son 12 ay; katılım ayda bir kez sayılır"
             data={monthly}
             x="month"
             xLabel="Ay"

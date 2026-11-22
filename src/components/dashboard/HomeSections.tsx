@@ -144,8 +144,7 @@ export function WeekCard({
                     {linked ? (
                       <Link
                         href={`/events/${row.eventId}/door`}
-                        prefetch={false}
-                        className="text-muted-foreground hover:text-foreground hidden text-sm sm:inline"
+                        className="text-muted-foreground hover:text-foreground text-sm"
                       >
                         Kapı
                       </Link>
