@@ -172,6 +172,8 @@ export default function EventParticipantsPage() {
         <Section
           title="Dağılım"
           level={2}
+          // skylcn-ui's folding title loses its last letters to the button's -mx-1 (truncate on the h2)
+          className="[&_h2]:overflow-visible"
           collapsible
           open={chartsOpen ?? wide}
           onOpenChange={setChartsOpen}
