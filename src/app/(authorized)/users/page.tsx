@@ -8,25 +8,17 @@ import { Plus } from 'lucide-react';
 import { personSearchReady } from '@/components/identity/use-person-search';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Avatar } from '@/components/chrome/Avatar';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
-import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SaveButton } from '@/components/chrome/SaveButton';
-import { ListPanel } from '@/components/chrome/ListPanel';
-import { Pagination } from '@/components/chrome/Pagination';
-import { StatusChip } from '@/components/chrome/StatusChip';
-import { profilePictureSrc } from '@/lib/profile-picture';
 import { identityApi, type Person } from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
-import { paginateRows } from '@/lib/list-query';
-import { listStatus } from '@/lib/list-status';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
+import { UsersDirectory } from '@/components/identity/UsersDirectory';
 
 const createUserSchema = z.object({
   firstName: z.string().trim(),
@@ -46,13 +38,12 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const notify = useNotify();
-  const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const {
     register,
     reset,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
     defaultValues: { firstName: '', lastName: '', email: '' },
@@ -94,19 +85,10 @@ export default function UsersPage() {
     return () => window.clearTimeout(handle);
   }, [query, ready]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [query]);
-
-  const paged = paginateRows(users, page);
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Kullanıcılar"
-        description={
-          canCreate ? 'Üye ekle. Grup ve roller kişi kartında.' : 'Üye dizinini görüntüle.'
-        }
         actions={
           canCreate ? (
             <ActionButton
@@ -123,42 +105,15 @@ export default function UsersPage() {
           {error}
         </p>
       ) : null}
-      <ListToolbar
+      <UsersDirectory
         query={query}
         onQuery={setQuery}
-        placeholder="Ad, e-posta, okul maili"
-        searchLabel="Kullanıcı ara"
+        results={users}
+        searching={loading}
+        searchFailed={Boolean(error)}
+        ready={ready}
+        onClearSearch={() => setQuery('')}
       />
-      <ListPanel
-        status={listStatus({
-          loading,
-          failed: Boolean(error),
-          rowCount: users.length,
-          emptyMessage: ready ? 'Eşleşen kullanıcı yok' : 'Aramak için yaz',
-        })}
-        emptyDescription={
-          ready
-            ? canCreate
-              ? 'Üye ekle veya aramayı değiştir.'
-              : 'Aramayı değiştir.'
-            : 'Ad, e-posta ya da okul mailinden en az 2 karakter.'
-        }
-      >
-        {paged.slice.map((u) => {
-          const name = `${u.firstName} ${u.lastName}`.trim();
-          return (
-            <ListItem
-              key={u.id}
-              href={`/users/${u.id}`}
-              title={name || u.email}
-              subtitle={u.skyNumber || u.schoolEmail || u.email}
-              leading={<Avatar name={name} email={u.email} src={profilePictureSrc(u)} />}
-              trailing={u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined}
-            />
-          );
-        })}
-      </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       {canCreate ? (
         <Drawer
           open={creating}
@@ -168,6 +123,7 @@ export default function UsersPage() {
             reset();
           }}
           title="Kullanıcı ekle"
+          dirty={isDirty}
         >
           <form
             className="space-y-3"

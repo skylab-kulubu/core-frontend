@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Section } from '@skylab-kulubu/skylcn-ui';
 import { Plus, X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
@@ -62,7 +63,43 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
+  /** Said at the top of a section, such as choices that could not be loaded. */
+  notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
 };
+
+/** The editor's sections in page order, for the jump list beside the form. */
+export const EVENT_EDITOR_SECTIONS = [
+  { id: 'temel', title: 'Temel bilgiler' },
+  { id: 'zaman', title: 'Zaman ve yer' },
+  { id: 'basvuru', title: 'Başvuru ve form' },
+  { id: 'bilet', title: 'Bilet ve kapı' },
+  { id: 'sertifika', title: 'Sertifika' },
+  { id: 'yayin', title: 'Görünürlük ve yayın' },
+] as const;
+
+export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
+
+/** The section a form problem (eventFormIssue) belongs to, to jump there. */
+export function sectionOfIssue(issue: string): EventEditorSectionId {
+  if (/adı/i.test(issue)) return 'temel';
+  return 'zaman';
+}
+
+function EditorSection({
+  id,
+  title,
+  children,
+}: {
+  id: EventEditorSectionId;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <Section id={id} title={title} level={2} className="scroll-mt-28 md:scroll-mt-16">
+      <div className="space-y-4 pt-3">{children}</div>
+    </Section>
+  );
+}
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
@@ -129,6 +166,7 @@ export function EventEditor({
   returnTo,
   onLeaveToSkyforms,
   formInUse,
+  notices = {},
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -151,266 +189,290 @@ export function EventEditor({
   }, [assignDoorStaff, staffKey]);
 
   return (
-    <div className="space-y-3">
-      <label className="block space-y-1">
-        <FieldLabel>Ad</FieldLabel>
-        <Field
-          value={value.name}
-          onChange={(e) => patch({ name: e.target.value })}
-          required
-          placeholder="Etkinlik adı"
-        />
-      </label>
-      <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
-      <label className="block space-y-1">
-        <FieldLabel>Sahip ekip</FieldLabel>
-        {ownerOptions.length > 0 ? (
-          <Select
-            value={value.ownerTeam}
-            disabled={lockOwner}
-            onChange={(e) => patch({ ownerTeam: e.target.value })}
-            required={!ownerOptional}
-          >
-            <option value="">{ownerOptional ? 'Yok' : 'Seçiniz'}</option>
-            {ownerOptions.map((team) => (
-              <option key={team} value={team}>
-                {team}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <Field
-            value={value.ownerTeam}
-            onChange={(e) => patch({ ownerTeam: e.target.value })}
-            required={!ownerOptional}
-            placeholder="WEBLAB"
-            disabled={lockOwner}
-          />
-        )}
-      </label>
-      <label className="block space-y-1">
-        <FieldLabel>Açıklama</FieldLabel>
-        <TextArea
-          rows={4}
-          value={value.description}
-          onChange={(e) => patch({ description: e.target.value })}
-        />
-      </label>
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-10">
+      <EditorSection id="temel" title="Temel bilgiler">
+        {notices.temel}
         <label className="block space-y-1">
-          <FieldLabel>Başlangıç</FieldLabel>
+          <FieldLabel>Ad</FieldLabel>
+          <Field
+            value={value.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            required
+            placeholder="Etkinlik adı"
+          />
+        </label>
+        <label className="block space-y-1">
+          <FieldLabel>Sahip ekip</FieldLabel>
+          {ownerOptions.length > 0 ? (
+            <Select
+              value={value.ownerTeam}
+              disabled={lockOwner}
+              onChange={(e) => patch({ ownerTeam: e.target.value })}
+              required={!ownerOptional}
+            >
+              <option value="">{ownerOptional ? 'Yok' : 'Seçiniz'}</option>
+              {ownerOptions.map((team) => (
+                <option key={team} value={team}>
+                  {team}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Field
+              value={value.ownerTeam}
+              onChange={(e) => patch({ ownerTeam: e.target.value })}
+              required={!ownerOptional}
+              placeholder="WEBLAB"
+              disabled={lockOwner}
+            />
+          )}
+        </label>
+        <label className="block space-y-1">
+          <FieldLabel>Açıklama</FieldLabel>
+          <TextArea
+            rows={4}
+            value={value.description}
+            onChange={(e) => patch({ description: e.target.value })}
+          />
+        </label>
+        <EventMediaFields
+          ownerTeam={value.ownerTeam}
+          coverImageId={value.coverImageId ?? ''}
+          imageIds={value.imageIds ?? []}
+          knownMedia={knownMedia}
+          onCover={(id) => patch({ coverImageId: id })}
+          onGallery={(ids) => patch({ imageIds: ids })}
+        />
+      </EditorSection>
+      <EditorSection id="zaman" title="Zaman ve yer">
+        {notices.zaman}
+        <div className="grid gap-3 sm:grid-cols-2">
           <DatePicker
+            label="Başlangıç"
             value={value.startDate ?? ''}
             onChange={(startDate) => patch({ startDate })}
           />
-        </label>
-        <label className="block space-y-1">
-          <FieldLabel>Bitiş</FieldLabel>
-          <DatePicker value={value.endDate ?? ''} onChange={(endDate) => patch({ endDate })} />
-        </label>
-      </div>
-      <label className="block space-y-1">
-        <FieldLabel>Son başvuru</FieldLabel>
-        <DatePicker
-          value={value.registrationClosesAt ?? ''}
-          onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
-        />
-      </label>
-      <label className="block space-y-1">
-        <FieldLabel>Kapasite</FieldLabel>
-        <Field
-          type="number"
-          min={0}
-          value={Number.isFinite(value.capacity) ? value.capacity : 0}
-          onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
-        />
-      </label>
-      <EventMediaFields
-        ownerTeam={value.ownerTeam}
-        coverImageId={value.coverImageId ?? ''}
-        imageIds={value.imageIds ?? []}
-        knownMedia={knownMedia}
-        onCover={(id) => patch({ coverImageId: id })}
-        onGallery={(ids) => patch({ imageIds: ids })}
-      />
-      <EventFormSlots
-        slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
-        eventName={value.name}
-        ownerTeam={value.ownerTeam}
-        startLocal={value.startDate ?? ''}
-        reservedEventId={value.reservedId}
-        returnTo={returnTo}
-        onLeaveToSkyforms={onLeaveToSkyforms}
-        inUse={formInUse}
-        onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
-      />
-      <div className="space-y-2">
-        <label className="block space-y-1">
-          <FieldLabel>Geri bildirim</FieldLabel>
-          <Select
-            value={value.feedbackMode ?? 'event'}
-            onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
-          >
-            {FEEDBACK_MODES.map((mode) => (
-              <option key={mode.value} value={mode.value}>
-                {mode.label}
-              </option>
-            ))}
-          </Select>
-        </label>
+          <DatePicker
+            label="Bitiş"
+            value={value.endDate ?? ''}
+            onChange={(endDate) => patch({ endDate })}
+          />
+        </div>
+        <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
+      </EditorSection>
+      <EditorSection id="basvuru" title="Başvuru ve form">
+        {notices.basvuru}
         <EventFormSlots
-          slots={[value.feedbackSlot ?? emptyFeedbackSlot()]}
+          slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
           eventName={value.name}
           ownerTeam={value.ownerTeam}
           startLocal={value.startDate ?? ''}
           reservedEventId={value.reservedId}
           returnTo={returnTo}
           onLeaveToSkyforms={onLeaveToSkyforms}
-          addable={false}
           inUse={formInUse}
-          onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
-          onChange={([feedbackSlot]) =>
-            patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })
-          }
+          onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
         />
-        <Switch
-          checked={value.feedbackAutoSend ?? true}
-          onChange={(checked) => patch({ feedbackAutoSend: checked })}
-          label="Etkinlik bitince gönder"
-          hint="Bitişten 2 saat sonra yoklaması alınanlara posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
-        />
-      </div>
-      <label className="block space-y-1">
-        <FieldLabel>LinkedIn</FieldLabel>
-        <Field value={value.linkedin ?? ''} onChange={(e) => patch({ linkedin: e.target.value })} />
-      </label>
-      <label className="block space-y-1">
-        <FieldLabel>Ödül</FieldLabel>
-        <Field
-          value={value.prizeInfo ?? ''}
-          onChange={(e) => patch({ prizeInfo: e.target.value })}
-        />
-      </label>
-      {showSeason ? (
-        <label className="block space-y-1">
-          <FieldLabel>Sezon</FieldLabel>
-          <Select value={value.seasonId} onChange={(e) => patch({ seasonId: e.target.value })}>
-            <option value="">Yok</option>
-            {seasons.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-      ) : null}
-      <Switch
-        checked={value.ranked}
-        onChange={(checked) => patch({ ranked: checked })}
-        label="Sıralamalı"
-      />
-      <label className="block space-y-1">
-        <FieldLabel>Sertifika kuralı</FieldLabel>
-        <Select
-          value={value.attendanceRule ?? 'none'}
-          onChange={(e) =>
-            patch({
-              attendanceRule: e.target.value,
-              attendanceRatio:
-                e.target.value === 'ratio' ? (value.attendanceRatio ?? 0.75) : undefined,
-            })
-          }
-        >
-          <option value="none">Yok</option>
-          <option value="once">En az bir oturum</option>
-          <option value="ratio">Oran</option>
-        </Select>
-      </label>
-      {value.attendanceRule === 'ratio' ? (
-        <label className="block space-y-1">
-          <FieldLabel>Katılım oranı</FieldLabel>
-          <Field
-            type="number"
-            min={0.01}
-            max={1}
-            step={0.01}
-            value={value.attendanceRatio ?? 0.75}
-            onChange={(e) => patch({ attendanceRatio: Number(e.target.value) })}
-          />
-        </label>
-      ) : null}
-      {assignDoorStaff ? (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <FieldLabel>Kapı görevlileri</FieldLabel>
-            <ActionButton
-              icon={Plus}
-              variant="primary"
-              label="Kişi ekle"
-              onClick={() => {
-                setStaffQuery('');
-                setStaffOpen(true);
+          <label className="block space-y-1">
+            <FieldLabel>Geri bildirim</FieldLabel>
+            <Select
+              value={value.feedbackMode ?? 'event'}
+              onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
+            >
+              {FEEDBACK_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <EventFormSlots
+            slots={[value.feedbackSlot ?? emptyFeedbackSlot()]}
+            eventName={value.name}
+            ownerTeam={value.ownerTeam}
+            startLocal={value.startDate ?? ''}
+            reservedEventId={value.reservedId}
+            returnTo={returnTo}
+            onLeaveToSkyforms={onLeaveToSkyforms}
+            addable={false}
+            inUse={formInUse}
+            onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
+            onChange={([feedbackSlot]) =>
+              patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })
+            }
+          />
+          <Switch
+            checked={value.feedbackAutoSend ?? true}
+            onChange={(checked) => patch({ feedbackAutoSend: checked })}
+            label="Etkinlik bitince gönder"
+            hint="Bitişten 2 saat sonra yoklaması alınanlara posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+          />
+        </div>
+      </EditorSection>
+      <EditorSection id="bilet" title="Bilet ve kapı">
+        {notices.bilet}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <FieldLabel>Kapasite</FieldLabel>
+            <Field
+              type="number"
+              min={0}
+              value={Number.isFinite(value.capacity) ? value.capacity : 0}
+              onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
+            />
+          </label>
+          <DatePicker
+            label="Son başvuru"
+            value={value.registrationClosesAt ?? ''}
+            onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
+          />
+        </div>
+        {assignDoorStaff ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <FieldLabel>Kapı görevlileri</FieldLabel>
+              <ActionButton
+                icon={Plus}
+                variant="primary"
+                label="Kişi ekle"
+                onClick={() => {
+                  setStaffQuery('');
+                  setStaffOpen(true);
+                }}
+              />
+            </div>
+            <ListPanel
+              status={listStatus({
+                loading: false,
+                rowCount: staffIds.length,
+                emptyMessage: 'Atanmış kişi yok',
+              })}
+            >
+              {staffIds.map((id) => {
+                const person = staffPeople.get(id);
+                const name = person
+                  ? `${person.firstName} ${person.lastName}`.trim() || person.email
+                  : id;
+                return (
+                  <ListItem
+                    key={id}
+                    title={name}
+                    subtitle={person?.email ?? id}
+                    trailing={
+                      <ActionButton
+                        icon={X}
+                        label="Kaldır"
+                        onClick={() =>
+                          patch({ doorStaffIds: staffIds.filter((row) => row !== id) })
+                        }
+                      />
+                    }
+                  />
+                );
+              })}
+            </ListPanel>
+            <PickerDrawer
+              open={staffOpen}
+              onClose={() => setStaffOpen(false)}
+              title="Kapı görevlisi ekle"
+              query={staffQuery}
+              onQuery={setStaffQuery}
+              placeholder="Ad, e-posta"
+              loading={staffSearch.loading}
+              failed={staffSearch.failed}
+              options={staffSearch.people
+                .filter(
+                  (person) =>
+                    !staffIds.includes(person.id) &&
+                    pickerMatch(staffQuery, person.email, person.firstName, person.lastName),
+                )
+                .map((person) => ({
+                  id: person.id,
+                  title: `${person.firstName} ${person.lastName}`.trim() || person.email,
+                  subtitle: person.email,
+                }))}
+              emptyMessage={staffSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
+              onPick={(picked) => {
+                const person = staffSearch.people.find((row) => row.id === picked);
+                if (person) setStaffPeople((known) => new Map(known).set(person.id, person));
+                patch({ doorStaffIds: [...staffIds, picked] });
+                setStaffOpen(false);
               }}
             />
           </div>
-          <ListPanel
-            status={listStatus({
-              loading: false,
-              rowCount: staffIds.length,
-              emptyMessage: 'Atanmış kişi yok',
-            })}
+        ) : null}
+      </EditorSection>
+      <EditorSection id="sertifika" title="Sertifika">
+        {notices.sertifika}
+        <label className="block space-y-1">
+          <FieldLabel>Sertifika kuralı</FieldLabel>
+          <Select
+            value={value.attendanceRule ?? 'none'}
+            onChange={(e) =>
+              patch({
+                attendanceRule: e.target.value,
+                attendanceRatio:
+                  e.target.value === 'ratio' ? (value.attendanceRatio ?? 0.75) : undefined,
+              })
+            }
           >
-            {staffIds.map((id) => {
-              const person = staffPeople.get(id);
-              const name = person
-                ? `${person.firstName} ${person.lastName}`.trim() || person.email
-                : id;
-              return (
-                <ListItem
-                  key={id}
-                  title={name}
-                  subtitle={person?.email ?? id}
-                  trailing={
-                    <ActionButton
-                      icon={X}
-                      label="Kaldır"
-                      onClick={() => patch({ doorStaffIds: staffIds.filter((row) => row !== id) })}
-                    />
-                  }
-                />
-              );
-            })}
-          </ListPanel>
-          <PickerDrawer
-            open={staffOpen}
-            onClose={() => setStaffOpen(false)}
-            title="Kapı görevlisi ekle"
-            query={staffQuery}
-            onQuery={setStaffQuery}
-            placeholder="Ad, e-posta"
-            loading={staffSearch.loading}
-            failed={staffSearch.failed}
-            options={staffSearch.people
-              .filter(
-                (person) =>
-                  !staffIds.includes(person.id) &&
-                  pickerMatch(staffQuery, person.email, person.firstName, person.lastName),
-              )
-              .map((person) => ({
-                id: person.id,
-                title: `${person.firstName} ${person.lastName}`.trim() || person.email,
-                subtitle: person.email,
-              }))}
-            emptyMessage={staffSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
-            onPick={(picked) => {
-              const person = staffSearch.people.find((row) => row.id === picked);
-              if (person) setStaffPeople((known) => new Map(known).set(person.id, person));
-              patch({ doorStaffIds: [...staffIds, picked] });
-              setStaffOpen(false);
-            }}
-          />
+            <option value="none">Yok</option>
+            <option value="once">En az bir oturum</option>
+            <option value="ratio">Oran</option>
+          </Select>
+        </label>
+        {value.attendanceRule === 'ratio' ? (
+          <label className="block space-y-1">
+            <FieldLabel>Katılım oranı</FieldLabel>
+            <Field
+              type="number"
+              min={0.01}
+              max={1}
+              step={0.01}
+              value={value.attendanceRatio ?? 0.75}
+              onChange={(e) => patch({ attendanceRatio: Number(e.target.value) })}
+            />
+          </label>
+        ) : null}
+      </EditorSection>
+      <EditorSection id="yayin" title="Görünürlük ve yayın">
+        {notices.yayin}
+        {showSeason ? (
+          <label className="block space-y-1">
+            <FieldLabel>Sezon</FieldLabel>
+            <Select value={value.seasonId} onChange={(e) => patch({ seasonId: e.target.value })}>
+              <option value="">Yok</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+        <Switch
+          checked={value.ranked}
+          onChange={(checked) => patch({ ranked: checked })}
+          label="Sıralamalı"
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <FieldLabel>Ödül</FieldLabel>
+            <Field
+              value={value.prizeInfo ?? ''}
+              onChange={(e) => patch({ prizeInfo: e.target.value })}
+            />
+          </label>
+          <label className="block space-y-1">
+            <FieldLabel>LinkedIn</FieldLabel>
+            <Field
+              value={value.linkedin ?? ''}
+              onChange={(e) => patch({ linkedin: e.target.value })}
+            />
+          </label>
         </div>
-      ) : null}
+      </EditorSection>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Trophy } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
+import { LoadError } from '@/components/chrome/LoadError';
 import { SectionHeading } from '@/components/chrome/PanelChart';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { personLabel } from '@/components/identity/PersonPick';
@@ -13,7 +14,8 @@ import { listStatus } from '@/lib/list-status';
 
 /** Yarışma tab: the event's competitors, their scores and winners. */
 export default function EventCompetitionPage() {
-  const { event, competitors, personById, error, canCompetitors } = useEventWorkspace();
+  const { event, competitors, competitorsFailed, reload, personById, error, canCompetitors } =
+    useEventWorkspace();
 
   return (
     <div className="space-y-3">
@@ -31,10 +33,11 @@ export default function EventCompetitionPage() {
           ) : null
         }
       />
+      {competitorsFailed ? <LoadError title="Yarışmacılar yüklenemedi" onRetry={reload} /> : null}
       <ListPanel
         status={listStatus({
           loading: false,
-          failed: Boolean(error),
+          failed: Boolean(error) || competitorsFailed,
           rowCount: competitors.length,
           emptyMessage: 'Yarışmacı yok',
         })}

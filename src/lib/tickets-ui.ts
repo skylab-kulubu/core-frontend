@@ -110,6 +110,17 @@ export function ticketApplicantName(row: Ticket, people: Map<string, Person>): s
   return row.ownerId || row.id;
 }
 
+/**
+ * The applicant as the trail and the browser tab name them: the name alone, never the
+ * e-mail address or an id, which the tab and the history would keep.
+ */
+export function ticketCrumbName(row: Ticket, people: Map<string, Person>): string {
+  if (row.ticketType === 'GUEST') return guestName(row) || 'Başvuru';
+  const owner = ownerPerson(row, people);
+  const name = owner ? `${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim() : '';
+  return name || 'Başvuru';
+}
+
 export function ticketApplicantEmail(row: Ticket, people: Map<string, Person>): string {
   if (row.ticketType === 'GUEST') return row.guestEmail || '';
   return ownerPerson(row, people)?.email || '';
@@ -242,10 +253,14 @@ export function ticketRosterRow(
   };
 }
 
+/** Where a field sits in the ticket's detail: who, the ticket, entries, the form's other answers. */
+export type TicketDetailGroup = 'Kişi' | 'Bilet' | 'Giriş' | 'Formdaki diğer cevaplar';
+
 export type TicketDetailField = {
   label: string;
   value: string;
   href?: string | null;
+  group: TicketDetailGroup;
 };
 
 export type TicketDetailContext = {
@@ -255,6 +270,7 @@ export type TicketDetailContext = {
 
 const KNOWN_TICKET_KEYS = new Set([
   'id',
+  'code',
   'eventId',
   'ticketType',
   'ownerId',
@@ -307,44 +323,50 @@ export function ticketDetailFields(
   const source = ticketSourceForm(row, event);
   const status = ticketStatus(row);
   const owner = ownerPerson(row, people);
+  const person = (label: string, value: string, href?: string): TicketDetailField => ({
+    label,
+    value,
+    href,
+    group: 'Kişi',
+  });
+  const ticket = (label: string, value: string, href?: string | null): TicketDetailField => ({
+    label,
+    value,
+    href,
+    group: 'Bilet',
+  });
   const fields: TicketDetailField[] = [
-    { label: 'Ad', value: dash(ticketApplicantName(row, people)) },
-    { label: 'E-posta', value: dash(ticketApplicantEmail(row, people)) },
-    { label: 'Telefon', value: dash(row.guestPhoneNumber) },
-    { label: 'Bilet türü', value: ticketTypeLabel(row.ticketType) },
-    { label: 'Kaynak form', value: source.label, href: source.href },
-    { label: 'Durum', value: status.label },
+    person('Ad', dash(ticketApplicantName(row, people))),
+    person('E-posta', dash(ticketApplicantEmail(row, people))),
+    person('Telefon', dash(row.guestPhoneNumber)),
   ];
   if (row.ticketType === 'REGISTERED' && row.ownerId) {
-    fields.push({
-      label: 'Üye',
-      value: owner ? personLabel(owner) : row.ownerId,
-      href: `/users/${row.ownerId}`,
-    });
+    fields.push(person('Üye', owner ? personLabel(owner) : row.ownerId, `/users/${row.ownerId}`));
   }
   fields.push(
-    { label: 'Üniversite', value: dash(row.guestUniversity) },
-    { label: 'Fakülte', value: dash(row.guestFaculty) },
-    { label: 'Bölüm', value: dash(row.guestDepartment) },
-    { label: 'Sınıf', value: dash(row.guestGrade) },
-    {
-      label: 'Mail',
-      value: row.sent === true ? 'Evet' : row.sent === false ? 'Hayır' : '—',
-    },
-    { label: 'Oluşturulma', value: formatApplicantWhen(row.createdAt, now) },
-    { label: 'Güncellenme', value: formatApplicantWhen(row.updatedAt, now) },
-    { label: 'Bilet', value: row.id },
-    { label: 'Etkinlik', value: dash(event?.name || row.event?.name || row.eventId) },
+    person('Üniversite', dash(row.guestUniversity)),
+    person('Fakülte', dash(row.guestFaculty)),
+    person('Bölüm', dash(row.guestDepartment)),
+    person('Sınıf', dash(row.guestGrade)),
+    ticket('Bilet kodu', dash(row.code)),
+    ticket('Bilet türü', ticketTypeLabel(row.ticketType)),
+    ticket('Durum', status.label),
+    ticket('Kaynak form', source.label, source.href),
+    ticket('Mail', row.sent === true ? 'Evet' : row.sent === false ? 'Hayır' : '—'),
+    ticket('Oluşturulma', formatApplicantWhen(row.createdAt, now)),
+    ticket('Güncellenme', formatApplicantWhen(row.updatedAt, now)),
+    ticket('Etkinlik', dash(event?.name || row.event?.name || row.eventId)),
   );
   const checkIns = row.checkIns ?? [];
   if (checkIns.length === 0) {
-    fields.push({ label: 'Check-in', value: '—' });
+    fields.push({ label: 'Giriş', value: '—', group: 'Giriş' });
   } else {
     for (const checkIn of checkIns) {
       const sessionTitle = sessions.get(checkIn.sessionId) || checkIn.sessionId;
       fields.push({
-        label: 'Check-in',
-        value: `${sessionTitle} · ${formatApplicantWhen(checkIn.createdAt, now)}`,
+        label: sessionTitle,
+        value: formatApplicantWhen(checkIn.createdAt, now),
+        group: 'Giriş',
       });
     }
   }
@@ -352,7 +374,7 @@ export function ticketDetailFields(
     if (KNOWN_TICKET_KEYS.has(key)) continue;
     const value = extraFieldValue(raw);
     if (value == null || value === '') continue;
-    fields.push({ label: extraFieldLabel(key), value });
+    fields.push({ label: extraFieldLabel(key), value, group: 'Formdaki diğer cevaplar' });
   }
   return fields;
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
 import { FilterPills } from '@/components/chrome/ListToolbar';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -75,6 +76,7 @@ export default function UrlsPage() {
   const [hitsError, setHitsError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState('');
   const [editAlias, setEditAlias] = useState('');
+  const editDirty = useDirtySince(editing !== null, { editTarget, editAlias });
   const [editError, setEditError] = useState<string | null>(null);
   const aliasHint = useAliasHint(alias, 'create');
   const editAliasHint = useAliasHint(editing ? editAlias : '', 'edit', editing?.alias);
@@ -357,7 +359,12 @@ export default function UrlsPage() {
           </div>
         ) : null}
       </Drawer>
-      <Drawer open={editing !== null} onClose={() => setEditing(null)} title="Kısa URL düzenle">
+      <Drawer
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title="Kısa URL düzenle"
+        dirty={editDirty}
+      >
         {editing ? (
           <form
             className="space-y-3"

@@ -95,10 +95,12 @@ export type GuestApplyBody = {
 
 export const ticketsApi = {
   listDoorEvents: () => coreFetch<DoorEvent[]>('/v1/door/events'),
+  /** Live: a guest who just applied must show in the next search, never from the kept reads. */
   searchDoorAttendees: (eventId: string, query: string) => {
     const params = new URLSearchParams({ q: query.trim() });
     return coreFetch<DoorAttendee[]>(
       `/v1/events/${encodeURIComponent(eventId)}/door-attendees?${params.toString()}`,
+      { cache: 'no-store' },
     );
   },
   listAssignableUsers: (eventId: string, query: string) => {
@@ -165,6 +167,9 @@ export const ticketsApi = {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+  /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
-    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`),
+    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {
+      cache: 'no-store',
+    }),
 };

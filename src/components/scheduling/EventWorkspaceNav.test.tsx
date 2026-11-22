@@ -44,7 +44,7 @@ describe('EventWorkspaceNav', () => {
       'href',
       '/events/e1/competition',
     );
-    expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/qr?eventId=e1');
+    expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/events/e1/door');
   });
 
   it('marks the open tab as selected', () => {

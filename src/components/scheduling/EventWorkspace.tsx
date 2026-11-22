@@ -32,20 +32,16 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Drawer } from '@/components/chrome/Drawer';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
-import {
-  emptyEventForm,
-  EventEditor,
-  type EventFormState,
-} from '@/components/scheduling/EventEditor';
+import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import {
@@ -85,7 +81,9 @@ import {
 import { openEventMail } from '@/lib/event-mail';
 import { publicMediaUrl } from '@/lib/event-media';
 import {
+  eventEditHref,
   eventTabFromPath,
+  isEventEditPath,
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
@@ -108,7 +106,7 @@ import {
 import { useCapabilities } from '@/lib/capabilities-context';
 import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
 
-const eventEditSchema = z
+export const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
   .superRefine(({ event }, context) => {
     const issue = eventFormIssue(event);
@@ -207,6 +205,26 @@ function cancelledOn(at: string | undefined): string {
   }).format(date);
 }
 
+export type EventEditFormValues = z.infer<typeof eventEditSchema>;
+
+/** The event's edit form, kept by the workspace so a return from Skyforms lands in it. */
+export type EventEditorState = {
+  form: UseFormReturn<EventEditFormValues>;
+  /** False until the event's fields are in the form. */
+  ready: boolean;
+  ownerOptions: string[];
+  seasons: Season[];
+  privileged: boolean;
+  /** The last save core refused, said in the save bar. */
+  error: string | null;
+  inUse: FormInUse | null;
+  /** Owner teams or seasons that could not be read; `reloadOptions` reads them again. */
+  optionsFailed: { teams: boolean; seasons: boolean };
+  reloadOptions: () => Promise<void>;
+  /** Saves the changed fields; true once core took them (the event is then read again). */
+  save: (values: EventFormState) => Promise<boolean>;
+};
+
 export type EventWorkspaceValue = EventPermissions & {
   event: CoreEvent;
   setEvent: (event: CoreEvent) => void;
@@ -216,13 +234,34 @@ export type EventWorkspaceValue = EventPermissions & {
   tickets: Ticket[];
   setTickets: (tickets: Ticket[]) => void;
   personById: Map<string, Person>;
-  /** A failed action, shown under the tabs. */
+  /** A failed action of the header (publish, mail, …), shown under it. */
   error: string | null;
+  /** The tickets could not be read: the Katılımcılar tab says so with a retry. */
+  ticketsFailed: boolean;
+  /** The competitors could not be read. */
+  competitorsFailed: boolean;
   setError: (error: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
   /** Fills the event's Skymail list (all tickets, or only these) and opens the composer. */
   mailApplicants: (ticketIds?: string[]) => Promise<void>;
+  editor: EventEditorState;
+};
+
+/** A read's rows, and whether it was read (false: it failed and the rows are empty). */
+type Settled<T> = { rows: T[]; ok: boolean };
+
+function settled<T>(read: Promise<T[]>): Promise<Settled<T>> {
+  return read.then(
+    (rows) => ({ rows, ok: true }),
+    () => ({ rows: [] as T[], ok: false }),
+  );
+}
+
+/** The owner-team and season reads `load()` starts with the event, for `loadOptions`. */
+type OptionReads = {
+  teams: Promise<Settled<{ team: string }>>;
+  seasons: Promise<Settled<Season>> | null;
 };
 
 const EventWorkspaceContext = createContext<EventWorkspaceValue | null>(null);
@@ -286,13 +325,16 @@ export function EventWorkspace({
   const [tickets, setTickets] = useState<Ticket[]>([]);
   // Until the tickets are read (or when the read failed) the page has no count to give
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
+  // Lists core did not answer: their tabs say so with a retry, not an empty list
+  const [ticketsFailed, setTicketsFailed] = useState(false);
+  const [competitorsFailed, setCompetitorsFailed] = useState(false);
+  const [optionsFailed, setOptionsFailed] = useState({ teams: false, seasons: false });
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  // A save the edit drawer refused, shown in the drawer where the organizer is.
+  // A save the edit page refused, shown in its save bar where the organizer is.
   const [editError, setEditError] = useState<string | null>(null);
   const [editInUse, setEditInUse] = useState<FormInUse | null>(null);
   const [mailing, setMailing] = useState(false);
@@ -324,12 +366,11 @@ export function EventWorkspace({
   useEffect(() => {
     setCopySkipped(typeof window === 'undefined' ? [] : takeCopySkipped(sessionStorage, id));
   }, [id]);
-  const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
+  const eventEditForm = useForm<EventEditFormValues>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
   });
-  const form = eventEditForm.watch('event');
-  // What the edit drawer opened with: a save sends only the fields changed since
+  // What the edit page opened with: a save sends only the fields changed since
   const editBase = useRef<EventFormState | null>(null);
   function resetEditor(next: EventFormState) {
     editBase.current = next;
@@ -337,6 +378,21 @@ export function EventWorkspace({
   }
 
   async function load() {
+    // Reads that need nothing from the event start with it: one round instead of one each
+    const doorRead = ticketsApi.listDoorEvents().catch(() => []);
+    const programRead = eventDaysApi.listByEvent(id).then(async (dayRows) => ({
+      dayRows,
+      sessionRows: (
+        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
+      ).flat(),
+    }));
+    // Awaited once the event is read: its failure then fails the load, as before
+    programRead.catch(() => undefined);
+    const competitorsRead = settled(competitorsApi.listByEvent(id));
+    const optionsRead: OptionReads = {
+      teams: settled(teamsApi.list()),
+      seasons: privileged ? settled(seasonsApi.list()) : null,
+    };
     try {
       const ev = await eventsApi.get(id);
       const loaded = formStateFromEvent(ev);
@@ -355,7 +411,28 @@ export function EventWorkspace({
         handoff,
       );
       setEvent(ev);
-      const doorEvents = await ticketsApi.listDoorEvents().catch(() => []);
+      // Started now, read below: a reader who may not list them gets none, a refused read says so
+      let ticketsRead = false;
+      let ticketsRefused = false;
+      const ticketsReadAll = teamAllows(
+        ev.ownerTeam,
+        'ticket.read',
+        canListEventTickets(groups, ev.ownerTeam, roles),
+      ).then((allowed) =>
+        allowed
+          ? ticketsApi
+              .listByEvent(id)
+              .then((rows) => {
+                ticketsRead = true;
+                return rows;
+              })
+              .catch(() => {
+                ticketsRefused = true;
+                return [] as Ticket[];
+              })
+          : [],
+      );
+      const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       resetEditor(nextForm);
       setError(null);
@@ -368,11 +445,12 @@ export function EventWorkspace({
           canWriteEvent(groups, ev.ownerTeam, 'update'),
         ))
       ) {
-        setEditing(true);
+        // Skyforms comes back to the event; the edit page shows what was linked
+        const editPage = eventEditHref(ev.id);
         try {
           // The return from Skyforms changed the form fields alone
           await saveEventWithSeason(nextForm, ev.id, loaded);
-          window.history.replaceState(null, '', `/events/${ev.id}`);
+          router.replace(editPage);
           const saved = await eventsApi.get(id);
           setEvent(saved);
           resetEditor({
@@ -387,33 +465,21 @@ export function EventWorkspace({
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
           setEditInUse(formInUseOf(err));
+          router.replace(`${editPage}${window.location.search}`);
         }
       }
-      const dayRows = await eventDaysApi.listByEvent(id);
-      const sessionRows = (
-        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
-      ).flat();
+      const { dayRows, sessionRows } = await programRead;
       setDays(dayRows);
       setSessions(sessionRows);
       if (sessionReturn) await linkReturnedSessionForm(ev, sessionRows, sessionReturn);
-      const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
+      const competitors = await competitorsRead;
+      const competitorRows = competitors.rows;
       setCompetitors(competitorRows);
-      let ticketsRead = false;
-      const ticketRows = (await teamAllows(
-        ev.ownerTeam,
-        'ticket.read',
-        canListEventTickets(groups, ev.ownerTeam, roles),
-      ))
-        ? await ticketsApi
-            .listByEvent(id)
-            .then((rows) => {
-              ticketsRead = true;
-              return rows;
-            })
-            .catch(() => [] as Ticket[])
-        : [];
+      setCompetitorsFailed(!competitors.ok);
+      const ticketRows = await ticketsReadAll;
       setTickets(ticketRows);
       setTicketsLoaded(ticketsRead);
+      setTicketsFailed(ticketsRefused);
       // Tickets carry their owner; only competitors without a ticket are looked up by id.
       const ticketPeople = ticketOwnerPeople(ticketRows);
       const knownPeople = privileged
@@ -423,18 +489,7 @@ export function EventWorkspace({
           )
         : ticketPeople;
       setPeople([...knownPeople.values()]);
-      const teams = await teamsApi.list().catch(() => []);
-      // core's LEADER teams (a Sub-team led from above included), always with the event's own
-      await capabilitiesSettled();
-      const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
-      setOwnerOptions(
-        privileged
-          ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
-          : leaderTeams.length
-            ? [...new Set([...leaderTeams, ev.ownerTeam])]
-            : [ev.ownerTeam],
-      );
-      if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
+      await loadOptions(ev, optionsRead);
     } catch (err) {
       setError(
         coreProblemMessage(err, 'Etkinlik yüklenemedi', {
@@ -442,6 +497,35 @@ export function EventWorkspace({
         }),
       );
     }
+  }
+
+  /**
+   * The edit page's choices: owner teams and seasons; a failed read is said at its field. `load()`
+   * passes the reads it started with the event; "Yeniden dene" reads them again.
+   */
+  async function loadOptions(ev: CoreEvent, started?: OptionReads) {
+    const reads: OptionReads = started ?? {
+      teams: settled(teamsApi.list()),
+      seasons: privileged ? settled(seasonsApi.list()) : null,
+    };
+    const { rows: teams, ok: teamsRead } = await reads.teams;
+    // core's LEADER teams (a Sub-team led from above included), always with the event's own
+    await capabilitiesSettled();
+    const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
+    setOwnerOptions(
+      privileged
+        ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
+        : leaderTeams.length
+          ? [...new Set([...leaderTeams, ev.ownerTeam])]
+          : [ev.ownerTeam],
+    );
+    let seasonsRead = true;
+    if (reads.seasons) {
+      const seasons = await reads.seasons;
+      seasonsRead = seasons.ok;
+      setSeasons(seasons.rows);
+    }
+    setOptionsFailed({ teams: privileged && !teamsRead, seasons: !seasonsRead });
   }
 
   /**
@@ -504,7 +588,7 @@ export function EventWorkspace({
   if (error && !event) {
     return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
   }
-  if (!event) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!event) return <PageSkeleton variant="workspace" />;
 
   const current = event;
   // core's capabilities decide; the group rule stands in only when they cannot be read
@@ -618,9 +702,40 @@ export function EventWorkspace({
     personById,
     error,
     setError,
+    ticketsFailed,
+    competitorsFailed,
     reload: load,
     mailApplicants,
+    editor: {
+      form: eventEditForm,
+      ready: editBase.current !== null,
+      ownerOptions,
+      seasons,
+      privileged,
+      error: editError,
+      inUse: editInUse,
+      optionsFailed,
+      reloadOptions: () => loadOptions(current),
+      save: async (values) => {
+        setEditError(null);
+        setEditInUse(null);
+        try {
+          await saveEventWithSeason(values, current.id, editBase.current ?? undefined);
+        } catch (err) {
+          setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
+          setEditInUse(formInUseOf(err));
+          return false;
+        }
+        if (typeof window !== 'undefined') clearEventDraft(sessionStorage, window.location.href);
+        notify.success('Etkinlik kaydedildi');
+        void load();
+        return true;
+      },
+    },
   };
+  const onEditPage = isEventEditPath(pathname ?? '');
+  // Publishing from the edit page would publish the saved event, not what is typed
+  const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
 
   return (
     <EventWorkspaceContext.Provider value={workspace}>
@@ -649,6 +764,8 @@ export function EventWorkspace({
               {rights.canUpdate && offers.publish ? (
                 <SaveButton
                   type="button"
+                  disabled={unsavedEdit}
+                  title={unsavedEdit ? 'Önce kaydet' : undefined}
                   onClick={() =>
                     void statusActions.publish(
                       event,
@@ -660,8 +777,8 @@ export function EventWorkspace({
                   Yayınla
                 </SaveButton>
               ) : null}
-              {can.canMutate ? (
-                <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
+              {can.canMutate && !onEditPage ? (
+                <ActionButton icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} />
               ) : null}
               {can.canTickets ? (
                 <ActionButton
@@ -719,91 +836,26 @@ export function EventWorkspace({
             ))}
           </Notice>
         ) : null}
-        <EventWorkspaceNav
-          eventId={event.id}
-          active={eventTabFromPath(pathname ?? '') ?? 'overview'}
-          canSeeParticipants={can.canTickets}
-          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
-          canUseDoor={can.canDesk}
-          canSeeCertificates={can.canCertificates}
-          canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
-        />
+        {onEditPage ? null : (
+          <EventWorkspaceNav
+            eventId={event.id}
+            active={eventTabFromPath(pathname ?? '') ?? 'overview'}
+            canSeeParticipants={can.canTickets}
+            canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
+            canUseDoor={can.canDesk}
+            canSeeCertificates={can.canCertificates}
+            canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
+          />
+        )}
         {error ? (
-          <p role="alert" className="text-destructive text-sm">
+          <Notice tone="danger" onDismiss={() => setError(null)}>
             {error}
-          </p>
+          </Notice>
         ) : null}
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}
         {statusActions.dialog}
         {copy.dialog}
-        <Drawer
-          open={editing}
-          onClose={() => {
-            setEditing(false);
-            setEditError(null);
-            setEditInUse(null);
-          }}
-          title="Etkinliği düzenle"
-        >
-          <form
-            className="space-y-3"
-            noValidate
-            onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
-              setEditError(null);
-              setEditInUse(null);
-              try {
-                await saveEventWithSeason(eventForm, event.id, editBase.current ?? undefined);
-                if (typeof window !== 'undefined') {
-                  clearEventDraft(sessionStorage, window.location.href);
-                }
-                setEditing(false);
-                notify.success('Etkinlik kaydedildi');
-                await load();
-              } catch (err) {
-                setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
-                setEditInUse(formInUseOf(err));
-              }
-            })}
-          >
-            <EventEditor
-              value={form}
-              onChange={(value) =>
-                eventEditForm.setValue('event', value, {
-                  shouldDirty: true,
-                  shouldValidate: eventEditForm.formState.isSubmitted,
-                })
-              }
-              ownerOptions={ownerOptions}
-              lockOwner={!privileged}
-              seasons={seasons}
-              showSeason={privileged}
-              ownerOptional={privileged}
-              assignDoorStaff={privileged}
-              knownMedia={[
-                ...(event.coverImageId
-                  ? [{ id: event.coverImageId, name: 'Kapak', url: event.coverImageUrl }]
-                  : []),
-                ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
-              ]}
-              returnTo={typeof window !== 'undefined' ? window.location.href : ''}
-              formInUse={editInUse}
-            />
-            {eventEditForm.formState.errors.event ? (
-              <p className="text-2xs text-destructive">
-                {eventEditForm.formState.errors.event.message}
-              </p>
-            ) : null}
-            {editError ? (
-              <p role="alert" className="text-destructive text-sm">
-                {editError}
-              </p>
-            ) : null}
-            <SaveButton disabled={eventEditForm.formState.isSubmitting}>
-              {eventEditForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
-            </SaveButton>
-          </form>
-        </Drawer>
       </div>
     </EventWorkspaceContext.Provider>
   );
