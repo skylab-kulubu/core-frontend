@@ -1,8 +1,6 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
-import { QrCode } from 'lucide-react';
-import { ActionButton } from '@/components/chrome/ActionButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -108,9 +106,6 @@ export default function TicketDetailPage({
             <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
             <StatusChip kind={ticketCheckInStatus(status.key === 'checked-in')} />
           </>
-        }
-        actions={
-          <ActionButton icon={QrCode} label="Kapı" href={`/qr?eventId=${encodeURIComponent(id)}`} />
         }
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
