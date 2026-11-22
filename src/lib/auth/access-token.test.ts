@@ -85,6 +85,35 @@ describe('accessToken', () => {
     expect(route).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ['the window gets focus', () => window.dispatchEvent(new Event('focus'))],
+    ['the tab is shown again', () => document.dispatchEvent(new Event('visibilitychange'))],
+  ])('asks the route again when %s (another tab may have switched the person)', async (_, back) => {
+    const route = tokenRoute([
+      { token: 'token-X', expiresIn: 300 },
+      { token: 'token-Y', expiresIn: 300 },
+    ]);
+    global.fetch = route as unknown as typeof fetch;
+
+    expect(await accessToken()).toBe('token-X');
+    back();
+    expect(await accessToken()).toBe('token-Y');
+    expect(route).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the token while the tab is hidden', async () => {
+    const route = tokenRoute([{ token: 'token-X', expiresIn: 300 }]);
+    global.fetch = route as unknown as typeof fetch;
+    const visibility = jest.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+    await accessToken();
+    document.dispatchEvent(new Event('visibilitychange'));
+    await accessToken();
+
+    expect(route).toHaveBeenCalledTimes(1);
+    visibility.mockRestore();
+  });
+
   it('a read that started before the token was dropped does not keep its answer', async () => {
     let release: (value: Response) => void = () => undefined;
     global.fetch = jest.fn(
@@ -151,6 +180,24 @@ describe('coreFetch with a kept token', () => {
     expect(event).toEqual({ id: 'e1' });
     expect(seen).toEqual(['Bearer t1', 'Bearer t1', 'Bearer t2']);
     expect(tokenReads).toBe(2);
+  });
+
+  it("sends the new person's token after coming back to the tab", async () => {
+    const seen: string[] = [];
+    let cookie = 'token-X';
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) return json({ token: cookie, expiresIn: 300 });
+      seen.push((init?.headers as Record<string, string>).Authorization);
+      return json({ ok: true });
+    }) as typeof fetch;
+
+    await coreFetch('/v1/a');
+    cookie = 'token-Y';
+    window.dispatchEvent(new Event('focus'));
+    await coreFetch('/v1/b');
+
+    expect(seen).toEqual(['Bearer token-X', 'Bearer token-Y']);
   });
 
   it('gives the 401 back when the new read returns the same token', async () => {
