@@ -63,6 +63,8 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
+  /** Said at the top of a section, such as choices that could not be loaded. */
+  notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
 };
 
 /** The editor's sections in page order, for the jump list beside the form. */
@@ -164,6 +166,7 @@ export function EventEditor({
   returnTo,
   onLeaveToSkyforms,
   formInUse,
+  notices = {},
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -188,6 +191,7 @@ export function EventEditor({
   return (
     <div className="space-y-10">
       <EditorSection id="temel" title="Temel bilgiler">
+        {notices.temel}
         <label className="block space-y-1">
           <FieldLabel>Ad</FieldLabel>
           <Field
@@ -241,6 +245,7 @@ export function EventEditor({
         />
       </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
+        {notices.zaman}
         <div className="grid gap-3 sm:grid-cols-2">
           <DatePicker
             label="Başlangıç"
@@ -256,6 +261,7 @@ export function EventEditor({
         <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
       </EditorSection>
       <EditorSection id="basvuru" title="Başvuru ve form">
+        {notices.basvuru}
         <EventFormSlots
           slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
           eventName={value.name}
@@ -305,6 +311,7 @@ export function EventEditor({
         </div>
       </EditorSection>
       <EditorSection id="bilet" title="Bilet ve kapı">
+        {notices.bilet}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1">
             <FieldLabel>Kapasite</FieldLabel>
@@ -397,6 +404,7 @@ export function EventEditor({
         ) : null}
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
+        {notices.sertifika}
         <label className="block space-y-1">
           <FieldLabel>Sertifika kuralı</FieldLabel>
           <Select
@@ -429,6 +437,7 @@ export function EventEditor({
         ) : null}
       </EditorSection>
       <EditorSection id="yayin" title="Görünürlük ve yayın">
+        {notices.yayin}
         {showSeason ? (
           <label className="block space-y-1">
             <FieldLabel>Sezon</FieldLabel>

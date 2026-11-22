@@ -217,6 +217,9 @@ export type EventEditorState = {
   /** The last save core refused, said in the save bar. */
   error: string | null;
   inUse: FormInUse | null;
+  /** Owner teams or seasons that could not be read; `reloadOptions` reads them again. */
+  optionsFailed: { teams: boolean; seasons: boolean };
+  reloadOptions: () => Promise<void>;
   /** Saves the changed fields; true once core took them (the event is then read again). */
   save: (values: EventFormState) => Promise<boolean>;
 };
@@ -230,8 +233,12 @@ export type EventWorkspaceValue = EventPermissions & {
   tickets: Ticket[];
   setTickets: (tickets: Ticket[]) => void;
   personById: Map<string, Person>;
-  /** A failed action, shown under the tabs. */
+  /** A failed action of the header (publish, mail, …), shown under it. */
   error: string | null;
+  /** The tickets could not be read: the Katılımcılar tab says so with a retry. */
+  ticketsFailed: boolean;
+  /** The competitors could not be read. */
+  competitorsFailed: boolean;
   setError: (error: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
@@ -301,6 +308,10 @@ export function EventWorkspace({
   const [tickets, setTickets] = useState<Ticket[]>([]);
   // Until the tickets are read (or when the read failed) the page has no count to give
   const [ticketsLoaded, setTicketsLoaded] = useState(false);
+  // Lists core did not answer: their tabs say so with a retry, not an empty list
+  const [ticketsFailed, setTicketsFailed] = useState(false);
+  const [competitorsFailed, setCompetitorsFailed] = useState(false);
+  const [optionsFailed, setOptionsFailed] = useState({ teams: false, seasons: false });
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
@@ -411,9 +422,15 @@ export function EventWorkspace({
       setDays(dayRows);
       setSessions(sessionRows);
       if (sessionReturn) await linkReturnedSessionForm(ev, sessionRows, sessionReturn);
-      const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
+      let competitorsRead = true;
+      const competitorRows = await competitorsApi.listByEvent(id).catch(() => {
+        competitorsRead = false;
+        return [];
+      });
       setCompetitors(competitorRows);
+      setCompetitorsFailed(!competitorsRead);
       let ticketsRead = false;
+      let ticketsRefused = false;
       const ticketRows = (await teamAllows(
         ev.ownerTeam,
         'ticket.read',
@@ -425,10 +442,14 @@ export function EventWorkspace({
               ticketsRead = true;
               return rows;
             })
-            .catch(() => [] as Ticket[])
+            .catch(() => {
+              ticketsRefused = true;
+              return [] as Ticket[];
+            })
         : [];
       setTickets(ticketRows);
       setTicketsLoaded(ticketsRead);
+      setTicketsFailed(ticketsRefused);
       // Tickets carry their owner; only competitors without a ticket are looked up by id.
       const ticketPeople = ticketOwnerPeople(ticketRows);
       const knownPeople = privileged
@@ -438,18 +459,7 @@ export function EventWorkspace({
           )
         : ticketPeople;
       setPeople([...knownPeople.values()]);
-      const teams = await teamsApi.list().catch(() => []);
-      // core's LEADER teams (a Sub-team led from above included), always with the event's own
-      await capabilitiesSettled();
-      const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
-      setOwnerOptions(
-        privileged
-          ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
-          : leaderTeams.length
-            ? [...new Set([...leaderTeams, ev.ownerTeam])]
-            : [ev.ownerTeam],
-      );
-      if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
+      await loadOptions(ev);
     } catch (err) {
       setError(
         coreProblemMessage(err, 'Etkinlik yüklenemedi', {
@@ -457,6 +467,35 @@ export function EventWorkspace({
         }),
       );
     }
+  }
+
+  /** The edit page's choices: owner teams and seasons; a failed read is said at its field. */
+  async function loadOptions(ev: CoreEvent) {
+    let teamsRead = true;
+    const teams = await teamsApi.list().catch(() => {
+      teamsRead = false;
+      return [];
+    });
+    // core's LEADER teams (a Sub-team led from above included), always with the event's own
+    await capabilitiesSettled();
+    const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
+    setOwnerOptions(
+      privileged
+        ? [...new Set([...teams.map((t) => t.team), ...leaderTeams, ev.ownerTeam])]
+        : leaderTeams.length
+          ? [...new Set([...leaderTeams, ev.ownerTeam])]
+          : [ev.ownerTeam],
+    );
+    let seasonsRead = true;
+    if (privileged) {
+      setSeasons(
+        await seasonsApi.list().catch(() => {
+          seasonsRead = false;
+          return [];
+        }),
+      );
+    }
+    setOptionsFailed({ teams: privileged && !teamsRead, seasons: !seasonsRead });
   }
 
   /**
@@ -633,6 +672,8 @@ export function EventWorkspace({
     personById,
     error,
     setError,
+    ticketsFailed,
+    competitorsFailed,
     reload: load,
     mailApplicants,
     editor: {
@@ -643,6 +684,8 @@ export function EventWorkspace({
       privileged,
       error: editError,
       inUse: editInUse,
+      optionsFailed,
+      reloadOptions: () => loadOptions(current),
       save: async (values) => {
         setEditError(null);
         setEditInUse(null);
@@ -771,9 +814,9 @@ export function EventWorkspace({
           />
         )}
         {error ? (
-          <p role="alert" className="text-destructive text-sm">
+          <Notice tone="danger" onDismiss={() => setError(null)}>
             {error}
-          </p>
+          </Notice>
         ) : null}
         {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}

@@ -14,6 +14,7 @@ import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { useEventCreate } from '@/lib/use-event-create';
+import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -74,30 +75,40 @@ function NewEventPageContent() {
     persist(next);
   }
 
+  const [optionsFailed, setOptionsFailed] = useState({ teams: false, seasons: false });
+  const [optionsTry, setOptionsTry] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const teamRows = await teamsApi.list().catch(() => []);
-        const fromTeams = teamRows.map((t) => t.team);
-        const options = privileged
-          ? [...new Set([...fromTeams, ...leaderTeams])]
-          : leaderTeams.length
-            ? leaderTeams
-            : fromTeams;
-        if (cancelled) return;
-        setOwnerOptions(options);
-        if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
-      } catch (err) {
-        if (!cancelled) {
-          setError(coreProblemMessage(err, 'Seçenekler yüklenemedi'));
-        }
-      }
+      let teamsRead = true;
+      const teamRows = await teamsApi.list().catch(() => {
+        teamsRead = false;
+        return [];
+      });
+      const fromTeams = teamRows.map((t) => t.team);
+      const options = privileged
+        ? [...new Set([...fromTeams, ...leaderTeams])]
+        : leaderTeams.length
+          ? leaderTeams
+          : fromTeams;
+      let seasonsRead = true;
+      const seasonRows = privileged
+        ? await seasonsApi.list().catch(() => {
+            seasonsRead = false;
+            return [];
+          })
+        : [];
+      if (cancelled) return;
+      setOwnerOptions(options);
+      setSeasons(seasonRows);
+      // A leader's own teams are known without the list; only the wider choice needs it
+      setOptionsFailed({ teams: !teamsRead && !leaderTeams.length, seasons: !seasonsRead });
     })();
     return () => {
       cancelled = true;
     };
-  }, [privileged]);
+  }, [privileged, optionsTry]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -191,6 +202,20 @@ function NewEventPageContent() {
               guard.allowLeave();
             }}
             formInUse={formInUse}
+            notices={{
+              temel: optionsFailed.teams ? (
+                <LoadError
+                  title="Ekipler yüklenemedi"
+                  onRetry={() => setOptionsTry((n) => n + 1)}
+                />
+              ) : null,
+              yayin: optionsFailed.seasons ? (
+                <LoadError
+                  title="Sezonlar yüklenemedi"
+                  onRetry={() => setOptionsTry((n) => n + 1)}
+                />
+              ) : null,
+            }}
           />
         </EventFormLayout>
       )}
