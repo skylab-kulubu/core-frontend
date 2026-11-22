@@ -35,9 +35,11 @@ describe('isLeader and canManageHandoffTargets (anchored as core reads them)', (
       expect(isLeader([path])).toBe(false);
     }
   });
-  it('offers the handoff settings only under the ADMIN roots', () => {
+  it('offers the handoff settings only to the ADMIN group, as sky-handoff decides', () => {
     expect(canManageHandoffTargets(['/ADMIN'])).toBe(true);
-    expect(canManageHandoffTargets(['/UYELER/ADMIN/ALT'])).toBe(true);
+    expect(canManageHandoffTargets(['/ADMIN/WEB'])).toBe(true);
+    // sky-handoff admits its admin group (/ADMIN) and its subgroups only
+    expect(canManageHandoffTargets(['/UYELER/ADMIN/ALT'])).toBe(false);
     expect(canManageHandoffTargets(['/UYELER/ARGE/ADMIN'])).toBe(false);
   });
 });
@@ -55,19 +57,19 @@ describe('filterSidebarNavForUser', () => {
     };
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
       '/dashboard',
+      '/events',
       '/users',
       '/groups',
-      '/announcements',
-      '/events',
-      '/seasons',
       '/teams',
-      '/qr',
+      '/announcements',
       '/urls',
-      '/certificates',
+      '/seasons',
+      '/certificates/templates',
+      '/certificates/defaults',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
-  it('Leader sees events and QR without a sessions page', () => {
+  it('Leader sees events and the certificate settings without a sessions page', () => {
     const user: UserDto = {
       id: '3',
       username: 'lead',
@@ -80,8 +82,8 @@ describe('filterSidebarNavForUser', () => {
     expect(filterSidebarNavForUser(user).map((l) => l.href)).toEqual([
       '/dashboard',
       '/events',
-      '/qr',
-      '/certificates',
+      '/certificates/templates',
+      '/certificates/defaults',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
   });
