@@ -133,7 +133,7 @@ export function TemporaryPasswordDialog({
               <DialogError text={error} />
             </DialogHeader>
             <DialogBody className="space-y-3 pt-0">
-              <fieldset className="space-y-2">
+              <fieldset className="space-y-2 pt-1">
                 <legend className="sr-only">Parola</legend>
                 <label className="text-secondary-foreground flex items-center gap-2 text-sm">
                   <input

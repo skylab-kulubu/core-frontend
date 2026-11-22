@@ -49,11 +49,14 @@ function Row({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-      <span className="text-muted-foreground w-28 shrink-0">{label}</span>
-      <span className="text-secondary-foreground flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+      <span className="text-muted-foreground w-28 shrink-0 sm:w-36">{label}</span>
+      {/* Room for an address: the actions go below it before they squeeze it */}
+      <span className="text-secondary-foreground flex min-w-0 flex-1 basis-44 flex-wrap items-center gap-1.5">
         {children}
       </span>
-      {actions ? <span className="flex flex-wrap items-center gap-1.5">{actions}</span> : null}
+      {actions ? (
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">{actions}</span>
+      ) : null}
     </div>
   );
 }
@@ -169,6 +172,13 @@ export function AccountSecurity({
     }
   }
 
+  if (account.status !== 'active') {
+    return (
+      <CardSection id="hesap" title="Hesap ve güvenlik">
+        <Empty>Hesap silinmiş ya da siliniyor.</Empty>
+      </CardSection>
+    );
+  }
   return (
     <CardSection
       id="hesap"
@@ -212,370 +222,375 @@ export function AccountSecurity({
           ) : null}
         </Notice>
       ) : null}
-      <div className="space-y-4">
-        <Block title="Hesap">
-          <Row
-            label="Durum"
-            actions={
-              manage ? (
-                <Button size="xs" variant="outline" onClick={askEnabled}>
-                  {account.enabled ? 'Devre dışı bırak' : 'Etkinleştir'}
-                </Button>
-              ) : null
-            }
-          >
-            {account.enabled ? 'Giriş yapabilir' : 'Giriş yapamaz'}
-          </Row>
-          <Row label="Kullanıcı adı">{account.username || '—'}</Row>
-          <Row label="Açıldı">{formatDay(account.createdAt)}</Row>
-          <Row label="Son giriş">
-            {account.logins ? formatWhen(account.logins.last) : 'Okunamıyor'}
-          </Row>
-        </Block>
-
-        <Block title="E-posta">
-          <Row
-            label="Birincil"
-            actions={
-              manage ? (
-                <>
-                  {email?.primary && !email.primaryVerified ? (
-                    <>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() =>
-                          ask(
-                            `${email.primary} onaylı sayılsın mı?`,
-                            'Onaylı işaretle',
-                            () => userAccountApi.verifyEmail(id),
-                            'E-posta onaylı',
-                            'Onaylanamadı',
-                          )
-                        }
-                      >
-                        Onaylı işaretle
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() =>
-                          void run(
-                            () => userAccountApi.sendVerificationMail(id),
-                            'Doğrulama postası gönderildi',
-                            'Posta gönderilemedi',
-                          )
-                        }
-                      >
-                        <Mail className="size-3.5" />
-                        Doğrulama postası
-                      </Button>
-                    </>
-                  ) : null}
-                  <Button size="xs" variant="outline" onClick={() => setEmailOpen(true)}>
-                    <Pencil className="size-3.5" />
-                    Değiştir
+      <div className="grid gap-x-10 gap-y-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <Block title="Hesap">
+            <Row
+              label="Durum"
+              actions={
+                manage ? (
+                  <Button size="xs" variant="outline" onClick={askEnabled}>
+                    {account.enabled ? 'Devre dışı bırak' : 'Etkinleştir'}
                   </Button>
-                </>
-              ) : null
-            }
-          >
-            {email?.primary ? (
-              <>
-                <span className="truncate">{email.primary}</span>
-                <Verified on={email.primaryVerified} />
-              </>
-            ) : (
-              '—'
-            )}
-          </Row>
-          <Row
-            label="Okul"
-            actions={
-              manage && email?.school && email.primaryKind !== 'school' ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() =>
-                    ask(
-                      `${email.school} birincil olsun mu?`,
-                      'Birincil yap',
-                      () => userAccountApi.setPrimary(id, 'school'),
-                      'Birincil adres değişti',
-                      'Birincil adres değiştirilemedi',
-                    )
-                  }
-                >
-                  Birincil yap
-                </Button>
-              ) : null
-            }
-          >
-            {email?.school ? (
-              <>
-                <span className="truncate">{email.school}</span>
-                {account.ytuVerified ? <Badge tone="brand">YTÜ</Badge> : null}
-              </>
-            ) : (
-              '—'
-            )}
-          </Row>
-          <Row
-            label="Kişisel"
-            actions={
-              manage &&
-              email?.personal &&
-              email.personalVerified &&
-              email.primaryKind !== 'personal' ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={() =>
-                    ask(
-                      `${email.personal} birincil olsun mu?`,
-                      'Birincil yap',
-                      () => userAccountApi.setPrimary(id, 'personal'),
-                      'Birincil adres değişti',
-                      'Birincil adres değiştirilemedi',
-                    )
-                  }
-                >
-                  Birincil yap
-                </Button>
-              ) : null
-            }
-          >
-            {email?.personal ? (
-              <>
-                <span className="truncate">{email.personal}</span>
-                <Verified on={email.personalVerified} />
-              </>
-            ) : (
-              '—'
-            )}
-          </Row>
-        </Block>
+                ) : null
+              }
+            >
+              {account.enabled ? 'Giriş yapabilir' : 'Giriş yapamaz'}
+            </Row>
+            <Row label="Kullanıcı adı">{account.username || '—'}</Row>
+            <Row label="Açıldı">{formatDay(account.createdAt)}</Row>
+            <Row label="Son giriş">
+              {account.logins ? formatWhen(account.logins.last) : 'Okunamıyor'}
+            </Row>
+          </Block>
 
-        <Block title="Parola">
-          <Row
-            label="Parola"
-            actions={
-              manage ? (
+          <Block title="E-posta">
+            <Row
+              label="Birincil"
+              actions={
+                manage ? (
+                  <>
+                    {email?.primary && !email.primaryVerified ? (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            ask(
+                              `${email.primary} onaylı sayılsın mı?`,
+                              'Onaylı işaretle',
+                              () => userAccountApi.verifyEmail(id),
+                              'E-posta onaylı',
+                              'Onaylanamadı',
+                            )
+                          }
+                        >
+                          Onaylı işaretle
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          onClick={() =>
+                            void run(
+                              () => userAccountApi.sendVerificationMail(id),
+                              'Doğrulama postası gönderildi',
+                              'Posta gönderilemedi',
+                            )
+                          }
+                        >
+                          <Mail className="size-3.5" />
+                          Doğrulama postası
+                        </Button>
+                      </>
+                    ) : null}
+                    <Button size="xs" variant="outline" onClick={() => setEmailOpen(true)}>
+                      <Pencil className="size-3.5" />
+                      Değiştir
+                    </Button>
+                  </>
+                ) : null
+              }
+            >
+              {email?.primary ? (
                 <>
+                  <span className="truncate">{email.primary}</span>
+                  <Verified on={email.primaryVerified} />
+                </>
+              ) : (
+                '—'
+              )}
+            </Row>
+            <Row
+              label="Okul"
+              actions={
+                manage && email?.school && email.primaryKind !== 'school' ? (
                   <Button
                     size="xs"
                     variant="ghost"
                     onClick={() =>
                       ask(
-                        'Parola sıfırlama postası gönderilsin mi?',
-                        'Gönder',
-                        () => userAccountApi.sendPasswordMail(id),
-                        'Sıfırlama postası gönderildi',
-                        'Posta gönderilemedi',
-                        { description: email?.primary ? `Alıcı: ${email.primary}` : undefined },
+                        `${email.school} birincil olsun mu?`,
+                        'Birincil yap',
+                        () => userAccountApi.setPrimary(id, 'school'),
+                        'Birincil adres değişti',
+                        'Birincil adres değiştirilemedi',
                       )
                     }
                   >
-                    <Mail className="size-3.5" />
-                    Sıfırlama postası
-                  </Button>
-                  <Button size="xs" variant="outline" onClick={() => setPasswordOpen(true)}>
-                    <KeyRound className="size-3.5" />
-                    Geçici parola
-                  </Button>
-                </>
-              ) : null
-            }
-          >
-            {passwordLine}
-          </Row>
-          {editingActions ? (
-            <fieldset className="space-y-2 pt-1">
-              <legend className="text-muted-foreground mb-1 text-sm">Gerekli eylemler</legend>
-              {REQUIRED_ACTIONS.map((alias) => (
-                <label
-                  key={alias}
-                  className="text-secondary-foreground flex items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={actions.includes(alias)}
-                    onChange={(event) =>
-                      setActions((current) =>
-                        event.target.checked
-                          ? [...current, alias]
-                          : current.filter((row) => row !== alias),
-                      )
-                    }
-                  />
-                  {requiredActionLabel(alias)}
-                </label>
-              ))}
-              <div className="flex gap-2 pt-1">
-                <Button
-                  size="xs"
-                  variant="primary"
-                  pending={savingActions}
-                  onClick={() => void saveActions()}
-                >
-                  Kaydet
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={savingActions}
-                  onClick={() => setEditingActions(false)}
-                >
-                  Vazgeç
-                </Button>
-              </div>
-            </fieldset>
-          ) : (
-            <Row
-              label="Gerekli eylemler"
-              actions={
-                manage ? (
-                  <Button size="xs" variant="ghost" onClick={startActions}>
-                    <Pencil className="size-3.5" />
-                    Düzenle
+                    Birincil yap
                   </Button>
                 ) : null
               }
             >
-              {pendingActions.length
-                ? pendingActions.map((alias) => (
-                    <Badge key={alias} tone="warning">
-                      {requiredActionLabel(alias)}
-                    </Badge>
-                  ))
-                : 'Yok'}
+              {email?.school ? (
+                <>
+                  <span className="truncate">{email.school}</span>
+                  {account.ytuVerified ? <Badge tone="brand">YTÜ</Badge> : null}
+                </>
+              ) : (
+                '—'
+              )}
             </Row>
-          )}
-        </Block>
-
-        <Block title="Kimlik bilgileri">
-          {account.credentials.length ? (
-            <ul className="space-y-1.5">
-              {account.credentials.map((credential) => (
-                <li key={credential.id}>
-                  <Row
-                    label={credentialLabel(credential)}
-                    actions={
-                      manage ? (
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          onClick={() =>
-                            ask(
-                              `${credentialLabel(credential)} kaldırılsın mı?`,
-                              'Kaldır',
-                              () => userAccountApi.deleteCredential(id, credential.id),
-                              'Kimlik bilgisi kaldırıldı',
-                              'Kaldırılamadı',
-                              { destructive: true },
-                            )
-                          }
-                        >
-                          <X className="size-3.5" />
-                          Kaldır
-                        </Button>
-                      ) : null
+            <Row
+              label="Kişisel"
+              actions={
+                manage &&
+                email?.personal &&
+                email.personalVerified &&
+                email.primaryKind !== 'personal' ? (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() =>
+                      ask(
+                        `${email.personal} birincil olsun mu?`,
+                        'Birincil yap',
+                        () => userAccountApi.setPrimary(id, 'personal'),
+                        'Birincil adres değişti',
+                        'Birincil adres değiştirilemedi',
+                      )
                     }
                   >
-                    <span className="truncate">{credential.label || '—'}</span>
-                    <span className="text-subtle-foreground text-xs">
-                      {formatDay(credential.createdAt)}
-                    </span>
-                  </Row>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>Yok</Empty>
-          )}
-        </Block>
+                    Birincil yap
+                  </Button>
+                ) : null
+              }
+            >
+              {email?.personal ? (
+                <>
+                  <span className="truncate">{email.personal}</span>
+                  <Verified on={email.personalVerified} />
+                </>
+              ) : (
+                '—'
+              )}
+            </Row>
+          </Block>
 
-        <Block title="Bağlı hesaplar">
-          {account.identityProviders.length ? (
-            account.identityProviders.map((link) => (
-              <Row
-                key={link.provider}
-                label={link.ytu ? 'YTÜ (Microsoft)' : link.provider}
-                actions={
-                  manage ? (
+          <Block title="Parola">
+            <Row
+              label="Parola"
+              actions={
+                manage ? (
+                  <>
                     <Button
                       size="xs"
                       variant="ghost"
                       onClick={() =>
                         ask(
-                          `${link.ytu ? 'YTÜ' : link.provider} bağlantısı kaldırılsın mı?`,
-                          'Bağlantıyı kaldır',
-                          () => userAccountApi.unlinkIdentity(id, link.provider),
-                          'Bağlantı kaldırıldı',
-                          'Bağlantı kaldırılamadı',
-                          {
-                            description: link.ytu
-                              ? 'Ad ve okul e-postası kilidi kalkar.'
-                              : undefined,
-                            destructive: true,
-                          },
+                          'Parola sıfırlama postası gönderilsin mi?',
+                          'Gönder',
+                          () => userAccountApi.sendPasswordMail(id),
+                          'Sıfırlama postası gönderildi',
+                          'Posta gönderilemedi',
+                          { description: email?.primary ? `Alıcı: ${email.primary}` : undefined },
                         )
                       }
                     >
-                      <X className="size-3.5" />
-                      Ayır
+                      <Mail className="size-3.5" />
+                      Sıfırlama postası
+                    </Button>
+                    <Button size="xs" variant="outline" onClick={() => setPasswordOpen(true)}>
+                      <KeyRound className="size-3.5" />
+                      Geçici parola
+                    </Button>
+                  </>
+                ) : null
+              }
+            >
+              {passwordLine}
+            </Row>
+            {editingActions ? (
+              <fieldset className="space-y-2 pt-1">
+                <legend className="text-muted-foreground mb-1 text-sm">Gerekli eylemler</legend>
+                {REQUIRED_ACTIONS.map((alias) => (
+                  <label
+                    key={alias}
+                    className="text-secondary-foreground flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={actions.includes(alias)}
+                      onChange={(event) =>
+                        setActions((current) =>
+                          event.target.checked
+                            ? [...current, alias]
+                            : current.filter((row) => row !== alias),
+                        )
+                      }
+                    />
+                    {requiredActionLabel(alias)}
+                  </label>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="xs"
+                    variant="primary"
+                    pending={savingActions}
+                    onClick={() => void saveActions()}
+                  >
+                    Kaydet
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={savingActions}
+                    onClick={() => setEditingActions(false)}
+                  >
+                    Vazgeç
+                  </Button>
+                </div>
+              </fieldset>
+            ) : (
+              <Row
+                label="Gerekli eylemler"
+                actions={
+                  manage ? (
+                    <Button size="xs" variant="ghost" onClick={startActions}>
+                      <Pencil className="size-3.5" />
+                      Düzenle
                     </Button>
                   ) : null
                 }
               >
-                <span className="truncate">{link.userName || '—'}</span>
+                {pendingActions.length
+                  ? pendingActions.map((alias) => (
+                      <Badge key={alias} tone="warning">
+                        {requiredActionLabel(alias)}
+                      </Badge>
+                    ))
+                  : 'Yok'}
               </Row>
-            ))
-          ) : (
-            <Empty>Yok</Empty>
-          )}
-        </Block>
-
-        <Block title={`Oturumlar · ${account.sessions.length}`}>
-          {account.sessions.length ? (
-            <ul className="space-y-1.5">
-              {account.sessions.map((session, index) => (
-                <li key={`${session.start}-${index}`}>
-                  <Row label={formatWhen(session.lastAccess)}>
-                    {session.clients.map(clientLabel).join(', ') || '—'}
-                  </Row>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>Açık oturum yok</Empty>
-          )}
-        </Block>
-
-        <Block title="Son girişler">
-          {account.logins === null ? (
-            <Empty>Okunamıyor</Empty>
-          ) : account.logins.events.length ? (
-            <ul className="space-y-1.5">
-              {account.logins.events.map((event, index) => (
-                <li key={`${event.time}-${index}`}>
-                  <Row label={formatWhen(event.time)}>
-                    <span className={event.type === 'LOGIN_ERROR' ? 'text-warning' : undefined}>
-                      {eventLabel(event)}
-                    </span>
-                    {event.client ? (
+            )}
+          </Block>
+        </div>
+        <div className="space-y-4">
+          <Block title="Kimlik bilgileri">
+            {account.credentials.length ? (
+              <ul className="space-y-1.5">
+                {account.credentials.map((credential) => (
+                  <li key={credential.id}>
+                    <Row
+                      label={credentialLabel(credential)}
+                      actions={
+                        manage ? (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() =>
+                              ask(
+                                `${credentialLabel(credential)} kaldırılsın mı?`,
+                                'Kaldır',
+                                () => userAccountApi.deleteCredential(id, credential.id),
+                                'Kimlik bilgisi kaldırıldı',
+                                'Kaldırılamadı',
+                                { destructive: true },
+                              )
+                            }
+                          >
+                            <X className="size-3.5" />
+                            Kaldır
+                          </Button>
+                        ) : null
+                      }
+                    >
+                      {credential.label ? (
+                        <span className="truncate">{credential.label}</span>
+                      ) : null}
                       <span className="text-subtle-foreground text-xs">
-                        {clientLabel(event.client)}
+                        {formatDay(credential.createdAt)}
                       </span>
-                    ) : null}
-                  </Row>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>Son 30 günde yok</Empty>
-          )}
-        </Block>
+                    </Row>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty>Yok</Empty>
+            )}
+          </Block>
+
+          <Block title="Bağlı hesaplar">
+            {account.identityProviders.length ? (
+              account.identityProviders.map((link) => (
+                <Row
+                  key={link.provider}
+                  label={link.ytu ? 'YTÜ (Microsoft)' : link.provider}
+                  actions={
+                    manage ? (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() =>
+                          ask(
+                            `${link.ytu ? 'YTÜ' : link.provider} bağlantısı kaldırılsın mı?`,
+                            'Bağlantıyı kaldır',
+                            () => userAccountApi.unlinkIdentity(id, link.provider),
+                            'Bağlantı kaldırıldı',
+                            'Bağlantı kaldırılamadı',
+                            {
+                              description: link.ytu
+                                ? 'Ad ve okul e-postası kilidi kalkar.'
+                                : undefined,
+                              destructive: true,
+                            },
+                          )
+                        }
+                      >
+                        <X className="size-3.5" />
+                        Ayır
+                      </Button>
+                    ) : null
+                  }
+                >
+                  <span className="truncate">{link.userName || '—'}</span>
+                </Row>
+              ))
+            ) : (
+              <Empty>Yok</Empty>
+            )}
+          </Block>
+
+          <Block title={`Oturumlar · ${account.sessions.length}`}>
+            {account.sessions.length ? (
+              <ul className="space-y-1.5">
+                {account.sessions.map((session, index) => (
+                  <li key={`${session.start}-${index}`}>
+                    <Row label={formatWhen(session.lastAccess)}>
+                      {session.clients.map(clientLabel).join(', ') || '—'}
+                    </Row>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty>Açık oturum yok</Empty>
+            )}
+          </Block>
+
+          <Block title="Son girişler">
+            {account.logins === null ? (
+              <Empty>Okunamıyor</Empty>
+            ) : account.logins.events.length ? (
+              <ul className="space-y-1.5">
+                {account.logins.events.map((event, index) => (
+                  <li key={`${event.time}-${index}`}>
+                    <Row label={formatWhen(event.time)}>
+                      <span className={event.type === 'LOGIN_ERROR' ? 'text-warning' : undefined}>
+                        {eventLabel(event)}
+                      </span>
+                      {event.client ? (
+                        <span className="text-subtle-foreground text-xs">
+                          {clientLabel(event.client)}
+                        </span>
+                      ) : null}
+                    </Row>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty>Son 30 günde yok</Empty>
+            )}
+          </Block>
+        </div>
       </div>
       {confirmDialog}
       {manage ? (

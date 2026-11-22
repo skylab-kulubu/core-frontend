@@ -174,7 +174,7 @@ export default function UserDetailPage() {
         onAddGroup={canAddGroup ? () => void openGroups() : undefined}
         onRemoveRole={removeRole}
         onLogout={canWrite ? askLogout : undefined}
-        profileSections={
+        wideSections={
           !canReadAccount ? null : account ? (
             <AccountSecurity
               account={account}

@@ -181,3 +181,18 @@ it('asks before disabling and removing', async () => {
   await userEvent.click(within(question).getByRole('button', { name: 'Devre dışı bırak' }));
   await waitFor(() => expect(api.setEnabled).toHaveBeenCalledWith('u1', false));
 });
+
+it('says only that an erased account is gone', () => {
+  render(
+    <AccountSecurity
+      account={account({
+        status: 'deletion_pending',
+        can: { manage: false, reason: 'account_not_active' },
+      })}
+      personName="Ada"
+      onChanged={jest.fn()}
+    />,
+  );
+  expect(screen.getByText('Hesap silinmiş ya da siliniyor.')).toBeInTheDocument();
+  expect(screen.queryByText('Kimlik bilgileri')).toBeNull();
+});

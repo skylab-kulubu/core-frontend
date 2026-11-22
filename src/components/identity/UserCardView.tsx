@@ -27,8 +27,8 @@ type UserCardViewProps = {
   actions?: ReactNode;
   /** More subjects, each a CardSection, after Yetkiler. */
   sections?: ReactNode;
-  /** Subjects about the person themself, each a CardSection, right under Profil. */
-  profileSections?: ReactNode;
+  /** Subjects as wide as the page, each a CardSection, after the cards. */
+  wideSections?: ReactNode;
 };
 
 /** One subject of the person card: a titled card with its own actions. */
@@ -272,7 +272,7 @@ export function UserCardView(props: UserCardViewProps) {
     onLogout,
     actions,
     sections,
-    profileSections,
+    wideSections,
     profileError,
   } = props;
   const [editing, setEditing] = useState(false);
@@ -314,25 +314,17 @@ export function UserCardView(props: UserCardViewProps) {
         <Count label="Doğrudan rol" value={extra.length} href="#yetkiler" tone="warning" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4 self-start">
-          <CardSection title="Profil">
-            {editing && canEditProfile ? (
-              <UserProfileForm
-                card={card}
-                onSave={save}
-                error={profileError}
-                className="grid gap-3"
-              >
-                <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
-                  Vazgeç
-                </Button>
-              </UserProfileForm>
-            ) : (
-              <Facts rows={facts(card, canReadFull)} />
-            )}
-          </CardSection>
-          {profileSections}
-        </div>
+        <CardSection title="Profil" className="self-start">
+          {editing && canEditProfile ? (
+            <UserProfileForm card={card} onSave={save} error={profileError} className="grid gap-3">
+              <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
+                Vazgeç
+              </Button>
+            </UserProfileForm>
+          ) : (
+            <Facts rows={facts(card, canReadFull)} />
+          )}
+        </CardSection>
         <div className="space-y-4">
           <CardSection
             id="gruplar"
@@ -355,6 +347,7 @@ export function UserCardView(props: UserCardViewProps) {
           {sections}
         </div>
       </div>
+      {wideSections}
     </div>
   );
 }
