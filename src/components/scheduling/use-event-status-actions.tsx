@@ -2,7 +2,7 @@
 
 import { Checkbox, MenuItem } from '@skylab-kulubu/skylcn-ui';
 import { Ban, Copy, Link2, RotateCcw, Send, Trash2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { TextArea } from '@/components/chrome/TextArea';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -13,6 +13,7 @@ import { coreProblemMessage } from '@/lib/core-problems';
 import { openEventMail } from '@/lib/event-mail';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { eventDisplayStatus, eventEndsAt, eventStatusOf } from '@/lib/events-view';
+import { lookupPeople } from '@/lib/people-lookup';
 import { ticketApplicantName } from '@/lib/tickets-ui';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -67,15 +68,19 @@ export function CheckboxRow({
   label,
   defaultChecked,
   onChange,
+  describedBy,
 }: {
   label: string;
   defaultChecked: boolean;
   onChange: (checked: boolean) => void;
+  /** The id of a line that says more about the box (read with it). */
+  describedBy?: string;
 }) {
   const [checked, setChecked] = useState(defaultChecked);
   return (
     <label className="text-secondary-foreground flex items-center gap-2 text-sm">
       <Checkbox
+        aria-describedby={describedBy}
         checked={checked}
         onCheckedChange={(next) => {
           setChecked(next);
@@ -129,6 +134,19 @@ function CancelFields({
 /** How many holders the publish question names; the rest are counted. */
 export const PUBLISH_NAMES_SHOWN = 5;
 
+/**
+ * The named holders' people: a member's Ticket may come without its owner, so
+ * the members among the first few rows are read by id (a failed read is
+ * skipped and the holder counted).
+ */
+function namedPeople(rows: readonly Ticket[], known: Map<string, Person>) {
+  const ids = rows
+    .slice(0, PUBLISH_NAMES_SHOWN)
+    .filter((row) => row.ticketType !== 'GUEST' && row.ownerId && !row.owner)
+    .map((row) => row.ownerId as string);
+  return ids.length ? lookupPeople(ids, known).catch(() => known) : Promise.resolve(known);
+}
+
 /** The holders' names, as far as they are known: an id is not a name. */
 function holderNames(rows: readonly Ticket[], people: Map<string, Person>): string {
   const names = rows
@@ -152,6 +170,7 @@ function PublishFields({
   names: string;
   onNotify: (notify: boolean) => void;
 }) {
+  const namesId = useId();
   return (
     <>
       <CheckboxRow
@@ -162,8 +181,13 @@ function PublishFields({
         }
         defaultChecked
         onChange={onNotify}
+        describedBy={names ? namesId : undefined}
       />
-      {names ? <p className="text-muted-foreground text-xs">{names}</p> : null}
+      {names ? (
+        <p id={namesId} className="text-muted-foreground text-xs">
+          {names}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -326,13 +350,14 @@ export function useEventStatusActions({
         'Etkinlik yayınlanamadı',
       );
     }
+    const named = tickets ? await namedPeople(tickets, people) : people;
     const fields = { notify: true };
     confirm({
       title: 'Etkinliği yayınla',
       content: (
         <PublishFields
           holders={tickets?.length ?? null}
-          names={tickets ? holderNames(tickets, people) : ''}
+          names={tickets ? holderNames(tickets, named) : ''}
           onNotify={(next) => {
             fields.notify = next;
           }}

@@ -6,6 +6,7 @@ import EventsPage from '@/app/(authorized)/events/page';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { identityApi } from '@/lib/api/identity';
 import { ticketsApi } from '@/lib/api/tickets';
 
 const mockReplace = jest.fn();
@@ -33,6 +34,7 @@ jest.mock('@/lib/api/events', () => ({
   },
 }));
 jest.mock('@/lib/api/tickets', () => ({ ticketsApi: { listByEvent: jest.fn() } }));
+jest.mock('@/lib/api/identity', () => ({ identityApi: { getUser: jest.fn() } }));
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
 
 const future = '2099-10-01T10:00:00+03:00';
@@ -199,7 +201,13 @@ describe('Etkinlikler listesi', () => {
         owner: { id: 'p1', email: 'ali@example.com', firstName: 'Ali', lastName: 'Kaya' },
       },
       { id: 't2', ticketType: 'REGISTERED', ownerId: 'p2' },
+      { id: 't3', ticketType: 'REGISTERED', ownerId: 'p3' },
     ]);
+    // The list's Tickets may come without their owner: the dialog reads them by id
+    (identityApi.getUser as jest.Mock).mockImplementation(async (id: string) => {
+      if (id === 'p2') return { id, email: 'ece@example.com', firstName: 'Ece', lastName: 'Su' };
+      throw new Error('gone');
+    });
     (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
     const user = userEvent.setup();
     render(<EventsPage />);
@@ -208,12 +216,14 @@ describe('Etkinlikler listesi', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Yayınla' }));
 
     const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
-    // A holder known only by an id is counted, not named
-    expect(within(dialog).getByText('Ali Kaya ve 1 kişi daha')).toBeInTheDocument();
+    // A holder whose read failed is counted, not named
+    expect(identityApi.getUser).toHaveBeenCalledWith('p2');
+    expect(identityApi.getUser).not.toHaveBeenCalledWith('p1');
     const box = within(dialog).getByRole('checkbox', {
-      name: 'Taslakta yazılan 2 kişiye "biletin hazır" postası gönder',
+      name: 'Taslakta yazılan 3 kişiye "biletin hazır" postası gönder',
     });
     expect(box).toBeChecked();
+    expect(box).toHaveAccessibleDescription('Ali Kaya, Ece Su ve 1 kişi daha');
     await user.click(box);
     await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
     expect(eventsApi.publish).toHaveBeenCalledWith('d', { notifyTicketHolders: false });
