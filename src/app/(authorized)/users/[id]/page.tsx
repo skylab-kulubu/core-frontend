@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { LoadError } from '@/components/chrome/LoadError';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
@@ -103,7 +104,7 @@ export default function UserDetailPage() {
   if (error) {
     return <LoadError title={error} onRetry={load} />;
   }
-  if (!card) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!card) return <PageSkeleton variant="detail" />;
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
   const cardId = card.id;
 

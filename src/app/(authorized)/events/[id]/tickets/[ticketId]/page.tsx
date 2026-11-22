@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -93,7 +94,7 @@ export default function TicketDetailPage({
   if (error && !ticket) {
     return <StateCard title={error} description="Başvuru kaydına dönemiyor." tone="danger" />;
   }
-  if (!event || !ticket) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!event || !ticket) return <PageSkeleton variant="detail" />;
 
   const status = ticketStatus(ticket);
 
