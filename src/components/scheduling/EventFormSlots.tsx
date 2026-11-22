@@ -8,7 +8,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Switch } from '@/components/chrome/Switch';
 import { ProblemError } from '@/lib/api/core';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, isFormInUse, type FormInUse } from '@/lib/core-problems';
 import { readFormGate, setFormGate, type FormGate } from '@/lib/api/skyforms';
 import { publicShortUrl, urlsApi } from '@/lib/api/urls';
 import { editorReturnTo, eventIdForForms } from '@/lib/event-draft';
@@ -44,6 +44,8 @@ type EventFormSlotsProps = {
   addable?: boolean;
   /** After Skyforms opened or closed a slot's form. */
   onGateChange?: (slot: EventFormSlot, gate: FormGate) => void | Promise<void>;
+  /** The form the last save was refused for (`409 form_in_use`): its slot says where it is. */
+  inUse?: FormInUse | null;
 };
 
 export function EventFormSlots({
@@ -57,6 +59,7 @@ export function EventFormSlots({
   onChange,
   addable = true,
   onGateChange,
+  inUse,
 }: EventFormSlotsProps) {
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -123,6 +126,17 @@ export function EventFormSlots({
       title,
       ownerTeam,
       eventId: eventIdForForms(href, reservedEventId),
+    });
+  };
+
+  /** Skyforms' new form filled from the slot's form (`fromForm`, as the copy does). */
+  const newFormFrom = (slot: EventFormSlot, fromForm: string) => {
+    const href = typeof window !== 'undefined' ? window.location.href : returnTo || '';
+    return skyformsCreateHref(origin, href ? editorReturnTo(href, slot.key) : '', {
+      title: eventFormTitle(ownerTeam, eventName, year, slotExtra(slot)),
+      ownerTeam,
+      eventId: eventIdForForms(href, reservedEventId),
+      fromForm,
     });
   };
 
@@ -310,6 +324,15 @@ export function EventFormSlots({
               onChange={(e) => patchSlot(slot.key, { alias: e.target.value })}
             />
           </label>
+          {inUse && isFormInUse(slot.url, inUse) ? (
+            <FormInUseNotice
+              inUse={inUse}
+              newFormHref={
+                skyformsFormId(slot.url, origin) ? newFormFrom(slot, inUse.formId) : null
+              }
+              onLeaveToSkyforms={onLeaveToSkyforms}
+            />
+          ) : null}
           {slot.alias ? (
             <p className="text-3xs text-subtle-foreground">
               {publicShortUrl(shortAliasFromSlug(slot.alias))}
@@ -358,6 +381,48 @@ export function EventFormSlots({
       ) : null}
       {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
+    </div>
+  );
+}
+
+function FormInUseNotice({
+  inUse,
+  newFormHref,
+  onLeaveToSkyforms,
+}: {
+  inUse: FormInUse;
+  newFormHref: string | null;
+  onLeaveToSkyforms?: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-destructive text-xs">
+        {inUse.event ? (
+          <>
+            Bu form şu etkinlikte kullanılıyor:{' '}
+            <a
+              href={`/events/${encodeURIComponent(inUse.event.id)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              {inUse.event.name}
+              <span className="sr-only"> (yeni sekmede açılır)</span>
+            </a>
+          </>
+        ) : (
+          'Bu form başka bir yerde kullanılıyor.'
+        )}
+      </p>
+      {newFormHref ? (
+        <a
+          href={newFormHref}
+          onClick={() => onLeaveToSkyforms?.()}
+          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 font-medium"
+        >
+          Skyforms’ta bu formdan yeni form aç
+        </a>
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
+import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { sessionsApi } from '@/lib/api/sessions';
@@ -122,6 +123,29 @@ describe('Program: a Session feedback form (per_session)', () => {
         feedbackAutoSend: false,
       }),
     );
+  });
+
+  it('says a refused Session form is elsewhere and offers a new form from it', async () => {
+    const user = userEvent.setup();
+    signInAs(LEADER);
+    inMode('per_session', { feedbackFormUrl: FORM, feedbackFormAlias: 'acilis' });
+    (sessionsApi.update as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', {
+        code: 'form_in_use',
+        fields: { formId: '55555555-5555-4555-8555-555555555555' },
+      }),
+    );
+    await renderProgram();
+
+    const dialog = await openSessionEditor(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+
+    expect(
+      await within(dialog).findByText('Bu form başka bir yerde kullanılıyor.'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
+    ).toHaveAttribute('href', expect.stringContaining('fromForm=55555555'));
   });
 
   it('clears a removed form with null', async () => {

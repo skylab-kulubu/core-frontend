@@ -73,7 +73,7 @@ import {
   canWriteEvent,
   isPrivileged,
 } from '@/lib/auth/groups';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { copySkippedLines, takeCopySkipped } from '@/lib/event-copy';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import {
@@ -294,6 +294,7 @@ export function EventWorkspace({
   const [editing, setEditing] = useState(false);
   // A save the edit drawer refused, shown in the drawer where the organizer is.
   const [editError, setEditError] = useState<string | null>(null);
+  const [editInUse, setEditInUse] = useState<FormInUse | null>(null);
   const [mailing, setMailing] = useState(false);
   const [doorAccess, setDoorAccess] = useState(false);
   const notify = useNotify();
@@ -385,6 +386,7 @@ export function EventWorkspace({
           setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
+          setEditInUse(formInUseOf(err));
         }
       }
       const dayRows = await eventDaysApi.listByEvent(id);
@@ -645,7 +647,16 @@ export function EventWorkspace({
           actions={
             <>
               {rights.canUpdate && offers.publish ? (
-                <SaveButton type="button" onClick={() => void statusActions.publish(event)}>
+                <SaveButton
+                  type="button"
+                  onClick={() =>
+                    void statusActions.publish(
+                      event,
+                      can.canTickets && ticketsLoaded ? tickets : undefined,
+                      personById,
+                    )
+                  }
+                >
                   Yayınla
                 </SaveButton>
               ) : null}
@@ -731,6 +742,7 @@ export function EventWorkspace({
           onClose={() => {
             setEditing(false);
             setEditError(null);
+            setEditInUse(null);
           }}
           title="Etkinliği düzenle"
         >
@@ -739,6 +751,7 @@ export function EventWorkspace({
             noValidate
             onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
               setEditError(null);
+              setEditInUse(null);
               try {
                 await saveEventWithSeason(eventForm, event.id, editBase.current ?? undefined);
                 if (typeof window !== 'undefined') {
@@ -749,6 +762,7 @@ export function EventWorkspace({
                 await load();
               } catch (err) {
                 setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
+                setEditInUse(formInUseOf(err));
               }
             })}
           >
@@ -773,6 +787,7 @@ export function EventWorkspace({
                 ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
               ]}
               returnTo={typeof window !== 'undefined' ? window.location.href : ''}
+              formInUse={editInUse}
             />
             {eventEditForm.formState.errors.event ? (
               <p className="text-2xs text-destructive">

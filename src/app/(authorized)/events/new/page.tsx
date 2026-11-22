@@ -16,7 +16,7 @@ import { useEventCreate } from '@/lib/use-event-create';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useNotify } from '@/lib/ui/use-notify';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { eventFormIssue } from '@/lib/events-view';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import {
@@ -45,6 +45,7 @@ function NewEventPageContent() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [formInUse, setFormInUse] = useState<FormInUse | null>(null);
   const [form, setForm] = useState<EventFormState>(() =>
     emptyEventForm(privileged ? '' : (leaderTeams[0] ?? '')),
   );
@@ -134,6 +135,7 @@ function NewEventPageContent() {
             }
             setSaving(true);
             setError(null);
+            setFormInUse(null);
             try {
               const id = await saveEventWithSeason(form, createdId ?? undefined);
               if (typeof window !== 'undefined')
@@ -148,6 +150,7 @@ function NewEventPageContent() {
                 );
               } else {
                 setError(coreProblemMessage(err, 'Oluşturulamadı'));
+                setFormInUse(formInUseOf(err));
               }
             } finally {
               setSaving(false);
@@ -165,6 +168,7 @@ function NewEventPageContent() {
             assignDoorStaff={privileged}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
             onLeaveToSkyforms={() => persist(form)}
+            formInUse={formInUse}
           />
           {error ? (
             <p role="alert" className="text-destructive text-sm">

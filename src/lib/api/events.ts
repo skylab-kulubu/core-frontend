@@ -172,9 +172,16 @@ export const eventsApi = {
     coreFetch<CoreEvent>('/v1/events', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id: string) =>
     coreFetch<void>(`/v1/events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  /** draft → published; core refuses an Event without a name, place or start (`event_incomplete`). */
-  publish: (id: string) =>
-    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
+  /**
+   * draft → published; core refuses an Event without a name, place or start
+   * (`event_incomplete`). `notifyTicketHolders` mails the Tickets written
+   * while it was a draft "biletin hazır"; without a body nobody is mailed.
+   */
+  publish: (id: string, body?: { notifyTicketHolders: boolean }) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }),
   /** published → draft, only while it has no Ticket (`event_has_tickets`). */
   unpublish: (id: string) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}/unpublish`, { method: 'POST' }),

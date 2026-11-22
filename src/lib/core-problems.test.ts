@@ -1,7 +1,9 @@
 import { ProblemError } from '@/lib/api/core';
 import {
   coreProblemMessage,
+  formInUseOf,
   groupWriteProblemMessage,
+  isFormInUse,
   isPerFileRefusal,
 } from '@/lib/core-problems';
 
@@ -415,5 +417,39 @@ describe('groupWriteProblemMessage', () => {
         'x',
       ),
     ).toBe('Yayınlamak için eksik: konum, başlangıç tarihi.');
+  });
+});
+
+describe('form_in_use (ADR 0069, 2026-11-22)', () => {
+  const formId = '0b6f1c1e-6a39-4d0f-9d0c-3a8c5d1e2f00';
+  const named = problem(409, 'form_in_use', {
+    formId,
+    event: { id: 'e9', name: 'Gecekodu 2025', status: 'published' },
+  });
+
+  it('names the event that holds the form when core says it', () => {
+    expect(coreProblemMessage(named, 'x')).toBe(
+      'Bu form şu etkinlikte kullanılıyor: Gecekodu 2025.',
+    );
+    expect(formInUseOf(named)).toEqual({ formId, event: { id: 'e9', name: 'Gecekodu 2025' } });
+  });
+
+  it('says only that the form is elsewhere when core names no event', () => {
+    const unnamed = problem(409, 'form_in_use', { formId });
+    expect(coreProblemMessage(unnamed, 'x')).toBe(
+      'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
+    );
+    expect(formInUseOf(unnamed)).toEqual({ formId });
+    // An older core sends no form: nothing to point at
+    expect(formInUseOf(problem(409, 'form_in_use'))).toBeNull();
+    expect(formInUseOf(problem(409, 'name_taken', { formId }))).toBeNull();
+  });
+
+  it('matches the refused form in a slot address, whatever its case', () => {
+    const inUse = formInUseOf(named);
+    expect(isFormInUse(`https://forms.example.test/${formId.toUpperCase()}`, inUse)).toBe(true);
+    expect(isFormInUse('https://forms.example.test/other', inUse)).toBe(false);
+    expect(isFormInUse('', inUse)).toBe(false);
+    expect(isFormInUse(`https://forms.example.test/${formId}`, null)).toBe(false);
   });
 });
