@@ -24,21 +24,27 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
 
 export type ChromeCrumb = Readonly<{ href: string; label: string }>;
 
+/** A record's address part before its page names it: an id reads as a pause, not a word. */
+const UNNAMED = '…';
+
+function isRecordId(part: string): boolean {
+  return (
+    /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(part) || /^[0-9a-f-]{8,}$/i.test(part) || /^\d+$/.test(part)
+  );
+}
+
 function formatSegment(part: string): string {
-  if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(part) || /^[0-9a-f-]{8,}$/i.test(part)) {
-    return 'Kayıt';
-  }
-  if (/^\d+$/.test(part)) return 'Kayıt';
+  if (isRecordId(part)) return UNNAMED;
   const known: Record<string, string> = {
     new: 'Yeni',
     edit: 'Düzenle',
     days: 'Günler',
     delete: 'Sil',
-    tickets: 'Başvuranlar',
     participants: 'Katılımcılar',
     certificates: 'Sertifikalar',
     content: 'İçerik',
     competition: 'Yarışma',
+    door: 'Kapı',
   };
   if (known[part]) return known[part];
   return part.replace(/[-_]/g, ' ').replace(/^\S/u, (ch) => ch.toLocaleUpperCase('tr-TR'));
@@ -55,17 +61,63 @@ export function chromeCrumbKey(href: string): string {
   }
 }
 
-export function chromeCrumbs(pathname: string, names: ChromeCrumbNames = {}): ChromeCrumb[] {
+type TrailCrumb = ChromeCrumb & {
+  /** A record named by its page ("Yıldız Hackathon"), not a fixed page name. */
+  named: boolean;
+  /** An id still waiting for its page's name. */
+  unnamed: boolean;
+};
+
+// Records whose page has no name to give: the kind stands in, after the list it sits in
+const RECORD_KINDS: Readonly<Record<string, string>> = {
+  competition: 'Yarışmacı',
+  templates: 'Şablon',
+};
+
+// A ticket's address sits under /events/[id]/tickets, which is the Katılımcılar tab
+const TICKETS = /^\/events\/([^/]+)\/tickets$/;
+
+function trail(pathname: string, names: ChromeCrumbNames): TrailCrumb[] {
   const parts = (pathname || '/').split('/').filter(Boolean);
-  if (parts.length === 0) return [{ href: '/dashboard', label: 'Özet' }];
-  const crumbs: ChromeCrumb[] = [];
+  if (parts.length === 0) {
+    return [{ href: '/dashboard', label: 'Özet', named: false, unnamed: false }];
+  }
+  const crumbs: TrailCrumb[] = [];
   let acc = '';
-  for (const part of parts) {
+  for (const [index, part] of parts.entries()) {
     acc += `/${part}`;
-    crumbs.push({
-      href: acc,
-      label: names[chromeCrumbKey(acc)] ?? CHROME_CRUMB_LABELS[acc] ?? formatSegment(part),
-    });
+    const tickets = acc.match(TICKETS);
+    if (tickets) {
+      crumbs.push({
+        href: `/events/${tickets[1]}/participants`,
+        label: 'Katılımcılar',
+        named: false,
+        unnamed: false,
+      });
+      continue;
+    }
+    const name = names[chromeCrumbKey(acc)];
+    const kind = part === 'new' ? undefined : RECORD_KINDS[parts[index - 1]];
+    const label = name ?? CHROME_CRUMB_LABELS[acc] ?? kind ?? formatSegment(part);
+    crumbs.push({ href: acc, label, named: Boolean(name), unnamed: !name && label === UNNAMED });
   }
   return crumbs;
+}
+
+export function chromeCrumbs(pathname: string, names: ChromeCrumbNames = {}): ChromeCrumb[] {
+  return trail(pathname, names).map(({ href, label }) => ({ href, label }));
+}
+
+/**
+ * The browser tab's title: the page's place from its first named record on
+ * ("Yıldız Hackathon · Katılımcılar"), or the whole trail on a page without
+ * one ("Sertifikalar · Şablonlar"), then the club. Ids not yet named are left out.
+ */
+export function chromeDocumentTitle(pathname: string, names: ChromeCrumbNames = {}): string {
+  const crumbs = trail(pathname, names);
+  const firstNamed = crumbs.findIndex((crumb) => crumb.named);
+  const parts = (firstNamed >= 0 ? crumbs.slice(firstNamed) : crumbs)
+    .filter((crumb) => !crumb.unnamed)
+    .map((crumb) => crumb.label);
+  return [...parts, 'SKY LAB'].join(' · ');
 }

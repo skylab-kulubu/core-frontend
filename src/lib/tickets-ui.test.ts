@@ -7,6 +7,7 @@ import {
   ticketSendProblem,
   ticketDetailFields,
   ticketMailRecipients,
+  ticketCrumbName,
   ticketRosterRow,
 } from '@/lib/tickets-ui';
 
@@ -194,9 +195,12 @@ describe('ticket detail fields', () => {
     expect(byLabel['Sınıf']?.value).toBe('3');
     expect(byLabel['Mail']?.value).toBe('Hayır');
     expect(byLabel['Oluşturulma']?.value).toBe('Bugün, 08:05');
-    expect(byLabel['Bilet']?.value).toBe('t-guest');
+    expect(byLabel['Bilet kodu']?.group).toBe('Bilet');
+    expect(fields.some((field) => field.value === 't-guest')).toBe(false);
     expect(byLabel['Etkinlik']?.value).toBe('SkyDays');
-    expect(byLabel['Check-in']?.value).toBe('—');
+    expect(byLabel['Giriş']?.value).toBe('—');
+    expect(byLabel['Ad']?.group).toBe('Kişi');
+    expect(byLabel['Note']?.group).toBe('Formdaki diğer cevaplar');
     expect(byLabel['Note']?.value).toBe('VIP');
     expect(fields.some((field) => field.label === 'guestFirstName')).toBe(false);
   });
@@ -235,7 +239,7 @@ describe('ticket detail fields', () => {
     expect(byLabel['Ad']?.value).toBe('Grace Hopper');
     expect(byLabel['Üye']?.href).toBe('/users/u1');
     expect(byLabel['Kaynak form']?.value).toBe('Üye kaydı');
-    expect(byLabel['Check-in']?.value).toBe('Açılış · Bugün, 09:00');
+    expect(byLabel['Açılış']).toEqual({ label: 'Açılış', value: 'Bugün, 09:00', group: 'Giriş' });
   });
 });
 
@@ -347,5 +351,20 @@ describe('Ticket code', () => {
     expect(
       ticketSendProblem(new ProblemError(409, 'Conflict', { code: 'ticket_holder_erased' }), 'x'),
     ).toBe('Bilet sahibinin hesabı silinmiş; gönderilecek kimse yok.');
+  });
+});
+
+describe('ticketCrumbName', () => {
+  it('names the applicant for the trail and the tab, never by e-mail or id', () => {
+    expect(ticketCrumbName(ada, new Map())).toBe('Ada Lovelace');
+    expect(ticketCrumbName({ ...ada, guestFirstName: '', guestLastName: '' }, new Map())).toBe(
+      'Başvuru',
+    );
+    const member = { id: 't-m', eventId: 'e1', ticketType: 'MEMBER', ownerId: 'u1' } as Ticket;
+    const people = new Map<string, Person>([
+      ['u1', { id: 'u1', email: 'ada@example.com', firstName: '', lastName: '' }],
+    ]);
+    expect(ticketCrumbName(member, people)).toBe('Başvuru');
+    expect(ticketCrumbName(member, new Map())).toBe('Başvuru');
   });
 });

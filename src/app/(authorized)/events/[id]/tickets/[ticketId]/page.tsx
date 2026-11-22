@@ -1,8 +1,7 @@
 'use client';
 
 import { use, useEffect, useMemo, useState } from 'react';
-import { QrCode } from 'lucide-react';
-import { ActionButton } from '@/components/chrome/ActionButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -22,6 +21,7 @@ import { teamDecision } from '@/lib/use-app-can';
 import {
   canListEventTickets,
   ticketApplicantName,
+  ticketCrumbName,
   ticketOwnerPeople,
   ticketStatus,
 } from '@/lib/tickets-ui';
@@ -88,13 +88,13 @@ export default function TicketDetailPage({
   useChromeCrumbName(`/events/${id}`, event?.name);
   useChromeCrumbName(
     `/events/${id}/tickets/${ticketId}`,
-    ticket ? ticketApplicantName(ticket, personById) : null,
+    ticket ? ticketCrumbName(ticket, personById) : null,
   );
 
   if (error && !ticket) {
     return <StateCard title={error} description="Başvuru kaydına dönemiyor." tone="danger" />;
   }
-  if (!event || !ticket) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!event || !ticket) return <PageSkeleton variant="detail" />;
 
   const status = ticketStatus(ticket);
 
@@ -108,9 +108,6 @@ export default function TicketDetailPage({
             <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
             <StatusChip kind={ticketCheckInStatus(status.key === 'checked-in')} />
           </>
-        }
-        actions={
-          <ActionButton icon={QrCode} label="Kapı" href={`/qr?eventId=${encodeURIComponent(id)}`} />
         }
       />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}

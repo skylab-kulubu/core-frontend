@@ -4,6 +4,7 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { eventEditHref } from '@/lib/event-workspace';
 import { attendanceFinalizeOpen } from '@/lib/events-view';
 
 /** Sertifikalar tab: the template, attendance and issued certificates of the event. */
@@ -16,6 +17,7 @@ export default function EventCertificatesPage() {
     canBindCertificate,
     canRevokeCertificate,
     canReadIssuedCertificates,
+    canMutate,
   } = useEventWorkspace();
 
   if (!canCertificates) {
@@ -36,6 +38,7 @@ export default function EventCertificatesPage() {
         canBind={canBindCertificate}
         canRevoke={canRevokeCertificate}
         canReadIssued={canReadIssuedCertificates}
+        ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
       />
     </div>
   );

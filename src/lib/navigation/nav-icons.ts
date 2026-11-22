@@ -1,10 +1,7 @@
 import {
   ArrowRightLeft,
   Award,
-  CalendarCheck,
   CalendarDays,
-  CalendarPlus,
-  CalendarRange,
   ChevronRight,
   ClipboardList,
   Clock,
@@ -15,7 +12,6 @@ import {
   LayoutTemplate,
   Layers,
   Link2,
-  List,
   Map as MapIcon,
   Newspaper,
   QrCode,
@@ -33,9 +29,7 @@ import { eventTabFromPath, type EventTab } from '@/lib/event-workspace';
 
 const PAGE_ICON: Record<string, LucideIcon> = {
   '/dashboard': LayoutDashboard,
-  '/events': List,
-  '/events?view=calendar': CalendarRange,
-  '/events/new': CalendarPlus,
+  '/events': CalendarDays,
   '/seasons': Layers,
   '/qr': QrCode,
   '/users': Users,
@@ -63,12 +57,9 @@ const EVENT_TAB_ICON: Record<EventTab, LucideIcon> = {
 };
 
 const GROUP_ICON: Record<string, LucideIcon> = {
-  events: CalendarDays,
-  'active-event': CalendarCheck,
-  club: UsersRound,
+  people: UsersRound,
   content: Newspaper,
-  certificates: Award,
-  system: Settings2,
+  settings: Settings2,
 };
 
 /** One line under each console's name in the switcher. */

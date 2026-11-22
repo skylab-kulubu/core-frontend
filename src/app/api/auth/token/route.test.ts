@@ -60,6 +60,7 @@ describe('GET /api/auth/token', () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ token: null });
     expect(tokenEndpoint).not.toHaveBeenCalled();
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('expires the session cookies, current and legacy, when Keycloak rejects the refresh token', async () => {
@@ -114,7 +115,8 @@ describe('GET /api/auth/token', () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ token });
+    expect(await response.json()).toEqual({ token, expiresIn: 300 });
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(tokenEndpoint).not.toHaveBeenCalled();
     expect(jar.sentNames()).toEqual([]);
   });
@@ -141,7 +143,7 @@ describe('GET /api/auth/token', () => {
 
     const left = secondsLeftAfter(7 * 3600);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ token: fresh });
+    expect(await response.json()).toEqual({ token: fresh, expiresIn: 300 });
     expect(jar.sent('__Host-auth_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-access_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-refresh_token')).toEqual(sessionCookie('refresh-2', left));

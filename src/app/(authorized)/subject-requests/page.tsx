@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
+import { DatePicker } from '@/components/forms/DatePicker';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
@@ -132,6 +134,7 @@ export default function SubjectRequestsPage() {
   const [form, setForm] = useState<Form>(emptyForm(today));
   const [events, setEvents] = useState<SubjectRequestEvent[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const formDirty = useDirtySince(open, form);
   const notify = useNotify();
 
   async function load() {
@@ -270,6 +273,7 @@ export default function SubjectRequestsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Başvuruyu düzenle' : 'Başvuru ekle'}
+        dirty={formDirty}
       >
         <form
           className="space-y-3"
@@ -297,16 +301,14 @@ export default function SubjectRequestsPage() {
             T.C. kimlik no, ikamet adresi (cevabın gideceği adres dışında), onay kodu ya da kimlik
             belgesi yazma.
           </p>
-          <label className="block space-y-1">
-            <FieldLabel>Başvuru tarihi</FieldLabel>
-            <Field
-              type="date"
-              value={form.receivedOn}
-              max={today}
-              onChange={(e) => setForm({ ...form, receivedOn: e.target.value })}
-              required
-            />
-          </label>
+          <DatePicker
+            label="Başvuru tarihi"
+            mode="date"
+            value={form.receivedOn}
+            max={today}
+            onChange={(receivedOn) => setForm({ ...form, receivedOn })}
+            required
+          />
           <label className="block space-y-1">
             <FieldLabel>Kanal</FieldLabel>
             <Select
@@ -383,17 +385,15 @@ export default function SubjectRequestsPage() {
             </Select>
           </label>
           {concluded ? (
-            <label className="block space-y-1">
-              <FieldLabel>Cevap tarihi</FieldLabel>
-              <Field
-                type="date"
-                value={form.answeredOn}
-                min={form.receivedOn}
-                max={today}
-                onChange={(e) => setForm({ ...form, answeredOn: e.target.value })}
-                required
-              />
-            </label>
+            <DatePicker
+              label="Cevap tarihi"
+              mode="date"
+              value={form.answeredOn}
+              min={form.receivedOn}
+              max={today}
+              onChange={(answeredOn) => setForm({ ...form, answeredOn })}
+              required
+            />
           ) : null}
           <label className="block space-y-1">
             <FieldLabel>Cevap özeti</FieldLabel>

@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom';
 import { MotionGlobalConfig } from 'motion/react';
+import { clearCoreReads } from '@/lib/api/core-read-cache';
+import { forgetAccessToken } from '@/lib/auth/access-token';
 
 // React asks for this flag before it lets state updates run through act(). Testing
 // Library sets it only from its main entry point; rtl.tsx imports the '/pure'
@@ -29,3 +31,9 @@ if (typeof window !== 'undefined') {
     Element.prototype.scrollIntoView = () => undefined;
   }
 }
+
+// The page keeps the access token and core's recent answers in memory; each test starts without
+afterEach(() => {
+  forgetAccessToken();
+  clearCoreReads();
+});
