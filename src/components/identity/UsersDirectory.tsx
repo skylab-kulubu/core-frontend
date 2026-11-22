@@ -13,7 +13,7 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { fromNow } from '@/components/dashboard/format';
 import { dashboardApi, type DashboardSummary } from '@/lib/api/dashboard';
 import { identityApi, type Group, type Person } from '@/lib/api/identity';
-import { monthCounts } from '@/lib/dashboard/insights';
+import { monthLabel } from '@/lib/dashboard/charts';
 import { paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { profilePictureSrc } from '@/lib/profile-picture';
@@ -155,7 +155,10 @@ export function UsersDirectory({
           <Card className="order-last p-4 lg:order-none">
             <BarChart
               title="Aylık yeni üye"
-              data={monthCounts(members.newByMonth)}
+              data={members.newByMonth.map((row) => ({
+                label: monthLabel(row.month),
+                count: row.count,
+              }))}
               empty="Son 12 ayda yeni üye yok"
             />
           </Card>
