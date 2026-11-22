@@ -8,6 +8,7 @@ import { Radio, RadioGroup } from '@skylab-kulubu/skylcn-ui';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { ActionButton } from '@/components/chrome/ActionButton';
+import { LoadError } from '@/components/chrome/LoadError';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -132,6 +133,10 @@ export default function GroupDetailPage() {
   const [attrKey, setAttrKey] = useState('');
   const [attrValue, setAttrValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // A refused write is said in its own section, not in a line at the top of the page
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [attrError, setAttrError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [memberOpen, setMemberOpen] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<PickerOption[]>([]);
@@ -386,26 +391,28 @@ export default function GroupDetailPage() {
         description={group?.path}
         meta={<span className="text-2xs text-subtle-foreground">{members.length} üye</span>}
       />
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
+      {error ? <LoadError title={error} onRetry={load} /> : null}
 
       {group ? (
         <GroupProfile
           group={group}
           readOnly={!canWrite}
           onSave={async (next) => {
+            setProfileError(null);
             try {
               await identityApi.updateGroup(id, next);
               notify.success('Grup kaydedildi');
               await load();
             } catch (err) {
-              setError(groupWriteProblemMessage(err, 'save', 'Kaydedilemedi'));
+              setProfileError(groupWriteProblemMessage(err, 'save', 'Kaydedilemedi'));
             }
           }}
         />
+      ) : null}
+      {profileError ? (
+        <p role="alert" className="text-destructive text-sm">
+          {profileError}
+        </p>
       ) : null}
 
       <section className="space-y-3">
@@ -492,6 +499,11 @@ export default function GroupDetailPage() {
           <SectionHeading title="Ekip ayarları" />
           {/* The panel is full width: a row this wide would part the label from its switch */}
           <div className="max-w-3xl space-y-4">
+            {settingsError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {settingsError}
+              </p>
+            ) : null}
             {settingsKnown && !settingsWrite ? (
               <p className="text-3xs text-subtle-foreground">
                 {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
@@ -505,11 +517,12 @@ export default function GroupDetailPage() {
               onChange={async (next) => {
                 if (!settingsWrite || savingSettings) return;
                 setSavingSettings(true);
+                setSettingsError(null);
                 try {
                   await saveTeamSettings({ membersManageCompetitors: next });
                   notify.success('Ayar kaydedildi');
                 } catch (err) {
-                  setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+                  setSettingsError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
                 } finally {
                   setSavingSettings(false);
                 }
@@ -559,7 +572,7 @@ export default function GroupDetailPage() {
                       'Ayar geri alındı',
                     );
                   } catch (err) {
-                    setError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
+                    setSettingsError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
                   } finally {
                     setSavingSettings(false);
                   }
@@ -713,8 +726,9 @@ export default function GroupDetailPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               if (!attrKey.trim()) return;
+              setAttrError(null);
               if (isKnownGroupAttr(attrKey.trim())) {
-                setError(
+                setAttrError(
                   isTeamSettingAttr(attrKey.trim())
                     ? 'Bu ayar yukarıdaki Ekip ayarları bölümünde.'
                     : 'Bu alan yukarıdaki kulüp alanlarında.',
@@ -730,7 +744,7 @@ export default function GroupDetailPage() {
                 notify.success('Öznitelik eklendi');
                 await load();
               } catch (err) {
-                setError(coreProblemMessage(err, 'Öznitelik eklenemedi'));
+                setAttrError(coreProblemMessage(err, 'Öznitelik eklenemedi'));
               }
             }}
           >
@@ -755,6 +769,11 @@ export default function GroupDetailPage() {
               Ekle
             </SaveButton>
           </form>
+        ) : null}
+        {attrError ? (
+          <p role="alert" className="text-destructive text-sm">
+            {attrError}
+          </p>
         ) : null}
       </section>
 

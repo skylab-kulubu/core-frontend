@@ -258,7 +258,8 @@ describe('ApplicantRoster', () => {
       />,
     );
     expect(screen.getByRole('columnheader', { name: 'Bilet kodu' })).toBeInTheDocument();
-    expect(screen.getByText('K7M2-QX9F')).toBeInTheDocument();
+    // In its column, and under the name where the column gives way on phones
+    expect(screen.getAllByText('K7M2-QX9F')).toHaveLength(2);
     await user.type(screen.getByPlaceholderText('Ad, e-posta, bilet kodu'), 'b4tr9n2d');
     await waitFor(() => expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument());
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
@@ -289,5 +290,27 @@ describe('ApplicantRoster', () => {
     expect(
       screen.queryByRole('button', { name: 'Ada Lovelace: eylemler' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('opens a row beside the list when asked to, and says a refused Katıldı in that row', async () => {
+    const user = userEvent.setup();
+    const onOpenTicket = jest.fn();
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[guest]}
+        people={people}
+        sessions={[{ id: 's1', title: 'Açılış', startTime: '', endTime: '' }]}
+        onOpenTicket={onOpenTicket}
+        onMarkAttended={async () => 'Bu kişi bu oturuma zaten girmiş.'}
+      />,
+    );
+    await user.click(screen.getByRole('link', { name: 'Ada Lovelace' }));
+    expect(onOpenTicket).toHaveBeenCalledWith(expect.objectContaining({ id: guest.id }));
+    await user.click(screen.getByRole('button', { name: 'Katıldı · Açılış' }));
+    const row = screen.getByRole('link', { name: 'Ada Lovelace' }).closest('tr') as HTMLElement;
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Bu kişi bu oturuma zaten girmiş.',
+    );
   });
 });

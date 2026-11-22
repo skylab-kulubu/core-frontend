@@ -42,7 +42,10 @@ export function UserCardView({
   onSaveProfile,
   onAddGroup,
   onRemoveRole,
+  profileError,
 }: {
+  /** Why the last profile save was refused, said beside its Kaydet. */
+  profileError?: string | null;
   card: UserCard;
   canEditProfile?: boolean;
   /** core's `user.readFull`: the card carries the phone and the student card UID. */
@@ -144,6 +147,11 @@ export function UserCardView({
                 <FieldLabel>Öğrenci kartı UID</FieldLabel>
                 <Field value={card.studentCardUid} readOnly />
               </label>
+            ) : null}
+            {profileError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {profileError}
+              </p>
             ) : null}
             <SaveButton disabled={isSubmitting}>
               {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
