@@ -28,6 +28,16 @@ const LEGACY_ANCHORS: Readonly<Record<string, EventTab>> = {
   certificates: 'certificates',
 };
 
+/** The door of an event: one address, a page of its own outside the tabs. */
+export function eventDoorHref(eventId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/door`;
+}
+
+/** Pages drawn without the sidebar: one task done start to finish (an event's door). */
+export function isFocusPath(pathname: string): boolean {
+  return /^\/events\/[^/]+\/door\/?$/.test(pathname);
+}
+
 export function eventTabHref(eventId: string, tab: EventTab = 'overview'): string {
   const base = `/events/${encodeURIComponent(eventId)}`;
   return tab === 'overview' ? base : `${base}/${TAB_SEGMENTS[tab]}`;

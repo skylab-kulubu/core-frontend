@@ -35,13 +35,13 @@ function Harness({ initial }: { initial: string | null }) {
 const trail = () => screen.getAllByRole('navigation')[0].textContent;
 
 describe('chrome crumb names', () => {
-  it('shows Kayıt while the event loads, then its name, and follows a rename', () => {
+  it('shows a pause while the event loads, then its name, and follows a rename', () => {
     render(<Harness initial={null} />);
-    expect(trail()).toContain('Kayıt');
+    expect(trail()).toContain('…');
 
     act(() => rename("Yıldız Hackathon '26"));
     expect(trail()).toContain("Yıldız Hackathon '26");
-    expect(trail()).not.toContain('Kayıt');
+    expect(trail()).not.toContain('…');
 
     act(() => rename('Yıldız Hackathon 2026'));
     expect(trail()).toContain('Yıldız Hackathon 2026');
@@ -61,7 +61,7 @@ describe('chrome crumb names', () => {
         <Trail />
       </ChromeCrumbNamesProvider>,
     );
-    expect(trail()).toContain('Kayıt');
+    expect(trail()).toContain('…');
   });
 
   it('does nothing outside the chrome', () => {
