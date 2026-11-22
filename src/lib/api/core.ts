@@ -66,6 +66,8 @@ export async function bearer(): Promise<string | null> {
  * Sends a request with the session's token. A 401 for a token the page kept (core may have ended
  * the session or the token may have been replaced) drops it and tries once more with a new read;
  * core refuses a request without a valid token before doing anything, so the retry repeats nothing.
+ * A 401 that names a problem `code` is core's answer about the request itself (an invalid door QR,
+ * `ticket_qr_invalid`), not about the token: it is not retried.
  */
 export async function fetchWithToken(
   url: string,
@@ -75,6 +77,7 @@ export async function fetchWithToken(
   const token = await bearer();
   const res = await fetch(url, { ...init, headers: headersFor(token) });
   if (res.status !== 401 || !isKeptAccessToken(token)) return res;
+  if (problemFromResponse(401, await res.clone().text()).code) return res;
   forgetAccessToken(token);
   const again = await bearer();
   if (!again || again === token) return res;

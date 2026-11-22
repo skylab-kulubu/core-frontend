@@ -5,12 +5,14 @@ import { coreFetch } from '@/lib/api/core';
 function json(body: unknown, init: { status?: number } = {}): Response {
   const status = init.status ?? 200;
   const text = JSON.stringify(body);
-  return {
+  const res = {
     ok: status >= 200 && status < 300,
     status,
     text: async () => text,
     json: async () => body,
+    clone: () => res,
   } as Response;
+  return res;
 }
 
 function tokenRoute(answers: Array<{ token: string | null; expiresIn?: number | null }>) {
@@ -198,6 +200,31 @@ describe('coreFetch with a kept token', () => {
     await coreFetch('/v1/b');
 
     expect(seen).toEqual(['Bearer token-X', 'Bearer token-Y']);
+  });
+
+  it("does not retry a 401 that names core's problem with the request itself", async () => {
+    let tokenReads = 0;
+    let doorCalls = 0;
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/auth/token')) {
+        tokenReads += 1;
+        return json({ token: `t${tokenReads}`, expiresIn: 300 });
+      }
+      if (url.includes('/check-in/qr')) {
+        doorCalls += 1;
+        return json({ title: 'Unauthorized', code: 'ticket_qr_invalid' }, { status: 401 });
+      }
+      return json({ ok: true });
+    }) as typeof fetch;
+
+    await coreFetch('/v1/warm');
+    await expect(
+      coreFetch('/v1/sessions/s1/check-in/qr', { method: 'POST', body: '{}' }),
+    ).rejects.toMatchObject({ status: 401, code: 'ticket_qr_invalid' });
+
+    expect(doorCalls).toBe(1);
+    expect(tokenReads).toBe(1);
   });
 
   it('gives the 401 back when the new read returns the same token', async () => {
