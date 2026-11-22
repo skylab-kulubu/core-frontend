@@ -3,7 +3,7 @@
 import { buttonVariants, cn, Tab, Tabs, TabsList } from '@skylab-kulubu/skylcn-ui';
 import { DoorOpen } from 'lucide-react';
 import Link from 'next/link';
-import { eventTabHref, type EventTab } from '@/lib/event-workspace';
+import { eventDoorHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
 
 type EventWorkspaceNavProps = {
   eventId: string;
@@ -67,7 +67,7 @@ export function EventWorkspaceNav({
       </Tabs>
       {canUseDoor ? (
         <Link
-          href={`/qr?eventId=${encodeURIComponent(eventId)}`}
+          href={eventDoorHref(eventId)}
           className={cn(
             buttonVariants({ variant: 'ghost', size: 'sm' }),
             'text-skylab-300 shrink-0',

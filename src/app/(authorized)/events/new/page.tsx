@@ -62,7 +62,12 @@ function NewEventPageContent() {
     () => ready && blank.current !== null && eventFormChanged(blank.current, form),
     [ready, form],
   );
-  const guard = useUnsavedChanges(dirty && !saving);
+  const guard = useUnsavedChanges(dirty && !saving, {
+    // "Değişiklikleri sil" drops the kept draft too: the next visit starts empty
+    onDiscard: () => {
+      if (typeof window !== 'undefined') clearEventDraft(sessionStorage, window.location.href);
+    },
+  });
 
   function persist(next: EventFormState) {
     if (typeof window === 'undefined') return;
@@ -100,7 +105,9 @@ function NewEventPageContent() {
   }, [privileged]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    // Not before core's capabilities: until then a YK member who also leads a team
+    // reads as a leader, and the draft would start with that team as owner
+    if (typeof window === 'undefined' || !capabilitiesReady) return;
     const handoff = formHandoffFromSearch(searchParams);
     const empty = emptyEventForm(privileged ? '' : (leaderTeams[0] ?? ''));
     blank.current = empty;
@@ -110,7 +117,7 @@ function NewEventPageContent() {
     setForm(restored);
     persist(restored);
     setReady(true);
-  }, [searchParams, privileged]);
+  }, [searchParams, privileged, capabilitiesReady]);
 
   if (!capabilitiesReady) return <StateCard title="Yükleniyor…" isLoading />;
   if (!canCreate) {
