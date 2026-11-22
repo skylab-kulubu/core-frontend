@@ -32,7 +32,17 @@ jest.mock('@/lib/api/identity', () => ({
   identityApi: {
     listUsers: jest.fn(),
     createUser: jest.fn(),
+    listGroups: jest.fn().mockResolvedValue([]),
+    members: jest.fn().mockResolvedValue([]),
   },
+}));
+
+jest.mock('@/lib/api/dashboard', () => ({
+  dashboardApi: { summary: jest.fn().mockResolvedValue({ members: null }) },
+}));
+
+jest.mock('@skylab-kulubu/skylcn-ui/charts', () => ({
+  BarChart: () => null,
 }));
 
 describe('Users page', () => {
@@ -71,10 +81,10 @@ describe('Users page', () => {
       { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
     ]);
     render(<UsersPage />);
-    expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+    expect(screen.getByText('Son katılanlar')).toBeInTheDocument();
 
     await user.type(screen.getByRole('searchbox', { name: 'Kullanıcı ara' }), 'A');
-    expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+    expect(screen.getByText('Son katılanlar')).toBeInTheDocument();
     await user.type(screen.getByRole('searchbox', { name: 'Kullanıcı ara' }), 'd');
 
     expect(await screen.findByRole('link', { name: /Ada Lovelace/ })).toBeInTheDocument();
@@ -136,7 +146,7 @@ describe('Users page', () => {
       await user.clear(box);
       await act(async () => pending.get('ab')?.([person('u-old', 'Ab')]));
 
-      expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+      expect(screen.getByText('Son katılanlar')).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: /Ab K/ })).not.toBeInTheDocument();
     });
 
@@ -150,7 +160,7 @@ describe('Users page', () => {
       expect(await screen.findByText('Kullanıcılar yüklenemedi')).toBeInTheDocument();
       await user.clear(box);
       expect(screen.queryByText('Kullanıcılar yüklenemedi')).not.toBeInTheDocument();
-      expect(screen.getByText('Aramak için yaz')).toBeInTheDocument();
+      expect(screen.getByText('Son katılanlar')).toBeInTheDocument();
     });
   });
 });
@@ -192,7 +202,7 @@ describe('Users page for a reader', () => {
   it('offers no add button to a DK member (user.create false)', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'user.create': false } });
     render(<UsersPage />);
-    expect(await screen.findByText('Üye dizinini görüntüle.')).toBeInTheDocument();
+    expect(await screen.findByRole('searchbox', { name: 'Kullanıcı ara' })).toBeInTheDocument();
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: 'Kullanıcı ekle' })).not.toBeInTheDocument();
   });

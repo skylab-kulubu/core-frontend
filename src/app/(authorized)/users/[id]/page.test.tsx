@@ -74,8 +74,8 @@ describe('User detail page', () => {
       expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument(),
     );
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
-    expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Gruptan gelen rol yok')).toBeInTheDocument();
+    expect(screen.queryByText(/^Doğrudan rol:/)).not.toBeInTheDocument();
     expect(screen.queryByText('Beklenmeyen bir hata oluştu')).not.toBeInTheDocument();
   });
 
@@ -130,7 +130,7 @@ describe('User detail roles and readers', () => {
     expect(await screen.findByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Grup ekle' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
-    expect(screen.getByText('Taşınacak')).toBeInTheDocument();
+    expect(screen.getByText(/^Doğrudan rol:/)).toBeInTheDocument();
     expect(identityApi.listClientRoles).not.toHaveBeenCalled();
   });
 
@@ -140,7 +140,14 @@ describe('User detail roles and readers', () => {
     render(<UserDetailPage />);
     expect(await screen.findByText('5551112233')).toBeInTheDocument();
     expect(screen.getByText('forms:admin')).toBeInTheDocument();
-    for (const name of ['Kaydet', 'Grup ekle', 'Rol ekle', 'Kaldır', /Oturumları kapat/]) {
+    for (const name of [
+      'Kaydet',
+      'Düzenle',
+      'Grup ekle',
+      'Rol ekle',
+      'Kaldır',
+      /Oturumları kapat/,
+    ]) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });

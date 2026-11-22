@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { UserCard } from '@/lib/api/identity';
-import { UserCardDesign } from './UserCardDesign';
+import { UserCardView } from './UserCardView';
 
 const card: UserCard = {
   id: 'u1',
@@ -17,14 +17,13 @@ const card: UserCard = {
   extraRoles: [{ clientId: 'core', role: 'events:write' }],
 };
 
-describe.each(['a', 'b'] as const)('UserCardDesign %s', (variant) => {
+describe('UserCardView', () => {
   it('keeps groups, roles, the direct role and every action', async () => {
     const onLogout = jest.fn();
     const onAddGroup = jest.fn();
     const onRemoveRole = jest.fn();
     render(
-      <UserCardDesign
-        variant={variant}
+      <UserCardView
         card={card}
         canEditProfile
         canReadFull
@@ -36,18 +35,11 @@ describe.each(['a', 'b'] as const)('UserCardDesign %s', (variant) => {
     );
     expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(screen.getByText('555')).toBeInTheDocument();
-    if (variant === 'b') {
-      await userEvent.click(screen.getByRole('button', { name: 'Eylemler' }));
-      await userEvent.click(await screen.findByRole('menuitem', { name: 'Oturumları kapat' }));
-      await userEvent.click(screen.getByRole('tab', { name: /Gruplar/ }));
-    } else {
-      await userEvent.click(screen.getByRole('button', { name: 'Oturumları kapat' }));
-    }
+    await userEvent.click(screen.getByRole('button', { name: 'Oturumları kapat' }));
     expect(onLogout).toHaveBeenCalled();
     expect(screen.getByRole('link', { name: /WEBLAB/ })).toHaveAttribute('href', '/groups/g-web');
     await userEvent.click(screen.getByRole('button', { name: 'Grup ekle' }));
     expect(onAddGroup).toHaveBeenCalled();
-    if (variant === 'b') await userEvent.click(screen.getByRole('tab', { name: /Roller/ }));
     expect(screen.getByText('send')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Kaldır' }));
     expect(onRemoveRole).toHaveBeenCalledWith({ clientId: 'core', role: 'events:write' });
@@ -55,14 +47,23 @@ describe.each(['a', 'b'] as const)('UserCardDesign %s', (variant) => {
 
   it('edits the profile in place', async () => {
     const onSaveProfile = jest.fn();
-    render(
-      <UserCardDesign variant={variant} card={card} canEditProfile onSaveProfile={onSaveProfile} />,
-    );
-    if (variant === 'b') await userEvent.click(screen.getByRole('tab', { name: 'Profil' }));
+    render(<UserCardView card={card} canEditProfile onSaveProfile={onSaveProfile} />);
     await userEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
     await userEvent.clear(screen.getByLabelText('Bölüm'));
     await userEvent.type(screen.getByLabelText('Bölüm'), 'Elektrik');
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ department: 'Elektrik' }));
   });
+});
+
+it('takes more subjects and actions without changing its cards', () => {
+  render(
+    <UserCardView
+      card={card}
+      actions={<button type="button">Parola sıfırla</button>}
+      sections={<section aria-label="Hesap">Hesap</section>}
+    />,
+  );
+  expect(screen.getByRole('button', { name: 'Parola sıfırla' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Hesap' })).toBeInTheDocument();
 });

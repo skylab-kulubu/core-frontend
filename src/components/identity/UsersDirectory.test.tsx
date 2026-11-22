@@ -50,18 +50,19 @@ const base = {
   searching: false,
   searchFailed: false,
   ready: false,
+  onClearSearch: jest.fn(),
 };
 
-describe.each(['a', 'b'] as const)('UsersDirectory %s', (variant) => {
+describe('UsersDirectory', () => {
   it('opens on the member figures and the latest joiners', async () => {
-    render(<UsersDirectory variant={variant} {...base} />);
+    render(<UsersDirectory {...base} />);
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('187')).toBeInTheDocument();
     expect(screen.getByText('Ada Lovelace').closest('a')).toHaveAttribute('href', '/users/u1');
   });
 
   it("lists a team's members", async () => {
-    render(<UsersDirectory variant={variant} {...base} />);
+    render(<UsersDirectory {...base} />);
     await screen.findByText('Ada Lovelace');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ekip' }), 'g-web');
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
@@ -72,7 +73,6 @@ describe.each(['a', 'b'] as const)('UsersDirectory %s', (variant) => {
   it('shows the search when it runs', async () => {
     render(
       <UsersDirectory
-        variant={variant}
         {...base}
         query="gra"
         ready
@@ -82,4 +82,28 @@ describe.each(['a', 'b'] as const)('UsersDirectory %s', (variant) => {
     await waitFor(() => expect(screen.getByText('Grace Hopper')).toBeInTheDocument());
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
   });
+});
+
+it('offers to clear a search that finds no one', async () => {
+  const onClearSearch = jest.fn();
+  render(<UsersDirectory {...base} query="zzz" ready onClearSearch={onClearSearch} />);
+  expect(await screen.findByText('Eşleşen kullanıcı yok')).toBeInTheDocument();
+  const buttons = screen.getAllByRole('button', { name: 'Aramayı temizle' });
+  await userEvent.click(buttons[buttons.length - 1]);
+  expect(onClearSearch).toHaveBeenCalled();
+});
+
+it('shows the found people once the search answers, with no loader left behind', async () => {
+  const { rerender } = render(<UsersDirectory {...base} query="gra" ready searching />);
+  expect(await screen.findByText(/Yükleniyor/)).toBeInTheDocument();
+  rerender(
+    <UsersDirectory
+      {...base}
+      query="gra"
+      ready
+      results={[{ id: 'u2', firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.com' }]}
+    />,
+  );
+  expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText(/Yükleniyor/)).not.toBeInTheDocument());
 });

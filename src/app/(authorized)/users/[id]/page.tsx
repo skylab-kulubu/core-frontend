@@ -2,11 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { LogOut } from 'lucide-react';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
-import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
-import { UserCardDesign } from '@/components/identity/UserCardDesign';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -24,7 +21,6 @@ import { useAppCan } from '@/lib/use-app-can';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
-import { useDesignVariant } from '@/lib/ui/design-variant';
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
@@ -47,7 +43,6 @@ export default function UserDetailPage() {
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
   const memberAdd = useMemberAdd();
-  const variant = useDesignVariant();
 
   async function load() {
     try {
@@ -153,33 +148,15 @@ export default function UserDetailPage() {
           {actionError}
         </p>
       ) : null}
-      {variant ? (
-        <UserCardDesign
-          variant={variant}
-          card={card}
-          canEditProfile={canWrite}
-          canReadFull={can('user.readFull')}
-          onSaveProfile={saveProfile}
-          onAddGroup={canAddGroup ? () => void openGroups() : undefined}
-          onRemoveRole={removeRole}
-          onLogout={canWrite ? askLogout : undefined}
-        />
-      ) : (
-        <UserCardView
-          card={card}
-          canEditProfile={canWrite}
-          canReadFull={can('user.readFull')}
-          onSaveProfile={saveProfile}
-          onAddGroup={canAddGroup ? () => void openGroups() : undefined}
-          onRemoveRole={removeRole}
-        />
-      )}
-      {canWrite && !variant ? (
-        <SaveButton type="button" onClick={askLogout}>
-          <LogOut className="h-4 w-4" />
-          Oturumları kapat
-        </SaveButton>
-      ) : null}
+      <UserCardView
+        card={card}
+        canEditProfile={canWrite}
+        canReadFull={can('user.readFull')}
+        onSaveProfile={saveProfile}
+        onAddGroup={canAddGroup ? () => void openGroups() : undefined}
+        onRemoveRole={removeRole}
+        onLogout={canWrite ? askLogout : undefined}
+      />
       {confirmDialog}
       {canAddGroup ? (
         <PickerDrawer
