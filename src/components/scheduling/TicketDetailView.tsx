@@ -34,18 +34,21 @@ export function TicketDetailView({
   people,
   event,
   sessions,
+  groups = GROUPS,
 }: {
   ticket: Ticket;
   people: Map<string, Person>;
   event?: TicketSourceEvent | null;
   sessions?: TicketDetailContext['sessions'];
+  /** The groups to show, in order; all four by default. */
+  groups?: readonly TicketDetailGroup[];
 }) {
   const fields = ticketDetailFields(ticket, people, event, { sessions }).filter(
     (field) => !(OPTIONAL.has(field.label) && field.value === '—'),
   );
   return (
     <div className="space-y-5">
-      {GROUPS.map((group) => {
+      {groups.map((group) => {
         const rows = fields.filter((field) => field.group === group);
         if (!rows.length) return null;
         return (

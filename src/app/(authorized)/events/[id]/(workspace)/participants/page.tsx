@@ -9,6 +9,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
+import { ParticipantsDesign } from '@/components/scheduling/roster/ParticipantsDesign';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { coreProblemMessage } from '@/lib/core-problems';
@@ -19,6 +20,7 @@ import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
 import { ticketApplicantEmail, ticketSendProblem, ticketStatus } from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
+import { useDesignVariant } from '@/lib/ui/design-variant';
 import { useNotify } from '@/lib/ui/use-notify';
 
 /** The registration open beside the list is in the address, so a link reopens it. */
@@ -46,6 +48,7 @@ export default function EventParticipantsPage() {
     canDesk,
   } = useEventWorkspace();
   const notify = useNotify();
+  const variant = useDesignVariant();
   const [confirm, confirmDialog] = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -120,6 +123,62 @@ export default function EventParticipantsPage() {
   const resend = canAssign ? askResend : undefined;
   const renew = canAssign ? askRenew : undefined;
   const openStatus = openTicket ? ticketStatus(openTicket) : null;
+  const markAttended = canDesk
+    ? async (ticket: Ticket, sessionId: string) => {
+        try {
+          const created = await ticketsApi.checkIn(ticket.id, sessionId);
+          const sessionTitle =
+            sessions.find((session) => session.id === sessionId)?.title || sessionId;
+          // A toast: the result line above the roster is off screen on a phone
+          notify.success(
+            checkInSuccessLine({
+              name: doorTicketName(ticket, personById),
+              sessionTitle,
+              createdAt: created.createdAt,
+            }),
+          );
+          await reload();
+          return null;
+        } catch (err) {
+          return coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN);
+        }
+      }
+    : undefined;
+
+  if (variant) {
+    return (
+      <>
+        <ParticipantsDesign
+          variant={variant}
+          eventId={event.id}
+          tickets={tickets}
+          people={personById}
+          event={event}
+          sessions={sessions}
+          failed={ticketsFailed}
+          onRetry={reload}
+          openTicket={openTicket}
+          onOpenTicket={show}
+          onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
+          onMail={(recipients) =>
+            void mailApplicants(recipients.map((recipient) => recipient.ticketId))
+          }
+          onMarkAttended={markAttended}
+          onResend={resend}
+          onRenew={renew}
+          dialogs={confirmDialog}
+        />
+        <AddParticipantDrawer
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          eventId={event.id}
+          onCreated={async () => {
+            await reload();
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -140,29 +199,7 @@ export default function EventParticipantsPage() {
           }
           onResend={resend}
           onRenew={renew}
-          onMarkAttended={
-            canDesk
-              ? async (ticket, sessionId) => {
-                  try {
-                    const created = await ticketsApi.checkIn(ticket.id, sessionId);
-                    const sessionTitle =
-                      sessions.find((session) => session.id === sessionId)?.title || sessionId;
-                    // A toast: the result line above the roster is off screen on a phone
-                    notify.success(
-                      checkInSuccessLine({
-                        name: doorTicketName(ticket, personById),
-                        sessionTitle,
-                        createdAt: created.createdAt,
-                      }),
-                    );
-                    await reload();
-                    return null;
-                  } catch (err) {
-                    return coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN);
-                  }
-                }
-              : undefined
-          }
+          onMarkAttended={markAttended}
         />
       </div>
       {tickets.length > 0 ? (
