@@ -100,6 +100,52 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     expect(within(top).queryByRole('button', { name: 'Yayınla' })).not.toBeInTheDocument();
   });
 
+  it('asks before publishing a draft with tickets, the "biletin hazır" box ticked', async () => {
+    const user = userEvent.setup();
+    opens({ status: 'draft', active: false, startDate: future });
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([
+      guestTicket,
+      { ...guestTicket, id: 't2', guestFirstName: 'Grace', guestLastName: 'Hopper' },
+    ]);
+    (eventsApi.publish as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'published',
+      active: true,
+      startDate: future,
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByText('2 başvuru');
+    const top = await header();
+    await user.click(within(top).getByRole('button', { name: 'Yayınla' }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
+    expect(
+      within(dialog).getByRole('checkbox', {
+        name: 'Taslakta yazılan 2 kişiye "biletin hazır" postası gönder',
+      }),
+    ).toBeChecked();
+    expect(within(dialog).getByText('Ada Lovelace, Grace Hopper')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('e1', { notifyTicketHolders: true });
+    expect(await within(top).findByText('Yaklaşıyor')).toBeInTheDocument();
+  });
+
+  it('publishes an ended draft without asking: core mails no past event', async () => {
+    const user = userEvent.setup();
+    opens({ status: 'draft', active: false, startDate: '2020-10-01T10:00:00+03:00' });
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+    (eventsApi.publish as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'published',
+      startDate: '2020-10-01T10:00:00+03:00',
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByText('1 başvuru');
+    await user.click(within(await header()).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('e1');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
   it('says what a publish is missing', async () => {
     const user = userEvent.setup();
     opens({ status: 'draft', active: false });
