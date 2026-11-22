@@ -23,7 +23,7 @@ describe('DoorAttendeePick', () => {
     render(<DoorAttendeePick eventId="e1" valueKey="" onPick={jest.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    const field = within(dialog).getByPlaceholderText('Ad veya e-posta');
+    const field = within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu');
     await user.type(field, 'ad');
     await waitFor(() => expect(ticketsApi.searchDoorAttendees).toHaveBeenCalledWith('e1', 'ad'));
     await user.clear(field);
@@ -46,7 +46,7 @@ describe('DoorAttendeePick', () => {
     render(<DoorAttendeePick eventId="e1" valueKey="" onPick={jest.fn()} />);
     await user.click(screen.getByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    const field = within(dialog).getByPlaceholderText('Ad veya e-posta');
+    const field = within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu');
     await user.type(field, 'ad');
     expect(await within(dialog).findByRole('button', { name: /Ada Lovelace/ })).toBeInTheDocument();
 

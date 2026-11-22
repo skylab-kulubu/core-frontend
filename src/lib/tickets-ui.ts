@@ -2,7 +2,9 @@ import { personLabel } from '@/components/identity/PersonPick';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
 import { canCheckInForEvent, canWriteEvent, isPrivileged, ownerLevels } from '@/lib/auth/groups';
+import { ProblemError } from '@/lib/api/core';
 import { publicShortUrl } from '@/lib/api/urls';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { pad2 } from '@/lib/date-picker';
 
 export type TicketSourceEvent = {
@@ -52,8 +54,13 @@ export function canListEventTickets(
   );
 }
 
+/**
+ * Apply-for-other, and sending a Ticket again or renewing its link (core
+ * docs/ticket-resend.md): the owning team's Leaders, ADMIN and YK
+ * (ticket:manage). DK reads, it does not give out Tickets.
+ */
 export function canAssignEventTicket(groups: readonly string[], ownerTeam: string): boolean {
-  if (isPrivileged(groups)) return true;
+  if (groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK)(\/|$)/.test(g))) return true;
   return ownerLevels(groups, ownerTeam).includes('LEADER');
 }
 
@@ -172,6 +179,19 @@ export type ApplicantRosterFilter = {
   status: 'all' | 'registered' | 'checked-in';
 };
 
+/**
+ * A Ticket code as core reads it at the desk (docs/ticket-access-key-and-code.md):
+ * dashes and spaces dropped, upper case, O read as 0, I and L as 1 (ı and İ too).
+ */
+export function normalizeTicketCode(raw: string): string {
+  return raw
+    .replace(/[\s-]/g, '')
+    .replace(/[ıİ]/g, 'I')
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
+}
+
 export function filterApplicantRoster(
   rows: readonly Ticket[],
   people: Map<string, Person>,
@@ -180,11 +200,13 @@ export function filterApplicantRoster(
   now = new Date(),
 ): Ticket[] {
   const q = filter.query.trim().toLowerCase();
+  const code = normalizeTicketCode(filter.query);
   return rows.filter((row) => {
     if (filter.ticketType !== 'all' && row.ticketType !== filter.ticketType) return false;
     const projected = ticketRosterRow(row, people, event, now);
     if (filter.status !== 'all' && projected.status !== filter.status) return false;
     if (!q) return true;
+    if (code.length >= 4 && normalizeTicketCode(row.code ?? '').includes(code)) return true;
     return [
       projected.name,
       projected.email,
@@ -356,4 +378,15 @@ export function ticketMailRecipients(
     });
   }
   return recipients;
+}
+
+/**
+ * Why core refused "Bileti yeniden gönder" or "Bağlantıyı yenile": the
+ * panel's sentence for the code, an ended Event in the Ticket's words.
+ */
+export function ticketSendProblem(error: unknown, fallback: string): string {
+  if (error instanceof ProblemError && error.code === 'event_ended') {
+    return 'Etkinlik bitmiş; bilet gönderilmez.';
+  }
+  return coreProblemMessage(error, fallback);
 }

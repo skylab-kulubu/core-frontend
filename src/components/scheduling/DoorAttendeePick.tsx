@@ -86,7 +86,7 @@ export function DoorAttendeePick({
         title="Katılımcı bul"
         query={query}
         onQuery={setQuery}
-        placeholder="Ad veya e-posta"
+        placeholder="Ad, e-posta ya da bilet kodu"
         loading={loading}
         failed={failed}
         options={attendees.map((attendee) => ({

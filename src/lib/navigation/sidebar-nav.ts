@@ -101,6 +101,12 @@ const NAVIGATION_LINKS: ReadonlyArray<
     label: "SkyApp'ten geçiş",
     visibleWhen: ({ groups }) => canManageHandoffTargets(groups),
   },
+  // core lets YK ask for regions too (media:manage); the menu shows them to ADMIN
+  {
+    href: '/map-regions',
+    label: 'Harita bölgeleri',
+    visibleWhen: ({ groups }) => canManageHandoffTargets(groups),
+  },
 ];
 
 export function filterSidebarNavForUser(
@@ -229,13 +235,12 @@ export function buildSidebarNavigation(
       children: certificateChildren,
     });
   }
-  if (allowed.has('/handoff-targets')) {
-    nodes.push({
-      kind: 'group',
-      id: 'system',
-      label: 'Sistem',
-      children: [{ href: '/handoff-targets', label: "SkyApp'ten geçiş" }],
-    });
+  const systemChildren = [
+    { href: '/handoff-targets', label: "SkyApp'ten geçiş" },
+    { href: '/map-regions', label: 'Harita bölgeleri' },
+  ].filter((item) => allowed.has(item.href));
+  if (systemChildren.length) {
+    nodes.push({ kind: 'group', id: 'system', label: 'Sistem', children: systemChildren });
   }
   return nodes;
 }
