@@ -71,7 +71,7 @@ describe('AdminSearch', () => {
 
   it('opens with the keyboard, filters destinations and navigates', async () => {
     const keyboard = userEvent.setup();
-    renderSearch();
+    renderSearch(user, { hasDoorAssignment: true });
     await keyboard.keyboard('{Meta>}k{/Meta}');
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     expect(search).toHaveFocus();
@@ -217,5 +217,34 @@ describe('AdminSearch', () => {
     await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
     await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     expect(screen.queryByRole('option', { name: /Yeni etkinlik/ })).not.toBeInTheDocument();
+  });
+
+  it('opens empty after a result was picked, and searches people again', async () => {
+    (identityApi.listUsers as jest.Mock).mockResolvedValue([
+      { id: 'u-kutay', firstName: 'kutay', lastName: 'yılmaz', email: 'k@example.com' },
+    ]);
+    const keyboard = userEvent.setup();
+    renderSearch();
+    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    let search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    await keyboard.type(search, 'kut');
+    await keyboard.click(await screen.findByRole('option', { name: /Kutay Yılmaz/ }));
+    expect(push).toHaveBeenCalledWith('/users/u-kutay');
+    expect(identityApi.listUsers).toHaveBeenCalledTimes(1);
+
+    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    expect(search).toHaveValue('');
+    await keyboard.type(search, 'kut');
+    expect(await screen.findByRole('option', { name: /Kutay Yılmaz/ })).toBeInTheDocument();
+    expect(identityApi.listUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers the door only to whoever has a door to staff (not DK)', async () => {
+    const keyboard = userEvent.setup();
+    renderSearch({ ...user, groups: ['/UYELER/DK'] });
+    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    expect(screen.queryByRole('option', { name: /^Kapı/ })).not.toBeInTheDocument();
   });
 });

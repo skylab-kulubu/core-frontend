@@ -135,10 +135,14 @@ describe('buildSidebarNavigation', () => {
 });
 
 describe('searchPages', () => {
-  it('adds the door to Ctrl+K for whoever opens it from an event', () => {
-    const pages = searchPages(person(['/UYELER/YK']));
+  it('adds the door to Ctrl+K for whoever has a door to staff', () => {
+    const pages = searchPages(person(['/UYELER/YK']), { hasDoorAssignment: true });
     expect(pages.slice(0, 3).map((page) => page.href)).toEqual(['/dashboard', '/events', '/qr']);
     expect(pages.find((page) => page.href === '/seasons')?.section).toBe('Ayarlar');
+  });
+
+  it('leaves the door out for whoever has none, DK included', () => {
+    expect(searchPages(person(['/UYELER/DK'])).map((page) => page.href)).not.toContain('/qr');
   });
 
   it('keeps the door once for door staff and leaves it out for everyone else', () => {

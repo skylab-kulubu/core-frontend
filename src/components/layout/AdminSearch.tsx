@@ -131,8 +131,15 @@ export function AdminSearch({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  // skylcn-ui's palette clears its text only when it closes itself (Esc, outside), not when a
+  // result is picked: a new palette on every opening starts empty, as `query` does here
+  const [openings, setOpenings] = useState(0);
+  const show = useCallback(() => {
+    setOpenings((n) => n + 1);
+    setOpen(true);
+  }, []);
   const apple = useSyncExternalStore(noSubscription, onApple, () => false);
-  useCommandShortcut(useCallback(() => setOpen(true), []));
+  useCommandShortcut(show);
 
   const pages = useMemo(() => searchPages(user, navigationContext), [navigationContext, user]);
   const scope = useMemo(() => searchScope(user, pages), [pages, user]);
@@ -187,13 +194,7 @@ export function AdminSearch({
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        aria-label="Hızlı git"
-        className="gap-2"
-      >
+      <Button variant="ghost" size="sm" onClick={show} aria-label="Hızlı git" className="gap-2">
         <Search />
         <span className="text-subtle-foreground hidden lg:inline">Hızlı git</span>
         <span className="hidden items-center gap-0.5 lg:flex">
@@ -203,6 +204,7 @@ export function AdminSearch({
       </Button>
       <div className="contents" onChange={onPaletteInput}>
         <CommandPalette
+          key={openings}
           items={items}
           open={open}
           onOpenChange={(next) => {

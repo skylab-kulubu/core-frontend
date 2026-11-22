@@ -191,24 +191,21 @@ export function buildSidebarNavigation(
 
 /**
  * The pages Ctrl+K opens: the sidebar's, each with its section's name to be
- * found by, and Kapı for everyone who may check in, the people who open it
- * from an event included.
+ * found by, and Kapı for whoever has a door to staff (core's door list), the
+ * people who also open it from an event included.
  */
 export function searchPages(
   user: UserDto,
   context: SidebarNavigationContext = {},
 ): Array<SidebarNavLink & { section?: string }> {
-  const links = visibleLinks(user, context);
-  const pages: Array<SidebarNavLink & { section?: string }> = links.map(
+  const pages: Array<SidebarNavLink & { section?: string }> = visibleLinks(user, context).map(
     ({ href, label, section }) => ({
       href,
       label,
       section: section ? SECTION_LABELS[section] : undefined,
     }),
   );
-  const seesEventsLink = links.some((link) => link.href === '/events');
-  const hasDoor = pages.some((page) => page.href === '/qr');
-  if (!hasDoor && (seesEventsLink || context.hasDoorAssignment === true)) {
+  if (context.hasDoorAssignment === true && !pages.some((page) => page.href === '/qr')) {
     const at = pages.findIndex((page) => page.href === '/events');
     pages.splice(at + 1, 0, { href: '/qr', label: 'Kapı' });
   }
