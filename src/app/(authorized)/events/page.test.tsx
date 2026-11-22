@@ -6,6 +6,7 @@ import EventsPage from '@/app/(authorized)/events/page';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { identityApi } from '@/lib/api/identity';
 import { ticketsApi } from '@/lib/api/tickets';
 
 const mockReplace = jest.fn();
@@ -33,6 +34,7 @@ jest.mock('@/lib/api/events', () => ({
   },
 }));
 jest.mock('@/lib/api/tickets', () => ({ ticketsApi: { listByEvent: jest.fn() } }));
+jest.mock('@/lib/api/identity', () => ({ identityApi: { getUser: jest.fn() } }));
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
 
 const future = '2099-10-01T10:00:00+03:00';
@@ -176,7 +178,8 @@ describe('Etkinlikler listesi', () => {
     expect(screen.queryByRole('button', { name: 'Taslak Kodu: eylemler' })).not.toBeInTheDocument();
   });
 
-  it('publishes a draft without asking and shows its new status', async () => {
+  it('publishes a draft without tickets without asking and shows its new status', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
     const user = userEvent.setup();
     render(<EventsPage />);
@@ -189,7 +192,66 @@ describe('Etkinlikler listesi', () => {
     );
   });
 
+  it('asks before publishing a draft with tickets and sends the box as asked', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([
+      {
+        id: 't1',
+        ticketType: 'REGISTERED',
+        ownerId: 'p1',
+        owner: { id: 'p1', email: 'ali@example.com', firstName: 'Ali', lastName: 'Kaya' },
+      },
+      { id: 't2', ticketType: 'REGISTERED', ownerId: 'p2' },
+      { id: 't3', ticketType: 'REGISTERED', ownerId: 'p3' },
+    ]);
+    // The list's Tickets may come without their owner: the dialog reads them by id
+    (identityApi.getUser as jest.Mock).mockImplementation(async (id: string) => {
+      if (id === 'p2') return { id, email: 'ece@example.com', firstName: 'Ece', lastName: 'Su' };
+      throw new Error('gone');
+    });
+    (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    const menu = await openMenu(user, 'Taslak Kodu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Yayınla' }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
+    // A holder whose read failed is counted, not named
+    expect(identityApi.getUser).toHaveBeenCalledWith('p2');
+    expect(identityApi.getUser).not.toHaveBeenCalledWith('p1');
+    const box = within(dialog).getByRole('checkbox', {
+      name: 'Taslakta yazılan 3 kişiye "biletin hazır" postası gönder',
+    });
+    expect(box).toBeChecked();
+    expect(box).toHaveAccessibleDescription('Ali Kaya, Ece Su ve 1 kişi daha');
+    await user.click(box);
+    await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('d', { notifyTicketHolders: false });
+    await waitFor(() =>
+      expect(within(rowOf('Taslak Kodu')).getAllByText('Yaklaşıyor').length).toBeGreaterThan(0),
+    );
+  });
+
+  it('asks with the box but no count when the tickets cannot be read', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockRejectedValue(new Error('down'));
+    (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    const menu = await openMenu(user, 'Taslak Kodu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Yayınla' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
+    expect(
+      within(dialog).getByRole('checkbox', {
+        name: 'Taslakta yazılan kişilere "biletin hazır" postası gönder',
+      }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('d', { notifyTicketHolders: true });
+  });
+
   it('says why core refused a publish', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (eventsApi.publish as jest.Mock).mockRejectedValue(
       new ProblemError(400, 'Bad Request', {
         code: 'event_incomplete',

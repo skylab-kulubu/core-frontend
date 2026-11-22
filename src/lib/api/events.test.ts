@@ -54,6 +54,7 @@ describe('eventsApi status writes', () => {
   it('posts each transition to its own endpoint', async () => {
     const calls = recordFetch();
     await eventsApi.publish('e1');
+    await eventsApi.publish('e1', { notifyTicketHolders: true });
     await eventsApi.unpublish('e1');
     await eventsApi.cancel('e1', { reason: 'Hava', notifyTicketHolders: true });
     await eventsApi.uncancel('e1', { notifyTicketHolders: false });
@@ -61,6 +62,7 @@ describe('eventsApi status writes', () => {
 
     expect(calls).toEqual([
       { method: 'POST', path: '/v1/events/e1/publish', body: undefined },
+      { method: 'POST', path: '/v1/events/e1/publish', body: { notifyTicketHolders: true } },
       { method: 'POST', path: '/v1/events/e1/unpublish', body: undefined },
       {
         method: 'POST',
