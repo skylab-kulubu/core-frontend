@@ -28,15 +28,30 @@ describe('DatePicker', () => {
     expect(screen.getByRole('button', { name: 'Başlangıç: takvimden seç' })).toBeInTheDocument();
   });
 
-  it('says how to write it when the text is no date, keeping the last value', async () => {
+  it('puts the saved value back when the text left is no date, and says so', async () => {
     const user = userEvent.setup();
     render(<Field initial="2026-11-15T19:00" />);
     const field = screen.getByRole('textbox', { name: 'Başlangıç' });
     await user.clear(field);
-    await user.type(field, '31.02.2026');
+    // On the way to a year: "15.11.20" is not taken as 2020
+    await user.type(field, '15.11.202');
     await user.tab();
-    expect(field).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByText('GG.AA.YYYY SS:DD biçiminde yaz.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Değer')).toHaveTextContent('2026-11-15T19:00');
+    expect(field).toHaveValue('15.11.2026 19:00');
+    expect(
+      screen.getByText('Okunamadı, önceki değer kaldı. GG.AA.YYYY SS:DD biçiminde yaz.'),
+    ).toBeInTheDocument();
+  });
+
+  it('reads a short year once the field is left', async () => {
+    const user = userEvent.setup();
+    render(<Field mode="date" />);
+    const field = screen.getByRole('textbox', { name: 'Başlangıç' });
+    await user.type(field, '1.10.26');
+    expect(screen.getByLabelText('Değer')).toHaveTextContent(/^$/);
+    await user.tab();
+    expect(screen.getByLabelText('Değer')).toHaveTextContent(/^2026-10-01$/);
+    expect(field).toHaveValue('01.10.2026');
   });
 
   it('keeps a day alone in date mode', async () => {
