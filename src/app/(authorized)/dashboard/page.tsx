@@ -6,6 +6,7 @@ import { NumbersSection, TodoSection, WeekSection } from '@/components/dashboard
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { dashboardApi, type DashboardSummary } from '@/lib/api/dashboard';
+import { canSeeSchedulingNav } from '@/lib/auth/groups';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { homeView } from '@/lib/dashboard/home';
 
@@ -74,7 +75,13 @@ export default function DashboardPage() {
         <TodoSection rows={view.todo} loading={false} />
       ) : null}
 
-      {state.kind !== 'error' ? <WeekSection days={view?.week ?? []} loading={loading} /> : null}
+      {state.kind !== 'error' ? (
+        <WeekSection
+          days={view?.week ?? []}
+          loading={loading}
+          linked={canSeeSchedulingNav(groups ?? [])}
+        />
+      ) : null}
 
       {view?.numbers && state.kind === 'ok' && state.summary.home?.compare ? (
         <NumbersSection rows={view.numbers} days={state.summary.home.compare.days} />

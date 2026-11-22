@@ -75,9 +75,11 @@ it('asks core once and shows the to-dos first, then the week, then the figures',
   expect(
     within(todo).getByRole('link', { name: /1 KVKK başvurusu yanıt bekliyor/ }),
   ).toHaveAttribute('href', '/subject-requests');
-  expect(
-    within(todo).getByRole('link', { name: /Seminer: 3 sertifika basılamadı/ }),
-  ).toHaveAttribute('href', '/events/e3/certificates');
+  expect(within(todo).getByRole('link', { name: 'Seminer' })).toHaveAttribute(
+    'href',
+    '/events/e3/certificates',
+  );
+  expect(within(todo).getByText('3 sertifika basılamadı')).toBeInTheDocument();
 
   const week = screen.getByRole('region', { name: 'Bu hafta' });
   expect(within(week).getByRole('link', { name: /Hackathon/ })).toHaveAttribute(
@@ -106,6 +108,7 @@ it('gives a Member without a team role only the week, with a plain empty state',
   render(<DashboardPage />);
 
   expect(await screen.findByText('Bu hafta etkinlik yok')).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Takvim' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Yapılacaklar' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: /Son 30 gün/ })).not.toBeInTheDocument();
 });

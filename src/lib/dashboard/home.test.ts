@@ -60,7 +60,8 @@ describe('todoRows', () => {
       },
       {
         key: 'certificates-e3',
-        title: 'Seminer: 3 sertifika basılamadı',
+        title: 'Seminer',
+        detail: '3 sertifika basılamadı',
         href: '/events/e3/certificates',
         tone: 'danger',
       },

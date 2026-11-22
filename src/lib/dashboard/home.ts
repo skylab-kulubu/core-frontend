@@ -93,7 +93,8 @@ export function todoRows(todo: DashboardHome['todo'], now = new Date()): TodoRow
   for (const item of todo.failedCertificates) {
     rows.push({
       key: `certificates-${item.eventId}`,
-      title: `${item.eventName}: ${item.failed} sertifika basılamadı`,
+      title: item.eventName,
+      detail: `${item.failed} sertifika basılamadı`,
       href: `/events/${item.eventId}/certificates`,
       tone: 'danger',
     });

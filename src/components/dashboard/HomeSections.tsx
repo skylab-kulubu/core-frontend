@@ -71,17 +71,28 @@ export function TodoSection({ rows, loading }: { rows: TodoRow[]; loading: boole
 
 const DAY_LIMIT = 6;
 
-export function WeekSection({ days, loading }: { days: WeekDay[]; loading: boolean }) {
+/** linked is false for a reader who cannot open the Event pages: the rows only inform. */
+export function WeekSection({
+  days,
+  loading,
+  linked = true,
+}: {
+  days: WeekDay[];
+  loading: boolean;
+  linked?: boolean;
+}) {
   return (
     <HomeSection
       title="Bu hafta"
       action={
-        <Link
-          href="/events?view=calendar"
-          className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
-        >
-          Takvim
-        </Link>
+        linked ? (
+          <Link
+            href="/events?view=calendar"
+            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+          >
+            Takvim
+          </Link>
+        ) : null
       }
     >
       {loading || days.length === 0 ? (
@@ -100,9 +111,9 @@ export function WeekSection({ days, loading }: { days: WeekDay[]; loading: boole
                 {day.rows.slice(0, DAY_LIMIT).map((row) => (
                   <ListItem
                     key={row.key}
-                    href={row.href}
+                    href={linked ? row.href : undefined}
                     leading={
-                      <span className="text-muted-foreground w-16 shrink-0 text-sm tabular-nums">
+                      <span className="text-muted-foreground w-11 shrink-0 text-sm tabular-nums sm:w-14">
                         {row.time}
                       </span>
                     }
@@ -111,7 +122,7 @@ export function WeekSection({ days, loading }: { days: WeekDay[]; loading: boole
                     trailing={row.live ? <StatusChip kind="live" /> : undefined}
                   />
                 ))}
-                {day.rows.length > DAY_LIMIT ? (
+                {linked && day.rows.length > DAY_LIMIT ? (
                   <ListItem
                     href="/events?view=calendar"
                     title={`${day.rows.length - DAY_LIMIT} tane daha`}
