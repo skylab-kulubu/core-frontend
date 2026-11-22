@@ -32,20 +32,15 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Drawer } from '@/components/chrome/Drawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { PageHeader } from '@/components/layout/PageHeader';
-import {
-  emptyEventForm,
-  EventEditor,
-  type EventFormState,
-} from '@/components/scheduling/EventEditor';
+import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
 import {
@@ -85,7 +80,9 @@ import {
 import { openEventMail } from '@/lib/event-mail';
 import { publicMediaUrl } from '@/lib/event-media';
 import {
+  eventEditHref,
   eventTabFromPath,
+  isEventEditPath,
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
@@ -108,7 +105,7 @@ import {
 import { useCapabilities } from '@/lib/capabilities-context';
 import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
 
-const eventEditSchema = z
+export const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
   .superRefine(({ event }, context) => {
     const issue = eventFormIssue(event);
@@ -207,6 +204,23 @@ function cancelledOn(at: string | undefined): string {
   }).format(date);
 }
 
+export type EventEditFormValues = z.infer<typeof eventEditSchema>;
+
+/** The event's edit form, kept by the workspace so a return from Skyforms lands in it. */
+export type EventEditorState = {
+  form: UseFormReturn<EventEditFormValues>;
+  /** False until the event's fields are in the form. */
+  ready: boolean;
+  ownerOptions: string[];
+  seasons: Season[];
+  privileged: boolean;
+  /** The last save core refused, said in the save bar. */
+  error: string | null;
+  inUse: FormInUse | null;
+  /** Saves the changed fields; true once core took them (the event is then read again). */
+  save: (values: EventFormState) => Promise<boolean>;
+};
+
 export type EventWorkspaceValue = EventPermissions & {
   event: CoreEvent;
   setEvent: (event: CoreEvent) => void;
@@ -223,6 +237,7 @@ export type EventWorkspaceValue = EventPermissions & {
   reload: () => Promise<void>;
   /** Fills the event's Skymail list (all tickets, or only these) and opens the composer. */
   mailApplicants: (ticketIds?: string[]) => Promise<void>;
+  editor: EventEditorState;
 };
 
 const EventWorkspaceContext = createContext<EventWorkspaceValue | null>(null);
@@ -291,8 +306,7 @@ export function EventWorkspace({
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  // A save the edit drawer refused, shown in the drawer where the organizer is.
+  // A save the edit page refused, shown in its save bar where the organizer is.
   const [editError, setEditError] = useState<string | null>(null);
   const [editInUse, setEditInUse] = useState<FormInUse | null>(null);
   const [mailing, setMailing] = useState(false);
@@ -324,12 +338,11 @@ export function EventWorkspace({
   useEffect(() => {
     setCopySkipped(typeof window === 'undefined' ? [] : takeCopySkipped(sessionStorage, id));
   }, [id]);
-  const eventEditForm = useForm<z.infer<typeof eventEditSchema>>({
+  const eventEditForm = useForm<EventEditFormValues>({
     resolver: zodResolver(eventEditSchema),
     defaultValues: { event: emptyEventForm() },
   });
-  const form = eventEditForm.watch('event');
-  // What the edit drawer opened with: a save sends only the fields changed since
+  // What the edit page opened with: a save sends only the fields changed since
   const editBase = useRef<EventFormState | null>(null);
   function resetEditor(next: EventFormState) {
     editBase.current = next;
@@ -368,11 +381,12 @@ export function EventWorkspace({
           canWriteEvent(groups, ev.ownerTeam, 'update'),
         ))
       ) {
-        setEditing(true);
+        // Skyforms comes back to the event; the edit page shows what was linked
+        const editPage = eventEditHref(ev.id);
         try {
           // The return from Skyforms changed the form fields alone
           await saveEventWithSeason(nextForm, ev.id, loaded);
-          window.history.replaceState(null, '', `/events/${ev.id}`);
+          router.replace(editPage);
           const saved = await eventsApi.get(id);
           setEvent(saved);
           resetEditor({
@@ -387,6 +401,7 @@ export function EventWorkspace({
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
           setEditInUse(formInUseOf(err));
+          router.replace(`${editPage}${window.location.search}`);
         }
       }
       const dayRows = await eventDaysApi.listByEvent(id);
@@ -620,7 +635,34 @@ export function EventWorkspace({
     setError,
     reload: load,
     mailApplicants,
+    editor: {
+      form: eventEditForm,
+      ready: editBase.current !== null,
+      ownerOptions,
+      seasons,
+      privileged,
+      error: editError,
+      inUse: editInUse,
+      save: async (values) => {
+        setEditError(null);
+        setEditInUse(null);
+        try {
+          await saveEventWithSeason(values, current.id, editBase.current ?? undefined);
+        } catch (err) {
+          setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
+          setEditInUse(formInUseOf(err));
+          return false;
+        }
+        if (typeof window !== 'undefined') clearEventDraft(sessionStorage, window.location.href);
+        notify.success('Etkinlik kaydedildi');
+        void load();
+        return true;
+      },
+    },
   };
+  const onEditPage = isEventEditPath(pathname ?? '');
+  // Publishing from the edit page would publish the saved event, not what is typed
+  const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
 
   return (
     <EventWorkspaceContext.Provider value={workspace}>
@@ -649,6 +691,8 @@ export function EventWorkspace({
               {rights.canUpdate && offers.publish ? (
                 <SaveButton
                   type="button"
+                  disabled={unsavedEdit}
+                  title={unsavedEdit ? 'Önce kaydet' : undefined}
                   onClick={() =>
                     void statusActions.publish(
                       event,
@@ -660,8 +704,8 @@ export function EventWorkspace({
                   Yayınla
                 </SaveButton>
               ) : null}
-              {can.canMutate ? (
-                <ActionButton icon={Pencil} label="Düzenle" onClick={() => setEditing(true)} />
+              {can.canMutate && !onEditPage ? (
+                <ActionButton icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} />
               ) : null}
               {can.canTickets ? (
                 <ActionButton
@@ -719,15 +763,17 @@ export function EventWorkspace({
             ))}
           </Notice>
         ) : null}
-        <EventWorkspaceNav
-          eventId={event.id}
-          active={eventTabFromPath(pathname ?? '') ?? 'overview'}
-          canSeeParticipants={can.canTickets}
-          canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
-          canUseDoor={can.canDesk}
-          canSeeCertificates={can.canCertificates}
-          canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
-        />
+        {onEditPage ? null : (
+          <EventWorkspaceNav
+            eventId={event.id}
+            active={eventTabFromPath(pathname ?? '') ?? 'overview'}
+            canSeeParticipants={can.canTickets}
+            canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
+            canUseDoor={can.canDesk}
+            canSeeCertificates={can.canCertificates}
+            canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
+          />
+        )}
         {error ? (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -737,73 +783,6 @@ export function EventWorkspace({
         {children}
         {statusActions.dialog}
         {copy.dialog}
-        <Drawer
-          open={editing}
-          onClose={() => {
-            setEditing(false);
-            setEditError(null);
-            setEditInUse(null);
-          }}
-          title="Etkinliği düzenle"
-        >
-          <form
-            className="space-y-3"
-            noValidate
-            onSubmit={eventEditForm.handleSubmit(async ({ event: eventForm }) => {
-              setEditError(null);
-              setEditInUse(null);
-              try {
-                await saveEventWithSeason(eventForm, event.id, editBase.current ?? undefined);
-                if (typeof window !== 'undefined') {
-                  clearEventDraft(sessionStorage, window.location.href);
-                }
-                setEditing(false);
-                notify.success('Etkinlik kaydedildi');
-                await load();
-              } catch (err) {
-                setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
-                setEditInUse(formInUseOf(err));
-              }
-            })}
-          >
-            <EventEditor
-              value={form}
-              onChange={(value) =>
-                eventEditForm.setValue('event', value, {
-                  shouldDirty: true,
-                  shouldValidate: eventEditForm.formState.isSubmitted,
-                })
-              }
-              ownerOptions={ownerOptions}
-              lockOwner={!privileged}
-              seasons={seasons}
-              showSeason={privileged}
-              ownerOptional={privileged}
-              assignDoorStaff={privileged}
-              knownMedia={[
-                ...(event.coverImageId
-                  ? [{ id: event.coverImageId, name: 'Kapak', url: event.coverImageUrl }]
-                  : []),
-                ...(event.images ?? []).map((image) => ({ id: image.id, url: image.url })),
-              ]}
-              returnTo={typeof window !== 'undefined' ? window.location.href : ''}
-              formInUse={editInUse}
-            />
-            {eventEditForm.formState.errors.event ? (
-              <p className="text-2xs text-destructive">
-                {eventEditForm.formState.errors.event.message}
-              </p>
-            ) : null}
-            {editError ? (
-              <p role="alert" className="text-destructive text-sm">
-                {editError}
-              </p>
-            ) : null}
-            <SaveButton disabled={eventEditForm.formState.isSubmitting}>
-              {eventEditForm.formState.isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
-            </SaveButton>
-          </form>
-        </Drawer>
       </div>
     </EventWorkspaceContext.Provider>
   );

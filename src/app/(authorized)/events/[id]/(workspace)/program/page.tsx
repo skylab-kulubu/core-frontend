@@ -328,6 +328,7 @@ export default function EventProgramPage() {
           setDayOpen(false);
         }}
         title="Gün ekle"
+        dirty={dayForm.formState.isDirty}
       >
         <form
           className="space-y-3"
@@ -395,6 +396,7 @@ export default function EventProgramPage() {
           setSessionOpen(false);
         }}
         title={editingSessionId ? 'Oturumu düzenle' : 'Oturum ekle'}
+        dirty={sessionForm.formState.isDirty}
         finalFocus={() => (sessionDeleted.current ? addSession.current : null)}
       >
         <form
@@ -623,6 +625,7 @@ export default function EventProgramPage() {
           setCheckInSession(null);
         }}
         title={checkInSession ? `${checkInSession.title} · Katıldı` : 'Katıldı'}
+        dirty={deskForm.formState.isDirty}
       >
         {checkInSession ? (
           <form

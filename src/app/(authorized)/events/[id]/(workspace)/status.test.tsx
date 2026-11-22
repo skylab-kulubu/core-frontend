@@ -181,7 +181,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(within(top).queryByRole('button', { name: 'Yayınla' })).not.toBeInTheDocument();
     expect(within(top).queryByRole('button', { name: 'Diğer eylemler' })).not.toBeInTheDocument();
-    expect(within(top).queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument();
+    expect(within(top).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
   });
 
   it('offers unpublish only without registrations, and says how many there are', async () => {
