@@ -47,7 +47,7 @@ describe('Event Katılımcılar tab', () => {
 
     await renderParticipants();
     await user.click(await screen.findByRole('checkbox', { name: 'Ada Lovelace seç' }));
-    await user.click(screen.getByRole('button', { name: 'Seçilenlere mail' }));
+    await user.click(screen.getByRole('button', { name: 'Mail' }));
 
     await waitFor(() => expect(eventsApi.syncMailList).toHaveBeenCalledWith('e1', ['t-guest']));
     expect(open).toHaveBeenCalledWith(
@@ -62,7 +62,7 @@ describe('Event Katılımcılar tab', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
     await renderParticipants();
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument(),
+      expect(screen.getByRole('searchbox', { name: 'Katılımcı ara' })).toBeInTheDocument(),
     );
     expect(screen.queryByRole('button', { name: 'Katılımcı ekle' })).not.toBeInTheDocument();
   });
@@ -91,7 +91,7 @@ describe('Event Katılımcılar tab', () => {
     ]);
     await renderParticipants();
     expect(await screen.findByText('Katılımcıları görme yetkin yok')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Başvuranlar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', { name: 'Katılımcı ara' })).not.toBeInTheDocument();
     expect(ticketsApi.listByEvent).not.toHaveBeenCalled();
   });
 
@@ -107,7 +107,7 @@ describe('Event Katılımcılar tab', () => {
     });
 
     await renderParticipants();
-    await user.click((await screen.findAllByRole('button', { name: 'Katıldı · Açılış' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Ada Lovelace: katıldı' }))[0]);
 
     await waitFor(() => expect(ticketsApi.checkIn).toHaveBeenCalledWith('t-guest', 's1'));
     expect(await screen.findByText(/^Ada Lovelace · Açılış · /)).toBeInTheDocument();
@@ -123,7 +123,7 @@ describe('Event Katılımcılar tab', () => {
     );
 
     await renderParticipants();
-    await user.click((await screen.findAllByRole('button', { name: 'Katıldı · Açılış' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Ada Lovelace: katıldı' }))[0]);
 
     const said = await screen.findByText('Bu kişi bu oturuma zaten girmiş.');
     expect(said).toHaveAttribute('role', 'alert');
@@ -224,7 +224,7 @@ describe('Event Katılımcılar tab', () => {
       (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
       await renderParticipants();
       await waitFor(() =>
-        expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument(),
+        expect(screen.getByRole('searchbox', { name: 'Katılımcı ara' })).toBeInTheDocument(),
       );
       expect(
         screen.queryByRole('button', { name: 'Ada Lovelace: eylemler' }),
@@ -257,10 +257,10 @@ describe('Event Katılımcılar tab', () => {
       .mockRejectedValueOnce(new ProblemError(503, 'Service Unavailable'))
       .mockResolvedValue([guestTicket]);
     await renderParticipants();
-    expect(await screen.findByText('Başvurular yüklenemedi')).toBeInTheDocument();
+    expect(await screen.findByText('Kayıtlar yüklenemedi')).toBeInTheDocument();
     expect(screen.queryByText('Henüz başvuru yok.')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Yeniden dene' }));
     expect(await screen.findByRole('link', { name: 'Ada Lovelace' })).toBeInTheDocument();
-    expect(screen.queryByText('Başvurular yüklenemedi')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kayıtlar yüklenemedi')).not.toBeInTheDocument();
   });
 });

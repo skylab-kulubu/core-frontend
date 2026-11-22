@@ -1,26 +1,16 @@
 'use client';
 
-import { Button } from '@skylab-kulubu/skylcn-ui';
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Drawer } from '@/components/chrome/Drawer';
-import { MixChart, SectionHeading } from '@/components/chrome/PanelChart';
 import { StateCard } from '@/components/chrome/StateCard';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
-import { ApplicantRoster } from '@/components/scheduling/ApplicantRoster';
-import { ParticipantsDesign } from '@/components/scheduling/roster/ParticipantsDesign';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
-import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
+import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
 import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
-import { ticketCheckInMix, ticketMix } from '@/lib/panel-charts';
-import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
-import { ticketApplicantEmail, ticketSendProblem, ticketStatus } from '@/lib/tickets-ui';
+import { ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
-import { useDesignVariant } from '@/lib/ui/design-variant';
 import { useNotify } from '@/lib/ui/use-notify';
 
 /** The registration open beside the list is in the address, so a link reopens it. */
@@ -48,19 +38,9 @@ export default function EventParticipantsPage() {
     canDesk,
   } = useEventWorkspace();
   const notify = useNotify();
-  const variant = useDesignVariant();
   const [confirm, confirmDialog] = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  // The charts start open on wide screens, folded on phones where the list comes first
-  const charts = useRef<HTMLDetailsElement>(null);
-  const hasTickets = tickets.length > 0;
-  useEffect(() => {
-    if (!charts.current) return;
-    const wide =
-      typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1024px)').matches;
-    charts.current.open = wide;
-  }, [hasTickets]);
   // A second click while the first is out sends nothing more
   const sending = useRef(new Set<string>());
 
@@ -122,7 +102,6 @@ export default function EventParticipantsPage() {
 
   const resend = canAssign ? askResend : undefined;
   const renew = canAssign ? askRenew : undefined;
-  const openStatus = openTicket ? ticketStatus(openTicket) : null;
   const markAttended = canDesk
     ? async (ticket: Ticket, sessionId: string) => {
         try {
@@ -145,74 +124,27 @@ export default function EventParticipantsPage() {
       }
     : undefined;
 
-  if (variant) {
-    return (
-      <>
-        <ParticipantsDesign
-          variant={variant}
-          eventId={event.id}
-          tickets={tickets}
-          people={personById}
-          event={event}
-          sessions={sessions}
-          failed={ticketsFailed}
-          onRetry={reload}
-          openTicket={openTicket}
-          onOpenTicket={show}
-          onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
-          onMail={(recipients) =>
-            void mailApplicants(recipients.map((recipient) => recipient.ticketId))
-          }
-          onMarkAttended={markAttended}
-          onResend={resend}
-          onRenew={renew}
-          dialogs={confirmDialog}
-        />
-        <AddParticipantDrawer
-          open={addOpen}
-          onClose={() => setAddOpen(false)}
-          eventId={event.id}
-          onCreated={async () => {
-            await reload();
-          }}
-        />
-      </>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <SectionHeading title="Başvuranlar" meta={`${tickets.length} kayıt`} />
-        <ApplicantRoster
-          eventId={event.id}
-          tickets={tickets}
-          people={personById}
-          event={event}
-          sessions={sessions}
-          failed={ticketsFailed}
-          onRetry={reload}
-          onOpenTicket={show}
-          onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
-          onMailSelected={(recipients) =>
-            void mailApplicants(recipients.map((recipient) => recipient.ticketId))
-          }
-          onResend={resend}
-          onRenew={renew}
-          onMarkAttended={markAttended}
-        />
-      </div>
-      {tickets.length > 0 ? (
-        <details ref={charts} className="space-y-3">
-          <summary className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-xs font-medium">
-            Dağılım
-          </summary>
-          <div className="grid gap-6 pt-3 lg:grid-cols-2">
-            <MixChart title="Misafir / üye" data={ticketMix(tickets)} empty="Başvuru yok" />
-            <MixChart title="Kapı durumu" data={ticketCheckInMix(tickets)} empty="Kapı kaydı yok" />
-          </div>
-        </details>
-      ) : null}
+    <>
+      <ParticipantRoster
+        eventId={event.id}
+        tickets={tickets}
+        people={personById}
+        event={event}
+        sessions={sessions}
+        failed={ticketsFailed}
+        onRetry={reload}
+        openTicket={openTicket}
+        onOpenTicket={show}
+        onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
+        onMail={(recipients) =>
+          void mailApplicants(recipients.map((recipient) => recipient.ticketId))
+        }
+        onMarkAttended={markAttended}
+        onResend={resend}
+        onRenew={renew}
+        dialogs={confirmDialog}
+      />
       <AddParticipantDrawer
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -221,53 +153,6 @@ export default function EventParticipantsPage() {
           await reload();
         }}
       />
-      <Drawer
-        open={openTicket !== null}
-        onClose={() => show(null)}
-        title={openTicket ? doorTicketName(openTicket, personById) : 'Kayıt'}
-      >
-        {openTicket && openStatus ? (
-          <div className="space-y-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusChip kind={ticketTypeStatus(openTicket.ticketType)} />
-              <StatusChip kind={ticketCheckInStatus(openStatus.key === 'checked-in')} />
-              {openTicket.code ? (
-                <span className="text-secondary-foreground font-mono text-sm tabular-nums">
-                  {openTicket.code}
-                </span>
-              ) : null}
-            </div>
-            {resend || renew ? (
-              <div className="flex flex-wrap gap-2">
-                {resend ? (
-                  <Button size="sm" variant="outline" onClick={() => resend(openTicket)}>
-                    Bileti yeniden gönder
-                  </Button>
-                ) : null}
-                {renew ? (
-                  <Button size="sm" variant="outline" onClick={() => renew(openTicket)}>
-                    Bağlantıyı yenile
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-            <TicketDetailView
-              ticket={openTicket}
-              people={personById}
-              event={event}
-              sessions={sessions.map((session) => ({ id: session.id, title: session.title }))}
-            />
-            <Link
-              href={`/events/${encodeURIComponent(event.id)}/tickets/${encodeURIComponent(openTicket.id)}`}
-              className="text-skylab-300 inline-block text-sm hover:underline"
-            >
-              Ayrı sayfada aç
-            </Link>
-          </div>
-        ) : null}
-        {openTicket ? confirmDialog : null}
-      </Drawer>
-      {openTicket ? null : confirmDialog}
-    </div>
+    </>
   );
 }

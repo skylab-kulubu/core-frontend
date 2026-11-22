@@ -1,10 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
 import type { DoorSession } from '@/lib/door-check-in';
-import { ParticipantsDesign, type ParticipantsDesignProps } from './ParticipantsDesign';
+import { ParticipantRoster, type ParticipantRosterProps } from './ParticipantRoster';
 
 jest.mock('@skylab-kulubu/skylcn-ui/charts', () => ({
   AreaChart: ({ title }: { title: React.ReactNode }) => <div>{title}</div>,
@@ -32,7 +32,7 @@ const member: Ticket = {
   ownerId: 'u1',
   sent: true,
   checkIns: [{ id: 'c1', ticketId: 't-member', sessionId: 's1', eventDayId: 'd1', createdAt: at }],
-  createdAt: at,
+  createdAt: '2026-11-21T10:00:00Z',
   updatedAt: at,
 };
 const people = new Map<string, Person>([
@@ -47,9 +47,8 @@ const sessions: DoorSession[] = [
   } as DoorSession,
 ];
 
-function setup(overrides: Partial<ParticipantsDesignProps> = {}) {
-  const props: ParticipantsDesignProps = {
-    variant: 'a',
+function setup(overrides: Partial<ParticipantRosterProps> = {}) {
+  const props: ParticipantRosterProps = {
     eventId: 'e1',
     tickets: [guest, member],
     people,
@@ -61,31 +60,31 @@ function setup(overrides: Partial<ParticipantsDesignProps> = {}) {
     dialogs: null,
     ...overrides,
   };
-  render(<ParticipantsDesign {...props} />);
+  render(<ParticipantRoster {...props} />);
   return props;
 }
 
-describe.each(['a', 'b'] as const)('ParticipantsDesign %s', (variant) => {
+describe('ParticipantRoster', () => {
+  beforeEach(() => window.sessionStorage.clear());
+
   it('lists everyone and narrows to a view', async () => {
-    setup({ variant });
+    setup();
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
-    const views = screen.getByRole(variant === 'a' ? 'group' : 'tablist', {
-      name: 'Görünüm',
-    });
+    const views = screen.getByRole('group', { name: 'Görünüm' });
     await userEvent.click(within(views).getByText('Bilet gitmedi'));
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.queryByText('Grace Hopper')).not.toBeInTheDocument();
   });
 
   it('opens a registration beside the list on a plain click', async () => {
-    const props = setup({ variant });
+    const props = setup();
     await userEvent.click(screen.getByRole('link', { name: /Ada Lovelace/ }));
     expect(props.onOpenTicket).toHaveBeenCalledWith(guest);
   });
 
   it('mails the chosen ones only', async () => {
-    const props = setup({ variant });
+    const props = setup();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Ada Lovelace seç' }));
     await userEvent.click(screen.getByRole('button', { name: 'Mail' }));
     expect(props.onMail).toHaveBeenCalledWith([
@@ -95,22 +94,56 @@ describe.each(['a', 'b'] as const)('ParticipantsDesign %s', (variant) => {
 
   it('says a refused entry in its row', async () => {
     const onMarkAttended = jest.fn().mockResolvedValue('Zaten girişi var');
-    setup({ variant, onMarkAttended });
+    setup({ onMarkAttended });
     await userEvent.click(screen.getByRole('button', { name: 'Ada Lovelace: katıldı' }));
     expect(onMarkAttended).toHaveBeenCalledWith(guest, 's1');
     expect(await screen.findByRole('alert')).toHaveTextContent('Zaten girişi var');
   });
 
   it('offers to clear a filter that leaves nothing', async () => {
-    setup({ variant });
+    setup();
     await userEvent.type(screen.getByRole('searchbox', { name: 'Katılımcı ara' }), 'yokboyle');
     await userEvent.click(screen.getByRole('button', { name: 'Süzgeci temizle' }));
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
   });
 });
 
+describe('ParticipantRoster list', () => {
+  beforeEach(() => window.sessionStorage.clear());
+
+  it('opens the door screen on this event', () => {
+    setup({ eventId: 'e 1' });
+    expect(screen.getByLabelText('Kapı').closest('a')).toHaveAttribute('href', '/qr?eventId=e%201');
+  });
+
+  it('finds a registration by its ticket code, dashes or not', async () => {
+    setup();
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Katılımcı ara' }), 'ab12cd34');
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.queryByText('Grace Hopper')).not.toBeInTheDocument();
+  });
+
+  it('sorts by name', async () => {
+    setup();
+    const first = () => screen.getAllByRole('link', { name: /Lovelace|Hopper/ })[0];
+    expect(first()).toHaveAccessibleName('Grace Hopper');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sıralama' }), 'name');
+    expect(first()).toHaveAccessibleName('Ada Lovelace');
+  });
+
+  it('keeps the view when the tab is opened again', async () => {
+    setup();
+    await userEvent.click(
+      within(screen.getByRole('group', { name: 'Görünüm' })).getByText('Bilet gitmedi'),
+    );
+    cleanup();
+    setup();
+    expect(screen.queryByText('Grace Hopper')).not.toBeInTheDocument();
+  });
+});
+
 it('shows the registration history in the panel', () => {
-  setup({ variant: 'a', openTicket: member });
+  setup({ openTicket: member });
   expect(screen.getByText('Giriş · Açılış')).toBeInTheDocument();
   expect(screen.getByText('Bilet gönderildi')).toBeInTheDocument();
 });

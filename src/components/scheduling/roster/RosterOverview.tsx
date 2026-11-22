@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, ProportionBar, Sparkline } from '@skylab-kulubu/skylcn-ui';
+import { Card, Sparkline } from '@skylab-kulubu/skylcn-ui';
 import { AreaChart, DonutChart } from '@skylab-kulubu/skylcn-ui/charts';
 import type { ReactNode } from 'react';
 import type { Ticket } from '@/lib/api/tickets';
@@ -61,7 +61,7 @@ function Tile({
   );
 }
 
-/** Direction A: four figures over the list, each opening its view. */
+/** Four figures over the list, each opening its view. */
 export function RosterTiles({
   tickets,
   view,
@@ -125,7 +125,7 @@ export function RosterTiles({
   );
 }
 
-/** Direction A: registrations over time beside the two splits, in one card. */
+/** Registrations over time beside the two splits, in one card. */
 export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
   const counts = rosterViewCounts(tickets);
   const days = registrationsByDay(tickets);
@@ -161,91 +161,5 @@ export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
         emptyMessage="Kayıt yok"
       />
     </Card>
-  );
-}
-
-/** Direction B: one quiet row of figures with small charts; the full charts open below it. */
-export function RosterStrip({
-  tickets,
-  chartsOpen,
-  onCharts,
-}: {
-  tickets: readonly Ticket[];
-  chartsOpen: boolean;
-  onCharts: () => void;
-}) {
-  const counts = rosterViewCounts(tickets);
-  const days = registrationsByDay(tickets, new Date(), 14);
-  const week = recentRegistrations(tickets);
-  return (
-    <div className="border-border-subtle flex flex-wrap items-center gap-x-6 gap-y-3 border-b pb-3">
-      <Figure label="Kayıt" value={counts.all} hint={week ? `+${week} bu hafta` : undefined}>
-        <Sparkline values={days.map((day) => day.count)} className="h-5 w-20" />
-      </Figure>
-      <Figure
-        label="Giriş"
-        value={counts['checked-in']}
-        hint={percent(counts['checked-in'], counts.all)}
-      >
-        <span className="bg-accent block h-1.5 w-20 overflow-hidden rounded-full">
-          <span
-            className="bg-success block h-full rounded-full"
-            style={{
-              width: counts.all ? `${(counts['checked-in'] / counts.all) * 100}%` : 0,
-            }}
-          />
-        </span>
-      </Figure>
-      <div className="min-w-48 flex-1 sm:max-w-64">
-        <ProportionBar
-          segments={[
-            { key: 'guest', label: 'Misafir', value: counts.guest },
-            { key: 'member', label: 'Üye', value: counts.member },
-          ]}
-        />
-      </div>
-      {counts.unsent ? <Figure label="Bilet gitmedi" value={counts.unsent} tone="warning" /> : null}
-      <button
-        type="button"
-        onClick={onCharts}
-        aria-expanded={chartsOpen}
-        className="text-2xs text-skylab-300 hover:bg-accent ml-auto rounded-md px-2 py-1"
-      >
-        {chartsOpen ? 'Grafikleri gizle' : 'Grafikler'}
-      </button>
-    </div>
-  );
-}
-
-function Figure({
-  label,
-  value,
-  hint,
-  tone,
-  children,
-}: {
-  label: string;
-  value: number;
-  hint?: string;
-  tone?: 'warning';
-  children?: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div>
-        <p className="text-3xs text-subtle-foreground">{label}</p>
-        <p className="flex items-baseline gap-1.5">
-          <span
-            className={`text-lg leading-tight font-semibold tabular-nums ${
-              tone === 'warning' ? 'text-warning' : 'text-foreground-strong'
-            }`}
-          >
-            {value}
-          </span>
-          {hint ? <span className="text-3xs text-muted-foreground">{hint}</span> : null}
-        </p>
-      </div>
-      {children}
-    </div>
   );
 }
