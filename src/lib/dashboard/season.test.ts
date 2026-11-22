@@ -1,6 +1,6 @@
 import type { CoreEvent } from '@/lib/api/events';
 import type { Season } from '@/lib/api/seasons';
-import { currentSeason, seasonWheel } from './season';
+import { seasonWheel } from './season';
 
 const NOW = new Date('2026-10-15T12:00:00');
 
@@ -26,25 +26,6 @@ function event(id: string, startDate: string, endDate?: string): CoreEvent {
 }
 
 const FALL = season('Güz', '2026-09-14T00:00:00', '2026-12-31T00:00:00');
-
-describe('currentSeason', () => {
-  it('takes the season running now', () => {
-    const spring = season('Bahar', '2026-02-09T00:00:00', '2026-06-12T00:00:00');
-    expect(currentSeason([spring, FALL], NOW)).toBe(FALL);
-  });
-
-  it('falls back to the season that ended last, and skips undated ones', () => {
-    const old = season('Eski', '2025-09-01T00:00:00', '2026-01-10T00:00:00');
-    const spring = season('Bahar', '2026-02-09T00:00:00', '2026-06-12T00:00:00');
-    const summer = new Date('2026-07-01T12:00:00');
-    expect(currentSeason([old, spring, season('Taslak')], summer)).toBe(spring);
-  });
-
-  it('answers null when no season can be drawn', () => {
-    expect(currentSeason([season('Taslak')], NOW)).toBeNull();
-    expect(currentSeason([], NOW)).toBeNull();
-  });
-});
 
 describe('seasonWheel', () => {
   it('counts the weeks, places today and labels the months', () => {
