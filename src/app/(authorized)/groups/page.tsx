@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -33,6 +34,7 @@ export default function GroupsPage() {
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState('');
   const [parentOpen, setParentOpen] = useState(false);
+  const createDirty = useDirtySince(creating, { name, parentId });
   const [parentQuery, setParentQuery] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const notify = useNotify();
@@ -112,7 +114,12 @@ export default function GroupsPage() {
         ))}
       </ListPanel>
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
-      <Drawer open={creating} onClose={() => setCreating(false)} title="Grup ekle">
+      <Drawer
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="Grup ekle"
+        dirty={createDirty}
+      >
         <form
           className="space-y-3"
           onSubmit={async (e) => {
