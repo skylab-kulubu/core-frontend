@@ -661,6 +661,8 @@ export function EventWorkspace({
     },
   };
   const onEditPage = isEventEditPath(pathname ?? '');
+  // Publishing from the edit page would publish the saved event, not what is typed
+  const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
 
   return (
     <EventWorkspaceContext.Provider value={workspace}>
@@ -689,6 +691,8 @@ export function EventWorkspace({
               {rights.canUpdate && offers.publish ? (
                 <SaveButton
                   type="button"
+                  disabled={unsavedEdit}
+                  title={unsavedEdit ? 'Önce kaydet' : undefined}
                   onClick={() =>
                     void statusActions.publish(
                       event,

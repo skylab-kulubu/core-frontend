@@ -265,6 +265,18 @@ describe('Event workspace layout', () => {
     expect(screen.queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
   });
 
+  it('holds Yayınla on the edit page while a change is unsaved', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    allowStatusActions();
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, status: 'draft' });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const publish = await screen.findByRole('button', { name: 'Yayınla' });
+    expect(publish).toBeEnabled();
+    await user.type(await screen.findByDisplayValue('GeceKodu'), '!');
+    expect(screen.getByRole('button', { name: 'Yayınla' })).toBeDisabled();
+  });
+
   it('says a change is unsaved and asks before Vazgeç drops it', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
