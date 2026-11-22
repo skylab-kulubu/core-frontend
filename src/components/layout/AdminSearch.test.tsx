@@ -13,6 +13,11 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
+const mockNewEvent = { open: jest.fn(), canCreate: false };
+jest.mock('@/components/scheduling/NewEventProvider', () => ({
+  useNewEvent: () => mockNewEvent,
+}));
+
 jest.mock('@/lib/api/events', () => ({
   eventsApi: { list: jest.fn() },
 }));
@@ -56,6 +61,7 @@ function renderSearch(who: UserDto = user, navigationContext: SidebarNavigationC
 describe('AdminSearch', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockNewEvent.canCreate = false;
     (eventsApi.list as jest.Mock).mockResolvedValue([hackathon, workshop]);
     (identityApi.listUsers as jest.Mock).mockResolvedValue([]);
     (identityApi.listGroups as jest.Mock).mockResolvedValue([
@@ -192,5 +198,24 @@ describe('AdminSearch', () => {
     expect(eventsApi.list).not.toHaveBeenCalled();
     expect(identityApi.listUsers).not.toHaveBeenCalled();
     expect(identityApi.listGroups).not.toHaveBeenCalled();
+  });
+
+  it('opens the new event form for whoever core lets create one', async () => {
+    mockNewEvent.canCreate = true;
+    const keyboard = userEvent.setup();
+    renderSearch();
+    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    await keyboard.type(search, 'yeni etk');
+    await keyboard.keyboard('{Enter}');
+    expect(mockNewEvent.open).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no new event to whoever cannot create one (DK)', async () => {
+    const keyboard = userEvent.setup();
+    renderSearch({ ...user, groups: ['/UYELER/DK'] });
+    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    expect(screen.queryByRole('option', { name: /Yeni etkinlik/ })).not.toBeInTheDocument();
   });
 });

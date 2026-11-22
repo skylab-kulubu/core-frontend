@@ -7,7 +7,7 @@ import {
   useCommandShortcut,
   type CommandItem,
 } from '@skylab-kulubu/skylcn-ui';
-import { CalendarDays, FolderTree, Search, UserRound } from 'lucide-react';
+import { CalendarDays, CalendarPlus, FolderTree, Search, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   useCallback,
@@ -17,6 +17,7 @@ import {
   useSyncExternalStore,
   type FormEvent,
 } from 'react';
+import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi, type Group, type Person } from '@/lib/api/identity';
 import { isPrivileged } from '@/lib/auth/groups';
@@ -136,9 +137,23 @@ export function AdminSearch({
   const pages = useMemo(() => searchPages(user, navigationContext), [navigationContext, user]);
   const scope = useMemo(() => searchScope(user, pages), [pages, user]);
   const records = useRecordSearch(open, query, scope);
+  const newEvent = useNewEvent();
 
   const items = useMemo<CommandItem[]>(
     () => [
+      // core's event.create, as the events page's own button
+      ...(newEvent.canCreate
+        ? [
+            {
+              id: 'action:new-event',
+              label: 'Yeni etkinlik',
+              group: 'Eylemler',
+              icon: CalendarPlus,
+              keywords: 'oluştur ekle',
+              onSelect: newEvent.open,
+            },
+          ]
+        : []),
       ...pages.map((page) => ({
         id: page.href,
         label: page.label,
@@ -157,7 +172,7 @@ export function AdminSearch({
         href: record.href,
       })),
     ],
-    [pages, records],
+    [newEvent, pages, records],
   );
 
   // skylcn-ui's palette keeps its query to itself; its input's change reaches here through
