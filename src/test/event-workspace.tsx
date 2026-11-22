@@ -15,6 +15,7 @@ const openPath = { pathname: '/events/e1' };
 export const navigationModule = {
   useRouter: () => workspaceRouter,
   usePathname: () => openPath.pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search),
 };
 export const authModule = { useAuth: jest.fn() };
 export const eventsModule = {

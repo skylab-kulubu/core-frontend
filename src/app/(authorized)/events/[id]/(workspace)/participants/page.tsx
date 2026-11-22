@@ -2,6 +2,7 @@
 
 import { Button } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { MixChart, SectionHeading } from '@/components/chrome/PanelChart';
@@ -61,9 +62,11 @@ export default function EventParticipantsPage() {
   // A second click while the first is out sends nothing more
   const sending = useRef(new Set<string>());
 
+  // The address decides, also when a link changes it while the page is open
+  const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
   useEffect(() => {
-    setOpenId(new URLSearchParams(window.location.search).get(OPEN_PARAM));
-  }, []);
+    setOpenId(linked);
+  }, [linked]);
 
   const openTicket = useMemo(
     () => (openId ? (tickets.find((ticket) => ticket.id === openId) ?? null) : null),

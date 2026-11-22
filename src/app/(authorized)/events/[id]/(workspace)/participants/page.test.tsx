@@ -263,4 +263,16 @@ describe('Event Katılımcılar tab', () => {
     expect(await screen.findByRole('link', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(screen.queryByText('Başvurular yüklenemedi')).not.toBeInTheDocument();
   });
+
+  it('opens the registration a link names while the page is already open', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+    const view = await renderParticipants();
+    expect(await screen.findByRole('link', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Ada Lovelace' })).not.toBeInTheDocument();
+    window.history.pushState(null, '', '/events/e1/participants?kayit=t-guest');
+    await view.openTab(<EventParticipantsPage />, '/events/e1/participants');
+    expect(await screen.findByRole('dialog', { name: 'Ada Lovelace' })).toBeInTheDocument();
+    window.history.replaceState(null, '', '/');
+  });
 });
