@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { LoadError } from '@/components/chrome/LoadError';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { StateCard } from '@/components/chrome/StateCard';
-import { UserCardView } from '@/components/identity/UserCardView';
+import { AccountSecurity } from '@/components/identity/AccountSecurity';
+import { CardSection, UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import {
@@ -15,6 +16,7 @@ import {
   type UserCard,
   type UserProfilePatch,
 } from '@/lib/api/identity';
+import { userAccountApi, type UserAccount } from '@/lib/api/user-account';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch } from '@/lib/picker';
@@ -31,7 +33,11 @@ export default function UserDetailPage() {
   const can = useAppCan(isPrivileged(user?.groups ?? []));
   const canWrite = can('user.write');
   const canAddGroup = can('group.write');
+  // The Keycloak account (core docs/user-accounts.md): whoever reads the full card
+  const canReadAccount = can('user.readFull');
   const [card, setCard] = useState<UserCard | null>(null);
+  const [account, setAccount] = useState<UserAccount | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupQuery, setGroupQuery] = useState('');
@@ -54,9 +60,22 @@ export default function UserDetailPage() {
     }
   }
 
+  async function loadAccount() {
+    try {
+      setAccount(await userAccountApi.get(params.id));
+      setAccountError(null);
+    } catch (err) {
+      setAccountError(coreProblemMessage(err, 'Hesap bilgileri yüklenemedi'));
+    }
+  }
+
   useEffect(() => {
     void load();
   }, [params.id]);
+
+  useEffect(() => {
+    if (canReadAccount) void loadAccount();
+  }, [params.id, canReadAccount]);
 
   /** Runs a change on the card: says it went through, or why it did not; true when it did. */
   async function change(action: () => Promise<unknown>, done: string, failed: string) {
@@ -155,6 +174,25 @@ export default function UserDetailPage() {
         onAddGroup={canAddGroup ? () => void openGroups() : undefined}
         onRemoveRole={removeRole}
         onLogout={canWrite ? askLogout : undefined}
+        profileSections={
+          !canReadAccount ? null : account ? (
+            <AccountSecurity
+              account={account}
+              personName={name}
+              onChanged={async () => {
+                await Promise.all([loadAccount(), load()]);
+              }}
+            />
+          ) : accountError ? (
+            <CardSection title="Hesap ve güvenlik">
+              <LoadError title={accountError} onRetry={loadAccount} />
+            </CardSection>
+          ) : (
+            <CardSection title="Hesap ve güvenlik">
+              <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
+            </CardSection>
+          )
+        }
       />
       {confirmDialog}
       {canAddGroup ? (
