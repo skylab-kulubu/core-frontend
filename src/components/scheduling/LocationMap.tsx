@@ -9,6 +9,9 @@ import { POINT_ZOOM, regionCenter, type LatLng } from '@/lib/event-location';
 /** The club's purple: the pin core draws on the ticket's map too. */
 const PIN_COLOR = '#8B5CF6';
 
+/** The style's one source: the region's archive. */
+const SOURCE_ID = 'protomaps';
+
 /** The map files the panel serves itself (public/map/README.md). */
 function assetUrl(path: string): string {
   return `${window.location.origin}/map/${path}`;
@@ -40,9 +43,9 @@ async function regionStyle(region: MapRegion): Promise<StyleSpecification> {
     glyphs: assetUrl('fonts/{fontstack}/{range}.pbf'),
     sprite: assetUrl('sprites/grayscale'),
     sources: {
-      protomaps: { type: 'vector', url: `pmtiles://${region.url}` },
+      [SOURCE_ID]: { type: 'vector', url: `pmtiles://${region.url}` },
     },
-    layers: basemaps.layers('protomaps', basemaps.namedFlavor('grayscale'), { lang: 'tr' }),
+    layers: basemaps.layers(SOURCE_ID, basemaps.namedFlavor('grayscale'), { lang: 'tr' }),
   };
 }
 
@@ -61,7 +64,11 @@ type LocationMapProps = {
   region: MapRegion;
   point: LatLng | null;
   onPoint: (point: LatLng) => void;
-  /** The map could not be drawn (no WebGL after all, a style that failed). */
+  /**
+   * The map could not be drawn: no WebGL after all, a style that failed, or
+   * an archive the browser cannot read (no CORS on the bucket, gone), whose
+   * map would stay grey.
+   */
   onFailed?: () => void;
 };
 
@@ -109,8 +116,22 @@ export default function LocationMap({ region, point, onPoint, onFailed }: Locati
         created.on('click', (event) => {
           latest.current.onPoint({ lat: event.lngLat.lat, lng: event.lngLat.lng });
         });
+        let loaded = false;
         created.once('load', () => {
+          loaded = true;
           if (!cancelled) setReady(true);
+        });
+        // The archive unread, or its first tiles: no map at all. A tile that
+        // fails later, while the map is in use, leaves the map be.
+        created.on('error', (event: { error?: unknown; sourceId?: string; tile?: unknown }) => {
+          if (cancelled) return;
+          if (event.sourceId !== SOURCE_ID || (event.tile && loaded)) {
+            // What MapLibre does with an error nobody listens to
+            console.error(event.error);
+            return;
+          }
+          cancelled = true;
+          latest.current.onFailed?.();
         });
         map.current = created;
         marker.current = pin;

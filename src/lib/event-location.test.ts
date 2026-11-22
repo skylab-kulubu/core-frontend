@@ -7,11 +7,13 @@ import {
   DEFAULT_POINT,
   filterPlaces,
   formatPoint,
+  namesChosen,
   placePatch,
   pointOf,
   pointPatch,
   regionCenter,
   regionHolding,
+  renamePatch,
   roundCoord,
   startRegion,
 } from '@/lib/event-location';
@@ -91,6 +93,48 @@ describe('event location', () => {
       locationLat: 41.123457,
       locationLng: 29.765432,
     });
+  });
+
+  it("lets go of a chosen place's point and address once its name changes", () => {
+    const chosen = placePatch(place('YTÜ Yıldız, Oditoryum', 'Barbaros Blv.', 41.05046, 29.01103));
+    expect(renamePatch(chosen, chosen, 'Online')).toEqual({
+      location: 'Online',
+      locationAddress: '',
+      locationLat: undefined,
+      locationLng: undefined,
+    });
+    // Spaces around the same name keep the place
+    expect(renamePatch(chosen, chosen, 'YTÜ Yıldız, Oditoryum ')).toEqual({
+      location: 'YTÜ Yıldız, Oditoryum ',
+    });
+    expect(namesChosen(chosen, ' YTÜ Yıldız, Oditoryum')).toBe(true);
+    expect(namesChosen(chosen, 'YTÜ Yıldız')).toBe(false);
+    expect(namesChosen(null, 'YTÜ Yıldız')).toBe(false);
+  });
+
+  it('keeps a pin moved and an address typed since the choice', () => {
+    const chosen = placePatch(place('Salon', 'Esenler', 41.05046, 29.01103));
+    const moved = { ...chosen, locationLat: 41.06, locationLng: 29.02 };
+    expect(renamePatch(moved, chosen, 'Salon B')).toEqual({
+      location: 'Salon B',
+      locationAddress: '',
+    });
+    const typed = { ...chosen, locationAddress: 'Davutpaşa Cd. No:127' };
+    expect(renamePatch(typed, chosen, 'Salon B')).toEqual({
+      location: 'Salon B',
+      locationLat: undefined,
+      locationLng: undefined,
+    });
+  });
+
+  it('changes only the name with no place chosen', () => {
+    const saved = {
+      location: 'Salon',
+      locationAddress: 'Esenler',
+      locationLat: 41,
+      locationLng: 29,
+    };
+    expect(renamePatch(saved, null, 'Online')).toEqual({ location: 'Online' });
   });
 
   it('draws a point from the smallest ready region that holds it', () => {

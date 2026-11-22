@@ -25,14 +25,21 @@ jest.mock('@/components/scheduling/LocationMap', () => ({
     region,
     point,
     onPoint,
+    onFailed,
   }: {
     region: { name: string };
     point: { lat: number; lng: number } | null;
     onPoint: (point: { lat: number; lng: number }) => void;
+    onFailed?: () => void;
   }) => (
-    <button type="button" onClick={() => onPoint({ lat: 41.0412345678, lng: 28.9912345678 })}>
-      {`harita ${region.name} ${point ? `${point.lat},${point.lng}` : 'boş'}`}
-    </button>
+    <>
+      <button type="button" onClick={() => onPoint({ lat: 41.0412345678, lng: 28.9912345678 })}>
+        {`harita ${region.name} ${point ? `${point.lat},${point.lng}` : 'boş'}`}
+      </button>
+      <button type="button" onClick={() => onFailed?.()}>
+        karolar okunamadı
+      </button>
+    </>
   ),
 }));
 
@@ -150,6 +157,104 @@ describe('EventLocationFields', () => {
     await act(async () => undefined);
     expect(screen.getByLabelText('Açık adres')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /harita/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps a saved point in sight and removable while there is no map', async () => {
+    (mapRegionsApi.list as jest.Mock).mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(
+      <Fields
+        initial={{
+          location: 'YTÜ Yıldız, Oditoryum',
+          locationAddress: 'Barbaros Blv.',
+          locationLat: 41.05046,
+          locationLng: 29.01103,
+        }}
+      />,
+    );
+    await waitFor(() => expect(mapRegionsApi.list).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /harita/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Nokta: 41.050460, 29.011030')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Kaldır' }));
+    expect(latest.locationLat).toBeUndefined();
+    expect(latest.locationLng).toBeUndefined();
+    expect(latest.locationAddress).toBe('Barbaros Blv.');
+    expect(screen.queryByText(/^Nokta:/)).not.toBeInTheDocument();
+  });
+
+  it('takes the map away when its tiles cannot be read; name, address and point stay', async () => {
+    const user = userEvent.setup();
+    render(
+      <Fields initial={{ location: 'Salon', locationLat: 41.05046, locationLng: 29.01103 }} />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'karolar okunamadı' }));
+    expect(screen.queryByRole('button', { name: /harita/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '© OpenStreetMap contributors' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Konum' })).toHaveValue('Salon');
+    expect(screen.getByLabelText('Açık adres')).toBeInTheDocument();
+    expect(screen.getByText('Nokta: 41.050460, 29.011030')).toBeInTheDocument();
+  });
+
+  it("lets go of a chosen place's point and address when the name changes", async () => {
+    const user = userEvent.setup();
+    render(<Fields />);
+    const field = screen.getByRole('combobox', { name: 'Konum' });
+    await user.type(field, 'eef');
+    await user.click(await screen.findByRole('option', { name: /EEF Konferans Salonu/ }));
+    expect(latest.locationLat).toBe(41.025376);
+
+    await user.clear(field);
+    await user.type(field, 'Online');
+    expect(latest).toEqual({
+      location: 'Online',
+      locationAddress: '',
+      locationLat: undefined,
+      locationLng: undefined,
+    });
+  });
+
+  it('keeps a pin moved and an address typed after the choice when the name changes', async () => {
+    const user = userEvent.setup();
+    render(<Fields />);
+    const field = screen.getByRole('combobox', { name: 'Konum' });
+    await user.type(field, 'eef');
+    await user.click(await screen.findByRole('option', { name: /EEF Konferans Salonu/ }));
+    await user.click(await screen.findByRole('button', { name: /^harita İstanbul/ }));
+    const address = screen.getByLabelText('Açık adres');
+    await user.clear(address);
+    await user.type(address, 'Esenler');
+
+    await user.type(field, ' B');
+    expect(latest).toEqual({
+      location: 'YTÜ Davutpaşa, EEF Konferans Salonu B',
+      locationAddress: 'Esenler',
+      locationLat: 41.041235,
+      locationLng: 28.991235,
+    });
+  });
+
+  it('keeps the point and address of a saved place when its name changes', async () => {
+    const user = userEvent.setup();
+    render(
+      <Fields
+        initial={{
+          location: 'Salon',
+          locationAddress: 'Esenler',
+          locationLat: 41.05046,
+          locationLng: 29.01103,
+        }}
+      />,
+    );
+    await user.type(screen.getByRole('combobox', { name: 'Konum' }), ' B');
+    expect(latest).toEqual({
+      location: 'Salon B',
+      locationAddress: 'Esenler',
+      locationLat: 41.05046,
+      locationLng: 29.01103,
+    });
   });
 
   it('offers nothing when the places cannot be read (403), the field still types', async () => {

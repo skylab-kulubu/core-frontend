@@ -13,10 +13,12 @@ import {
   LOCATION_ADDRESS_MAX,
   MAP_ATTRIBUTION,
   MAP_ATTRIBUTION_URL,
+  namesChosen,
   placePatch,
   pointOf,
   pointPatch,
   regionHolding,
+  renamePatch,
   startRegion,
   webglAvailable,
   type EventLocationValue,
@@ -78,6 +80,8 @@ export function EventLocationFields({
   const [regionUrl, setRegionUrl] = useState('');
   const [mapFailed, setMapFailed] = useState(false);
   const [webgl, setWebgl] = useState(false);
+  // The place last chosen from the list, until the name lets go of it
+  const [chosen, setChosen] = useState<EventLocationValue | null>(null);
   const team = ownerTeam.trim();
 
   useEffect(() => {
@@ -132,6 +136,7 @@ export function EventLocationFields({
   function choose(place: EventPlace) {
     const patch = placePatch(place);
     onChange(patch);
+    setChosen(patch);
     const holding = regionHolding(regions, { lat: patch.locationLat, lng: patch.locationLng });
     if (holding?.url) setRegionUrl(holding.url);
     setOpen(false);
@@ -162,7 +167,9 @@ export function EventLocationFields({
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
           onChange={(e) => {
-            onChange({ location: e.target.value });
+            const name = e.target.value;
+            onChange(renamePatch(value, chosen, name));
+            if (!namesChosen(chosen, name)) setChosen(null);
             setOpen(true);
             setActive(-1);
           }}
@@ -271,6 +278,18 @@ export function EventLocationFields({
               </span>
             ) : null}
           </div>
+        </div>
+      ) : point ? (
+        // No map (no WebGL, no ready region, tiles that would not load): the point stays in sight
+        <div className="text-3xs text-subtle-foreground flex flex-wrap items-center gap-2">
+          <span className="tabular-nums">Nokta: {formatPoint(point)}</span>
+          <button
+            type="button"
+            onClick={() => setPoint(null)}
+            className="text-skylab-300 hover:bg-accent rounded-md px-2 py-0.5"
+          >
+            Kaldır
+          </button>
         </div>
       ) : null}
     </div>

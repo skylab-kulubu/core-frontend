@@ -333,6 +333,7 @@ describe('coreProblemMessage for any core refusal', () => {
     ['event_not_draft', 409, 'Yalnız taslak etkinlik silinir.'],
     ['event_not_cancelled', 409, 'Etkinlik iptal edilmemiş.'],
     ['registration_closed', 409, 'Etkinliğin başvurusu kapalı.'],
+    ['event_location_invalid', 400, 'Konum geçersiz: noktayı ve açık adresi denetle.'],
     [
       'invalid_name',
       422,

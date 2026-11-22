@@ -85,6 +85,33 @@ export function placePatch(place: EventPlace): Required<EventLocationValue> {
   };
 }
 
+/** Whether a typed name is still the chosen place's (spaces around it aside). */
+export function namesChosen(chosen: EventLocationValue | null, name: string): boolean {
+  return chosen !== null && name.trim() === chosen.location.trim();
+}
+
+/**
+ * The fields a typed name changes after a place was chosen from the list. A
+ * name that is no longer the chosen place's lets go of the place (as
+ * Eventbrite does): the point and the address that came with it are taken
+ * off. A pin moved or an address typed since the choice stays.
+ */
+export function renamePatch(
+  value: EventLocationValue,
+  chosen: EventLocationValue | null,
+  name: string,
+): Partial<EventLocationValue> {
+  const patch: Partial<EventLocationValue> = { location: name };
+  if (!chosen || namesChosen(chosen, name)) return patch;
+  if ((value.locationAddress ?? '') === (chosen.locationAddress ?? '')) {
+    patch.locationAddress = '';
+  }
+  if (value.locationLat === chosen.locationLat && value.locationLng === chosen.locationLng) {
+    Object.assign(patch, pointPatch(null));
+  }
+  return patch;
+}
+
 function holds(region: MapRegion, point: LatLng): boolean {
   const [minLon, minLat, maxLon, maxLat] = region.bbox;
   return point.lng >= minLon && point.lng <= maxLon && point.lat >= minLat && point.lat <= maxLat;
