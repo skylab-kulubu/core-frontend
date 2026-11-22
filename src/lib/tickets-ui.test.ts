@@ -1,7 +1,10 @@
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
+import { ProblemError } from '@/lib/api/core';
 import {
   filterApplicantRoster,
+  normalizeTicketCode,
+  ticketSendProblem,
   ticketDetailFields,
   ticketMailRecipients,
   ticketRosterRow,
@@ -279,5 +282,70 @@ describe('ticket mail recipients', () => {
       updatedAt: '',
     };
     expect(ticketMailRecipients([blank], new Map())).toEqual([]);
+  });
+});
+
+describe('Ticket code', () => {
+  const coded = (id: string, code: string): Ticket => ({
+    id,
+    eventId: 'e1',
+    ticketType: 'GUEST',
+    guestFirstName: 'Ada',
+    guestLastName: id,
+    guestEmail: `${id}@example.com`,
+    code,
+    checkIns: [],
+    createdAt: '2026-11-22T10:00:00.000Z',
+    updatedAt: '2026-11-22T10:00:00.000Z',
+  });
+  const rows = [coded('a', 'K7M2-QX9F'), coded('b', 'B401-1N2D')];
+  const search = (query: string) =>
+    filterApplicantRoster(rows, new Map(), { query, ticketType: 'all', status: 'all' }).map(
+      (row) => row.id,
+    );
+
+  it('reads a code as core does: no dash or space, upper case, O as 0, I and L as 1', () => {
+    expect(normalizeTicketCode(' k7m2-qx9f ')).toBe('K7M2QX9F');
+    expect(normalizeTicketCode('B4O1 iLNd')).toBe('B40111ND');
+    expect(normalizeTicketCode('ıİ')).toBe('11');
+  });
+
+  it('finds a Ticket by its code, typed as a person reads it', () => {
+    expect(search('K7M2-QX9F')).toEqual(['a']);
+    expect(search('k7m2qx9f')).toEqual(['a']);
+    expect(search('b4o1 ln2d')).toEqual(['b']);
+    expect(search('QX9F')).toEqual(['a']);
+    // Three characters are not a code: no match on codes alone
+    expect(search('X9F')).toEqual([]);
+  });
+
+  it("says core's refusals of a resend in Turkish", () => {
+    expect(
+      ticketSendProblem(
+        new ProblemError(409, 'Conflict', { code: 'ticket_notification_off' }),
+        'x',
+      ),
+    ).toBe('Bilet postası kapalı; bilet gönderilemiyor.');
+    expect(ticketSendProblem(new ProblemError(409, 'Conflict', { code: 'event_ended' }), 'x')).toBe(
+      'Etkinlik bitmiş; bilet gönderilmez.',
+    );
+    expect(
+      ticketSendProblem(
+        new ProblemError(429, 'Too Many Requests', {
+          code: 'ticket_resend_rate_limited',
+          detail: 'Bu bilet son bir saatte 3 kez gönderildi.',
+        }),
+        'x',
+      ),
+    ).toBe('Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.');
+    expect(
+      ticketSendProblem(
+        new ProblemError(503, 'Service Unavailable', { code: 'audit_unavailable' }),
+        'x',
+      ),
+    ).toBe('İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.');
+    expect(
+      ticketSendProblem(new ProblemError(409, 'Conflict', { code: 'ticket_holder_erased' }), 'x'),
+    ).toBe('Bilet sahibinin hesabı silinmiş; gönderilecek kimse yok.');
   });
 });

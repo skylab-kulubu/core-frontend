@@ -53,7 +53,7 @@ describe('ApplicantRoster', () => {
     );
     expect(screen.getByRole('searchbox', { name: 'Başvuran ara' })).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
-    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(7);
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('ada@example.com')).toBeInTheDocument();
     expect(screen.getAllByText('Misafir').length).toBeGreaterThan(0);
@@ -243,5 +243,51 @@ describe('ApplicantRoster', () => {
     await user.selectOptions(picker, 's2');
     await user.click(screen.getAllByRole('button', { name: 'Katıldı · Panel' })[0]);
     expect(onMarkAttended).toHaveBeenCalledWith(expect.anything(), 's2');
+  });
+
+  it('shows the Ticket code and finds the row by it', async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[
+          { ...guest, code: 'K7M2-QX9F' },
+          { ...member, code: 'B4TR-9N2D' },
+        ]}
+        people={people}
+      />,
+    );
+    expect(screen.getByRole('columnheader', { name: 'Bilet kodu' })).toBeInTheDocument();
+    expect(screen.getByText('K7M2-QX9F')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Ad, e-posta, bilet kodu'), 'b4tr9n2d');
+    await waitFor(() => expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument());
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+  });
+
+  it('offers resend and renew in the row menu only when given', async () => {
+    const user = userEvent.setup();
+    const onResend = jest.fn();
+    const onRenew = jest.fn();
+    const { unmount } = render(
+      <ApplicantRoster
+        eventId="e1"
+        tickets={[guest]}
+        people={people}
+        onResend={onResend}
+        onRenew={onRenew}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Ada Lovelace: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Bileti yeniden gönder' }));
+    expect(onResend).toHaveBeenCalledWith(guest);
+    await user.click(screen.getByRole('button', { name: 'Ada Lovelace: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Bağlantıyı yenile' }));
+    expect(onRenew).toHaveBeenCalledWith(guest);
+    unmount();
+
+    render(<ApplicantRoster eventId="e1" tickets={[guest]} people={people} />);
+    expect(
+      screen.queryByRole('button', { name: 'Ada Lovelace: eylemler' }),
+    ).not.toBeInTheDocument();
   });
 });

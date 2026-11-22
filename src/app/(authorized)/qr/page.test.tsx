@@ -98,7 +98,7 @@ describe('Kapı check-in page', () => {
     expect(screen.queryByPlaceholderText('Bilet kimliği')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
@@ -115,7 +115,7 @@ describe('Kapı check-in page', () => {
       result.compareDocumentPosition(screen.getByRole('region', { name: "Misafir QR'ı" })) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByLabelText('Ad veya e-posta')).toHaveValue('');
+    expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toHaveValue('');
     expect(screen.queryByText(/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/)).not.toBeInTheDocument();
   });
 
@@ -139,7 +139,7 @@ describe('Kapı check-in page', () => {
     const picker = await screen.findByLabelText('Oturum');
     await waitFor(() => expect(picker).toHaveValue('s2'));
     expect(within(picker).getByRole('option', { selected: true })).toHaveTextContent('Panel');
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
 
     await waitFor(() =>
@@ -174,7 +174,7 @@ describe('Kapı check-in page', () => {
     expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
       /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
     );
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', expect.anything()),
@@ -193,7 +193,7 @@ describe('Kapı check-in page', () => {
     const picker = screen.getByLabelText('Oturum');
     expect(picker).toHaveValue('');
     expect(screen.getByText(/şu an süren tek bir oturum yok/)).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
 
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
@@ -212,10 +212,12 @@ describe('Kapı check-in page', () => {
   it('accepts a typed name in the person field', async () => {
     const user = userEvent.setup();
     render(<QrPage />);
-    await waitFor(() => expect(screen.getByLabelText('Ad veya e-posta')).toBeInTheDocument());
-    const field = screen.getByLabelText('Ad veya e-posta') as HTMLInputElement;
+    await waitFor(() =>
+      expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toBeInTheDocument(),
+    );
+    const field = screen.getByLabelText('Ad, e-posta ya da bilet kodu') as HTMLInputElement;
     expect(field).toHaveAttribute('type', 'text');
-    expect(field).toHaveAttribute('placeholder', 'Ad veya e-posta');
+    expect(field).toHaveAttribute('placeholder', 'Ad, e-posta ya da bilet kodu');
     await user.type(field, 'Ada Lovelace');
     expect(field.checkValidity()).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
@@ -281,7 +283,7 @@ describe('Kapı check-in page', () => {
     render(<QrPage />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad veya e-posta'), 'ada');
+    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
 
@@ -311,7 +313,7 @@ describe('Kapı check-in page', () => {
     render(<QrPage />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad veya e-posta'), 'ada');
+    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
     expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toHaveTextContent('Ada Lovelace');
 
@@ -322,7 +324,7 @@ describe('Kapı check-in page', () => {
         'Katılımcı bul',
       ),
     );
-    expect(screen.getByLabelText('Ad veya e-posta')).toHaveValue('');
+    expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toHaveValue('');
     expect(screen.getByLabelText('Oturum')).toHaveValue('');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
@@ -337,9 +339,9 @@ describe('Kapı check-in page', () => {
     render(<QrPage />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad veya e-posta'), 'ada');
+    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'Grace Hopper');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Grace Hopper');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
 
     await waitFor(() =>
@@ -398,7 +400,7 @@ describe('Kapı check-in page', () => {
     );
     render(<QrPage />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'ada@example.com');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
@@ -412,7 +414,7 @@ describe('Kapı check-in page', () => {
     );
     render(<QrPage />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    await user.type(screen.getByLabelText('Ad veya e-posta'), 'Ada');
+    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada');
     const button = screen.getByRole('button', { name: 'Check-in' });
     await user.click(button);
 
