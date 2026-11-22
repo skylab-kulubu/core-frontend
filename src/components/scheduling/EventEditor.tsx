@@ -23,6 +23,7 @@ import {
   persistableFormFields,
   type EventFormSlot,
 } from '@/lib/event-forms';
+import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
@@ -58,6 +59,8 @@ type EventEditorProps = {
   knownMedia?: EventMediaHint[];
   returnTo?: string;
   onLeaveToSkyforms?: () => void;
+  /** The form the last save was refused for (`409 form_in_use`). */
+  formInUse?: FormInUse | null;
 };
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
@@ -123,6 +126,7 @@ export function EventEditor({
   knownMedia = [],
   returnTo,
   onLeaveToSkyforms,
+  formInUse,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -243,6 +247,7 @@ export function EventEditor({
         reservedEventId={value.reservedId}
         returnTo={returnTo}
         onLeaveToSkyforms={onLeaveToSkyforms}
+        inUse={formInUse}
         onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
       />
       <div className="space-y-2">
@@ -268,6 +273,7 @@ export function EventEditor({
           returnTo={returnTo}
           onLeaveToSkyforms={onLeaveToSkyforms}
           addable={false}
+          inUse={formInUse}
           onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
           onChange={([feedbackSlot]) =>
             patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })

@@ -92,9 +92,8 @@ const CODE_MESSAGES: Record<string, string> = {
   event_not_draft: 'Yalnız taslak etkinlik silinir.',
   event_not_cancelled: 'Etkinlik iptal edilmemiş.',
   registration_closed: 'Etkinliğin başvurusu kapalı.',
-  // Feedback forms (etkinlik geri bildirim formu): one form in one place
-  form_in_use:
-    'Bu form başka bir yerde kullanılıyor (başvuru, ek ya da geri bildirim formu); başka bir form seç.',
+  // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
+  form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
   feedback_form_missing: 'Geri bildirim formu bağlı değil.',
   feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
@@ -129,6 +128,29 @@ const CODE_MESSAGES: Record<string, string> = {
   subject_request_changed:
     'Başvuru sen açtıktan sonra başkası tarafından değiştirildi. Çekmeceyi kapatıp yeniden aç, sonra tekrar kaydet.',
 };
+
+/**
+ * Where a form core refused with `409 form_in_use` is (ADR 0069, addendum of
+ * 2026-11-22): the form, and the current Event that holds it when the reader
+ * may see that Event. core leaves the Event out for another team's draft and
+ * for the Event's own other slot.
+ */
+export type FormInUse = { formId: string; event?: { id: string; name: string } };
+
+export function formInUseOf(error: unknown): FormInUse | null {
+  if (!(error instanceof ProblemError) || error.code !== 'form_in_use') return null;
+  const formId = text(error.fields.formId);
+  if (!formId) return null;
+  const holder = error.fields.event as Record<string, unknown> | undefined;
+  const id = text(holder?.id);
+  const name = text(holder?.name);
+  return id && name ? { formId, event: { id, name } } : { formId };
+}
+
+/** Whether `url` is the form a form_in_use refusal is about. */
+export function isFormInUse(url: string, inUse: FormInUse | null | undefined): boolean {
+  return Boolean(inUse && url.trim() && url.toLowerCase().includes(inUse.formId.toLowerCase()));
+}
 
 /** The Event fields core names in `event_incomplete`. */
 const EVENT_FIELD_NAMES: Record<string, string> = {
@@ -289,6 +311,10 @@ export function coreProblemMessage(
       return missing.length
         ? `Yayınlamak için eksik: ${missing.join(', ')}.`
         : 'Yayınlamak için ad, konum ve başlangıç tarihi gerekli.';
+    }
+    case 'form_in_use': {
+      const name = formInUseOf(error)?.event?.name;
+      return name ? `Bu form şu etkinlikte kullanılıyor: ${name}.` : CODE_MESSAGES.form_in_use;
     }
     case 'media_team_mismatch':
       return 'Bu fotoğraf başka bir ekibin etkinliğinde kullanılıyor. Yalnız kendi ekibinin fotoğraflarını kullanabilirsin.';

@@ -118,3 +118,79 @@ describe('EventFormSlots form gate', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('EventFormSlots form in use (409 form_in_use)', () => {
+  const formId = '0b6f1c1e-6a39-4d0f-9d0c-3a8c5d1e2f00';
+  const skyforms = slotsFromEvent({ formUrl: `https://forms.yildizskylab.com/${formId}` });
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('names the event holding the form and offers a new form made from it', () => {
+    render(
+      <EventFormSlots
+        slots={skyforms}
+        eventName="Gecekodu"
+        ownerTeam="GECEKODU"
+        startLocal="2026-05-01T12:00"
+        reservedEventId="e1"
+        onChange={jest.fn()}
+        inUse={{ formId, event: { id: 'e9', name: 'Gecekodu 2025' } }}
+      />,
+    );
+    expect(screen.getByText(/Bu form şu etkinlikte kullanılıyor:/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
+    ).toHaveAttribute('href', '/events/e9');
+    const href = new URL(
+      screen
+        .getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' })
+        .getAttribute('href') ?? '',
+    );
+    expect(href.pathname).toBe('/admin/forms/new-form');
+    expect(href.searchParams.get('fromForm')).toBe(formId);
+    expect(href.searchParams.get('ownerTeam')).toBe('GECEKODU');
+  });
+
+  it('says only that the form is elsewhere when core names no event', () => {
+    render(
+      <EventFormSlots
+        slots={skyforms}
+        eventName="Gecekodu"
+        startLocal=""
+        onChange={jest.fn()}
+        inUse={{ formId }}
+      />,
+    );
+    expect(screen.getByText('Bu form başka bir yerde kullanılıyor.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing on a slot with another form, and offers no Skyforms copy of an outside form', () => {
+    const { rerender } = render(
+      <EventFormSlots
+        slots={savedSlots}
+        eventName="Gecekodu"
+        startLocal=""
+        onChange={jest.fn()}
+        inUse={{ formId, event: { id: 'e9', name: 'Gecekodu 2025' } }}
+      />,
+    );
+    expect(screen.queryByText(/kullanılıyor/)).not.toBeInTheDocument();
+
+    rerender(
+      <EventFormSlots
+        slots={slotsFromEvent({ formUrl: `https://apply.example.test/${formId}` })}
+        eventName="Gecekodu"
+        startLocal=""
+        onChange={jest.fn()}
+        inUse={{ formId, event: { id: 'e9', name: 'Gecekodu 2025' } }}
+      />,
+    );
+    expect(screen.getByText(/Bu form şu etkinlikte kullanılıyor:/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
+    ).not.toBeInTheDocument();
+  });
+});
