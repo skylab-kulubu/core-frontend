@@ -65,7 +65,7 @@ describe('AdminSidebar', () => {
     expect(screen.getByText('Deniz Aydın')).toBeInTheDocument();
     expect(screen.getByText('YÖNETİM')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Özet' })).toHaveAttribute('href', '/dashboard');
-    expect(screen.getByRole('button', { name: 'Etkinlikler' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Etkinlikler' })).toHaveAttribute('href', '/events');
     expect(screen.queryByRole('link', { name: 'Oturumlar' })).not.toBeInTheDocument();
   });
 
@@ -115,73 +115,45 @@ describe('AdminSidebar', () => {
     });
   });
 
-  it('opens the events group and keeps the others closed at first', () => {
+  it('opens the day’s groups and keeps Ayarlar closed at first', () => {
     renderSidebar();
-    expect(screen.getByRole('button', { name: 'Etkinlikler' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Kişiler' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
-    expect(screen.getByRole('link', { name: 'Takvim' })).toHaveAttribute(
-      'href',
-      '/events?view=calendar',
+    expect(screen.getByRole('button', { name: 'İçerik' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Ayarlar' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
     );
-    expect(screen.getByRole('button', { name: 'Kulüp' })).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('marks only the matching events query destination as current', () => {
-    currentPathname = '/events';
-    currentSearch = 'view=calendar';
+  it('opens Ayarlar on one of its pages', () => {
+    currentPathname = '/seasons';
     renderSidebar();
-    expect(screen.getByRole('link', { name: 'Takvim' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Tümü' })).not.toHaveAttribute('aria-current');
-  });
-
-  it('adds an open workspace for the event whose pages are open', () => {
-    currentPathname = '/events/event-1';
-    renderSidebar({
-      activeEvent: {
-        id: 'event-1',
-        canSeeParticipants: true,
-        canSeeCompetitors: true,
-        canUseDoor: true,
-      },
-    });
-    expect(screen.getByRole('button', { name: 'Aktif Etkinlik' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Ayarlar' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
-    expect(screen.getByRole('link', { name: 'Genel bakış' })).toHaveAttribute(
-      'href',
-      '/events/event-1',
-    );
-    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
-      'href',
-      '/events/event-1/participants',
-    );
-    expect(screen.getByRole('link', { name: 'Program' })).toHaveAttribute(
-      'href',
-      '/events/event-1/program',
-    );
-    expect(screen.getByRole('link', { name: 'Yarışma' })).toHaveAttribute(
-      'href',
-      '/events/event-1/competition',
-    );
-    expect(screen.getAllByRole('link', { name: 'Kapı' })).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Sezonlar' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('marks the open event tab as current, not the event overview above it', () => {
-    currentPathname = '/events/event-1/program';
-    renderSidebar({
-      activeEvent: {
-        id: 'event-1',
-        canSeeParticipants: true,
-        canSeeCompetitors: false,
-        canUseDoor: false,
-      },
-    });
-    expect(screen.getByRole('link', { name: 'Program' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Genel bakış' })).not.toHaveAttribute('aria-current');
-    expect(screen.getByRole('link', { name: 'Katılımcılar' })).not.toHaveAttribute('aria-current');
+  it('keeps Etkinlikler current on an event’s pages and lists none of them', () => {
+    currentPathname = '/events/event-1/participants';
+    renderSidebar();
+    expect(screen.getByRole('link', { name: 'Etkinlikler' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.queryByRole('link', { name: 'Katılımcılar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Kapı' })).not.toBeInTheDocument();
+  });
+
+  it('lists the edited sites before Ayarlar, which closes the list', () => {
+    renderSidebar({ editSites: [{ href: 'https://artlab.example/api/signin', label: 'ARTLAB' }] });
+    const sites = screen.getByRole('button', { name: 'Siteyi düzenle' });
+    const settings = screen.getByRole('button', { name: 'Ayarlar' });
+    expect(sites.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('offers to edit only the sites the person may edit', async () => {
@@ -205,17 +177,20 @@ describe('AdminSidebar', () => {
   it('remembers a group the reader opened', async () => {
     const pointer = userEvent.setup();
     const first = renderSidebar();
-    await pointer.click(screen.getByRole('button', { name: 'Kulüp' }));
-    expect(window.localStorage.getItem('skylab.admin.nav-group.club')).toBe('true');
+    await pointer.click(screen.getByRole('button', { name: 'Ayarlar' }));
+    expect(window.localStorage.getItem('skylab.admin.nav-group.settings')).toBe('true');
     first.unmount();
 
     renderSidebar();
-    expect(screen.getByRole('button', { name: 'Kulüp' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Ayarlar' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
   });
 
   it('keeps every destination named on the collapsed icon rail', () => {
     renderSidebar({}, { collapsed: true });
     expect(screen.getByRole('link', { name: 'Özet' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Etkinlikler' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Etkinlikler' })).toBeInTheDocument();
   });
 });

@@ -113,7 +113,7 @@ describe('Event workspace layout', () => {
       'aria-selected',
       'true',
     );
-    expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/qr?eventId=e1');
+    expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/events/e1/door');
     expect(screen.queryByRole('button', { name: 'Hesabınla kaydol' })).not.toBeInTheDocument();
   });
 

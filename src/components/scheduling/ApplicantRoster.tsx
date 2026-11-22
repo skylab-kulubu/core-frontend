@@ -15,7 +15,6 @@ import {
   Mail,
   MoreHorizontal,
   Plus,
-  QrCode,
   RefreshCw,
   Send,
 } from 'lucide-react';
@@ -67,7 +66,6 @@ type ApplicantRosterProps = {
   event?: TicketSourceEvent | null;
   sessions?: readonly DoorSession[];
   mailHref?: string;
-  doorHref?: string;
   loading?: boolean;
   failed?: boolean;
   onMailSelected?: (recipients: ReturnType<typeof ticketMailRecipients>) => void;
@@ -85,7 +83,6 @@ export function ApplicantRoster({
   people,
   event,
   mailHref,
-  doorHref = `/qr?eventId=${encodeURIComponent(eventId)}`,
   sessions = [],
   loading = false,
   failed = false,
@@ -305,7 +302,6 @@ export function ApplicantRoster({
             onClick={onMailSelected ? () => onMailSelected(mailRecipients()) : undefined}
           />
         ) : null}
-        <ActionButton icon={QrCode} label="Kapı" href={doorHref} />
       </ListToolbar>
       {onMarkAttended && sessions.length > 0 ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

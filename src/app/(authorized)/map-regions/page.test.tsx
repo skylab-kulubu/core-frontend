@@ -3,7 +3,12 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import MapRegionsPage, { REGION_POLL_MS } from '@/app/(authorized)/map-regions/page';
 import { ProblemError } from '@/lib/api/core';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { mapRegionsApi, type MapRegion } from '@/lib/api/map-regions';
+
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
+}));
 
 jest.mock('@/lib/api/map-regions', () => ({
   ...jest.requireActual('@/lib/api/map-regions'),
@@ -47,6 +52,7 @@ describe('Harita bölgeleri', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (mapRegionsApi.list as jest.Mock).mockResolvedValue([ankara, kocaeli, istanbul]);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.delete': true } });
   });
 
   afterEach(() => {
@@ -191,5 +197,16 @@ describe('Harita bölgeleri', () => {
     (mapRegionsApi.list as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
     render(<MapRegionsPage />);
     expect(await screen.findByText('Bu sayfa ADMIN ve YK’ya açık')).toBeInTheDocument();
+  });
+
+  it('shows the ready regions without a button to whoever core gives no media:manage', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.delete': false } });
+    render(<MapRegionsPage />);
+    expect(await screen.findByText('İstanbul')).toBeInTheDocument();
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(screen.queryByRole('button', { name: 'Bölge ekle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tekrar dene' })).not.toBeInTheDocument();
   });
 });
