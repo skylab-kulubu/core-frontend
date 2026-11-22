@@ -29,6 +29,7 @@ import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
 import { EventFormSlots } from './EventFormSlots';
+import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
 
 export type EventFormState = EventBody & {
@@ -68,6 +69,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     name: '',
     description: '',
     location: '',
+    locationAddress: '',
     ownerTeam,
     formUrl: '',
     formAlias: '',
@@ -159,15 +161,7 @@ export function EventEditor({
           placeholder="Etkinlik adı"
         />
       </label>
-      <label className="block space-y-1">
-        <FieldLabel>Konum</FieldLabel>
-        <Field
-          value={value.location}
-          onChange={(e) => patch({ location: e.target.value })}
-          required
-          placeholder="YTÜ Davutpaşa"
-        />
-      </label>
+      <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
       <label className="block space-y-1">
         <FieldLabel>Sahip ekip</FieldLabel>
         {ownerOptions.length > 0 ? (

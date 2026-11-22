@@ -3,6 +3,7 @@ import { urlsApi } from '@/lib/api/urls';
 import { seasonsApi } from '@/lib/api/seasons';
 import { toRfc3339 } from '@/lib/datetime-local';
 import { isEventId } from '@/lib/event-draft';
+import { pointOf } from '@/lib/event-location';
 import { attachFormAliases, persistableFormFields } from '@/lib/event-forms';
 import type { EventFormState } from '@/components/scheduling/EventEditor';
 
@@ -16,6 +17,16 @@ function feedbackBody(form: EventFormState): Partial<EventBody> {
   };
 }
 
+/** A new Event's point and address; left out while empty. */
+function locationBody(form: EventFormState): Partial<EventBody> {
+  const point = pointOf(form);
+  const address = form.locationAddress?.trim();
+  return {
+    ...(point ? { locationLat: point.lat, locationLng: point.lng } : {}),
+    ...(address ? { locationAddress: address } : {}),
+  };
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -24,6 +35,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     name: form.name.trim(),
     description: form.description,
     location: form.location.trim(),
+    ...locationBody(form),
     ownerTeam: form.ownerTeam.trim(),
     formUrl: forms.formUrl || undefined,
     formAlias: forms.formAlias || undefined,
@@ -52,10 +64,15 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
 export function eventFieldsFromForm(form: EventFormState): EventPatch {
   const forms = persistableFormFields(form.formSlots ?? []);
   const ownerTeam = form.ownerTeam.trim();
+  const point = pointOf(form);
   return {
     name: form.name.trim(),
     description: form.description,
     location: form.location.trim(),
+    // Both or neither (core docs/event-location.md); null takes them off
+    locationLat: point ? point.lat : null,
+    locationLng: point ? point.lng : null,
+    locationAddress: form.locationAddress?.trim() || null,
     ...(ownerTeam ? { ownerTeam } : {}),
     formUrl: forms.formUrl || null,
     formAlias: forms.formAlias || null,
@@ -87,11 +104,17 @@ export function eventPatchFromForm(form: EventFormState, base?: EventFormState):
   const next = eventFieldsFromForm(form);
   if (!base) return next;
   const before: Record<string, unknown> = eventFieldsFromForm(base);
-  return Object.fromEntries(
+  const changed = Object.fromEntries(
     Object.entries(next).filter(
       ([key, value]) => JSON.stringify(value) !== JSON.stringify(before[key]),
     ),
   ) as EventPatch;
+  // The point goes as a pair: core refuses one coordinate alone (event_location_invalid)
+  if ('locationLat' in changed || 'locationLng' in changed) {
+    changed.locationLat = next.locationLat;
+    changed.locationLng = next.locationLng;
+  }
+  return changed;
 }
 
 /**

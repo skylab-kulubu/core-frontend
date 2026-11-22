@@ -6,6 +6,18 @@ export type CoreEvent = {
   name: string;
   description: string;
   location: string;
+  /** The place's point (WGS 84, six decimals), both or neither; left out while empty. */
+  locationLat?: number;
+  locationLng?: number;
+  /** The street address, at most 300 characters; left out while empty. */
+  locationAddress?: string;
+  /**
+   * The map core drew of the point (docs/event-map.md), about a minute after
+   * the point is saved; with the credit to print under it, linked.
+   */
+  mapImageUrl?: string;
+  mapAttribution?: string;
+  mapAttributionUrl?: string;
   ownerTeam: string;
   formUrl?: string;
   formAlias?: string;
@@ -61,6 +73,19 @@ export type CoreEvent = {
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
 
+/**
+ * A place Events were held at (GET /v1/events/places, core
+ * docs/event-location.md): one per name and point, the latest used first.
+ */
+export type EventPlace = {
+  name: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  lastUsedAt: string;
+  uses: number;
+};
+
 /** POST /v1/events/{id}/copy (core docs/event-copy.md). */
 export type EventCopyBody = {
   /** Made once per dialog: a retried request answers the copy it made. */
@@ -96,6 +121,10 @@ export type EventBody = {
   name: string;
   description: string;
   location: string;
+  /** Both or neither (`400 event_location_invalid`). */
+  locationLat?: number;
+  locationLng?: number;
+  locationAddress?: string;
   ownerTeam: string;
   formUrl?: string;
   formAlias?: string;
@@ -130,6 +159,10 @@ export type EventPatch = {
   name?: string;
   description?: string;
   location?: string;
+  /** `null` for both clears the point; one alone is refused. */
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationAddress?: string | null;
   ownerTeam?: string;
   formUrl?: string | null;
   formAlias?: string | null;
@@ -168,6 +201,16 @@ export const eventsApi = {
     return coreFetch<CoreEvent[]>(`/v1/events${q ? `?${q}` : ''}`);
   },
   get: (id: string) => coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`),
+  /**
+   * The places of earlier Events: a team's (drafts too) for who creates
+   * Events in it, or without `ownerTeam` the club's for event:manage; 403
+   * for anyone else.
+   */
+  places: (ownerTeam?: string, limit = 20) => {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (ownerTeam) query.set('ownerTeam', ownerTeam);
+    return coreFetch<EventPlace[]>(`/v1/events/places?${query.toString()}`);
+  },
   create: (body: EventBody) =>
     coreFetch<CoreEvent>('/v1/events', { method: 'POST', body: JSON.stringify(body) }),
   delete: (id: string) =>

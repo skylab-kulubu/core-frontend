@@ -16,6 +16,7 @@ import {
   Layers,
   Link2,
   List,
+  Map as MapIcon,
   Newspaper,
   QrCode,
   Settings2,
@@ -48,6 +49,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/certificates/templates': LayoutTemplate,
   '/certificates/defaults': SlidersHorizontal,
   '/handoff-targets': ArrowRightLeft,
+  '/map-regions': MapIcon,
 };
 
 // The current event's pages link to the tabs of its workspace

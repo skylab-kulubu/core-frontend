@@ -5,6 +5,7 @@ import { emptyEventForm } from '@/components/scheduling/EventEditor';
 import type { CoreEvent } from '@/lib/api/events';
 import { formStateFromEvent } from '@/lib/event-draft';
 import {
+  eventBodyFromForm,
   eventFieldsFromForm,
   eventPatchFromForm,
   EventSaveIncomplete,
@@ -330,5 +331,67 @@ describe('saveEventWithSeason and the season', () => {
     await saveEventWithSeason(plain, savedEvent.id, plain);
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
     expect(eventUpdate(calls)).toEqual({});
+  });
+});
+
+describe("the Event's place (core docs/event-location.md)", () => {
+  const placed = {
+    ...form,
+    location: 'YTÜ Davutpaşa',
+    locationAddress: ' Davutpaşa Cd. No:127 ',
+    locationLat: 41.025376,
+    locationLng: 28.889648,
+  };
+
+  it('creates an Event with its point and address, and without them when empty', () => {
+    expect(eventBodyFromForm(placed)).toMatchObject({
+      location: 'YTÜ Davutpaşa',
+      locationLat: 41.025376,
+      locationLng: 28.889648,
+      locationAddress: 'Davutpaşa Cd. No:127',
+    });
+    const plain = eventBodyFromForm(form);
+    expect(plain).not.toHaveProperty('locationLat');
+    expect(plain).not.toHaveProperty('locationLng');
+    expect(plain).not.toHaveProperty('locationAddress');
+  });
+
+  it('sends the point as a pair when it moves, and null for both when it is taken off', () => {
+    const moved = { ...placed, locationLat: 41.05046, locationLng: 29.01103 };
+    expect(eventPatchFromForm(moved, placed)).toEqual({
+      locationLat: 41.05046,
+      locationLng: 29.01103,
+    });
+    // One coordinate changed still sends the pair: core refuses one alone
+    expect(eventPatchFromForm({ ...placed, locationLng: 29 }, placed)).toEqual({
+      locationLat: 41.025376,
+      locationLng: 29,
+    });
+    expect(
+      eventPatchFromForm({ ...placed, locationLat: undefined, locationLng: undefined }, placed),
+    ).toEqual({ locationLat: null, locationLng: null });
+    expect(eventPatchFromForm({ ...placed, locationAddress: '' }, placed)).toEqual({
+      locationAddress: null,
+    });
+    expect(eventPatchFromForm(placed, placed)).toEqual({});
+  });
+
+  it('reads the place of a saved Event into the form', () => {
+    const state = formStateFromEvent({
+      ...savedEvent,
+      locationLat: 41.025376,
+      locationLng: 28.889648,
+      locationAddress: 'Davutpaşa Cd. No:127',
+    });
+    expect(state).toMatchObject({
+      locationLat: 41.025376,
+      locationLng: 28.889648,
+      locationAddress: 'Davutpaşa Cd. No:127',
+    });
+    expect(formStateFromEvent(savedEvent)).toMatchObject({
+      locationLat: undefined,
+      locationLng: undefined,
+      locationAddress: '',
+    });
   });
 });

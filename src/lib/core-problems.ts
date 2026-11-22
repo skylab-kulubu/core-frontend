@@ -92,6 +92,14 @@ const CODE_MESSAGES: Record<string, string> = {
   event_not_draft: 'Yalnız taslak etkinlik silinir.',
   event_not_cancelled: 'Etkinlik iptal edilmemiş.',
   registration_closed: 'Etkinliğin başvurusu kapalı.',
+  // An Event's place (core docs/event-location.md): a half point, one off the globe, a control character
+  event_location_invalid: 'Konum geçersiz: noktayı ve açık adresi denetle.',
+  // Sending a Ticket again, renewing its link (core docs/ticket-resend.md)
+  ticket_resend_rate_limited:
+    'Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.',
+  ticket_notification_off: 'Bilet postası kapalı; bilet gönderilemiyor.',
+  ticket_holder_erased: 'Bilet sahibinin hesabı silinmiş; gönderilecek kimse yok.',
+  audit_unavailable: 'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
   feedback_form_missing: 'Geri bildirim formu bağlı değil.',
