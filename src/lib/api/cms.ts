@@ -1,5 +1,5 @@
 import { coreProblemMessage } from '@/lib/core-problems';
-import { ProblemError, problemFromResponse } from './core';
+import { bearer, ProblemError, problemFromResponse } from './core';
 
 export type NewsData = {
   title: string;
@@ -40,14 +40,6 @@ const NEWS_COLLECTION = '/cms/collections/news';
 
 export function cmsBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_CMS_URL || 'http://localhost:5000').replace(/\/+$/, '');
-}
-
-async function bearer(): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-  const res = await fetch('/api/auth/token', { credentials: 'include' });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { token?: string };
-  return body.token ?? null;
 }
 
 export async function cmsFetch<T>(

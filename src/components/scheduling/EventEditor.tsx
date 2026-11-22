@@ -242,17 +242,16 @@ export function EventEditor({
       </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1">
-            <FieldLabel>Başlangıç</FieldLabel>
-            <DatePicker
-              value={value.startDate ?? ''}
-              onChange={(startDate) => patch({ startDate })}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Bitiş</FieldLabel>
-            <DatePicker value={value.endDate ?? ''} onChange={(endDate) => patch({ endDate })} />
-          </label>
+          <DatePicker
+            label="Başlangıç"
+            value={value.startDate ?? ''}
+            onChange={(startDate) => patch({ startDate })}
+          />
+          <DatePicker
+            label="Bitiş"
+            value={value.endDate ?? ''}
+            onChange={(endDate) => patch({ endDate })}
+          />
         </div>
         <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
       </EditorSection>
@@ -316,13 +315,11 @@ export function EventEditor({
               onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
             />
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Son başvuru</FieldLabel>
-            <DatePicker
-              value={value.registrationClosesAt ?? ''}
-              onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
-            />
-          </label>
+          <DatePicker
+            label="Son başvuru"
+            value={value.registrationClosesAt ?? ''}
+            onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
+          />
         </div>
         {assignDoorStaff ? (
           <div className="space-y-2">

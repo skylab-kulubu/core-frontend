@@ -226,20 +226,16 @@ export default function SeasonsPage() {
               required
             />
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Başlangıç</FieldLabel>
-            <DatePicker
-              value={form.startLocal}
-              onChange={(startLocal) => setForm({ ...form, startLocal })}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Bitiş</FieldLabel>
-            <DatePicker
-              value={form.endLocal}
-              onChange={(endLocal) => setForm({ ...form, endLocal })}
-            />
-          </label>
+          <DatePicker
+            label="Başlangıç"
+            value={form.startLocal}
+            onChange={(startLocal) => setForm({ ...form, startLocal })}
+          />
+          <DatePicker
+            label="Bitiş"
+            value={form.endLocal}
+            onChange={(endLocal) => setForm({ ...form, endLocal })}
+          />
           <Switch
             checked={form.active}
             onChange={(checked) => setForm({ ...form, active: checked })}
