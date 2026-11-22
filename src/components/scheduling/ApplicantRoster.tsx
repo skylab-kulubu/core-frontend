@@ -247,7 +247,7 @@ export function ApplicantRoster({
           setQuery(value);
           setPage(1);
         }}
-        placeholder="Ad, e-posta, form, bilet kodu"
+        placeholder="Ad, e-posta, bilet kodu"
         searchLabel="Başvuran ara"
       >
         <Select

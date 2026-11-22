@@ -259,7 +259,7 @@ describe('ApplicantRoster', () => {
     );
     expect(screen.getByRole('columnheader', { name: 'Bilet kodu' })).toBeInTheDocument();
     expect(screen.getByText('K7M2-QX9F')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Ad, e-posta, form, bilet kodu'), 'b4tr9n2d');
+    await user.type(screen.getByPlaceholderText('Ad, e-posta, bilet kodu'), 'b4tr9n2d');
     await waitFor(() => expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument());
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
   });
