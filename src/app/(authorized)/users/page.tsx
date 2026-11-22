@@ -27,6 +27,8 @@ import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
+import { useDesignVariant } from '@/lib/ui/design-variant';
+import { UsersDirectory } from '@/components/identity/UsersDirectory';
 
 const createUserSchema = z.object({
   firstName: z.string().trim(),
@@ -46,6 +48,7 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const notify = useNotify();
+  const variant = useDesignVariant();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const {
@@ -105,7 +108,11 @@ export default function UsersPage() {
       <PageHeader
         title="Kullanıcılar"
         description={
-          canCreate ? 'Üye ekle. Grup ve roller kişi kartında.' : 'Üye dizinini görüntüle.'
+          variant
+            ? undefined
+            : canCreate
+              ? 'Üye ekle. Grup ve roller kişi kartında.'
+              : 'Üye dizinini görüntüle.'
         }
         actions={
           canCreate ? (
@@ -118,47 +125,63 @@ export default function UsersPage() {
           ) : undefined
         }
       />
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
-      <ListToolbar
-        query={query}
-        onQuery={setQuery}
-        placeholder="Ad, e-posta, okul maili"
-        searchLabel="Kullanıcı ara"
-      />
-      <ListPanel
-        status={listStatus({
-          loading,
-          failed: Boolean(error),
-          rowCount: users.length,
-          emptyMessage: ready ? 'Eşleşen kullanıcı yok' : 'Aramak için yaz',
-        })}
-        emptyDescription={
-          ready
-            ? canCreate
-              ? 'Üye ekle veya aramayı değiştir.'
-              : 'Aramayı değiştir.'
-            : 'Ad, e-posta ya da okul mailinden en az 2 karakter.'
-        }
-      >
-        {paged.slice.map((u) => {
-          const name = `${u.firstName} ${u.lastName}`.trim();
-          return (
-            <ListItem
-              key={u.id}
-              href={`/users/${u.id}`}
-              title={name || u.email}
-              subtitle={u.skyNumber || u.schoolEmail || u.email}
-              leading={<Avatar name={name} email={u.email} src={profilePictureSrc(u)} />}
-              trailing={u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined}
-            />
-          );
-        })}
-      </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
+      {variant ? (
+        <UsersDirectory
+          variant={variant}
+          query={query}
+          onQuery={setQuery}
+          results={users}
+          searching={loading}
+          searchFailed={Boolean(error)}
+          ready={ready}
+        />
+      ) : (
+        <>
+          {error ? (
+            <p role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          ) : null}
+          <ListToolbar
+            query={query}
+            onQuery={setQuery}
+            placeholder="Ad, e-posta, okul maili"
+            searchLabel="Kullanıcı ara"
+          />
+          <ListPanel
+            status={listStatus({
+              loading,
+              failed: Boolean(error),
+              rowCount: users.length,
+              emptyMessage: ready ? 'Eşleşen kullanıcı yok' : 'Aramak için yaz',
+            })}
+            emptyDescription={
+              ready
+                ? canCreate
+                  ? 'Üye ekle veya aramayı değiştir.'
+                  : 'Aramayı değiştir.'
+                : 'Ad, e-posta ya da okul mailinden en az 2 karakter.'
+            }
+          >
+            {paged.slice.map((u) => {
+              const name = `${u.firstName} ${u.lastName}`.trim();
+              return (
+                <ListItem
+                  key={u.id}
+                  href={`/users/${u.id}`}
+                  title={name || u.email}
+                  subtitle={u.skyNumber || u.schoolEmail || u.email}
+                  leading={<Avatar name={name} email={u.email} src={profilePictureSrc(u)} />}
+                  trailing={
+                    u.skyNumber ? <StatusChip kind="member" label={u.skyNumber} /> : undefined
+                  }
+                />
+              );
+            })}
+          </ListPanel>
+          <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
+        </>
+      )}
       {canCreate ? (
         <Drawer
           open={creating}

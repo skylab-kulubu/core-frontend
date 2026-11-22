@@ -6,10 +6,17 @@ import { LogOut } from 'lucide-react';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
+import { UserCardDesign } from '@/components/identity/UserCardDesign';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { identityApi, type Group, type UserCard } from '@/lib/api/identity';
+import {
+  identityApi,
+  type ClientRole,
+  type Group,
+  type UserCard,
+  type UserProfilePatch,
+} from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch } from '@/lib/picker';
@@ -17,6 +24,7 @@ import { useAppCan } from '@/lib/use-app-can';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useDesignVariant } from '@/lib/ui/design-variant';
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
@@ -39,6 +47,7 @@ export default function UserDetailPage() {
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
   const memberAdd = useMemberAdd();
+  const variant = useDesignVariant();
 
   async function load() {
     try {
@@ -97,6 +106,44 @@ export default function UserDetailPage() {
   }
   if (!card) return <StateCard title="Yükleniyor…" isLoading />;
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
+  const cardId = card.id;
+
+  function askLogout() {
+    confirm({
+      title: `${name} için bütün oturumlar kapatılsın mı?`,
+      description: 'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
+      actionLabel: 'Oturumları kapat',
+      onConfirm: async () => {
+        await identityApi.logoutUser(cardId);
+        notify.success('Oturumlar kapatıldı');
+      },
+      failure: 'Oturumlar kapatılamadı',
+    });
+  }
+
+  const removeRole = canWrite
+    ? (role: ClientRole) =>
+        confirm({
+          title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
+          description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider. Kişi bu yetkiyi sürdürecekse önce rolü taşıyan gruba ekle.`,
+          actionLabel: 'Rolü kaldır',
+          onConfirm: async () => {
+            await identityApi.removeExtraRole(cardId, role);
+            notify.success('Rol kaldırıldı');
+            await load();
+          },
+          failure: 'Rol kaldırılamadı',
+        })
+    : undefined;
+
+  const saveProfile = canWrite
+    ? (patch: UserProfilePatch) =>
+        change(
+          () => identityApi.updateUser(cardId, patch),
+          'Profil kaydedildi',
+          'Profil kaydedilemedi',
+        )
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -105,55 +152,29 @@ export default function UserDetailPage() {
           {actionError}
         </p>
       ) : null}
-      <UserCardView
-        card={card}
-        canEditProfile={canWrite}
-        canReadFull={can('user.readFull')}
-        onSaveProfile={
-          canWrite
-            ? (patch) =>
-                change(
-                  () => identityApi.updateUser(card.id, patch),
-                  'Profil kaydedildi',
-                  'Profil kaydedilemedi',
-                )
-            : undefined
-        }
-        onAddGroup={canAddGroup ? () => void openGroups() : undefined}
-        onRemoveRole={
-          canWrite
-            ? (role) =>
-                confirm({
-                  title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
-                  description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider. Kişi bu yetkiyi sürdürecekse önce rolü taşıyan gruba ekle.`,
-                  actionLabel: 'Rolü kaldır',
-                  onConfirm: async () => {
-                    await identityApi.removeExtraRole(card.id, role);
-                    notify.success('Rol kaldırıldı');
-                    await load();
-                  },
-                  failure: 'Rol kaldırılamadı',
-                })
-            : undefined
-        }
-      />
-      {canWrite ? (
-        <SaveButton
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `${name} için bütün oturumlar kapatılsın mı?`,
-              description:
-                'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
-              actionLabel: 'Oturumları kapat',
-              onConfirm: async () => {
-                await identityApi.logoutUser(card.id);
-                notify.success('Oturumlar kapatıldı');
-              },
-              failure: 'Oturumlar kapatılamadı',
-            })
-          }
-        >
+      {variant ? (
+        <UserCardDesign
+          variant={variant}
+          card={card}
+          canEditProfile={canWrite}
+          canReadFull={can('user.readFull')}
+          onSaveProfile={saveProfile}
+          onAddGroup={canAddGroup ? () => void openGroups() : undefined}
+          onRemoveRole={removeRole}
+          onLogout={canWrite ? askLogout : undefined}
+        />
+      ) : (
+        <UserCardView
+          card={card}
+          canEditProfile={canWrite}
+          canReadFull={can('user.readFull')}
+          onSaveProfile={saveProfile}
+          onAddGroup={canAddGroup ? () => void openGroups() : undefined}
+          onRemoveRole={removeRole}
+        />
+      )}
+      {canWrite && !variant ? (
+        <SaveButton type="button" onClick={askLogout}>
           <LogOut className="h-4 w-4" />
           Oturumları kapat
         </SaveButton>
