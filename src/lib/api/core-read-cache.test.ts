@@ -1,5 +1,5 @@
 import { coreFetch } from '@/lib/api/core';
-import { CORE_READ_MAX_AGE_MS, clearCoreReads } from '@/lib/api/core-read-cache';
+import { CORE_READ_MAX_AGE_MS, clearCoreReads, keptReadCount } from '@/lib/api/core-read-cache';
 import { SESSION_RENEWED_EVENT } from '@/lib/auth/session-renewal';
 
 // jsdom has no Response
@@ -59,6 +59,17 @@ describe('coreFetch reads', () => {
     now += 2;
     await coreFetch('/v1/teams');
     expect(coreCalls).toHaveLength(2);
+  });
+
+  it('drops expired answers when it keeps a new one', async () => {
+    await coreFetch('/v1/users?q=ad');
+    await coreFetch('/v1/users?q=ada');
+    expect(keptReadCount()).toBe(2);
+
+    now += CORE_READ_MAX_AGE_MS;
+    await coreFetch('/v1/users?q=adam');
+
+    expect(keptReadCount()).toBe(1);
   });
 
   it('reads core again after any write', async () => {

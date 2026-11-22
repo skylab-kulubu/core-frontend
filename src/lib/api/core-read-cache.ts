@@ -19,6 +19,11 @@ type Kept = { at: number; answer: Promise<CoreAnswer> };
 
 const kept = new Map<string, Kept>();
 
+/** How many answers are kept now (tests). */
+export function keptReadCount(): number {
+  return kept.size;
+}
+
 /** Drops every kept answer; reads that are still running finish for their callers only. */
 export function clearCoreReads(): void {
   kept.clear();
@@ -29,9 +34,15 @@ export function clearCoreReads(): void {
  * kept; a failed read is tried again by the next caller.
  */
 export function keptRead(key: string, read: () => Promise<CoreAnswer>): Promise<CoreAnswer> {
+  // On the server the module is shared by every request: nothing is kept there
+  if (typeof window === 'undefined') return read();
   const now = Date.now();
   const hit = kept.get(key);
   if (hit && now - hit.at < CORE_READ_MAX_AGE_MS) return hit.answer;
+  // Expired answers go, so a tab left open (searches with ?q=) does not grow without end
+  for (const [old, entry] of kept) {
+    if (now - entry.at >= CORE_READ_MAX_AGE_MS) kept.delete(old);
+  }
   const entry: Kept = { at: now, answer: read() };
   kept.set(key, entry);
   const drop = () => {

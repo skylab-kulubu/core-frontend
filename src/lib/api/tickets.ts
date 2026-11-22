@@ -95,10 +95,12 @@ export type GuestApplyBody = {
 
 export const ticketsApi = {
   listDoorEvents: () => coreFetch<DoorEvent[]>('/v1/door/events'),
+  /** Live: a guest who just applied must show in the next search, never from the kept reads. */
   searchDoorAttendees: (eventId: string, query: string) => {
     const params = new URLSearchParams({ q: query.trim() });
     return coreFetch<DoorAttendee[]>(
       `/v1/events/${encodeURIComponent(eventId)}/door-attendees?${params.toString()}`,
+      { cache: 'no-store' },
     );
   },
   listAssignableUsers: (eventId: string, query: string) => {
