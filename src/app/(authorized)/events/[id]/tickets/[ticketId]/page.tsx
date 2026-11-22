@@ -20,6 +20,7 @@ import { teamDecision } from '@/lib/use-app-can';
 import {
   canListEventTickets,
   ticketApplicantName,
+  ticketCrumbName,
   ticketOwnerPeople,
   ticketStatus,
 } from '@/lib/tickets-ui';
@@ -86,7 +87,7 @@ export default function TicketDetailPage({
   useChromeCrumbName(`/events/${id}`, event?.name);
   useChromeCrumbName(
     `/events/${id}/tickets/${ticketId}`,
-    ticket ? ticketApplicantName(ticket, personById) : null,
+    ticket ? ticketCrumbName(ticket, personById) : null,
   );
 
   if (error && !ticket) {
