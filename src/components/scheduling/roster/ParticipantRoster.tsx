@@ -37,7 +37,7 @@ import { defaultDoorSessionId, doorSessionLabel, type DoorSession } from '@/lib/
 import { emptyListCopy } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import {
-  formatClock,
+  formatEntry,
   inRosterView,
   lastCheckInAt,
   ROSTER_VIEWS,
@@ -267,6 +267,9 @@ export function ParticipantRoster({
           ))}
         </Select>
       ) : null}
+      {onMarkAttended && sessions.length > 0 && !attendSession ? (
+        <p className="text-2xs text-warning">Katıldı için oturum seçin</p>
+      ) : null}
       <div className="ml-auto flex items-center gap-2">
         {onAddParticipant ? (
           <ActionButton
@@ -369,6 +372,7 @@ export function ParticipantRoster({
             event={event}
             sessions={sessions}
             attendSession={attendSession}
+            error={rowErrors[openTicket.id]}
             onMarkAttended={onMarkAttended ? (ticket) => void attend(ticket) : undefined}
             onResend={onResend}
             onRenew={onRenew}
@@ -412,7 +416,7 @@ function RosterRow({
 }) {
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
-  const entryTime = entry ? formatClock(entry).split(' ').pop() : null;
+  const entryTime = entry ? formatEntry(entry) : null;
   const inSession =
     attendSession && (ticket.checkIns ?? []).some((item) => item.sessionId === attendSession.id);
   return (
@@ -466,7 +470,7 @@ function RosterRow({
         <span className="hidden w-20 shrink-0 sm:block">
           <StatusChip kind={ticketTypeStatus(row.ticketType)} />
         </span>
-        <span className="hidden w-32 shrink-0 sm:block">
+        <span className="hidden w-36 shrink-0 sm:block">
           {entryTime ? (
             <StatusChip kind="checked-in" label={`Giriş ${entryTime}`} />
           ) : (

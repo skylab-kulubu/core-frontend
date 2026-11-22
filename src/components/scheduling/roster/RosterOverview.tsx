@@ -1,8 +1,9 @@
 'use client';
 
-import { Card, Sparkline } from '@skylab-kulubu/skylcn-ui';
-import { AreaChart, DonutChart } from '@skylab-kulubu/skylcn-ui/charts';
+import { Card, Skeleton, Sparkline } from '@skylab-kulubu/skylcn-ui';
+import dynamic from 'next/dynamic';
 import type { ReactNode } from 'react';
+import { ChartBoundary } from '@/components/chrome/PanelChart';
 import type { Ticket } from '@/lib/api/tickets';
 import {
   recentRegistrations,
@@ -13,6 +14,40 @@ import {
 
 const percent = (part: number, whole: number) =>
   whole ? `%${Math.round((part / whole) * 100)}` : '—';
+
+// The chart library loads after the page, as in PanelChart: the list is usable before it comes,
+// and a chart that cannot be fetched says so in its place (ChartBoundary) while the page stays.
+function ChartPlaceholder({ height }: { height: number }) {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="w-full" style={{ height }} />
+    </div>
+  );
+}
+
+function ChartFailed() {
+  return (
+    <p role="alert" className="text-3xs text-subtle-foreground py-6 text-center">
+      Grafik yüklenemedi.
+    </p>
+  );
+}
+
+const AreaChart = dynamic(
+  () => import('@skylab-kulubu/skylcn-ui/charts').then((m) => m.AreaChart),
+  {
+    ssr: false,
+    loading: ({ error }) => (error ? <ChartFailed /> : <ChartPlaceholder height={180} />),
+  },
+);
+const DonutChart = dynamic(
+  () => import('@skylab-kulubu/skylcn-ui/charts').then((m) => m.DonutChart),
+  {
+    ssr: false,
+    loading: ({ error }) => (error ? <ChartFailed /> : <ChartPlaceholder height={150} />),
+  },
+);
 
 function ChartTitle({ children }: { children: ReactNode }) {
   return <span className="text-2xs text-subtle-foreground font-medium">{children}</span>;
@@ -131,35 +166,41 @@ export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
   const days = registrationsByDay(tickets);
   return (
     <Card className="grid gap-6 p-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-      <AreaChart
-        title={<ChartTitle>Kayıtlar</ChartTitle>}
-        framed={false}
-        height={180}
-        data={days.map((day) => ({ label: day.label, total: day.total }))}
-        x="label"
-        series={{ total: { label: 'Toplam kayıt' } }}
-        emptyMessage="Kayıt yok"
-      />
-      <DonutChart
-        title={<ChartTitle>Kapı</ChartTitle>}
-        framed={false}
-        height={150}
-        data={[
-          { key: 'in', label: 'Giriş yaptı', value: counts['checked-in'] },
-          { key: 'waiting', label: 'Gelmedi', value: counts.waiting },
-        ]}
-        emptyMessage="Kayıt yok"
-      />
-      <DonutChart
-        title={<ChartTitle>Misafir / üye</ChartTitle>}
-        framed={false}
-        height={150}
-        data={[
-          { key: 'guest', label: 'Misafir', value: counts.guest },
-          { key: 'member', label: 'Üye', value: counts.member },
-        ]}
-        emptyMessage="Kayıt yok"
-      />
+      <ChartBoundary title="Kayıtlar">
+        <AreaChart
+          title={<ChartTitle>Kayıtlar</ChartTitle>}
+          framed={false}
+          height={180}
+          data={days.map((day) => ({ label: day.label, total: day.total }))}
+          x="label"
+          series={{ total: { label: 'Toplam kayıt' } }}
+          emptyMessage="Kayıt yok"
+        />
+      </ChartBoundary>
+      <ChartBoundary title="Kapı">
+        <DonutChart
+          title={<ChartTitle>Kapı</ChartTitle>}
+          framed={false}
+          height={150}
+          data={[
+            { key: 'in', label: 'Giriş yaptı', value: counts['checked-in'] },
+            { key: 'waiting', label: 'Gelmedi', value: counts.waiting },
+          ]}
+          emptyMessage="Kayıt yok"
+        />
+      </ChartBoundary>
+      <ChartBoundary title="Misafir / üye">
+        <DonutChart
+          title={<ChartTitle>Misafir / üye</ChartTitle>}
+          framed={false}
+          height={150}
+          data={[
+            { key: 'guest', label: 'Misafir', value: counts.guest },
+            { key: 'member', label: 'Üye', value: counts.member },
+          ]}
+          emptyMessage="Kayıt yok"
+        />
+      </ChartBoundary>
     </Card>
   );
 }

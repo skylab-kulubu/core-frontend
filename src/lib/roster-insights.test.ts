@@ -1,5 +1,6 @@
 import {
   formatClock,
+  formatEntry,
   inRosterView,
   lastCheckInAt,
   recentRegistrations,
@@ -88,4 +89,11 @@ it('finds the latest entry and writes its time', () => {
   expect(latest).toBe('2026-11-22T13:30:00+03:00');
   expect(formatClock(latest!)).toBe('22 Kas 13:30');
   expect(lastCheckInAt({})).toBeNull();
+});
+
+it('writes an entry today by its time, another day with the day', () => {
+  const now = new Date('2026-11-22T15:00:00+03:00');
+  expect(formatEntry('2026-11-22T09:12:00+03:00', now)).toBe('09:12');
+  expect(formatEntry('2026-11-21T09:12:00+03:00', now)).toBe('21 Kas 09:12');
+  expect(formatEntry('', now)).toBe('—');
 });

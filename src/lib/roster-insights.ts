@@ -153,3 +153,18 @@ export function formatClock(iso: string): string {
   const time = Date.parse(iso);
   return Number.isFinite(time) ? clock.format(new Date(time)) : '—';
 }
+
+const clockOnly = new Intl.DateTimeFormat('tr-TR', {
+  timeZone: 'Europe/Istanbul',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** An entry's time: "09:12" today, "21 Kas 09:12" on another day. */
+export function formatEntry(iso: string, now = new Date()): string {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return '—';
+  return dayKey(time) === dayKey(now.getTime())
+    ? clockOnly.format(new Date(time))
+    : clock.format(new Date(time));
+}

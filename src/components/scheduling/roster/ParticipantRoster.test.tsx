@@ -142,3 +142,49 @@ it('shows the registration history in the panel', () => {
   expect(screen.getByText('Giriş · Açılış')).toBeInTheDocument();
   expect(screen.getByText('Bilet gönderildi')).toBeInTheDocument();
 });
+
+describe('ParticipantRoster panel and gaps', () => {
+  beforeEach(() => window.sessionStorage.clear());
+
+  it('says a refused Katıldı in the open panel, where it was pressed', async () => {
+    const onMarkAttended = jest.fn().mockResolvedValue('Bu oturum iptal edildi.');
+    setup({ openTicket: guest, onMarkAttended });
+    const panel = screen.getByRole('dialog');
+    await userEvent.click(within(panel).getByRole('button', { name: 'Katıldı' }));
+    expect(onMarkAttended).toHaveBeenCalledWith(guest, 's1');
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('Bu oturum iptal edildi.');
+  });
+
+  it('shows a registration that carries no entries and no date', () => {
+    const bare = {
+      ...guest,
+      id: 't-bare',
+      checkIns: undefined,
+      createdAt: '',
+    } as unknown as Ticket;
+    setup({ tickets: [bare] });
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getAllByText('Gelmedi').length).toBeGreaterThan(0);
+  });
+
+  it('asks for a session when none is chosen, and stops asking once one is', async () => {
+    const past = [
+      {
+        ...sessions[0],
+        startTime: '2020-01-01T09:00:00+03:00',
+        endTime: '2020-01-01T10:00:00+03:00',
+      },
+      {
+        ...sessions[0],
+        id: 's2',
+        startTime: '2020-01-02T09:00:00+03:00',
+        endTime: '2020-01-02T10:00:00+03:00',
+      },
+    ] as DoorSession[];
+    setup({ sessions: past, onMarkAttended: jest.fn().mockResolvedValue(null) });
+    expect(screen.getByText('Katıldı için oturum seçin')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ada Lovelace: katıldı' })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Giriş oturumu' }), 's2');
+    expect(screen.queryByText('Katıldı için oturum seçin')).not.toBeInTheDocument();
+  });
+});

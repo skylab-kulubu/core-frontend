@@ -64,6 +64,7 @@ export function TicketPanel({
   sessions,
   attendSession,
   showName = false,
+  error,
   onMarkAttended,
   onResend,
   onRenew,
@@ -76,6 +77,8 @@ export function TicketPanel({
   attendSession?: DoorSession;
   /** The drawer's title names the person; a docked panel says it here. */
   showName?: boolean;
+  /** Why the last Katıldı was refused; said under the buttons, where it was pressed. */
+  error?: string;
   onMarkAttended?: (ticket: Ticket) => void;
   onResend?: (ticket: Ticket) => void;
   onRenew?: (ticket: Ticket) => void;
@@ -138,6 +141,11 @@ export function TicketPanel({
           </Button>
         ) : null}
       </div>
+      {error ? (
+        <p role="alert" className="text-destructive -mt-4 text-sm">
+          {error}
+        </p>
+      ) : null}
       <section aria-label="Geçmiş" className="space-y-2">
         <h3 className="text-foreground text-sm font-semibold">Geçmiş</h3>
         <Timeline items={ticketTimeline(ticket, sessions, event)} />
