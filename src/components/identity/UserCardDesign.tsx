@@ -53,7 +53,7 @@ function facts(card: UserCard, canReadFull?: boolean): { label: string; value: s
 
 function Facts({ rows }: { rows: { label: string; value: string }[] }) {
   return (
-    <dl className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+    <dl className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] content-start gap-x-4 gap-y-2 text-sm">
       {rows.map((row) => (
         <div key={row.label} className="contents">
           <dt className="text-muted-foreground">{row.label}</dt>

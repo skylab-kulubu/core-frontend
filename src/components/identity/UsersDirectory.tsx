@@ -78,6 +78,7 @@ export function UsersDirectory({
   ready: boolean;
 }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [summaryRead, setSummaryRead] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [teamId, setTeamId] = useState('');
   const [teamMembers, setTeamMembers] = useState<Person[]>([]);
@@ -92,7 +93,8 @@ export function UsersDirectory({
     void dashboardApi
       .summary()
       .then(setSummary)
-      .catch(() => setSummary(null));
+      .catch(() => setSummary(null))
+      .finally(() => setSummaryRead(true));
     void identityApi
       .listGroups()
       .then(setGroups)
@@ -134,7 +136,9 @@ export function UsersDirectory({
   const rows: DirectoryRow[] =
     source === 'search' ? results : source === 'team' ? teamMembers : recent;
   const paged = paginateRows(rows, page, 20);
-  const loading = source === 'search' ? searching : source === 'team' ? teamLoading : !summary;
+  // The latest joiners come with the figures; the list waits for them rather than flashing a loader
+  const loading = source === 'search' ? searching : source === 'team' ? teamLoading : false;
+  const waiting = source === 'recent' && !summaryRead;
   const failed = source === 'search' ? searchFailed : source === 'team' ? teamFailed : false;
   const teamName = teams.find((team) => team.id === teamId)?.name;
 
@@ -252,15 +256,17 @@ export function UsersDirectory({
             {teamPicker}
           </div>
           <h2 className="text-muted-foreground text-xs font-medium">{listTitle}</h2>
-          <ListPanel status={status}>
-            <ul className="bg-border-subtle grid gap-px sm:grid-cols-2">
-              {paged.slice.map((person) => (
-                <li key={person.id}>
-                  <PersonCardRow person={person} />
-                </li>
-              ))}
-            </ul>
-          </ListPanel>
+          {waiting ? null : (
+            <ListPanel status={status}>
+              <ul className="bg-border-subtle grid gap-px sm:grid-cols-2">
+                {paged.slice.map((person) => (
+                  <li key={person.id}>
+                    <PersonCardRow person={person} />
+                  </li>
+                ))}
+              </ul>
+            </ListPanel>
+          )}
           {footer}
         </section>
       </div>
@@ -405,7 +411,7 @@ export function UsersDirectory({
       </div>
       <div className={docked && openId ? 'grid grid-cols-[minmax(0,1fr)_360px] gap-4' : ''}>
         <div className="min-w-0 space-y-3">
-          {table}
+          {waiting ? null : table}
           {footer}
         </div>
         {docked && openId ? (
