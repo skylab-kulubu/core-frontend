@@ -67,7 +67,7 @@ describe('Forms chrome primitives', () => {
         ]}
       />,
     );
-    expect(screen.getByText('Başvuru türü')).toBeInTheDocument();
+    expect(await screen.findByText('Başvuru türü')).toBeInTheDocument();
     // The chart's table view carries every count and share
     await pointer.click(screen.getByRole('button', { name: 'Tablo olarak göster' }));
     const guests = screen.getByRole('row', { name: /Misafir/ });
