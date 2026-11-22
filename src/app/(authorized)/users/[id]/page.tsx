@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
@@ -95,7 +96,7 @@ export default function UserDetailPage() {
   if (error) {
     return <StateCard title={error} description="Kişi kartına dönemiyor." tone="danger" />;
   }
-  if (!card) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!card) return <PageSkeleton variant="detail" />;
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
 
   return (

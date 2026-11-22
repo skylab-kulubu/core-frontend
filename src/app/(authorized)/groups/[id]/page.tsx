@@ -17,6 +17,7 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { Switch } from '@/components/chrome/Switch';
 import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { GroupProfile } from '@/components/identity/GroupProfile';
 import {
@@ -377,7 +378,7 @@ export default function GroupDetailPage() {
   if (error && !group) {
     return <StateCard title={error} description="Grup kartına dönemiyor." tone="danger" />;
   }
-  if (loading && !group) return <StateCard title="Yükleniyor…" isLoading />;
+  if (loading && !group) return <PageSkeleton variant="detail" />;
 
   return (
     <div className="space-y-6">

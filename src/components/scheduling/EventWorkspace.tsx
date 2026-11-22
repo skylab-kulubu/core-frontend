@@ -36,6 +36,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -504,7 +505,7 @@ export function EventWorkspace({
   if (error && !event) {
     return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
   }
-  if (!event) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!event) return <PageSkeleton variant="workspace" />;
 
   const current = event;
   // core's capabilities decide; the group rule stands in only when they cannot be read
