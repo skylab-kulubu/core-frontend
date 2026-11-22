@@ -2,6 +2,7 @@
 
 import EventDaysRedirect from '@/app/(authorized)/events/[id]/days/page';
 import EditEventRedirect from '@/app/(authorized)/events/[id]/edit/page';
+import EventTicketsRedirect from '@/app/(authorized)/events/[id]/tickets/page';
 import { redirectTarget } from '@/test/server/redirect';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/server/redirect').navigation);
@@ -15,5 +16,11 @@ describe('old event addresses', () => {
 
   it('sends /events/[id]/edit to the event, where Düzenle is', async () => {
     expect(await redirectTarget(() => EditEventRedirect({ params }))).toBe('/events/e1');
+  });
+
+  it('sends /events/[id]/tickets, where a ticket’s trail leads, to the Katılımcılar tab', async () => {
+    expect(await redirectTarget(() => EventTicketsRedirect({ params }))).toBe(
+      '/events/e1/participants',
+    );
   });
 });

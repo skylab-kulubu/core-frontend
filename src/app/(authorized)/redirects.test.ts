@@ -5,7 +5,9 @@ import IssuedCertificatesRedirect from '@/app/(authorized)/certificates/issued/p
 import EditCompetitorRedirect from '@/app/(authorized)/competitors/[id]/edit/page';
 import NewCompetitorRedirect from '@/app/(authorized)/competitors/new/page';
 import CompetitorsRedirect from '@/app/(authorized)/competitors/page';
+import AnnouncementRedirect from '@/app/(authorized)/announcements/[id]/page';
 import MediaRedirect from '@/app/(authorized)/media/page';
+import QrPage from '@/app/(authorized)/qr/page';
 import { redirectTarget } from '@/test/server/redirect';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/server/redirect').navigation);
@@ -50,5 +52,23 @@ describe('removed global pages', () => {
         EditCompetitorRedirect({ params: Promise.resolve({ id: 'c1' }), searchParams: query() }),
       ),
     ).toBe('/events');
+  });
+
+  it('opens an announcement in its editor, where its trail leads', async () => {
+    expect(
+      await redirectTarget(() => AnnouncementRedirect({ params: Promise.resolve({ id: 'n1' }) })),
+    ).toBe('/announcements/n1/edit');
+  });
+});
+
+describe('the door', () => {
+  it('sends the old /qr?eventId= links to the event’s one door address', async () => {
+    expect(await redirectTarget(() => QrPage({ searchParams: query({ eventId: 'e 1' }) }))).toBe(
+      '/events/e%201/door',
+    );
+  });
+
+  it('keeps /qr as the list of the person’s doors', async () => {
+    expect(await redirectTarget(() => QrPage({ searchParams: query() }))).toBeNull();
   });
 });

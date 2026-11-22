@@ -41,12 +41,12 @@ export function isLeaderGroupPath(path: string | undefined): boolean {
 }
 
 /**
- * Who sees the SkyApp handoff settings. Keycloak's sky-handoff admin API is the real gate
- * (realm super admin, 403 otherwise); this only decides where the page is offered, and
- * `/ADMIN` is the narrowest group superadmin already treats as an administrator.
+ * Who sees the SkyApp handoff settings: the same rule as Keycloak's sky-handoff admin API
+ * (its `admin-group`, `/ADMIN` by default, a subgroup of it included; 403 for anyone else).
+ * `/UYELER/ADMIN` is a Privileged root for core, but not that group.
  */
 export function canManageHandoffTargets(groups: readonly string[]): boolean {
-  return groups.some((g) => /^\/(UYELER\/)?ADMIN(\/|$)/.test(g));
+  return groups.some((g) => /^\/ADMIN(\/|$)/.test(g));
 }
 
 /** In some Leader group: a Group whose last segment is LIDERLER or KOORDINATORLER (core's isAnyLeader). */

@@ -6,14 +6,11 @@ import {
   isLeader,
   isPrivileged,
 } from '@/lib/auth/groups';
-import { eventTabHref } from '@/lib/event-workspace';
 import type { UserDto } from '@/types/api';
 import type { SidebarNavLink, SidebarNavNode } from '@/lib/navigation/sidebar-types';
 
 export type { SidebarNavLink } from '@/lib/navigation/sidebar-types';
 export type { SidebarNavNode } from '@/lib/navigation/sidebar-types';
-
-const URLS_LINK: SidebarNavLink = { href: '/urls', label: 'Kısa URL' };
 
 export type SidebarNavigationContext = Readonly<{
   hasDoorAssignment?: boolean;
@@ -23,15 +20,13 @@ export type SidebarNavigationContext = Readonly<{
   managedTeamsVisible?: boolean;
   /** core's `subjectRequest.manage`: the KVKK md. 11 register (ADMIN and YK, never DK). */
   subjectRequestsVisible?: boolean;
+  /**
+   * core's `media.delete`, the media:manage write the map regions are decided by
+   * (ADMIN and YK, never DK).
+   */
+  mapRegionsVisible?: boolean;
   /** "Siteyi düzenle": the editor sign-in of each site the person may edit (external links). */
   editSites?: readonly SidebarNavLink[];
-  activeEvent?: Readonly<{
-    id: string;
-    canSeeParticipants: boolean;
-    canSeeCompetitors: boolean;
-    canUseDoor: boolean;
-    canSeeCertificates?: boolean;
-  }>;
 }>;
 
 type NavigationFacts = Readonly<{
@@ -42,77 +37,118 @@ type NavigationFacts = Readonly<{
   context: SidebarNavigationContext;
 }>;
 
-const NAVIGATION_LINKS: ReadonlyArray<
-  SidebarNavLink & { visibleWhen: (facts: NavigationFacts) => boolean }
-> = [
+type NavigationLink = SidebarNavLink & {
+  /** The sidebar group the link sits in; none for a top-level link. */
+  section?: 'people' | 'content' | 'settings';
+  visibleWhen: (facts: NavigationFacts) => boolean;
+};
+
+const seesEvents = ({ privileged, leader, groups }: NavigationFacts) =>
+  privileged || leader || canWriteEvent(groups, 'GECEKODU', 'update');
+
+/**
+ * Every destination of the sidebar, each in one place: the day's work on top
+ * (events, people, content) and the settings in one group at the foot. An
+ * event's own pages are its tabs, never sidebar links.
+ */
+const NAVIGATION_LINKS: readonly NavigationLink[] = [
   {
     href: '/dashboard',
     label: 'Özet',
     visibleWhen: ({ privileged, leader, groups, roles }) =>
       privileged || leader || canUseUrls(groups, roles),
   },
+  { href: '/events', label: 'Etkinlikler', visibleWhen: seesEvents },
+  // Whoever sees the events opens the door from the event; door staff have this one way in
+  {
+    href: '/qr',
+    label: 'Kapı',
+    visibleWhen: (facts) => facts.context.hasDoorAssignment === true && !seesEvents(facts),
+  },
   {
     href: '/users',
     label: 'Kullanıcılar',
+    section: 'people',
     visibleWhen: ({ privileged, roles }) => privileged || roles.includes('users:read'),
   },
-  { href: '/groups', label: 'Gruplar', visibleWhen: ({ privileged }) => privileged },
   {
-    href: '/apps',
-    label: 'Uygulamalar',
-    visibleWhen: ({ privileged, context }) => privileged && context.appsVisible === true,
+    href: '/groups',
+    label: 'Gruplar',
+    section: 'people',
+    visibleWhen: ({ privileged }) => privileged,
   },
-  { href: '/announcements', label: 'Duyurular', visibleWhen: ({ privileged }) => privileged },
   {
-    href: '/events',
-    label: 'Etkinlikler',
-    visibleWhen: ({ privileged, leader, groups }) =>
-      privileged || leader || canWriteEvent(groups, 'GECEKODU', 'update'),
+    href: '/teams',
+    label: 'Ekipler',
+    section: 'people',
+    visibleWhen: ({ privileged }) => privileged,
   },
-  { href: '/seasons', label: 'Sezonlar', visibleWhen: ({ privileged }) => privileged },
-  { href: '/teams', label: 'Ekipler', visibleWhen: ({ privileged }) => privileged },
   {
     href: '/my-teams',
     label: 'Ekiplerim',
+    section: 'people',
     visibleWhen: ({ context }) => context.managedTeamsVisible === true,
   },
   {
     href: '/subject-requests',
     label: 'KVKK başvuruları',
+    section: 'people',
     visibleWhen: ({ context }) => context.subjectRequestsVisible === true,
   },
   {
-    href: '/qr',
-    label: 'Kapı',
-    visibleWhen: ({ privileged, leader, context }) =>
-      privileged || leader || context.hasDoorAssignment === true,
+    href: '/announcements',
+    label: 'Duyurular',
+    section: 'content',
+    visibleWhen: ({ privileged }) => privileged,
   },
   {
-    ...URLS_LINK,
+    href: '/urls',
+    label: 'Kısa URL',
+    section: 'content',
     visibleWhen: ({ groups, roles }) => canUseUrls(groups, roles),
   },
   {
-    href: '/certificates',
-    label: 'Sertifikalar',
+    href: '/seasons',
+    label: 'Sezonlar',
+    section: 'settings',
+    visibleWhen: ({ privileged }) => privileged,
+  },
+  {
+    href: '/certificates/templates',
+    label: 'Sertifika şablonları',
+    section: 'settings',
     visibleWhen: ({ groups, roles }) => canUseCertificates(groups, roles),
+  },
+  {
+    href: '/certificates/defaults',
+    label: 'Sertifika varsayılanları',
+    section: 'settings',
+    visibleWhen: ({ privileged, leader, roles }) =>
+      privileged || leader || roles.includes('certificate:binding:manage'),
+  },
+  {
+    href: '/apps',
+    label: 'Uygulamalar',
+    section: 'settings',
+    visibleWhen: ({ privileged, context }) => privileged && context.appsVisible === true,
   },
   {
     href: '/handoff-targets',
     label: "SkyApp'ten geçiş",
+    section: 'settings',
     visibleWhen: ({ groups }) => canManageHandoffTargets(groups),
   },
-  // core lets YK ask for regions too (media:manage); the menu shows them to ADMIN
   {
     href: '/map-regions',
     label: 'Harita bölgeleri',
-    visibleWhen: ({ groups }) => canManageHandoffTargets(groups),
+    section: 'settings',
+    visibleWhen: ({ context }) => context.mapRegionsVisible === true,
   },
 ];
 
-export function filterSidebarNavForUser(
-  user: UserDto,
-  context: SidebarNavigationContext = {},
-): SidebarNavLink[] {
+const SECTION_LABELS = { people: 'Kişiler', content: 'İçerik', settings: 'Ayarlar' } as const;
+
+function visibleLinks(user: UserDto, context: SidebarNavigationContext): NavigationLink[] {
   const groups = user.groups ?? [];
   const roles = user.roles ?? [];
   const facts: NavigationFacts = {
@@ -122,125 +158,56 @@ export function filterSidebarNavForUser(
     leader: isLeader(groups),
     context,
   };
-  return NAVIGATION_LINKS.filter((item) => item.visibleWhen(facts)).map(({ href, label }) => ({
-    href,
-    label,
-  }));
+  return NAVIGATION_LINKS.filter((item) => item.visibleWhen(facts));
 }
 
+/** Every page the sidebar offers this person, in its order. */
+export function filterSidebarNavForUser(
+  user: UserDto,
+  context: SidebarNavigationContext = {},
+): SidebarNavLink[] {
+  return visibleLinks(user, context).map(({ href, label }) => ({ href, label }));
+}
+
+/** The sidebar: top-level links first, then Kişiler and İçerik, and Ayarlar at the foot. */
 export function buildSidebarNavigation(
   user: UserDto,
   context: SidebarNavigationContext = {},
 ): SidebarNavNode[] {
-  const links = filterSidebarNavForUser(user, context);
-  const allowed = new Set(links.map((link) => link.href));
-  const nodes: SidebarNavNode[] = [];
-  if (allowed.has('/dashboard')) {
-    nodes.push({ kind: 'link', href: '/dashboard', label: 'Özet' });
-  }
-
-  const eventChildren: SidebarNavLink[] = [];
-  if (allowed.has('/events')) {
-    eventChildren.push(
-      { href: '/events', label: 'Tümü' },
-      { href: '/events?view=calendar', label: 'Takvim' },
-    );
-    if (isPrivileged(user.groups ?? []) || isLeader(user.groups ?? [])) {
-      eventChildren.push({ href: '/events/new', label: 'Yeni' });
+  const links = visibleLinks(user, context);
+  const nodes: SidebarNavNode[] = links
+    .filter((link) => !link.section)
+    .map(({ href, label }) => ({ kind: 'link', href, label }));
+  for (const section of ['people', 'content', 'settings'] as const) {
+    const children = links
+      .filter((link) => link.section === section)
+      .map(({ href, label }) => ({ href, label }));
+    if (children.length) {
+      nodes.push({ kind: 'group', id: section, label: SECTION_LABELS[section], children });
     }
-  }
-  for (const item of [
-    { href: '/seasons', label: 'Sezonlar' },
-    { href: '/qr', label: 'Kapı' },
-  ]) {
-    if (allowed.has(item.href)) eventChildren.push(item);
-  }
-  if (eventChildren.length) {
-    nodes.push({ kind: 'group', id: 'events', label: 'Etkinlikler', children: eventChildren });
-  }
-
-  if (context.activeEvent) {
-    const eventId = context.activeEvent.id;
-    const activeEventChildren: SidebarNavLink[] = [
-      { href: eventTabHref(eventId), label: 'Genel bakış' },
-      { href: eventTabHref(eventId, 'program'), label: 'Program' },
-    ];
-    if (context.activeEvent.canSeeParticipants) {
-      activeEventChildren.splice(1, 0, {
-        href: eventTabHref(eventId, 'participants'),
-        label: 'Katılımcılar',
-      });
-    }
-    if (context.activeEvent.canSeeCompetitors) {
-      activeEventChildren.push({ href: eventTabHref(eventId, 'competition'), label: 'Yarışma' });
-    }
-    if (context.activeEvent.canUseDoor) {
-      activeEventChildren.push({
-        href: `/qr?eventId=${encodeURIComponent(eventId)}`,
-        label: 'Kapı',
-      });
-    }
-    if (context.activeEvent.canSeeCertificates) {
-      activeEventChildren.push({
-        href: eventTabHref(eventId, 'certificates'),
-        label: 'Sertifikalar',
-      });
-    }
-    nodes.push({
-      kind: 'group',
-      id: 'active-event',
-      label: 'Aktif Etkinlik',
-      children: activeEventChildren,
-    });
-  }
-
-  const clubChildren = [
-    { href: '/users', label: 'Kullanıcılar' },
-    { href: '/groups', label: 'Gruplar' },
-    { href: '/apps', label: 'Uygulamalar' },
-    { href: '/teams', label: 'Ekipler' },
-    { href: '/my-teams', label: 'Ekiplerim' },
-    { href: '/subject-requests', label: 'KVKK başvuruları' },
-  ].filter((item) => allowed.has(item.href));
-  if (clubChildren.length) {
-    nodes.push({ kind: 'group', id: 'club', label: 'Kulüp', children: clubChildren });
-  }
-
-  const contentChildren = [
-    { href: '/announcements', label: 'Duyurular' },
-    { href: '/urls', label: 'Kısa URL' },
-  ].filter((item) => allowed.has(item.href));
-  if (contentChildren.length) {
-    nodes.push({ kind: 'group', id: 'content', label: 'İçerik', children: contentChildren });
-  }
-  if (allowed.has('/certificates')) {
-    const groups = user.groups ?? [];
-    const roles = user.roles ?? [];
-    const privilegedOrLeader = isPrivileged(groups) || isLeader(groups);
-    const certificateChildren: SidebarNavLink[] = [];
-    if (
-      privilegedOrLeader ||
-      roles.includes('certificate:template:manage') ||
-      roles.includes('certificate:binding:manage')
-    ) {
-      certificateChildren.push({ href: '/certificates/templates', label: 'Şablonlar' });
-    }
-    if (privilegedOrLeader || roles.includes('certificate:binding:manage')) {
-      certificateChildren.push({ href: '/certificates/defaults', label: 'Varsayılanlar' });
-    }
-    nodes.push({
-      kind: 'group',
-      id: 'certificates',
-      label: 'Sertifikalar',
-      children: certificateChildren,
-    });
-  }
-  const systemChildren = [
-    { href: '/handoff-targets', label: "SkyApp'ten geçiş" },
-    { href: '/map-regions', label: 'Harita bölgeleri' },
-  ].filter((item) => allowed.has(item.href));
-  if (systemChildren.length) {
-    nodes.push({ kind: 'group', id: 'system', label: 'Sistem', children: systemChildren });
   }
   return nodes;
+}
+
+/**
+ * The pages Ctrl+K opens: the sidebar's, each with its section's name to be
+ * found by, and Kapı for whoever has a door to staff (core's door list), the
+ * people who also open it from an event included.
+ */
+export function searchPages(
+  user: UserDto,
+  context: SidebarNavigationContext = {},
+): Array<SidebarNavLink & { section?: string }> {
+  const pages: Array<SidebarNavLink & { section?: string }> = visibleLinks(user, context).map(
+    ({ href, label, section }) => ({
+      href,
+      label,
+      section: section ? SECTION_LABELS[section] : undefined,
+    }),
+  );
+  if (context.hasDoorAssignment === true && !pages.some((page) => page.href === '/qr')) {
+    const at = pages.findIndex((page) => page.href === '/events');
+    pages.splice(at + 1, 0, { href: '/qr', label: 'Kapı' });
+  }
+  return pages;
 }
