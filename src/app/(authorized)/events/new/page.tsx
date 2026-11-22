@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -9,7 +9,8 @@ import {
   EventEditor,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
-import { SaveButton } from '@/components/chrome/SaveButton';
+import { showIssueSection } from '@/components/scheduling/EventEditPage';
+import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { useEventCreate } from '@/lib/use-event-create';
@@ -25,8 +26,9 @@ import {
   restoreEventEditor,
   writeEventDraft,
 } from '@/lib/event-draft';
-import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { useAuth } from '@/context/AuthContext';
+import { eventFormChanged } from '@/lib/event-draft';
+import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 function NewEventPageContent() {
   const router = useRouter();
@@ -54,6 +56,13 @@ function NewEventPageContent() {
   // Set once an earlier save created the Event but could not finish: the
   // next save updates it instead of creating another.
   const [createdId, setCreatedId] = useState<string | null>(null);
+  // What an untouched form holds, to tell typed work from none
+  const blank = useRef<EventFormState | null>(null);
+  const dirty = useMemo(
+    () => ready && blank.current !== null && eventFormChanged(blank.current, form),
+    [ready, form],
+  );
+  const guard = useUnsavedChanges(dirty && !saving);
 
   function persist(next: EventFormState) {
     if (typeof window === 'undefined') return;
@@ -93,13 +102,10 @@ function NewEventPageContent() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handoff = formHandoffFromSearch(searchParams);
+    const empty = emptyEventForm(privileged ? '' : (leaderTeams[0] ?? ''));
+    blank.current = empty;
     const restored = ensureReservedEventId(
-      restoreEventEditor(
-        sessionStorage,
-        window.location.href,
-        emptyEventForm(privileged ? '' : (leaderTeams[0] ?? '')),
-        handoff,
-      ),
+      restoreEventEditor(sessionStorage, window.location.href, empty, handoff),
     );
     setForm(restored);
     persist(restored);
@@ -117,20 +123,31 @@ function NewEventPageContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Yeni etkinlik"
-        description="Kaydetmeden Skyforms’a gidilebilir; yazılanlar geri gelir."
-      />
+      <PageHeader title="Yeni etkinlik" />
       {!ready ? (
         <p className="text-subtle-foreground text-sm">Yükleniyor…</p>
       ) : (
-        <form
-          className="space-y-3"
+        <EventFormLayout
+          dirty={dirty}
+          saving={saving}
+          submitLabel="Oluştur"
+          onCancel={() => guard.leave('/events')}
+          error={error}
+          extra={
+            createdId ? (
+              <p className="mb-2 text-sm">
+                <Link href={`/events/${createdId}`} className="text-skylab-300 hover:underline">
+                  Oluşturulan etkinliği aç
+                </Link>
+              </p>
+            ) : null
+          }
           onSubmit={async (e) => {
             e.preventDefault();
             const issue = eventFormIssue(form);
             if (issue) {
               setError(issue);
+              showIssueSection(issue);
               return;
             }
             setSaving(true);
@@ -141,6 +158,7 @@ function NewEventPageContent() {
               if (typeof window !== 'undefined')
                 clearEventDraft(sessionStorage, window.location.href);
               notify.success('Etkinlik oluşturuldu');
+              guard.allowLeave();
               router.push(`/events/${id}`);
             } catch (err) {
               if (err instanceof EventSaveIncomplete) {
@@ -167,50 +185,24 @@ function NewEventPageContent() {
             ownerOptional={privileged}
             assignDoorStaff={privileged}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
-            onLeaveToSkyforms={() => persist(form)}
+            onLeaveToSkyforms={() => {
+              // The draft comes back with the form: no question on the way out
+              persist(form);
+              guard.allowLeave();
+            }}
             formInUse={formInUse}
           />
-          {error ? (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          ) : null}
-          {createdId ? (
-            <p className="text-2xs text-muted-foreground">
-              <Link href={`/events/${createdId}`} className="text-skylab-300 hover:underline">
-                Oluşturulan etkinliği aç
-              </Link>
-            </p>
-          ) : null}
-          <SaveButton disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
-        </form>
+        </EventFormLayout>
       )}
+      {guard.dialog}
     </div>
   );
-}
-
-/**
- * Events are created in the quick panel over any page; this address opens it
- * over the events list. Only a return from Skyforms, carrying the form it made,
- * comes back to the full form with the draft it left.
- */
-function NewEventRoute() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { open } = useNewEvent();
-  const returning = Boolean(formHandoffFromSearch(searchParams));
-  useEffect(() => {
-    if (returning) return;
-    open();
-    router.replace('/events');
-  }, [returning, open, router]);
-  return returning ? <NewEventPageContent /> : null;
 }
 
 export default function NewEventPage() {
   return (
     <Suspense fallback={<p className="text-subtle-foreground text-sm">Yükleniyor…</p>}>
-      <NewEventRoute />
+      <NewEventPageContent />
     </Suspense>
   );
 }

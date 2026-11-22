@@ -33,6 +33,15 @@ export function eventTabHref(eventId: string, tab: EventTab = 'overview'): strin
   return tab === 'overview' ? base : `${base}/${TAB_SEGMENTS[tab]}`;
 }
 
+/** The event's create-and-edit page, outside the tabs. */
+export function eventEditHref(eventId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/edit`;
+}
+
+export function isEventEditPath(pathname: string): boolean {
+  return /^\/events\/[^/]+\/edit\/?$/.test(pathname);
+}
+
 /** The tab a path under /events/[id] shows; null for pages outside the tabs (a ticket, a redirect). */
 export function eventTabFromPath(pathname: string): EventTab | null {
   const match = pathname.match(/^\/events\/([^/]+)(?:\/([^/]+))?\/?$/);

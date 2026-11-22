@@ -144,6 +144,21 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
   };
 }
 
+/**
+ * Whether the form holds anything typed since `base`. The reserved id is not
+ * typed work, and a slot's generated key is no change either.
+ */
+export function eventFormChanged(base: EventFormState, next: EventFormState): boolean {
+  const comparable = (form: EventFormState) =>
+    JSON.stringify({
+      ...form,
+      reservedId: undefined,
+      formSlots: (form.formSlots ?? []).map((slot) => ({ ...slot, key: undefined })),
+      feedbackSlot: form.feedbackSlot ? { ...form.feedbackSlot, key: undefined } : undefined,
+    });
+  return comparable(base) !== comparable(next);
+}
+
 export function restoreEventEditor(
   storage: EventDraftStorage | null | undefined,
   returnTo: string,
