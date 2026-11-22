@@ -382,6 +382,19 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
                   <span className="text-2xs text-subtle-foreground block truncate">
                     {row.email || '—'}
                   </span>
+                  {/* The status column gives way on phones: said under the name instead */}
+                  <span className="text-3xs mt-0.5 flex gap-2 sm:hidden">
+                    {entry ? (
+                      <span className="text-success">
+                        Giriş {formatClock(entry).split(' ').pop()}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Gelmedi</span>
+                    )}
+                    {ticket.sent === false ? (
+                      <span className="text-warning">Bilet gitmedi</span>
+                    ) : null}
+                  </span>
                   {rowErrors[ticket.id] ? (
                     <span role="alert" className="text-destructive mt-0.5 block text-xs">
                       {rowErrors[ticket.id]}
@@ -399,7 +412,7 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
                 <span className="hidden w-20 shrink-0 sm:block">
                   <StatusChip kind={ticketTypeStatus(row.ticketType)} />
                 </span>
-                <span className="w-24 shrink-0 text-right sm:w-32 sm:text-left">
+                <span className="hidden w-32 shrink-0 sm:block">
                   {entry ? (
                     <StatusChip
                       kind="checked-in"
@@ -438,6 +451,7 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
       </button>
     </th>
   );
+  const narrow = docked && openTicket !== null;
   const allOnPage = slice.length > 0 && slice.every((ticket) => selected.has(ticket.id));
   const listB = (
     <ListPanel status={status}>
@@ -463,7 +477,7 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
               />
             </th>
             {sortHead('name', 'Kişi')}
-            <th scope="col" className={`${head} hidden lg:table-cell`}>
+            <th scope="col" className={`${head} hidden ${narrow ? '' : 'lg:table-cell'}`}>
               E-posta
             </th>
             <th scope="col" className={`${head} hidden w-28 md:table-cell`}>
@@ -512,7 +526,9 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
                     <Avatar name={row.name} email={row.email} size="sm" />
                     <span className="truncate">{row.name}</span>
                     {ticket.sent === false ? (
-                      <span className="text-3xs text-warning shrink-0">bilet gitmedi</span>
+                      <span className="text-3xs text-warning hidden shrink-0 sm:inline">
+                        bilet gitmedi
+                      </span>
                     ) : null}
                   </Link>
                   {rowErrors[ticket.id] ? (
@@ -521,7 +537,9 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
                     </p>
                   ) : null}
                 </td>
-                <td className="text-muted-foreground hidden truncate px-2 text-xs lg:table-cell">
+                <td
+                  className={`text-muted-foreground hidden truncate px-2 text-xs ${narrow ? '' : 'lg:table-cell'}`}
+                >
                   {row.email || '—'}
                 </td>
                 <td className="text-secondary-foreground hidden px-2 font-mono text-xs tabular-nums md:table-cell">
@@ -571,16 +589,17 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
     />
   ) : null;
 
-  const footer = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-2xs text-subtle-foreground tabular-nums">
-        {rows.length
-          ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} / ${rows.length}`
-          : '0'}
-      </p>
-      <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
-    </div>
-  );
+  const footer =
+    rows.length === 0 ? null : (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-2xs text-subtle-foreground tabular-nums">
+          {rows.length
+            ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} / ${rows.length}`
+            : '0'}
+        </p>
+        <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
+      </div>
+    );
 
   const empty =
     !failed && rows.length === 0 ? <div className="flex justify-center">{emptyAction}</div> : null;
@@ -604,7 +623,10 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
               <div className="ml-auto">{actions}</div>
             </div>
           )}
-          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <div
+            hidden={tickets.length === 0}
+            className="-mx-1 overflow-x-auto px-1 pb-1 [&_button]:whitespace-nowrap"
+          >
             <FilterPills
               aria-label="Görünüm"
               value={view}
@@ -645,7 +667,11 @@ export function ParticipantsDesign(props: ParticipantsDesignProps) {
       {chartsOpen ? <RosterCharts tickets={tickets} /> : null}
       <div className={docked && openTicket ? 'grid grid-cols-[minmax(0,1fr)_380px] gap-4' : ''}>
         <div className="min-w-0 space-y-3">
-          <Tabs value={view} onValueChange={(next) => pickView(next as RosterView)}>
+          <Tabs
+            hidden={tickets.length === 0}
+            value={view}
+            onValueChange={(next) => pickView(next as RosterView)}
+          >
             <TabsList aria-label="Görünüm">
               {ROSTER_VIEWS.map((option) => (
                 <Tab key={option.value} value={option.value}>

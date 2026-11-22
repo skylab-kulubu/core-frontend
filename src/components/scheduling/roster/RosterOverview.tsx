@@ -107,9 +107,9 @@ export function RosterTiles({
         active={view === 'guest' || view === 'member'}
         onClick={() => onView(view === 'guest' ? 'member' : 'guest')}
       >
-        <span className="bg-accent flex h-1.5 overflow-hidden rounded-full">
+        <span className="bg-chart-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full">
           <span
-            className="bg-skylab-400 block h-full"
+            className="bg-chart-1 block h-full"
             style={{ width: counts.all ? `${(counts.guest / counts.all) * 100}%` : 0 }}
           />
         </span>
@@ -135,9 +135,9 @@ export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
         title={<ChartTitle>Kayıtlar</ChartTitle>}
         framed={false}
         height={180}
-        data={days.map((day) => ({ label: day.label, total: day.total, count: day.count }))}
+        data={days.map((day) => ({ label: day.label, total: day.total }))}
         x="label"
-        series={{ total: { label: 'Toplam' }, count: { label: 'Günlük' } }}
+        series={{ total: { label: 'Toplam kayıt' } }}
         emptyMessage="Kayıt yok"
       />
       <DonutChart
