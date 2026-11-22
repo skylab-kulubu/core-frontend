@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Section } from '@skylab-kulubu/skylcn-ui';
+import { Button } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
@@ -31,16 +31,6 @@ function setOpenParam(ticketId: string | null) {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-/** The charts start folded on phones, where the list comes first. */
-function useWideScreen(): boolean {
-  const [wide, setWide] = useState(true);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    setWide(window.matchMedia('(min-width: 1024px)').matches);
-  }, []);
-  return wide;
-}
-
 /** Katılımcılar tab: who registered, with check-in, mail and adding a participant. */
 export default function EventParticipantsPage() {
   const {
@@ -59,8 +49,15 @@ export default function EventParticipantsPage() {
   const [confirm, confirmDialog] = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const wide = useWideScreen();
-  const [chartsOpen, setChartsOpen] = useState<boolean | null>(null);
+  // The charts start open on wide screens, folded on phones where the list comes first
+  const charts = useRef<HTMLDetailsElement>(null);
+  const hasTickets = tickets.length > 0;
+  useEffect(() => {
+    if (!charts.current) return;
+    const wide =
+      typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 1024px)').matches;
+    charts.current.open = wide;
+  }, [hasTickets]);
   // A second click while the first is out sends nothing more
   const sending = useRef(new Set<string>());
 
@@ -169,20 +166,15 @@ export default function EventParticipantsPage() {
         />
       </div>
       {tickets.length > 0 ? (
-        <Section
-          title="Dağılım"
-          level={2}
-          // skylcn-ui's folding title loses its last letters to the button's -mx-1 (truncate on the h2)
-          className="[&_h2]:overflow-visible"
-          collapsible
-          open={chartsOpen ?? wide}
-          onOpenChange={setChartsOpen}
-        >
+        <details ref={charts} className="space-y-3">
+          <summary className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-xs font-medium">
+            Dağılım
+          </summary>
           <div className="grid gap-6 pt-3 lg:grid-cols-2">
             <MixChart title="Misafir / üye" data={ticketMix(tickets)} empty="Başvuru yok" />
             <MixChart title="Kapı durumu" data={ticketCheckInMix(tickets)} empty="Kapı kaydı yok" />
           </div>
-        </Section>
+        </details>
       ) : null}
       <AddParticipantDrawer
         open={addOpen}
