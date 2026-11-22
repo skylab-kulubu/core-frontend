@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
+import { LoadError } from '@/components/chrome/LoadError';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListFooterMeta, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
@@ -70,7 +71,12 @@ type ApplicantRosterProps = {
   failed?: boolean;
   onMailSelected?: (recipients: ReturnType<typeof ticketMailRecipients>) => void;
   onAddParticipant?: () => void;
-  onMarkAttended?: (ticket: Ticket, sessionId: string) => void;
+  /** Writes the entry; a refusal comes back as its text and shows in the row. */
+  onMarkAttended?: (ticket: Ticket, sessionId: string) => Promise<string | null | void> | void;
+  /** Opens the registration beside the list; without it a row opens its own page. */
+  onOpenTicket?: (ticket: Ticket) => void;
+  /** The tickets could not be read: said in place of the list, with a retry. */
+  onRetry?: () => void | Promise<unknown>;
   /** "Bileti yeniden gönder"; given to who may give out the Event's Tickets. */
   onResend?: (ticket: Ticket) => void;
   /** "Bağlantıyı yenile": a new link and QR, the old ones void. */
@@ -91,7 +97,11 @@ export function ApplicantRoster({
   onMarkAttended,
   onResend,
   onRenew,
+  onOpenTicket,
+  onRetry,
 }: ApplicantRosterProps) {
+  // A refused Katıldı is said in its own row, where the reader pressed it
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [ticketType, setTicketType] = useState<ApplicantRosterFilter['ticketType']>('all');
   const [status, setStatus] = useState<ApplicantRosterFilter['status']>('all');
@@ -201,6 +211,24 @@ export function ApplicantRoster({
   const filteredEmpty = Boolean(query.trim()) || ticketType !== 'all' || status !== 'all';
   const mix = ticketMix(filtered);
   const checkIns = ticketCheckInMix(filtered);
+
+  /** A plain click opens the registration beside the list; a new tab still gets its page. */
+  function open(ticket: Ticket) {
+    return (click: MouseEvent<HTMLAnchorElement>) => {
+      if (!onOpenTicket) return;
+      if (click.metaKey || click.ctrlKey || click.shiftKey || click.altKey || click.button !== 0)
+        return;
+      click.preventDefault();
+      onOpenTicket(ticket);
+    };
+  }
+
+  async function markAttended(ticket: Ticket, sessionId: string) {
+    if (!onMarkAttended) return;
+    setRowErrors(({ [ticket.id]: _gone, ...rest }) => rest);
+    const refused = await onMarkAttended(ticket, sessionId);
+    if (refused) setRowErrors((current) => ({ ...current, [ticket.id]: refused }));
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -401,6 +429,7 @@ export function ApplicantRoster({
           </button>
         </div>
       ) : null}
+      {failed ? <LoadError title="Başvurular yüklenemedi" onRetry={onRetry} /> : null}
       <ListPanel
         status={listStatus({
           loading,
@@ -501,6 +530,7 @@ export function ApplicantRoster({
                       href={href}
                       aria-label={row.name}
                       className="flex min-w-0 items-center gap-3"
+                      onClick={open(ticket)}
                     >
                       <StatusDot kind={statusKind} title={row.statusLabel} />
                       <Avatar name={row.name} email={row.email} size="md" />
@@ -511,8 +541,20 @@ export function ApplicantRoster({
                         <span className="text-3xs text-subtle-foreground mt-0.5 block truncate">
                           {row.email || '—'}
                         </span>
+                        {/* The code and status columns give way on narrow screens: said here instead */}
+                        <span className="text-2xs text-secondary-foreground mt-0.5 flex flex-wrap gap-x-2 lg:hidden">
+                          {ticket.code ? (
+                            <span className="font-mono tabular-nums md:hidden">{ticket.code}</span>
+                          ) : null}
+                          <span>{row.statusLabel}</span>
+                        </span>
                       </span>
                     </Link>
+                    {rowErrors[ticket.id] ? (
+                      <p role="alert" className="text-destructive mt-1 text-xs">
+                        {rowErrors[ticket.id]}
+                      </p>
+                    ) : null}
                   </td>
                   <td
                     className={`text-2xs text-secondary-foreground hidden w-28 font-mono tabular-nums md:table-cell ${rowPadding}`}
@@ -552,7 +594,7 @@ export function ApplicantRoster({
                               document.getElementById(attendPickerId)?.focus();
                               return;
                             }
-                            onMarkAttended(ticket, attendSession.id);
+                            void markAttended(ticket, attendSession.id);
                           }}
                         />
                       ) : null}
@@ -585,6 +627,7 @@ export function ApplicantRoster({
                       <Link
                         href={href}
                         aria-label="Kaydı aç"
+                        onClick={open(ticket)}
                         className="group-hover/row:text-skylab-300 text-muted-foreground inline-flex h-6 w-6 items-center justify-center"
                       >
                         <ChevronRight className="h-4 w-4 transition-transform group-hover/row:translate-x-0.5" />
