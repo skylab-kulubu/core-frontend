@@ -1,4 +1,5 @@
 import { accessToken, forgetAccessToken, isKeptAccessToken } from '@/lib/auth/access-token';
+import { clearCoreReads, keptRead, type CoreAnswer } from './core-read-cache';
 
 export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(
   /\/+$/,
@@ -65,6 +66,8 @@ export async function bearer(): Promise<string | null> {
  * Sends a request with the session's token. A 401 for a token the page kept (core may have ended
  * the session or the token may have been replaced) drops it and tries once more with a new read;
  * core refuses a request without a valid token before doing anything, so the retry repeats nothing.
+ * A 401 that names a problem `code` is core's answer about the request itself (an invalid door QR,
+ * `ticket_qr_invalid`), not about the token: it is not retried.
  */
 export async function fetchWithToken(
   url: string,
@@ -74,37 +77,57 @@ export async function fetchWithToken(
   const token = await bearer();
   const res = await fetch(url, { ...init, headers: headersFor(token) });
   if (res.status !== 401 || !isKeptAccessToken(token)) return res;
+  if (problemFromResponse(401, await res.clone().text()).code) return res;
   forgetAccessToken(token);
   const again = await bearer();
   if (!again || again === token) return res;
   return fetch(url, { ...init, headers: headersFor(again) });
 }
 
+/**
+ * A core request: JSON in and out, problem+json errors as ProblemError. A plain GET shares a
+ * running or recent identical read (core-read-cache.ts); any other method drops those once it
+ * ends. `cache: 'no-store'` always reads core.
+ */
 export async function coreFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetchWithToken(
-    `${CORE_API_URL}${path}`,
-    { ...init, credentials: 'include' },
-    (token) => {
-      const headers: Record<string, string> = {};
-      if (typeof init.body === 'string') {
-        headers['Content-Type'] = 'application/json';
-      }
-      if (token) headers.Authorization = `Bearer ${token}`;
-      if (init.headers) {
-        Object.assign(headers, init.headers as Record<string, string>);
-      }
-      return headers;
-    },
-  );
-  if (res.status === 204) {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const send = async (): Promise<CoreAnswer> => {
+    const res = await fetchWithToken(
+      `${CORE_API_URL}${path}`,
+      { ...init, credentials: 'include' },
+      (token) => {
+        const headers: Record<string, string> = {};
+        if (typeof init.body === 'string') {
+          headers['Content-Type'] = 'application/json';
+        }
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (init.headers) {
+          Object.assign(headers, init.headers as Record<string, string>);
+        }
+        return headers;
+      },
+    );
+    return { status: res.status, text: res.status === 204 ? '' : await res.text() };
+  };
+  let answer: CoreAnswer;
+  if (method === 'GET' || method === 'HEAD') {
+    const shared = method === 'GET' && !init.signal && !init.headers && init.cache !== 'no-store';
+    answer = shared ? await keptRead(path, send) : await send();
+  } else {
+    try {
+      answer = await send();
+    } finally {
+      clearCoreReads();
+    }
+  }
+  if (answer.status === 204) {
     return undefined as T;
   }
-  const text = await res.text();
-  if (!res.ok) {
-    throw problemFromResponse(res.status, text);
+  if (answer.status < 200 || answer.status >= 300) {
+    throw problemFromResponse(answer.status, answer.text);
   }
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  if (!answer.text) return undefined as T;
+  return JSON.parse(answer.text) as T;
 }
 
 export async function coreFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {

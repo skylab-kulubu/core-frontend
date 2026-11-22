@@ -60,6 +60,7 @@ describe('GET /api/auth/token', () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ token: null });
     expect(tokenEndpoint).not.toHaveBeenCalled();
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('expires the session cookies, current and legacy, when Keycloak rejects the refresh token', async () => {
@@ -115,6 +116,7 @@ describe('GET /api/auth/token', () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ token, expiresIn: 300 });
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(tokenEndpoint).not.toHaveBeenCalled();
     expect(jar.sentNames()).toEqual([]);
   });

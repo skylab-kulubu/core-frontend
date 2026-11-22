@@ -33,7 +33,8 @@ export type MapRegionRequest = {
 
 export const mapRegionsApi = {
   /** Every region for media:manage (ADMIN, YK); the ready ones for anyone signed in. */
-  list: () => coreFetch<MapRegion[]>('/v1/map-regions'),
+  /** Polled while a region is extracted, so never from the kept reads. */
+  list: () => coreFetch<MapRegion[]>('/v1/map-regions', { cache: 'no-store' }),
   /** 202 `requested`; `400 map_region_invalid`, `409 map_region_exists`. */
   request: (body: MapRegionRequest) =>
     coreFetch<MapRegion>('/v1/map-regions', { method: 'POST', body: JSON.stringify(body) }),
