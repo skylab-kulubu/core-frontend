@@ -39,6 +39,7 @@ import {
 } from '@/lib/auth/groups';
 import { useAnyTeamCan, useTeamCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 
 const ELEMENT_LABELS: Record<CertificateElementKind, string> = {
   staticText: 'Sabit metin',
@@ -185,6 +186,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const dragRef = useRef<DragState | null>(null);
   const [draft, setDraft] = useState<CertificateTemplateDraft>(emptyCertificateDraft);
   const [savedId, setSavedId] = useState(templateId);
+  const [savedName, setSavedName] = useState<string | null>(null);
+  useChromeCrumbName(`/certificates/templates/${templateId ?? ''}`, templateId ? savedName : null);
   const [selectedId, setSelectedId] = useState<string>();
   const [backgroundUrl, setBackgroundUrl] = useState<string>();
   const [backgroundType, setBackgroundType] = useState<string>();
@@ -289,6 +292,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       .template(templateId)
       .then(async (template) => {
         if (cancelled) return;
+        setSavedName(template.name);
         const next: CertificateTemplateDraft = {
           name: template.name,
           ownerTeam: template.ownerTeam,
