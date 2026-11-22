@@ -194,9 +194,12 @@ describe('ticket detail fields', () => {
     expect(byLabel['Sınıf']?.value).toBe('3');
     expect(byLabel['Mail']?.value).toBe('Hayır');
     expect(byLabel['Oluşturulma']?.value).toBe('Bugün, 08:05');
-    expect(byLabel['Bilet']?.value).toBe('t-guest');
+    expect(byLabel['Bilet kodu']?.group).toBe('Bilet');
+    expect(fields.some((field) => field.value === 't-guest')).toBe(false);
     expect(byLabel['Etkinlik']?.value).toBe('SkyDays');
-    expect(byLabel['Check-in']?.value).toBe('—');
+    expect(byLabel['Giriş']?.value).toBe('—');
+    expect(byLabel['Ad']?.group).toBe('Kişi');
+    expect(byLabel['Note']?.group).toBe('Formdaki diğer cevaplar');
     expect(byLabel['Note']?.value).toBe('VIP');
     expect(fields.some((field) => field.label === 'guestFirstName')).toBe(false);
   });
@@ -235,7 +238,7 @@ describe('ticket detail fields', () => {
     expect(byLabel['Ad']?.value).toBe('Grace Hopper');
     expect(byLabel['Üye']?.href).toBe('/users/u1');
     expect(byLabel['Kaynak form']?.value).toBe('Üye kaydı');
-    expect(byLabel['Check-in']?.value).toBe('Açılış · Bugün, 09:00');
+    expect(byLabel['Açılış']).toEqual({ label: 'Açılış', value: 'Bugün, 09:00', group: 'Giriş' });
   });
 });
 
