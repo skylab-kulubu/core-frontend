@@ -23,7 +23,7 @@ import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
-import { coreProblemMessage } from '@/lib/core-problems';
+import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type FeedbackCount } from '@/lib/api/events';
 import {
@@ -100,6 +100,7 @@ export default function EventProgramPage() {
   // A drawer's own error shows inside it; the tab's line sits behind the open drawer
   const [dayError, setDayError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionInUse, setSessionInUse] = useState<FormInUse | null>(null);
   const [deskError, setDeskError] = useState<string | null>(null);
   const notify = useNotify();
   // A deleted session's row goes away: the drawer then returns focus to Oturum ekle
@@ -181,6 +182,7 @@ export default function EventProgramPage() {
                     return;
                   }
                   setSessionError(null);
+                  setSessionInUse(null);
                   setEditingSessionId(null);
                   setFeedbackSlot(null);
                   sessionForm.reset(emptySession(days[0]?.id ?? ''));
@@ -289,6 +291,7 @@ export default function EventProgramPage() {
                               label="Oturumu düzenle"
                               onClick={() => {
                                 setSessionError(null);
+                                setSessionInUse(null);
                                 setEditingSessionId(session.id);
                                 setFeedbackSlot(sessionFeedbackSlot(session));
                                 setFeedbackAutoSend(session.feedbackAutoSend ?? true);
@@ -399,6 +402,7 @@ export default function EventProgramPage() {
           noValidate
           onSubmit={sessionForm.handleSubmit(async (sessionDraft) => {
             setSessionError(null);
+            setSessionInUse(null);
             try {
               const body = {
                 eventDayId: sessionDraft.eventDayId,
@@ -432,6 +436,7 @@ export default function EventProgramPage() {
               await reload();
             } catch (err) {
               setSessionError(coreProblemMessage(err, 'Oturum kaydedilemedi'));
+              setSessionInUse(formInUseOf(err));
             }
           })}
         >
@@ -521,6 +526,7 @@ export default function EventProgramPage() {
                 startLocal={toDatetimeLocal(event.startDate)}
                 reservedEventId={event.id}
                 addable={false}
+                inUse={sessionInUse}
                 onGateChange={(_, gate) => closeSessionFeedbackReminders(editingSessionId, gate)}
                 onChange={([slot]) => {
                   if (slot) setFeedbackSlot(slot);

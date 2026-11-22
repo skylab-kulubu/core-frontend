@@ -366,6 +366,39 @@ describe('Event workspace layout', () => {
     );
   });
 
+  it('names the event a refused form is on, in the drawer and at the form', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    const formId = '0b6f1c1e-6a39-4d0f-9d0c-3a8c5d1e2f00';
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      formUrl: `https://forms.yildizskylab.com/${formId}`,
+    });
+    (saveEventWithSeason as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(409, 'Conflict', {
+        code: 'form_in_use',
+        fields: { formId, event: { id: 'e9', name: 'Gecekodu 2025', status: 'published' } },
+      }),
+    );
+    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Bu form şu etkinlikte kullanılıyor: Gecekodu 2025.',
+    );
+    expect(within(dialog).getByRole('link', { name: 'Gecekodu 2025' })).toHaveAttribute(
+      'href',
+      '/events/e9',
+    );
+    expect(
+      within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
+    ).toHaveAttribute('href', expect.stringContaining(`fromForm=${formId}`));
+  });
+
   it('shows why the event did not load instead of its tabs', async () => {
     signInAs(['/UYELER/YK']);
     (eventsApi.get as jest.Mock).mockRejectedValue(
