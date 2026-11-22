@@ -11,10 +11,10 @@ import {
   Notice,
 } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
-import { BarChart } from '@/components/chrome/PanelChart';
+import { BarChart } from '@skylab-kulubu/skylcn-ui/charts';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import type { DashboardSummary } from '@/lib/api/dashboard';
-import { monthCounts } from '@/lib/dashboard/insights';
+import { monthLabel } from '@/lib/dashboard/charts';
 import { fromNow } from './format';
 
 /**
@@ -46,14 +46,20 @@ export function MembersSection({
         </Notice>
       ) : (
         <div className="grid gap-4 xl:grid-cols-5">
-          <Card className="p-4 xl:col-span-3">
-            <BarChart
-              title="Aylık yeni üye"
-              data={monthCounts(members.newByMonth)}
-              empty="Son 12 ayda yeni üye yok"
-            />
-          </Card>
-          <Card className="xl:col-span-2">
+          <BarChart
+            className="min-w-0 xl:col-span-3"
+            title="Aylık yeni üye"
+            description={`Son 12 ay; aktif üye ${members.active.toLocaleString('tr-TR')}`}
+            data={members.newByMonth.map((row) => ({
+              month: monthLabel(row.month),
+              count: row.count,
+            }))}
+            x="month"
+            xLabel="Ay"
+            series={{ count: { label: 'Yeni üye', color: 'var(--chart-categorical-1)' } }}
+            emptyMessage="Son 12 ayda yeni üye yok"
+          />
+          <Card className="min-w-0 xl:col-span-2">
             <CardHeader>
               <CardTitle>Son katılanlar</CardTitle>
               <CardDescription>Kayıt tarihine göre</CardDescription>

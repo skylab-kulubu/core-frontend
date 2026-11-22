@@ -114,7 +114,7 @@ describe('GET /api/auth/token', () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ token });
+    expect(await response.json()).toEqual({ token, expiresIn: 300 });
     expect(tokenEndpoint).not.toHaveBeenCalled();
     expect(jar.sentNames()).toEqual([]);
   });
@@ -141,7 +141,7 @@ describe('GET /api/auth/token', () => {
 
     const left = secondsLeftAfter(7 * 3600);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ token: fresh });
+    expect(await response.json()).toEqual({ token: fresh, expiresIn: 300 });
     expect(jar.sent('__Host-auth_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-access_token')).toEqual(sessionCookie(fresh, left));
     expect(jar.sent('__Host-refresh_token')).toEqual(sessionCookie('refresh-2', left));
