@@ -41,7 +41,7 @@ describe('Event Program tab Katıldı', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
     );
-    expect(screen.getByRole('button', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Katıldı' })).not.toBeInTheDocument();
   });

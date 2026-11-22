@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -132,6 +133,7 @@ export default function SubjectRequestsPage() {
   const [form, setForm] = useState<Form>(emptyForm(today));
   const [events, setEvents] = useState<SubjectRequestEvent[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const formDirty = useDirtySince(open, form);
   const notify = useNotify();
 
   async function load() {
@@ -270,6 +272,7 @@ export default function SubjectRequestsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Başvuruyu düzenle' : 'Başvuru ekle'}
+        dirty={formDirty}
       >
         <form
           className="space-y-3"
