@@ -26,6 +26,16 @@ jest.mock('@/lib/api/identity', () => ({
 }));
 jest.mock('@/lib/api/events', () => ({ eventsApi: { list: jest.fn().mockResolvedValue([]) } }));
 
+// A test may hold core's capabilities back (loading), then let them in
+type EventCreate = ReturnType<typeof import('@/lib/use-event-create').useEventCreate>;
+let mockEventCreate: EventCreate | null = null;
+jest.mock('@/lib/use-event-create', () => {
+  const actual = jest.requireActual('@/lib/use-event-create');
+  return {
+    useEventCreate: (groups: string[]) => mockEventCreate ?? actual.useEventCreate(groups),
+  };
+});
+
 jest.mock('@/lib/scheduling/save-event', () => ({
   ...jest.requireActual('@/lib/scheduling/save-event'),
   saveEventWithSeason: jest.fn(),
@@ -36,6 +46,7 @@ const save = saveEventWithSeason as jest.Mock;
 describe('Yeni etkinlik', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockEventCreate = null;
     mockSearchParams = new URLSearchParams({ formUrl: 'https://forms.example.com/f/gecekodu' });
     sessionStorage.clear();
     sessionStorage.setItem(
@@ -121,5 +132,45 @@ describe('Yeni etkinlik', () => {
       await screen.findByRole('alertdialog', { name: 'Kaydedilmemiş değişiklikler silinsin mi?' }),
     ).toBeInTheDocument();
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('drops the kept draft with "Değişiklikleri sil": the page opens empty again', async () => {
+    mockSearchParams = new URLSearchParams();
+    sessionStorage.clear();
+    const user = userEvent.setup();
+    const { unmount } = render(<NewEventPage />);
+    await user.type(await screen.findByLabelText('Ad'), 'Gece');
+    expect(sessionStorage.getItem(`${EVENT_DRAFT_PREFIX}:new`)).toContain('Gece');
+    await user.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    const ask = await screen.findByRole('alertdialog', {
+      name: 'Kaydedilmemiş değişiklikler silinsin mi?',
+    });
+    await user.click(within(ask).getByRole('button', { name: 'Değişiklikleri sil' }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/events'));
+    expect(sessionStorage.getItem(`${EVENT_DRAFT_PREFIX}:new`)).toBeNull();
+    unmount();
+
+    render(<NewEventPage />);
+    expect(await screen.findByLabelText('Ad')).toHaveValue('');
+    expect(screen.queryByText('Kaydedilmemiş değişiklik var')).not.toBeInTheDocument();
+  });
+
+  it('waits for core’s capabilities: a YK member who leads a team opens a clean form, no owner', async () => {
+    mockSearchParams = new URLSearchParams();
+    sessionStorage.clear();
+    mockEventCreate = {
+      canCreate: true,
+      privilegedWriter: false,
+      leaderTeams: ['WEBLAB'],
+      ready: false,
+    };
+    const { rerender } = render(<NewEventPage />);
+    mockEventCreate = { ...mockEventCreate, privilegedWriter: true, ready: true };
+    rerender(<NewEventPage />);
+    expect(await screen.findByRole('navigation', { name: 'Bölümler' })).toBeInTheDocument();
+    expect(screen.queryByText('Kaydedilmemiş değişiklik var')).not.toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem(`${EVENT_DRAFT_PREFIX}:new`) ?? '{}').ownerTeam).toBe(
+      '',
+    );
   });
 });

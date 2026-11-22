@@ -40,7 +40,13 @@ export function guardedHref(event: MouseEvent, location: Location): string | nul
  * save that goes on to the event or a trip to the form editor with the draft
  * kept. Render `dialog` once.
  */
-export function useUnsavedChanges(dirty: boolean): {
+export function useUnsavedChanges(
+  dirty: boolean,
+  options: {
+    /** Runs once the reader agreed to drop the work, before leaving: a kept draft goes too. */
+    onDiscard?: () => void;
+  } = {},
+): {
   dialog: ReactNode;
   allowLeave: () => void;
   /** Leaves for `href`, asking first when there is unsaved work. */
@@ -50,6 +56,8 @@ export function useUnsavedChanges(dirty: boolean): {
   const [confirm, dialog] = useConfirm();
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+  const discard = useRef(options.onDiscard);
+  discard.current = options.onDiscard;
   const allowed = useRef(false);
 
   const allowLeave = useCallback(() => {
@@ -68,6 +76,7 @@ export function useUnsavedChanges(dirty: boolean): {
         destructive: true,
         onConfirm: () => {
           allowed.current = true;
+          discard.current?.();
           router.push(href);
         },
       });
