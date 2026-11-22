@@ -90,7 +90,8 @@ export default function UserDetailPage() {
 
   useChromeCrumbName(
     `/users/${params.id}`,
-    card ? `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email : null,
+    // The browser tab and history keep this: a name, never the e-mail address
+    card ? `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || 'Kişi' : null,
   );
 
   if (error) {

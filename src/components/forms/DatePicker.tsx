@@ -81,18 +81,29 @@ export function DatePicker({
 
   function type(next: string) {
     setText(next);
-    const parsed = parseTypedDate(next, mode, fallbackTime || undefined);
-    if (parsed === null) return;
     setInvalid(false);
+    // While typing, only a whole year counts: "15.11.20" on the way to 2026 is no 2020.
+    // An emptied field is taken on leaving it, not while the text is retyped.
+    const whole = /\d{4}/.test(next);
+    const parsed = whole ? parseTypedDate(next, mode, fallbackTime || undefined) : null;
+    if (parsed === null) return;
     if (parsed !== value) onChange(parsed);
   }
 
+  /**
+   * Leaving the field: a short year is read now; text that is no date gives way
+   * to the value the form holds, so what is shown is what is saved, and says so.
+   */
   function settle() {
     const parsed = parseTypedDate(text, mode, fallbackTime || undefined);
     if (parsed === null) {
-      setInvalid(Boolean(text.trim()));
+      if (text.trim()) {
+        setText(formatTypedDate(value, mode));
+        setInvalid(true);
+      }
       return;
     }
+    if (parsed !== value) onChange(parsed);
     setText(formatTypedDate(parsed, mode));
   }
 
@@ -115,7 +126,6 @@ export function DatePicker({
           inputMode="numeric"
           autoComplete="off"
           aria-label={ariaLabel}
-          aria-invalid={invalid || undefined}
           aria-describedby={invalid ? hintId : undefined}
           className="min-w-0 flex-1 tabular-nums"
         />
@@ -141,7 +151,9 @@ export function DatePicker({
       </div>
       {invalid ? (
         <p id={hintId} className="text-destructive text-xs">
-          {mode === 'date' ? 'GG.AA.YYYY biçiminde yaz.' : 'GG.AA.YYYY SS:DD biçiminde yaz.'}
+          {mode === 'date'
+            ? 'Okunamadı, önceki değer kaldı. GG.AA.YYYY biçiminde yaz.'
+            : 'Okunamadı, önceki değer kaldı. GG.AA.YYYY SS:DD biçiminde yaz.'}
         </p>
       ) : null}
     </div>

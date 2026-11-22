@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ProblemError } from '@/lib/api/core';
-import QrPage from '@/app/(authorized)/qr/page';
+import { DoorDesk } from '@/components/scheduling/DoorDesk';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
@@ -62,7 +62,7 @@ const session = {
   sessionType: 'KEYNOTE',
 };
 
-describe('Kapı check-in page', () => {
+describe('DoorDesk', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockAuthUser = {
@@ -93,7 +93,7 @@ describe('Kapı check-in page', () => {
 
   it('checks in by person or email and labels success as name · session · time', async () => {
     const user = userEvent.setup();
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     expect(screen.queryByPlaceholderText('Bilet kimliği')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
@@ -135,7 +135,7 @@ describe('Kapı check-in page', () => {
       createdAt: new Date().toISOString(),
     });
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     const picker = await screen.findByLabelText('Oturum');
     await waitFor(() => expect(picker).toHaveValue('s2'));
     expect(within(picker).getByRole('option', { selected: true })).toHaveTextContent('Panel');
@@ -169,7 +169,7 @@ describe('Kapı check-in page', () => {
       },
     ]);
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
       /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
@@ -188,7 +188,7 @@ describe('Kapı check-in page', () => {
       { ...session, id: 's2', title: 'Panel' },
     ]);
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await screen.findByRole('option', { name: 'Panel' });
     const picker = screen.getByLabelText('Oturum');
     expect(picker).toHaveValue('');
@@ -211,7 +211,7 @@ describe('Kapı check-in page', () => {
 
   it('accepts a typed name in the person field', async () => {
     const user = userEvent.setup();
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() =>
       expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toBeInTheDocument(),
     );
@@ -231,7 +231,7 @@ describe('Kapı check-in page', () => {
 
   it('requires a person or email before attempting check-in', async () => {
     const user = userEvent.setup();
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Check-in' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
@@ -250,19 +250,32 @@ describe('Kapı check-in page', () => {
     };
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([event]);
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
 
-    expect(await screen.findByRole('option', { name: 'SkyDays' })).toBeInTheDocument();
-    expect(screen.queryByText('Kapı için etkinlik yok')).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'SkyDays' })).toHaveAttribute(
+      'href',
+      '/events/e1',
+    );
+    expect(screen.queryByText('Bu etkinlik için kapı yetkisi yok')).not.toBeInTheDocument();
     expect(eventsApi.list).not.toHaveBeenCalled();
   });
 
   it('announces event loading failures instead of showing an empty authorization state', async () => {
     (ticketsApi.listDoorEvents as jest.Mock).mockRejectedValue(new Error('offline'));
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Etkinlikler yüklenemedi');
-    expect(screen.queryByText('Kapı için etkinlik yok')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bu etkinlik için kapı yetkisi yok')).not.toBeInTheDocument();
+  });
+
+  it('opens no form for an event that is not among the person’s doors', async () => {
+    render(<DoorDesk eventId="e9" />);
+    expect(await screen.findByText('Bu etkinlik için kapı yetkisi yok')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check-in' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Etkinliğe dön' })).toHaveAttribute(
+      'href',
+      '/events/e9',
+    );
   });
 
   it('lets door staff find and select a guest through the safe attendee projection', async () => {
@@ -280,7 +293,7 @@ describe('Kapı check-in page', () => {
       { name: 'Ada Lovelace', email: 'ada@example.com' },
     ]);
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
@@ -295,7 +308,7 @@ describe('Kapı check-in page', () => {
     );
   });
 
-  it('clears a selected attendee when the event changes', async () => {
+  it('clears a selected attendee when the address names another event', async () => {
     const user = userEvent.setup();
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([
       event,
@@ -310,14 +323,14 @@ describe('Kapı check-in page', () => {
         : Promise.resolve([{ id: 'd1', eventId: 'e1', name: 'Gün 1' }]),
     );
 
-    render(<QrPage />);
+    const { rerender } = render(<DoorDesk eventId="e1" />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
     expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toHaveTextContent('Ada Lovelace');
 
-    await user.selectOptions(screen.getByLabelText('Etkinlik'), 'e2');
+    rerender(<DoorDesk eventId="e2" />);
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toHaveTextContent(
@@ -336,7 +349,7 @@ describe('Kapı check-in page', () => {
       { personId: 'u-ada', name: 'Ada Lovelace', email: 'ada@example.com' },
     ]);
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
@@ -366,7 +379,7 @@ describe('Kapı check-in page', () => {
       ],
     });
 
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
 
     await waitFor(() =>
       expect(screen.getByRole('status', { name: 'Canlı check-in sayısı' })).toHaveTextContent('12'),
@@ -383,7 +396,7 @@ describe('Kapı check-in page', () => {
     (ticketsApi.doorActivity as jest.Mock)
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue({ total: 1, items: [] });
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     expect(await screen.findByText('Canlı kapı kayıtları yüklenemedi')).toBeInTheDocument();
 
     await act(async () => refresh?.());
@@ -398,7 +411,7 @@ describe('Kapı check-in page', () => {
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
       new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
     );
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
     await user.click(screen.getByRole('button', { name: 'Check-in' }));
@@ -412,7 +425,7 @@ describe('Kapı check-in page', () => {
         detail: 'query matched more than one ticket for this session',
       }),
     );
-    render(<QrPage />);
+    render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada');
     const button = screen.getByRole('button', { name: 'Check-in' });

@@ -7,6 +7,7 @@ import {
   ticketSendProblem,
   ticketDetailFields,
   ticketMailRecipients,
+  ticketCrumbName,
   ticketRosterRow,
 } from '@/lib/tickets-ui';
 
@@ -350,5 +351,20 @@ describe('Ticket code', () => {
     expect(
       ticketSendProblem(new ProblemError(409, 'Conflict', { code: 'ticket_holder_erased' }), 'x'),
     ).toBe('Bilet sahibinin hesabı silinmiş; gönderilecek kimse yok.');
+  });
+});
+
+describe('ticketCrumbName', () => {
+  it('names the applicant for the trail and the tab, never by e-mail or id', () => {
+    expect(ticketCrumbName(ada, new Map())).toBe('Ada Lovelace');
+    expect(ticketCrumbName({ ...ada, guestFirstName: '', guestLastName: '' }, new Map())).toBe(
+      'Başvuru',
+    );
+    const member = { id: 't-m', eventId: 'e1', ticketType: 'MEMBER', ownerId: 'u1' } as Ticket;
+    const people = new Map<string, Person>([
+      ['u1', { id: 'u1', email: 'ada@example.com', firstName: '', lastName: '' }],
+    ]);
+    expect(ticketCrumbName(member, people)).toBe('Başvuru');
+    expect(ticketCrumbName(member, new Map())).toBe('Başvuru');
   });
 });

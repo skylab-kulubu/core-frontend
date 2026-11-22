@@ -116,7 +116,12 @@ export default function GroupsPage() {
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
       <Drawer
         open={creating}
-        onClose={() => setCreating(false)}
+        onClose={() => {
+          // Closed without adding (or after "Değişiklikleri sil"): the next one starts empty
+          setCreating(false);
+          setName('');
+          setParentId('');
+        }}
         title="Grup ekle"
         dirty={createDirty}
       >

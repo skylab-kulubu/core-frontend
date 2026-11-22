@@ -17,7 +17,6 @@ import {
   Mail,
   MoreHorizontal,
   Plus,
-  QrCode,
   RefreshCw,
   Send,
   X,
@@ -278,11 +277,6 @@ export function ParticipantRoster({
           />
         ) : null}
         <ActionButton icon={Mail} label="Mail" onClick={mailChosen} />
-        <ActionButton
-          icon={QrCode}
-          label="Kapı"
-          href={`/qr?eventId=${encodeURIComponent(eventId)}`}
-        />
       </div>
     </div>
   );

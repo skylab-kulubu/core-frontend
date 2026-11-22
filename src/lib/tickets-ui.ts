@@ -110,6 +110,17 @@ export function ticketApplicantName(row: Ticket, people: Map<string, Person>): s
   return row.ownerId || row.id;
 }
 
+/**
+ * The applicant as the trail and the browser tab name them: the name alone, never the
+ * e-mail address or an id, which the tab and the history would keep.
+ */
+export function ticketCrumbName(row: Ticket, people: Map<string, Person>): string {
+  if (row.ticketType === 'GUEST') return guestName(row) || 'Başvuru';
+  const owner = ownerPerson(row, people);
+  const name = owner ? `${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim() : '';
+  return name || 'Başvuru';
+}
+
 export function ticketApplicantEmail(row: Ticket, people: Map<string, Person>): string {
   if (row.ticketType === 'GUEST') return row.guestEmail || '';
   return ownerPerson(row, people)?.email || '';

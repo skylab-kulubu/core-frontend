@@ -111,11 +111,6 @@ describe('ParticipantRoster', () => {
 describe('ParticipantRoster list', () => {
   beforeEach(() => window.sessionStorage.clear());
 
-  it('opens the door screen on this event', () => {
-    setup({ eventId: 'e 1' });
-    expect(screen.getByLabelText('Kapı').closest('a')).toHaveAttribute('href', '/qr?eventId=e%201');
-  });
-
   it('finds a registration by its ticket code, dashes or not', async () => {
     setup();
     await userEvent.type(screen.getByRole('searchbox', { name: 'Katılımcı ara' }), 'ab12cd34');
