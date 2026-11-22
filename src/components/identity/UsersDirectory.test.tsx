@@ -107,3 +107,23 @@ it('shows the found people once the search answers, with no loader left behind',
   expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
   await waitFor(() => expect(screen.queryByText(/Yükleniyor/)).not.toBeInTheDocument());
 });
+
+it('says the member summary could not be read, and reads it again', async () => {
+  (dashboardApi.summary as jest.Mock)
+    .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    .mockResolvedValue({ members });
+  render(<UsersDirectory {...base} />);
+  expect(await screen.findByText('Son katılanlar yüklenemedi')).toBeInTheDocument();
+  expect(screen.queryByText('Henüz yeni üye yok')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Yeniden dene' }));
+  expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
+});
+
+it('says so when core could not read the members either', async () => {
+  (dashboardApi.summary as jest.Mock).mockResolvedValue({
+    members: null,
+    membersUnavailable: true,
+  });
+  render(<UsersDirectory {...base} />);
+  expect(await screen.findByText('Son katılanlar yüklenemedi')).toBeInTheDocument();
+});

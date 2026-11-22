@@ -1,10 +1,19 @@
 'use client';
 
-import { Badge, Button, Card, SearchInput, Sparkline, TrendBadge } from '@skylab-kulubu/skylcn-ui';
+import {
+  Badge,
+  Button,
+  Card,
+  SearchInput,
+  Skeleton,
+  Sparkline,
+  TrendBadge,
+} from '@skylab-kulubu/skylcn-ui';
 import { ChevronRight, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Avatar } from '@/components/chrome/Avatar';
+import { LoadError } from '@/components/chrome/LoadError';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { BarChart } from '@/components/chrome/PanelChart';
 import { Pagination } from '@/components/chrome/Pagination';
@@ -52,6 +61,7 @@ export function UsersDirectory({
 }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [summaryRead, setSummaryRead] = useState(false);
+  const [summaryFailed, setSummaryFailed] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [teamId, setTeamId] = useState('');
   const [teamMembers, setTeamMembers] = useState<Person[]>([]);
@@ -59,12 +69,23 @@ export function UsersDirectory({
   const [teamFailed, setTeamFailed] = useState(false);
   const [page, setPage] = useState(1);
 
+  /** The member figures and the latest joiners; a reader core keeps them from gets none. */
+  async function readSummary() {
+    setSummaryFailed(false);
+    try {
+      const next = await dashboardApi.summary();
+      setSummary(next);
+      setSummaryFailed(Boolean(next.membersUnavailable));
+    } catch {
+      setSummary(null);
+      setSummaryFailed(true);
+    } finally {
+      setSummaryRead(true);
+    }
+  }
+
   useEffect(() => {
-    void dashboardApi
-      .summary()
-      .then(setSummary)
-      .catch(() => setSummary(null))
-      .finally(() => setSummaryRead(true));
+    void readSummary();
     void identityApi
       .listGroups()
       .then(setGroups)
@@ -133,6 +154,18 @@ export function UsersDirectory({
 
   return (
     <div className="flex flex-col gap-4">
+      {summaryRead ? null : (
+        <div aria-hidden className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-24 rounded-lg" />
+          </div>
+          <Skeleton className="h-52 rounded-lg" />
+        </div>
+      )}
+      {summaryFailed && source === 'recent' ? null : summaryFailed ? (
+        <LoadError title="Üye özeti yüklenemedi" onRetry={readSummary} />
+      ) : null}
       {members && trend ? (
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
@@ -195,7 +228,15 @@ export function UsersDirectory({
         <h2 className="text-muted-foreground text-xs font-medium">{listTitle}</h2>
         {/* A new panel for each state: a panel that turns from loading to ready can
             keep its loader on screen (skylcn-ui Swap), so none ever turns */}
-        {waiting ? null : status.kind === 'loading' ? (
+        {waiting ? (
+          <div aria-hidden className="grid gap-px sm:grid-cols-2">
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton key={index} className="h-16" />
+            ))}
+          </div>
+        ) : source === 'recent' && summaryFailed ? (
+          <LoadError title="Son katılanlar yüklenemedi" onRetry={readSummary} />
+        ) : status.kind === 'loading' ? (
           <ListPanel key="loading" status={status} />
         ) : (
           <ListPanel key={`${source}-${status.kind}`} status={status}>

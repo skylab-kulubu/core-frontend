@@ -47,6 +47,7 @@ jest.mock('@/lib/api/identity', () => ({
     memberCheck: jest.fn(),
     logoutUser: jest.fn(),
     removeExtraRole: jest.fn(),
+    updateUser: jest.fn(),
   },
 }));
 
@@ -418,5 +419,63 @@ describe('User detail feedback', () => {
       expect(await screen.findByText('Gruba eklendi')).toBeInTheDocument();
       warn.mockRestore();
     });
+  });
+});
+
+describe('User detail profile save', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: ADMIN_CAN });
+    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
+    (identityApi.getUser as jest.Mock).mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      email: 'ada@example.com',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      department: 'Bilgisayar',
+    });
+  });
+
+  it('keeps the form and what was typed when core refuses the save, the reason at Kaydet', async () => {
+    const user = userEvent.setup();
+    (identityApi.updateUser as jest.Mock).mockRejectedValue(
+      new ProblemError(403, 'Forbidden', { detail: 'Forbidden' }),
+    );
+    render(<UserDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    const department = screen.getByLabelText('Bölüm');
+    await user.clear(department);
+    await user.type(department, 'Elektrik');
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+
+    const said = await screen.findByRole('alert');
+    expect(said.closest('form')).not.toBeNull();
+    expect(screen.getByLabelText('Bölüm')).toHaveValue('Elektrik');
+    expect(identityApi.getUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the form once the save goes through', async () => {
+    const user = userEvent.setup();
+    (identityApi.updateUser as jest.Mock).mockResolvedValue({});
+    render(<UserDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() => expect(screen.queryByLabelText('Bölüm')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('offers a retry when the card cannot be read', async () => {
+    const user = userEvent.setup();
+    (identityApi.getUser as jest.Mock)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue({
+        id: 'x',
+        email: 'ada@example.com',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+    render(<UserDetailPage />);
+    await user.click(await screen.findByRole('button', { name: 'Yeniden dene' }));
+    expect(await screen.findByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
   });
 });

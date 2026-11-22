@@ -16,7 +16,10 @@ type UserCardViewProps = {
   card: UserCard;
   canEditProfile?: boolean;
   canReadFull?: boolean;
-  onSaveProfile?: (patch: UserProfilePatch) => void | Promise<void>;
+  /** Saves the profile; false keeps the form open with what was typed. */
+  onSaveProfile?: (patch: UserProfilePatch) => boolean | void | Promise<boolean | void>;
+  /** Why the last profile save was refused, said beside its Kaydet. */
+  profileError?: string | null;
   onAddGroup?: () => void;
   onRemoveRole?: (role: ClientRole) => void;
   onLogout?: () => void;
@@ -267,6 +270,7 @@ export function UserCardView(props: UserCardViewProps) {
     onLogout,
     actions,
     sections,
+    profileError,
   } = props;
   const [editing, setEditing] = useState(false);
   const groups = card.groups ?? [];
@@ -274,8 +278,8 @@ export function UserCardView(props: UserCardViewProps) {
   const extra = card.extraRoles ?? [];
   const save = onSaveProfile
     ? async (patch: UserProfilePatch) => {
-        await onSaveProfile(patch);
-        setEditing(false);
+        // A refused save keeps the form and what was typed; the reason shows at Kaydet
+        if ((await onSaveProfile(patch)) !== false) setEditing(false);
       }
     : undefined;
 
@@ -309,7 +313,7 @@ export function UserCardView(props: UserCardViewProps) {
       <div className="grid gap-4 lg:grid-cols-2">
         <CardSection title="Profil" className="self-start">
           {editing && canEditProfile ? (
-            <UserProfileForm card={card} onSave={save} className="grid gap-3">
+            <UserProfileForm card={card} onSave={save} error={profileError} className="grid gap-3">
               <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
                 Vazgeç
               </Button>

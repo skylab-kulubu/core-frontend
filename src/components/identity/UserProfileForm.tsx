@@ -26,10 +26,13 @@ export function UserProfileForm({
   card,
   onSave,
   className = 'grid max-w-md gap-3',
+  error,
   children,
 }: {
   card: UserCard;
-  onSave?: (patch: UserProfilePatch) => void | Promise<void>;
+  onSave?: (patch: UserProfilePatch) => unknown;
+  /** Why the last save was refused, said beside Kaydet. */
+  error?: string | null;
   className?: string;
   /** Beside the save button, such as Vazgeç. */
   children?: React.ReactNode;
@@ -109,6 +112,11 @@ export function UserProfileForm({
           <FieldLabel>Öğrenci kartı UID</FieldLabel>
           <Field value={card.studentCardUid} readOnly />
         </label>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
       ) : null}
       {children ? (
         <div className="flex flex-wrap items-center gap-2">

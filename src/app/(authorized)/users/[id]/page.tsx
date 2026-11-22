@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { LoadError } from '@/components/chrome/LoadError';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
@@ -37,7 +38,7 @@ export default function UserDetailPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerFailed, setPickerFailed] = useState(false);
-  // A refused change (403 included) stays on the card; `error` replaces the card when it cannot load
+  // A refused profile save (403 included) shows at the profile's Kaydet; `error` replaces the card when it cannot load
   const [actionError, setActionError] = useState<string | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const notify = useNotify();
@@ -57,16 +58,18 @@ export default function UserDetailPage() {
     void load();
   }, [params.id]);
 
-  /** Runs a change on the card: says it went through, or why it did not. */
+  /** Runs a change on the card: says it went through, or why it did not; true when it did. */
   async function change(action: () => Promise<unknown>, done: string, failed: string) {
     setActionError(null);
     try {
       await action();
-      notify.success(done);
-      await load();
     } catch (err) {
       setActionError(coreProblemMessage(err, failed));
+      return false;
     }
+    notify.success(done);
+    await load();
+    return true;
   }
 
   async function openGroups() {
@@ -98,7 +101,7 @@ export default function UserDetailPage() {
   );
 
   if (error) {
-    return <StateCard title={error} description="Kişi kartına dönemiyor." tone="danger" />;
+    return <LoadError title={error} onRetry={load} />;
   }
   if (!card) return <StateCard title="Yükleniyor…" isLoading />;
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
@@ -143,12 +146,8 @@ export default function UserDetailPage() {
 
   return (
     <div className="space-y-6">
-      {actionError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {actionError}
-        </p>
-      ) : null}
       <UserCardView
+        profileError={actionError}
         card={card}
         canEditProfile={canWrite}
         canReadFull={can('user.readFull')}
