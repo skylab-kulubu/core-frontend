@@ -3,8 +3,7 @@
 import { Card, CardDescription, CardHeader, CardTitle, SkylabMark } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
 import { useState } from 'react';
-import type { Season } from '@/lib/api/seasons';
-import type { SeasonWheel } from '@/lib/dashboard/season';
+import type { SeasonWheel, WheelSeason } from '@/lib/dashboard/season';
 
 const SIZE = 360;
 const C = SIZE / 2;
@@ -23,7 +22,7 @@ export function SeasonWheelCard({
   wheel,
   className,
 }: {
-  season: Season;
+  season: WheelSeason;
   wheel: SeasonWheel;
   className?: string;
 }) {
