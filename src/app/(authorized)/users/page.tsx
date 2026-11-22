@@ -43,7 +43,7 @@ export default function UsersPage() {
     register,
     reset,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<CreateUserForm>({
     resolver: zodResolver(createUserSchema),
     defaultValues: { firstName: '', lastName: '', email: '' },
@@ -123,6 +123,7 @@ export default function UsersPage() {
             reset();
           }}
           title="Kullanıcı ekle"
+          dirty={isDirty}
         >
           <form
             className="space-y-3"

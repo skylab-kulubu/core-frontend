@@ -2,6 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
+import EventEditRoute from '@/app/(authorized)/events/[id]/(workspace)/edit/page';
 import EventCompetitionPage from '@/app/(authorized)/events/[id]/(workspace)/competition/page';
 import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
@@ -70,7 +71,7 @@ describe('Event workspace layout', () => {
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
 
     expect(await screen.findByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Program' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Genel bakış' })).toHaveAttribute(
       'aria-selected',
@@ -180,7 +181,7 @@ describe('Event workspace layout', () => {
     expect(workspaceRouter.replace).not.toHaveBeenCalled();
   });
 
-  it('saves the form Skyforms sends back to the event and opens the editor on the overview', async () => {
+  it('saves the form Skyforms sends back to the event and opens the edit page', async () => {
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockResolvedValue(undefined);
     window.history.replaceState(
@@ -199,12 +200,11 @@ describe('Event workspace layout', () => {
         expect.objectContaining({ formUrl: '' }),
       ),
     );
-    expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
     expect(
-      screen.getByText('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.'),
+      await screen.findByText('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.'),
     ).toBeInTheDocument();
-    expect(`${window.location.pathname}${window.location.search}`).toBe('/events/e1');
-    expect(workspaceRouter.replace).not.toHaveBeenCalled();
+    // The edit page shows what was linked, without the return in the address
+    expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/edit');
   });
 
   it('opens no editor for a DK member coming back from Skyforms', async () => {
@@ -230,20 +230,90 @@ describe('Event workspace layout', () => {
       otherTeams: { can: { 'event.update': false } },
       noOwnerTeam: { can: { 'event.update': false } },
     });
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull());
-    expect(screen.queryByRole('dialog', { name: 'Etkinliği düzenle' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Düzenle' })).toBeNull());
+    expect(workspaceRouter.replace).not.toHaveBeenCalledWith(expect.stringContaining('/edit'));
     expect(saveEventWithSeason).not.toHaveBeenCalled();
   });
 
-  it('opens the editor when GET omits images, extra forms, and door staff', async () => {
-    const user = userEvent.setup();
+  it('links Düzenle to the edit page, which opens when GET omits images, extra forms, and door staff', async () => {
     signInAs(['/UYELER/YK']);
     await renderEventTab(<EventOverviewPage />);
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
+    expect(await screen.findByRole('link', { name: 'Düzenle' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit',
     );
-    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
-    expect(await screen.findByRole('dialog', { name: 'Etkinliği düzenle' })).toBeInTheDocument();
+  });
+
+  it('shows the edit page in sections, without the tabs, its jump list naming each', async () => {
+    signInAs(['/UYELER/YK']);
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const sections = await screen.findByRole('navigation', { name: 'Bölümler' });
+    expect(
+      within(sections)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([
+      'Temel bilgiler',
+      'Zaman ve yer',
+      'Başvuru ve form',
+      'Bilet ve kapı',
+      'Sertifika',
+      'Görünürlük ve yayın',
+    ]);
+    expect(screen.getByRole('heading', { name: 'Sertifika' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+  });
+
+  it('holds Yayınla on the edit page while a change is unsaved', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    allowStatusActions();
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, status: 'draft' });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const publish = await screen.findByRole('button', { name: 'Yayınla' });
+    expect(publish).toBeEnabled();
+    await user.type(await screen.findByDisplayValue('GeceKodu'), '!');
+    expect(screen.getByRole('button', { name: 'Yayınla' })).toBeDisabled();
+  });
+
+  it('says a change is unsaved and asks before Vazgeç drops it', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const name = await screen.findByDisplayValue('GeceKodu');
+    expect(screen.queryByText('Kaydedilmemiş değişiklik var')).not.toBeInTheDocument();
+    await user.type(name, ' 2026');
+    expect(screen.getByText('Kaydedilmemiş değişiklik var')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    const ask = await screen.findByRole('alertdialog', {
+      name: 'Kaydedilmemiş değişiklikler silinsin mi?',
+    });
+    expect(workspaceRouter.push).not.toHaveBeenCalled();
+    await user.click(within(ask).getByRole('button', { name: 'Değişiklikleri sil' }));
+    await waitFor(() => expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1'));
+  });
+
+  it('asks before a link to another page leaves unsaved work, and warns on closing the tab', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    await user.type(await screen.findByDisplayValue('GeceKodu'), '!');
+
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    const away = document.createElement('a');
+    away.href = '/events';
+    away.textContent = 'Etkinlikler';
+    document.body.appendChild(away);
+    await user.click(away);
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Kaydedilmemiş değişiklikler silinsin mi?' }),
+    ).toBeInTheDocument();
+    away.remove();
   });
 
   /** core's answer for a GECEKODU member: competitor writes as the Team's Leader chose. */
@@ -283,7 +353,6 @@ describe('Event workspace layout', () => {
   });
 
   it('keeps the event’s own team among the owner choices of a Leader of the Team above', async () => {
-    const user = userEvent.setup();
     signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
     (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, ownerTeam: 'MOBIL' });
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({
@@ -292,27 +361,26 @@ describe('Event workspace layout', () => {
         { team: 'WEBLAB', levels: ['LEADER', 'MEMBER'], can: { 'event.update': true } },
       ],
     });
-    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
     await screen.findByRole('heading', { name: 'GeceKodu' });
-    await user.click(await screen.findByRole('button', { name: 'Düzenle' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
-    const owner = within(dialog).getByRole('combobox', { name: 'Sahip ekip' }) as HTMLSelectElement;
+    const owner = (await screen.findByRole('combobox', {
+      name: 'Sahip ekip',
+    })) as HTMLSelectElement;
     expect(owner.value).toBe('MOBIL');
     expect([...owner.options].map((option) => option.value)).toEqual(
       expect.arrayContaining(['MOBIL', 'WEBLAB']),
     );
   });
 
-  it('says the event was saved from the edit drawer', async () => {
+  it('says the event was saved from the edit page and goes back to the event', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockResolvedValueOnce('e1');
-    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
     await screen.findByRole('heading', { name: 'GeceKodu' });
-    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(await screen.findByRole('button', { name: 'Kaydet' }));
     expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
+    expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1');
     // The form it opened with goes along, so only the changed fields are written
     expect(saveEventWithSeason).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'GeceKodu' }),
@@ -343,7 +411,7 @@ describe('Event workspace layout', () => {
     expect(workspaceRouter.push).toHaveBeenLastCalledWith('/events/e1');
   });
 
-  it('shows a refused save inside the edit drawer', async () => {
+  it('shows a refused save in the save bar', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockRejectedValueOnce(
@@ -352,21 +420,18 @@ describe('Event workspace layout', () => {
         fields: { mediaId: 'g1', role: 'event_cover', purpose: 'event_gallery' },
       }),
     );
-    await renderEventTab(<EventProgramPage />, '/events/e1/program');
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
-    );
-    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const save = await screen.findByRole('button', { name: 'Kaydet' });
+    const dialog = save.closest('form') as HTMLElement;
 
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(save);
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu dosya Etkinlik galerisi için yüklenmiş; etkinlik kapağı olarak kullanılamaz. Dosyayı bu alan için yeniden yükle.',
     );
   });
 
-  it('names the event a refused form is on, in the drawer and at the form', async () => {
+  it('names the event a refused form is on, in the save bar and at the form', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     const formId = '0b6f1c1e-6a39-4d0f-9d0c-3a8c5d1e2f00';
@@ -380,14 +445,13 @@ describe('Event workspace layout', () => {
         fields: { formId, event: { id: 'e9', name: 'Gecekodu 2025', status: 'published' } },
       }),
     );
-    await renderEventTab(<EventProgramPage />, '/events/e1/program');
-    await screen.findByRole('heading', { name: 'GeceKodu' });
-    await user.click(screen.getByRole('button', { name: 'Düzenle' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Etkinliği düzenle' });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const save = await screen.findByRole('button', { name: 'Kaydet' });
+    const dialog = save.closest('form') as HTMLElement;
 
-    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await user.click(save);
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    expect((await within(dialog).findAllByRole('alert'))[0]).toHaveTextContent(
       'Bu form şu etkinlikte kullanılıyor: Gecekodu 2025.',
     );
     expect(

@@ -225,7 +225,7 @@ describe('Back from Skyforms with a Session feedback form', () => {
       ),
     );
     await waitFor(() => expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/program'));
-    expect(screen.queryByRole('dialog', { name: 'Etkinliği düzenle' })).not.toBeInTheDocument();
+    expect(workspaceRouter.replace).not.toHaveBeenCalledWith('/events/e1/edit');
   });
 
   it('says so and clears the address when the Session is gone', async () => {

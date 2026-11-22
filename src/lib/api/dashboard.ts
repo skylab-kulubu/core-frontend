@@ -14,6 +14,8 @@ export type EventStat = {
   startDate?: string;
   endDate?: string;
   active: boolean;
+  /** The stored status (ADR 0066). */
+  status?: 'draft' | 'published' | 'cancelled';
   live: boolean;
   capacity: number;
   coverImageUrl?: string;
@@ -64,6 +66,82 @@ export type DashboardSummary = {
   };
   /** The caller may see members, but Keycloak could not be read. */
   membersUnavailable?: boolean;
+  /** The home page; missing from an older core, which the page falls back from. */
+  home?: DashboardHome;
+};
+
+export type TodoEvent = { id: string; name: string; ownerTeam: string; startDate?: string };
+
+/** What an Event that starts soon still lacks. */
+export type MissingPart = 'location' | 'form' | 'sessions';
+
+export type DashboardTodo = {
+  /** Drafts the caller may publish, by start date, undated last. */
+  drafts: TodoEvent[];
+  /** Published Events running now or starting today or tomorrow that lack something. */
+  incomplete: Array<TodoEvent & { live: boolean; missing: MissingPart[] }>;
+  failedCertificates: Array<{ eventId: string; eventName: string; failed: number }>;
+  /** Only for who handles data subject requests. */
+  subjectRequests: { open: number; overdue: number } | null;
+};
+
+export type WeekEvent = {
+  id: string;
+  name: string;
+  ownerTeam: string;
+  location: string;
+  startDate?: string;
+  endDate?: string;
+  live: boolean;
+};
+
+export type WeekSession = {
+  id: string;
+  eventId: string;
+  eventName: string;
+  title: string;
+  startTime: string;
+  endTime?: string;
+};
+
+export type Period = { current: number; previous: number };
+
+/**
+ * The home page (core-backend docs/dashboard-summary.md, Home): what waits on
+ * the caller, the week from today, and the last 30 days against the 30 before.
+ */
+export type DashboardHome = {
+  /** Null for a caller who can act on none of it. */
+  todo: DashboardTodo | null;
+  week: { from: string; to: string; events: WeekEvent[]; sessions: WeekSession[] };
+  /** Null for a caller with no Event and no people in scope. */
+  compare: {
+    days: number;
+    applications: Period;
+    attendees: Period;
+    events: Period;
+    newMembers: Period | null;
+  } | null;
+  /** 60 days, oldest first: the last 30 and the 30 before; attendees each once a day. Empty without covered Events. */
+  daily: Array<{ date: string; applications: number; attendees: number }>;
+  /** 12 months, oldest first. Attendees: Tickets checked in that month, each once. */
+  monthly: Array<{ month: string; applications: number; attendees: number; events: number }>;
+  /** Owner teams over the 12 months, most applications first; team '' is the club itself. */
+  teams: Array<{ team: string; events: number; applications: number; attendees: number }>;
+  sessions: number;
+  certificates: { issued: number; revoked: number; period: Period } | null;
+  season: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    events: Array<{ id: string; name: string; ownerTeam: string; startDate: string }>;
+  } | null;
+  /** Published Events, whoever owns them: what every signed-in person may see. */
+  club: {
+    eventsByMonth: MonthCount[];
+    eventsByTeam: Array<{ team: string; count: number }>;
+  };
 };
 
 export const dashboardApi = {

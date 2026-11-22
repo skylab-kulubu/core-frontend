@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
@@ -51,6 +52,7 @@ export default function SeasonsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptySeason());
+  const formDirty = useDirtySince(open, form);
   const [assignEventId, setAssignEventId] = useState('');
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -186,6 +188,7 @@ export default function SeasonsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
+        dirty={formDirty}
         finalFocus={() => (deleted.current ? addSeason.current : null)}
       >
         <form

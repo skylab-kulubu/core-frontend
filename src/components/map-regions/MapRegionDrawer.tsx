@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
@@ -40,6 +41,7 @@ export function MapRegionDrawer({ open, onClose, onRequested, taken = [] }: MapR
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const parsed = parseBBox(sides);
+  const dirty = useDirtySince(open, { name, source, sides });
   const large = 'box' in parsed && isLargeRegion(parsed.box);
 
   function reset() {
@@ -84,6 +86,7 @@ export function MapRegionDrawer({ open, onClose, onRequested, taken = [] }: MapR
         onClose();
       }}
       title="Bölge ekle"
+      dirty={dirty}
     >
       <form
         className="space-y-3"
