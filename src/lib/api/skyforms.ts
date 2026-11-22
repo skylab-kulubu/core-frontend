@@ -1,4 +1,4 @@
-import { CORE_API_URL, ProblemError } from '@/lib/api/core';
+import { bearer, CORE_API_URL, ProblemError } from '@/lib/api/core';
 
 export const FORM_STATUS_CLOSED = 1;
 export const FORM_STATUS_OPEN = 2;
@@ -21,14 +21,6 @@ type SkyformsForm = {
   allowMultipleResponses: boolean;
   requiresManualReview: boolean;
 };
-
-async function bearer(): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-  const res = await fetch('/api/auth/token', { credentials: 'include' });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { token?: string };
-  return body.token ?? null;
-}
 
 async function formsFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await bearer();
