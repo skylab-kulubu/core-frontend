@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
@@ -127,5 +127,102 @@ describe('Event Katılımcılar tab', () => {
 
     const said = await screen.findByText('Bu kişi bu oturuma zaten girmiş.');
     expect(said).toHaveAttribute('role', 'alert');
+  });
+
+  describe('Bileti yeniden gönder, Bağlantıyı yenile', () => {
+    const coded = { ...guestTicket, code: 'K7M2-QX9F' };
+
+    async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+    }
+
+    it('shows the code and sends the Ticket again with a key, no question asked', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
+      (ticketsApi.resend as jest.Mock).mockResolvedValue({
+        resend: 1,
+        replayed: false,
+        queued: true,
+      });
+
+      await renderParticipants();
+      expect(await screen.findByText('K7M2-QX9F')).toBeInTheDocument();
+      await openMenu(user);
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti yeniden gönder' }));
+
+      await waitFor(() =>
+        expect(ticketsApi.resend).toHaveBeenCalledWith('t-guest', expect.any(String)),
+      );
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(await screen.findByText('Bilet yeniden gönderildi')).toBeInTheDocument();
+    });
+
+    it('says why core refused the resend', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
+      (ticketsApi.resend as jest.Mock).mockRejectedValue(
+        new ProblemError(409, 'Conflict', { code: 'ticket_notification_off' }),
+      );
+
+      await renderParticipants();
+      await openMenu(user);
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti yeniden gönder' }));
+      expect(
+        await screen.findByText('Bilet postası kapalı; bilet gönderilemiyor.'),
+      ).toBeInTheDocument();
+    });
+
+    it('asks once before renewing the link, and says a refusal in the dialog', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
+      (ticketsApi.renewLink as jest.Mock)
+        .mockRejectedValueOnce(
+          new ProblemError(503, 'Service Unavailable', { code: 'audit_unavailable' }),
+        )
+        .mockResolvedValueOnce({ ...coded, notificationQueued: true, resend: 2 });
+
+      await renderParticipants();
+      await openMenu(user);
+      await user.click(await screen.findByRole('menuitem', { name: 'Bağlantıyı yenile' }));
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace: bağlantı yenilensin mi?',
+      });
+      expect(
+        within(dialog).getByText('Eski bağlantı ve QR çalışmaz; yenisi postayla gider.'),
+      ).toBeInTheDocument();
+      expect(ticketsApi.renewLink).not.toHaveBeenCalled();
+
+      await user.click(within(dialog).getByRole('button', { name: 'Bağlantıyı yenile' }));
+      expect(
+        await within(dialog).findByText(
+          'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
+        ),
+      ).toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole('button', { name: 'Bağlantıyı yenile' }));
+      await waitFor(() => expect(ticketsApi.renewLink).toHaveBeenCalledTimes(2));
+      const [first, second] = (ticketsApi.renewLink as jest.Mock).mock.calls;
+      // The same question renews once: a retry sends its key again
+      expect(second).toEqual(first);
+      expect(await screen.findByText('Bağlantı yenilendi, bilet gönderildi')).toBeInTheDocument();
+    });
+
+    it.each([
+      { name: 'DK', groups: ['/UYELER/DK'] },
+      { name: 'a team member', groups: ['/UYELER/ORGANIZASYON/GECEKODU'] },
+    ])('offers no row menu to $name', async ({ groups }) => {
+      signInAs(groups);
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
+      await renderParticipants();
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument(),
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Ada Lovelace: eylemler' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

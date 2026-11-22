@@ -2,7 +2,23 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ChevronRight, Mail, Plus, QrCode } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+  MenuItem,
+} from '@skylab-kulubu/skylcn-ui';
+import {
+  CheckCircle2,
+  ChevronRight,
+  Mail,
+  MoreHorizontal,
+  Plus,
+  QrCode,
+  RefreshCw,
+  Send,
+} from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Avatar } from '@/components/chrome/Avatar';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -57,6 +73,10 @@ type ApplicantRosterProps = {
   onMailSelected?: (recipients: ReturnType<typeof ticketMailRecipients>) => void;
   onAddParticipant?: () => void;
   onMarkAttended?: (ticket: Ticket, sessionId: string) => void;
+  /** "Bileti yeniden gönder"; given to who may give out the Event's Tickets. */
+  onResend?: (ticket: Ticket) => void;
+  /** "Bağlantıyı yenile": a new link and QR, the old ones void. */
+  onRenew?: (ticket: Ticket) => void;
 };
 
 export function ApplicantRoster({
@@ -72,6 +92,8 @@ export function ApplicantRoster({
   onMailSelected,
   onAddParticipant,
   onMarkAttended,
+  onResend,
+  onRenew,
 }: ApplicantRosterProps) {
   const [query, setQuery] = useState('');
   const [ticketType, setTicketType] = useState<ApplicantRosterFilter['ticketType']>('all');
@@ -214,6 +236,8 @@ export function ApplicantRoster({
   }
 
   const rowPadding = density === 'dense' ? 'py-2' : 'py-3.5';
+  const hasMenu = Boolean(onResend || onRenew);
+  const actionsWidth = onMarkAttended ? (hasMenu ? 'w-28' : 'w-20') : hasMenu ? 'w-20' : 'w-10';
 
   return (
     <div className="space-y-3">
@@ -223,7 +247,7 @@ export function ApplicantRoster({
           setQuery(value);
           setPage(1);
         }}
-        placeholder="Ad, e-posta, form"
+        placeholder="Ad, e-posta, form, bilet kodu"
         searchLabel="Başvuran ara"
       >
         <Select
@@ -418,6 +442,12 @@ export function ApplicantRoster({
               </th>
               <th
                 scope="col"
+                className={`hidden w-28 pb-2 text-left md:table-cell ${COLUMN_LABEL}`}
+              >
+                Bilet kodu
+              </th>
+              <th
+                scope="col"
                 className={`hidden w-24 pb-2 text-center sm:table-cell ${COLUMN_LABEL}`}
               >
                 Tür
@@ -446,7 +476,7 @@ export function ApplicantRoster({
                   Durum
                 </button>
               </th>
-              <th scope="col" className={`${onMarkAttended ? 'w-20' : 'w-10'} px-3 pb-2`}>
+              <th scope="col" className={`${actionsWidth} px-3 pb-2`}>
                 <span className="sr-only">İşlemler</span>
               </th>
             </tr>
@@ -489,6 +519,11 @@ export function ApplicantRoster({
                     </Link>
                   </td>
                   <td
+                    className={`text-2xs text-secondary-foreground hidden w-28 font-mono tabular-nums md:table-cell ${rowPadding}`}
+                  >
+                    {ticket.code || '—'}
+                  </td>
+                  <td
                     className={`hidden w-24 text-center align-middle sm:table-cell ${rowPadding}`}
                   >
                     <StatusChip kind={typeKind} />
@@ -508,9 +543,7 @@ export function ApplicantRoster({
                   >
                     <StatusChip kind={statusKind} />
                   </td>
-                  <td
-                    className={`${onMarkAttended ? 'w-20' : 'w-10'} px-3 align-middle ${rowPadding}`}
-                  >
+                  <td className={`${actionsWidth} px-3 align-middle ${rowPadding}`}>
                     <div className="flex justify-end gap-1">
                       {onMarkAttended ? (
                         <ActionButton
@@ -526,6 +559,32 @@ export function ApplicantRoster({
                             onMarkAttended(ticket, attendSession.id);
                           }}
                         />
+                      ) : null}
+                      {hasMenu ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <IconButton
+                                icon={MoreHorizontal}
+                                size="icon-sm"
+                                variant="ghost"
+                                label={`${row.name}: eylemler`}
+                              />
+                            }
+                          />
+                          <DropdownMenuContent align="end">
+                            {onResend ? (
+                              <MenuItem icon={Send} onClick={() => onResend(ticket)}>
+                                Bileti yeniden gönder
+                              </MenuItem>
+                            ) : null}
+                            {onRenew ? (
+                              <MenuItem icon={RefreshCw} onClick={() => onRenew(ticket)}>
+                                Bağlantıyı yenile
+                              </MenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       ) : null}
                       <Link
                         href={href}

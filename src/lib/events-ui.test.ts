@@ -146,6 +146,9 @@ describe('event write policy', () => {
     expect(canAssignEventTicket(['/UYELER/YK'], 'GECEKODU')).toBe(true);
     expect(canAssignEventTicket(['/UYELER/ARGE/WEBLAB/LIDERLER'], '')).toBe(false);
     expect(canAssignEventTicket(['/UYELER/YK'], '')).toBe(true);
+    expect(canAssignEventTicket(['/ADMIN'], 'GECEKODU')).toBe(true);
+    // DK reads Tickets; it does not give them out (core ticket:manage)
+    expect(canAssignEventTicket(['/UYELER/DK'], 'GECEKODU')).toBe(false);
   });
 });
 
