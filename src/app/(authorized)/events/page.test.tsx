@@ -176,7 +176,8 @@ describe('Etkinlikler listesi', () => {
     expect(screen.queryByRole('button', { name: 'Taslak Kodu: eylemler' })).not.toBeInTheDocument();
   });
 
-  it('publishes a draft without asking and shows its new status', async () => {
+  it('publishes a draft without tickets without asking and shows its new status', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
     const user = userEvent.setup();
     render(<EventsPage />);
@@ -189,7 +190,58 @@ describe('Etkinlikler listesi', () => {
     );
   });
 
+  it('asks before publishing a draft with tickets and sends the box as asked', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([
+      {
+        id: 't1',
+        ticketType: 'REGISTERED',
+        ownerId: 'p1',
+        owner: { id: 'p1', email: 'ali@example.com', firstName: 'Ali', lastName: 'Kaya' },
+      },
+      { id: 't2', ticketType: 'REGISTERED', ownerId: 'p2' },
+    ]);
+    (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    const menu = await openMenu(user, 'Taslak Kodu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Yayınla' }));
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
+    // A holder known only by an id is counted, not named
+    expect(within(dialog).getByText('Ali Kaya ve 1 kişi daha')).toBeInTheDocument();
+    const box = within(dialog).getByRole('checkbox', {
+      name: 'Taslakta yazılan 2 kişiye "biletin hazır" postası gönder',
+    });
+    expect(box).toBeChecked();
+    await user.click(box);
+    await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('d', { notifyTicketHolders: false });
+    await waitFor(() =>
+      expect(within(rowOf('Taslak Kodu')).getAllByText('Yaklaşıyor').length).toBeGreaterThan(0),
+    );
+  });
+
+  it('asks with the box but no count when the tickets cannot be read', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockRejectedValue(new Error('down'));
+    (eventsApi.publish as jest.Mock).mockResolvedValue({ ...rows[0], status: 'published' });
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    const menu = await openMenu(user, 'Taslak Kodu');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Yayınla' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
+    expect(
+      within(dialog).getByRole('checkbox', {
+        name: 'Taslakta yazılan kişilere "biletin hazır" postası gönder',
+      }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));
+    expect(eventsApi.publish).toHaveBeenCalledWith('d', { notifyTicketHolders: true });
+  });
+
   it('says why core refused a publish', async () => {
+    (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([]);
     (eventsApi.publish as jest.Mock).mockRejectedValue(
       new ProblemError(400, 'Bad Request', {
         code: 'event_incomplete',

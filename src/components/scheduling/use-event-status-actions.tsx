@@ -6,12 +6,14 @@ import { useState, type ReactNode } from 'react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { TextArea } from '@/components/chrome/TextArea';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
-import { ticketsApi } from '@/lib/api/tickets';
+import type { Person } from '@/lib/api/identity';
+import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { publicShortUrl } from '@/lib/api/urls';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { openEventMail } from '@/lib/event-mail';
 import { useCapabilities } from '@/lib/capabilities-context';
-import { eventDisplayStatus, eventStatusOf } from '@/lib/events-view';
+import { eventDisplayStatus, eventEndsAt, eventStatusOf } from '@/lib/events-view';
+import { ticketApplicantName } from '@/lib/tickets-ui';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useTeamCan } from '@/lib/use-app-can';
@@ -120,6 +122,48 @@ function CancelFields({
           onChange={onNotify}
         />
       )}
+    </>
+  );
+}
+
+/** How many holders the publish question names; the rest are counted. */
+export const PUBLISH_NAMES_SHOWN = 5;
+
+/** The holders' names, as far as they are known: an id is not a name. */
+function holderNames(rows: readonly Ticket[], people: Map<string, Person>): string {
+  const names = rows
+    .map((row) => {
+      const name = ticketApplicantName(row, people);
+      return name === row.id || name === row.ownerId ? '' : name;
+    })
+    .filter(Boolean);
+  if (names.length === 0) return '';
+  const shown = names.slice(0, PUBLISH_NAMES_SHOWN).join(', ');
+  const rest = rows.length - Math.min(names.length, PUBLISH_NAMES_SHOWN);
+  return rest > 0 ? `${shown} ve ${rest} kişi daha` : shown;
+}
+
+function PublishFields({
+  holders,
+  names,
+  onNotify,
+}: {
+  holders: number | null;
+  names: string;
+  onNotify: (notify: boolean) => void;
+}) {
+  return (
+    <>
+      <CheckboxRow
+        label={
+          holders === null
+            ? 'Taslakta yazılan kişilere "biletin hazır" postası gönder'
+            : `Taslakta yazılan ${holders} kişiye "biletin hazır" postası gönder`
+        }
+        defaultChecked
+        onChange={onNotify}
+      />
+      {names ? <p className="text-muted-foreground text-xs">{names}</p> : null}
     </>
   );
 }
@@ -257,8 +301,53 @@ export function useEventStatusActions({
     });
   }
 
-  const publish = (event: CoreEvent) =>
-    run(() => eventsApi.publish(event.id), 'Etkinlik yayınlandı', 'Etkinlik yayınlanamadı');
+  /**
+   * Publishes a draft. When it has Tickets (written while it was a draft),
+   * asks first whether core mails their holders "biletin hazır" (ticked by
+   * default, as on cancel); without any, or once the Event has ended (core
+   * mails no past Event), it publishes without asking. `rows`: the Event's
+   * Tickets when the page has them, else they are read here; `people` names
+   * the members among them.
+   */
+  async function publish(
+    event: CoreEvent,
+    rows?: readonly Ticket[],
+    people: Map<string, Person> = new Map(),
+  ) {
+    const end = eventEndsAt(event);
+    const ended = end !== null && end <= Date.now();
+    const tickets = ended
+      ? []
+      : (rows ?? (await ticketsApi.listByEvent(event.id).catch(() => null)));
+    if (tickets !== null && tickets.length === 0) {
+      return run(
+        () => eventsApi.publish(event.id),
+        'Etkinlik yayınlandı',
+        'Etkinlik yayınlanamadı',
+      );
+    }
+    const fields = { notify: true };
+    confirm({
+      title: 'Etkinliği yayınla',
+      content: (
+        <PublishFields
+          holders={tickets?.length ?? null}
+          names={tickets ? holderNames(tickets, people) : ''}
+          onNotify={(next) => {
+            fields.notify = next;
+          }}
+        />
+      ),
+      actionLabel: 'Yayınla',
+      destructive: false,
+      failure: 'Etkinlik yayınlanamadı',
+      onConfirm: async () => {
+        const saved = await eventsApi.publish(event.id, { notifyTicketHolders: fields.notify });
+        onChanged(saved);
+        notify.success('Etkinlik yayınlandı');
+      },
+    });
+  }
 
   const unpublish = (event: CoreEvent) =>
     run(() => eventsApi.unpublish(event.id), 'Etkinlik taslağa alındı', 'Taslağa alınamadı');

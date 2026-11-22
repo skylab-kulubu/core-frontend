@@ -645,7 +645,16 @@ export function EventWorkspace({
           actions={
             <>
               {rights.canUpdate && offers.publish ? (
-                <SaveButton type="button" onClick={() => void statusActions.publish(event)}>
+                <SaveButton
+                  type="button"
+                  onClick={() =>
+                    void statusActions.publish(
+                      event,
+                      can.canTickets && ticketsLoaded ? tickets : undefined,
+                      personById,
+                    )
+                  }
+                >
                   Yayınla
                 </SaveButton>
               ) : null}
