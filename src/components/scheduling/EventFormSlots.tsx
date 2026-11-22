@@ -407,6 +407,7 @@ function FormInUseNotice({
               className="underline"
             >
               {inUse.event.name}
+              <span className="sr-only"> (yeni sekmede açılır)</span>
             </a>
           </>
         ) : (

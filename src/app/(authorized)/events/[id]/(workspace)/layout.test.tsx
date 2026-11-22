@@ -390,10 +390,9 @@ describe('Event workspace layout', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu form şu etkinlikte kullanılıyor: Gecekodu 2025.',
     );
-    expect(within(dialog).getByRole('link', { name: 'Gecekodu 2025' })).toHaveAttribute(
-      'href',
-      '/events/e9',
-    );
+    expect(
+      within(dialog).getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
+    ).toHaveAttribute('href', '/events/e9');
     expect(
       within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
     ).toHaveAttribute('href', expect.stringContaining(`fromForm=${formId}`));

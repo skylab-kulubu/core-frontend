@@ -138,10 +138,9 @@ describe('EventFormSlots form in use (409 form_in_use)', () => {
       />,
     );
     expect(screen.getByText(/Bu form şu etkinlikte kullanılıyor:/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Gecekodu 2025' })).toHaveAttribute(
-      'href',
-      '/events/e9',
-    );
+    expect(
+      screen.getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
+    ).toHaveAttribute('href', '/events/e9');
     const href = new URL(
       screen
         .getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' })
