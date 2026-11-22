@@ -177,117 +177,49 @@ describe('AuthenticatedChrome', () => {
     expect(screen.getByRole('button', { name: 'Kenar çubuğunu daralt' })).toBeInTheDocument();
   });
 
-  it('shows event-scoped navigation only for the current event capabilities', async () => {
-    currentPathname = '/events/event-1';
+  it('reads no event for the sidebar: an event’s pages are its tabs', async () => {
+    currentPathname = '/events/event-1/participants';
     const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
     render(
       <AuthenticatedChrome sidebarUser={leader}>
         <p>İçerik</p>
       </AuthenticatedChrome>,
     );
 
-    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
-      'href',
-      '/events/event-1/participants',
-    );
-  });
-
-  it('shows a Sub-team event’s tools to the Leader of the Team above, as core decides', async () => {
-    currentPathname = '/events/event-3';
-    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-3', ownerTeam: 'MOBIL' });
-    render(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>İçerik</p>
-      </AuthenticatedChrome>,
-    );
-
-    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
-      'href',
-      '/events/event-3/participants',
-    );
-  });
-
-  it('does not read the open event again when only its tab changes', async () => {
-    currentPathname = '/events/event-1';
-    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
-    const view = render(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>İçerik</p>
-      </AuthenticatedChrome>,
-    );
-    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
+    const current = await screen.findAllByRole('link', { name: 'Etkinlikler', current: 'page' });
+    expect(current[0]).toHaveAttribute('href', '/events');
     await act(async () => undefined);
-    const reads = (eventsApi.get as jest.Mock).mock.calls.length;
-
-    currentPathname = '/events/event-1/program';
-    view.rerender(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>Program</p>
-      </AuthenticatedChrome>,
-    );
-
-    expect(await screen.findByText('Program', { selector: 'p' })).toBeInTheDocument();
-    await act(async () => undefined);
-    expect(eventsApi.get).toHaveBeenCalledTimes(reads);
-  });
-
-  it('does not expose event tools to a leader from another owner team', async () => {
-    currentPathname = '/events/event-2';
-    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-2', ownerTeam: 'SKYSEC' });
-    render(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>İçerik</p>
-      </AuthenticatedChrome>,
-    );
-
-    await waitFor(() => expect(eventsApi.get).toHaveBeenCalledWith('event-2'));
-    expect(screen.queryByRole('button', { name: 'Aktif Etkinlik' })).not.toBeInTheDocument();
-  });
-
-  it('links Yarışma for any reader once the event has competitors, as its tab bar does', async () => {
-    currentPathname = '/events/event-2';
-    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-2', ownerTeam: 'SKYSEC' });
-    (competitorsApi.listByEvent as jest.Mock).mockResolvedValue([
-      { id: 'c1', userId: 'u9', eventId: 'event-2' },
-    ]);
-    render(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>İçerik</p>
-      </AuthenticatedChrome>,
-    );
-
-    expect(await screen.findByRole('button', { name: 'Aktif Etkinlik' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Yarışma' })).toHaveAttribute(
-      'href',
-      '/events/event-2/competition',
-    );
+    expect(eventsApi.get).not.toHaveBeenCalled();
+    expect(competitorsApi.listByEvent).not.toHaveBeenCalled();
     expect(screen.queryByRole('link', { name: 'Katılımcılar' })).not.toBeInTheDocument();
   });
 
-  it('does not count competitors for a reader who manages them', async () => {
-    currentPathname = '/events/event-1';
-    const leader = { ...user, groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] };
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
+  it('opens an event’s door without the sidebar', async () => {
+    currentPathname = '/events/event-1/door';
     render(
-      <AuthenticatedChrome sidebarUser={leader}>
-        <p>İçerik</p>
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>Kapı</p>
       </AuthenticatedChrome>,
     );
 
-    expect(await screen.findByRole('link', { name: 'Yarışma' })).toBeInTheDocument();
-    expect(competitorsApi.listByEvent).not.toHaveBeenCalled();
+    expect(screen.getByText('Kapı', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Özet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Sayfa yolu' })).not.toBeInTheDocument();
   });
 
-  it('names the open event in the trail instead of Kayıt', async () => {
+  it('names the browser tab after the page and its record', async () => {
     currentPathname = '/events/event-1/program';
-    (eventsApi.get as jest.Mock).mockResolvedValue({ id: 'event-1', ownerTeam: 'WEBLAB' });
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <NamedEvent />
+      </AuthenticatedChrome>,
+    );
+
+    await waitFor(() => expect(document.title).toBe("Yıldız Hackathon '26 · Program · SKY LAB"));
+  });
+
+  it('names the open event in the trail', async () => {
+    currentPathname = '/events/event-1/program';
     render(
       <AuthenticatedChrome sidebarUser={user}>
         <NamedEvent />
@@ -296,6 +228,6 @@ describe('AuthenticatedChrome', () => {
 
     const trail = screen.getAllByRole('navigation', { name: 'Sayfa yolu' })[0];
     expect(await within(trail).findAllByText("Yıldız Hackathon '26")).not.toHaveLength(0);
-    expect(within(trail).queryByText('Kayıt')).not.toBeInTheDocument();
+    expect(within(trail).queryByText('…')).not.toBeInTheDocument();
   });
 });
