@@ -23,6 +23,7 @@ import {
   regionStatus,
 } from '@/lib/map-regions-ui';
 import { useConfirm } from '@/lib/ui/use-confirm';
+import { useAppCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
 
 /** How often the list is read again while a region is being prepared. */
@@ -73,6 +74,9 @@ export default function MapRegionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const notify = useNotify();
+  // core answers anyone signed in the ready regions; asking, retrying and retiring are
+  // media:manage's (core's media.delete decision). Unreadable decisions leave it to core.
+  const manages = useAppCan(true)('media.delete');
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setState({ kind: 'loading' });
@@ -152,12 +156,14 @@ export default function MapRegionsPage() {
       <PageHeader
         title="Harita bölgeleri"
         actions={
-          <ActionButton
-            icon={Plus}
-            variant="primary"
-            label="Bölge ekle"
-            onClick={() => setAdding(true)}
-          />
+          manages ? (
+            <ActionButton
+              icon={Plus}
+              variant="primary"
+              label="Bölge ekle"
+              onClick={() => setAdding(true)}
+            />
+          ) : undefined
         }
       />
       {error ? (
@@ -187,9 +193,10 @@ export default function MapRegionsPage() {
           {regions.map((region) => {
             const status = regionStatus(region.status);
             const canRetire =
-              region.status === 'requested' ||
-              region.status === 'ready' ||
-              region.status === 'failed';
+              manages &&
+              (region.status === 'requested' ||
+                region.status === 'ready' ||
+                region.status === 'failed');
             return (
               <ListItem
                 key={region.id ?? region.name}
@@ -198,7 +205,7 @@ export default function MapRegionsPage() {
                 trailing={
                   <span className="flex items-center gap-2">
                     <StatusChip kind={status.kind} label={status.label} />
-                    {region.status === 'failed' ? (
+                    {manages && region.status === 'failed' ? (
                       <ActionButton
                         icon={RotateCcw}
                         label="Tekrar dene"

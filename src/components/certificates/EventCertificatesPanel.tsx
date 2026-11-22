@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, Eye, RefreshCw, RotateCcw, Send } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -61,7 +62,10 @@ export function EventCertificatesPanel({
   canBind,
   canRevoke,
   canReadIssued,
+  ruleHref,
 }: {
+  /** Where the rule is changed (the edit page's Sertifika section), for who may edit the event. */
+  ruleHref?: string;
   eventId: string;
   ownerTeam: string;
   attendanceRule: string;
@@ -191,6 +195,14 @@ export function EventCertificatesPanel({
                   : attendanceRule === 'once'
                     ? 'En az bir oturum'
                     : 'Sertifika yok'}
+                {ruleHref ? (
+                  <>
+                    {' · '}
+                    <Link href={ruleHref} className="text-skylab-300 hover:underline">
+                      Kuralı değiştir
+                    </Link>
+                  </>
+                ) : null}
               </p>
               <p className="text-subtle-foreground mt-1 text-xs">
                 {summary.attendanceFinalizedAt

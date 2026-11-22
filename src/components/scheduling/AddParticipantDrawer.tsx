@@ -65,6 +65,7 @@ export function AddParticipantDrawer({
         onClose();
       }}
       title="Katılımcı ekle"
+      dirty={memberForm.formState.isDirty || guestForm.formState.isDirty}
     >
       <div className="space-y-6">
         {error ? (

@@ -1,29 +1,19 @@
-import type { CoreEvent } from '@/lib/api/events';
-import type { Season } from '@/lib/api/seasons';
-
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7 * DAY;
 
 const time = (iso?: string) => (iso ? Date.parse(iso) : NaN);
 
-/**
- * The season the dashboard shows: the one running now, or else the one that
- * ended last. Seasons without both dates cannot be drawn and are skipped.
- */
-export function currentSeason(seasons: readonly Season[], now = new Date()): Season | null {
-  const ts = now.getTime();
-  const dated = seasons.filter(
-    (season) => !Number.isNaN(time(season.startDate)) && !Number.isNaN(time(season.endDate)),
-  );
-  const running = dated.find(
-    (season) => time(season.startDate) <= ts && ts <= time(season.endDate) + DAY,
-  );
-  if (running) return running;
-  const ended = dated
-    .filter((season) => time(season.endDate) < ts)
-    .sort((a, b) => time(b.endDate) - time(a.endDate));
-  return ended[0] ?? null;
-}
+/** What the wheel needs of a season: its dates. Core picks which season (home.season). */
+export type WheelSeason = { name: string; startDate?: string; endDate?: string };
+
+/** What the wheel needs of an Event. */
+export type WheelInput = {
+  id: string;
+  name: string;
+  ownerTeam: string;
+  startDate?: string;
+  endDate?: string;
+};
 
 export type WheelEvent = {
   id: string;
@@ -49,8 +39,8 @@ export type SeasonWheel = {
 
 /** Lays a season's dated events out on a ring of its weeks. */
 export function seasonWheel(
-  season: Season,
-  events: readonly CoreEvent[],
+  season: WheelSeason,
+  events: readonly WheelInput[],
   now = new Date(),
 ): SeasonWheel {
   const start = time(season.startDate);
