@@ -14,6 +14,7 @@ import { publicShortUrl } from '@/lib/api/urls';
 import { previousFormHref, previousForms, previousSessionForms } from '@/lib/event-copy';
 import { APPLY_SLOT_KEY, formsAdminOrigin } from '@/lib/event-forms';
 import { publicMediaUrl } from '@/lib/event-media';
+import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
 
 /**
  * A copy's "Geçen seferin formundan yeni form oluştur" (SPEC §5.4): Skyforms
@@ -104,6 +105,28 @@ export default function EventOverviewPage() {
       <p className="text-muted-foreground text-sm whitespace-pre-wrap">
         {event.description || '—'}
       </p>
+      {event.mapImageUrl ? (
+        <figure className="max-w-3xl space-y-1">
+          <img
+            src={publicMediaUrl(event.mapImageUrl)}
+            alt={`${event.location} haritası`}
+            className="border-border w-full rounded-md border"
+            width={1280}
+            height={480}
+          />
+          <figcaption className="text-3xs text-subtle-foreground flex flex-wrap justify-between gap-2">
+            <span>{event.locationAddress || event.location}</span>
+            <a
+              href={event.mapAttributionUrl || MAP_ATTRIBUTION_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-foreground"
+            >
+              {event.mapAttribution || MAP_ATTRIBUTION}
+            </a>
+          </figcaption>
+        </figure>
+      ) : null}
       {event.formAlias || event.formUrl ? (
         <p className="text-3xs text-subtle-foreground">
           Misafir başvurusu (hesabı olmayanlar):{' '}
