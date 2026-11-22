@@ -65,3 +65,13 @@ export function forgetAccessToken(token?: string | null): void {
   kept = null;
   generation += 1;
 }
+
+// Coming back to the tab or window reads the route again: another tab may have signed out or in
+// as someone else, and this tab must not go on with the old person's token. A changed token then
+// renews what the page read (session-renewal.ts).
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', () => forgetAccessToken());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') forgetAccessToken();
+  });
+}
