@@ -82,8 +82,9 @@ export function DatePicker({
   function type(next: string) {
     setText(next);
     setInvalid(false);
-    // While typing, only a whole year counts: "15.11.20" on the way to 2026 is no 2020
-    const whole = !next.trim() || /\d{4}/.test(next);
+    // While typing, only a whole year counts: "15.11.20" on the way to 2026 is no 2020.
+    // An emptied field is taken on leaving it, not while the text is retyped.
+    const whole = /\d{4}/.test(next);
     const parsed = whole ? parseTypedDate(next, mode, fallbackTime || undefined) : null;
     if (parsed === null) return;
     if (parsed !== value) onChange(parsed);
