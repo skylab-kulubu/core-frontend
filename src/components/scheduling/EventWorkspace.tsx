@@ -337,6 +337,19 @@ export function EventWorkspace({
   }
 
   async function load() {
+    // Reads that need nothing from the event start with it: one round instead of one each
+    const doorRead = ticketsApi.listDoorEvents().catch(() => []);
+    const programRead = eventDaysApi.listByEvent(id).then(async (dayRows) => ({
+      dayRows,
+      sessionRows: (
+        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
+      ).flat(),
+    }));
+    // Awaited once the event is read: its failure then fails the load, as before
+    programRead.catch(() => undefined);
+    const competitorsRead = competitorsApi.listByEvent(id).catch(() => [] as Competitor[]);
+    const teamsRead = teamsApi.list().catch(() => []);
+    const seasonsRead = privileged ? seasonsApi.list().catch(() => [] as Season[]) : null;
     try {
       const ev = await eventsApi.get(id);
       const loaded = formStateFromEvent(ev);
@@ -355,7 +368,23 @@ export function EventWorkspace({
         handoff,
       );
       setEvent(ev);
-      const doorEvents = await ticketsApi.listDoorEvents().catch(() => []);
+      let ticketsRead = false;
+      const ticketsReadAll = teamAllows(
+        ev.ownerTeam,
+        'ticket.read',
+        canListEventTickets(groups, ev.ownerTeam, roles),
+      ).then((allowed) =>
+        allowed
+          ? ticketsApi
+              .listByEvent(id)
+              .then((rows) => {
+                ticketsRead = true;
+                return rows;
+              })
+              .catch(() => [] as Ticket[])
+          : [],
+      );
+      const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       resetEditor(nextForm);
       setError(null);
@@ -389,29 +418,13 @@ export function EventWorkspace({
           setEditInUse(formInUseOf(err));
         }
       }
-      const dayRows = await eventDaysApi.listByEvent(id);
-      const sessionRows = (
-        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
-      ).flat();
+      const { dayRows, sessionRows } = await programRead;
       setDays(dayRows);
       setSessions(sessionRows);
       if (sessionReturn) await linkReturnedSessionForm(ev, sessionRows, sessionReturn);
-      const competitorRows = await competitorsApi.listByEvent(id).catch(() => []);
+      const competitorRows = await competitorsRead;
       setCompetitors(competitorRows);
-      let ticketsRead = false;
-      const ticketRows = (await teamAllows(
-        ev.ownerTeam,
-        'ticket.read',
-        canListEventTickets(groups, ev.ownerTeam, roles),
-      ))
-        ? await ticketsApi
-            .listByEvent(id)
-            .then((rows) => {
-              ticketsRead = true;
-              return rows;
-            })
-            .catch(() => [] as Ticket[])
-        : [];
+      const ticketRows = await ticketsReadAll;
       setTickets(ticketRows);
       setTicketsLoaded(ticketsRead);
       // Tickets carry their owner; only competitors without a ticket are looked up by id.
@@ -423,7 +436,7 @@ export function EventWorkspace({
           )
         : ticketPeople;
       setPeople([...knownPeople.values()]);
-      const teams = await teamsApi.list().catch(() => []);
+      const teams = await teamsRead;
       // core's LEADER teams (a Sub-team led from above included), always with the event's own
       await capabilitiesSettled();
       const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
@@ -434,7 +447,7 @@ export function EventWorkspace({
             ? [...new Set([...leaderTeams, ev.ownerTeam])]
             : [ev.ownerTeam],
       );
-      if (privileged) setSeasons(await seasonsApi.list().catch(() => []));
+      if (seasonsRead) setSeasons(await seasonsRead);
     } catch (err) {
       setError(
         coreProblemMessage(err, 'Etkinlik yüklenemedi', {

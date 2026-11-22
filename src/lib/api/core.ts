@@ -1,4 +1,5 @@
 import { accessToken, forgetAccessToken, isKeptAccessToken } from '@/lib/auth/access-token';
+import { clearCoreReads, keptRead, type CoreAnswer } from './core-read-cache';
 
 export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(
   /\/+$/,
@@ -80,31 +81,50 @@ export async function fetchWithToken(
   return fetch(url, { ...init, headers: headersFor(again) });
 }
 
+/**
+ * A core request: JSON in and out, problem+json errors as ProblemError. A plain GET shares a
+ * running or recent identical read (core-read-cache.ts); any other method drops those once it
+ * ends. `cache: 'no-store'` always reads core.
+ */
 export async function coreFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetchWithToken(
-    `${CORE_API_URL}${path}`,
-    { ...init, credentials: 'include' },
-    (token) => {
-      const headers: Record<string, string> = {};
-      if (typeof init.body === 'string') {
-        headers['Content-Type'] = 'application/json';
-      }
-      if (token) headers.Authorization = `Bearer ${token}`;
-      if (init.headers) {
-        Object.assign(headers, init.headers as Record<string, string>);
-      }
-      return headers;
-    },
-  );
-  if (res.status === 204) {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const send = async (): Promise<CoreAnswer> => {
+    const res = await fetchWithToken(
+      `${CORE_API_URL}${path}`,
+      { ...init, credentials: 'include' },
+      (token) => {
+        const headers: Record<string, string> = {};
+        if (typeof init.body === 'string') {
+          headers['Content-Type'] = 'application/json';
+        }
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (init.headers) {
+          Object.assign(headers, init.headers as Record<string, string>);
+        }
+        return headers;
+      },
+    );
+    return { status: res.status, text: res.status === 204 ? '' : await res.text() };
+  };
+  let answer: CoreAnswer;
+  if (method === 'GET' || method === 'HEAD') {
+    const shared = method === 'GET' && !init.signal && !init.headers && init.cache !== 'no-store';
+    answer = shared ? await keptRead(path, send) : await send();
+  } else {
+    try {
+      answer = await send();
+    } finally {
+      clearCoreReads();
+    }
+  }
+  if (answer.status === 204) {
     return undefined as T;
   }
-  const text = await res.text();
-  if (!res.ok) {
-    throw problemFromResponse(res.status, text);
+  if (answer.status < 200 || answer.status >= 300) {
+    throw problemFromResponse(answer.status, answer.text);
   }
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  if (!answer.text) return undefined as T;
+  return JSON.parse(answer.text) as T;
 }
 
 export async function coreFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {

@@ -116,7 +116,7 @@ export function EventFilesPanel({
     if (!scanning) return;
     const timer = window.setInterval(() => {
       eventsApi
-        .get(event.id)
+        .get(event.id, { cache: 'no-store' })
         .then(onEvent)
         .catch(() => undefined);
     }, 30_000);

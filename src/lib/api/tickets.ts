@@ -165,6 +165,9 @@ export const ticketsApi = {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+  /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
-    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`),
+    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {
+      cache: 'no-store',
+    }),
 };
