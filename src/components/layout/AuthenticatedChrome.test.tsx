@@ -230,4 +230,30 @@ describe('AuthenticatedChrome', () => {
     expect(await within(trail).findAllByText("Yıldız Hackathon '26")).not.toHaveLength(0);
     expect(within(trail).queryByText('…')).not.toBeInTheDocument();
   });
+
+  it('lists Harita bölgeleri only once core says media.delete (media:manage)', async () => {
+    currentPathname = '/seasons';
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.delete': true } });
+    const first = render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+    expect(await screen.findByRole('link', { name: 'Harita bölgeleri' })).toHaveAttribute(
+      'href',
+      '/map-regions',
+    );
+    first.unmount();
+
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.delete': false } });
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+    expect(await screen.findByRole('link', { name: 'Sezonlar' })).toBeInTheDocument();
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalledTimes(2));
+    await act(async () => undefined);
+    expect(screen.queryByRole('link', { name: 'Harita bölgeleri' })).not.toBeInTheDocument();
+  });
 });
