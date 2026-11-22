@@ -28,7 +28,15 @@ function ChromeTrail({ pathname }: { pathname: string }) {
 function DocumentTitle({ pathname }: { pathname: string }) {
   const title = chromeDocumentTitle(pathname, useChromeCrumbNames());
   useEffect(() => {
-    document.title = title;
+    const apply = () => {
+      if (document.title !== title) document.title = title;
+    };
+    apply();
+    // Next writes the layout's metadata title after the page mounts (streamed metadata); the
+    // page's own name wins whenever it does
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
   }, [title]);
   return null;
 }
