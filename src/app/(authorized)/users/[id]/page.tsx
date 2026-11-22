@@ -2,15 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { LogOut } from 'lucide-react';
-import { PickerDrawer } from '@/components/chrome/PickerDrawer';
-import { SaveButton } from '@/components/chrome/SaveButton';
 import { LoadError } from '@/components/chrome/LoadError';
+import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { StateCard } from '@/components/chrome/StateCard';
 import { UserCardView } from '@/components/identity/UserCardView';
 import { useMemberAdd } from '@/components/identity/use-member-add';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { identityApi, type Group, type UserCard } from '@/lib/api/identity';
+import {
+  identityApi,
+  type ClientRole,
+  type Group,
+  type UserCard,
+  type UserProfilePatch,
+} from '@/lib/api/identity';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { isPrivileged } from '@/lib/auth/groups';
 import { pickerMatch } from '@/lib/picker';
@@ -54,16 +58,18 @@ export default function UserDetailPage() {
     void load();
   }, [params.id]);
 
-  /** Runs a change on the card: says it went through, or why it did not. */
+  /** Runs a change on the card: says it went through, or why it did not; true when it did. */
   async function change(action: () => Promise<unknown>, done: string, failed: string) {
     setActionError(null);
     try {
       await action();
-      notify.success(done);
-      await load();
     } catch (err) {
       setActionError(coreProblemMessage(err, failed));
+      return false;
     }
+    notify.success(done);
+    await load();
+    return true;
   }
 
   async function openGroups() {
@@ -99,6 +105,44 @@ export default function UserDetailPage() {
   }
   if (!card) return <StateCard title="Yükleniyor…" isLoading />;
   const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
+  const cardId = card.id;
+
+  function askLogout() {
+    confirm({
+      title: `${name} için bütün oturumlar kapatılsın mı?`,
+      description: 'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
+      actionLabel: 'Oturumları kapat',
+      onConfirm: async () => {
+        await identityApi.logoutUser(cardId);
+        notify.success('Oturumlar kapatıldı');
+      },
+      failure: 'Oturumlar kapatılamadı',
+    });
+  }
+
+  const removeRole = canWrite
+    ? (role: ClientRole) =>
+        confirm({
+          title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
+          description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider. Kişi bu yetkiyi sürdürecekse önce rolü taşıyan gruba ekle.`,
+          actionLabel: 'Rolü kaldır',
+          onConfirm: async () => {
+            await identityApi.removeExtraRole(cardId, role);
+            notify.success('Rol kaldırıldı');
+            await load();
+          },
+          failure: 'Rol kaldırılamadı',
+        })
+    : undefined;
+
+  const saveProfile = canWrite
+    ? (patch: UserProfilePatch) =>
+        change(
+          () => identityApi.updateUser(cardId, patch),
+          'Profil kaydedildi',
+          'Profil kaydedilemedi',
+        )
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -107,55 +151,11 @@ export default function UserDetailPage() {
         card={card}
         canEditProfile={canWrite}
         canReadFull={can('user.readFull')}
-        onSaveProfile={
-          canWrite
-            ? (patch) =>
-                change(
-                  () => identityApi.updateUser(card.id, patch),
-                  'Profil kaydedildi',
-                  'Profil kaydedilemedi',
-                )
-            : undefined
-        }
+        onSaveProfile={saveProfile}
         onAddGroup={canAddGroup ? () => void openGroups() : undefined}
-        onRemoveRole={
-          canWrite
-            ? (role) =>
-                confirm({
-                  title: `${role.role} rolü ${name} kişisinden kaldırılsın mı?`,
-                  description: `${role.clientId} uygulamasında bu rolün verdiği yetkiler gider. Kişi bu yetkiyi sürdürecekse önce rolü taşıyan gruba ekle.`,
-                  actionLabel: 'Rolü kaldır',
-                  onConfirm: async () => {
-                    await identityApi.removeExtraRole(card.id, role);
-                    notify.success('Rol kaldırıldı');
-                    await load();
-                  },
-                  failure: 'Rol kaldırılamadı',
-                })
-            : undefined
-        }
+        onRemoveRole={removeRole}
+        onLogout={canWrite ? askLogout : undefined}
       />
-      {canWrite ? (
-        <SaveButton
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `${name} için bütün oturumlar kapatılsın mı?`,
-              description:
-                'Kişi açık olduğu her yerden çıkış yapar ve yeniden giriş yapması gerekir.',
-              actionLabel: 'Oturumları kapat',
-              onConfirm: async () => {
-                await identityApi.logoutUser(card.id);
-                notify.success('Oturumlar kapatıldı');
-              },
-              failure: 'Oturumlar kapatılamadı',
-            })
-          }
-        >
-          <LogOut className="h-4 w-4" />
-          Oturumları kapat
-        </SaveButton>
-      ) : null}
       {confirmDialog}
       {canAddGroup ? (
         <PickerDrawer
