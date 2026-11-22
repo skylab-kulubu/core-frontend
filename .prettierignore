@@ -6,3 +6,5 @@ coverage
 playwright-report
 storybook-static
 
+# Vendored map files, kept as their source wrote them (public/map/README.md)
+public/map

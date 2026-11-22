@@ -1,6 +1,7 @@
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import type { CoreEvent } from '@/lib/api/events';
 import { toDatetimeLocal } from '@/lib/datetime-local';
+import { pointOf, pointPatch } from '@/lib/event-location';
 import {
   APPLY_SLOT_KEY,
   FEEDBACK_SLOT_KEY,
@@ -116,6 +117,8 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     name: ev.name,
     description: ev.description,
     location: ev.location,
+    locationAddress: ev.locationAddress ?? '',
+    ...pointPatch(pointOf(ev)),
     ownerTeam: ev.ownerTeam,
     formUrl: ev.formUrl || '',
     formAlias: ev.formAlias || '',
@@ -172,6 +175,8 @@ function normalizeDraft(parsed: Partial<EventFormState>): EventFormState {
     name: typeof parsed.name === 'string' ? parsed.name : base.name,
     description: typeof parsed.description === 'string' ? parsed.description : base.description,
     location: typeof parsed.location === 'string' ? parsed.location : base.location,
+    locationAddress: typeof parsed.locationAddress === 'string' ? parsed.locationAddress : '',
+    ...pointPatch(pointOf(parsed as EventFormState)),
     ownerTeam: typeof parsed.ownerTeam === 'string' ? parsed.ownerTeam : base.ownerTeam,
     formSlots: formSlots.length ? formSlots : [emptyApplySlot()],
     feedbackSlot:
