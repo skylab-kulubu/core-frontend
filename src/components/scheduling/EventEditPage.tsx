@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useFormState, useWatch } from 'react-hook-form';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
@@ -20,9 +21,16 @@ export function EventEditPage() {
   const router = useRouter();
   const { event, canMutate, editor } = useEventWorkspace();
   const { form } = editor;
-  const value = form.watch('event');
-  const dirty = form.formState.isDirty;
-  const saving = form.formState.isSubmitting;
+  // Subscribed here, not in the workspace: the page must redraw when load() resets the form
+  const value = useWatch({ control: form.control, name: 'event' });
+  const {
+    isDirty: dirty,
+    isSubmitting: saving,
+    isSubmitted,
+    errors,
+  } = useFormState({
+    control: form.control,
+  });
   const guard = useUnsavedChanges(dirty && !saving);
   const overview = eventTabHref(event.id);
 
@@ -40,7 +48,7 @@ export function EventEditPage() {
   }
   if (!editor.ready) return <StateCard title="Yükleniyor…" isLoading />;
 
-  const issue = form.formState.errors.event?.message;
+  const issue = errors.event?.message;
 
   return (
     <>
@@ -65,7 +73,7 @@ export function EventEditPage() {
           onChange={(next) =>
             form.setValue('event', next, {
               shouldDirty: true,
-              shouldValidate: form.formState.isSubmitted,
+              shouldValidate: isSubmitted,
             })
           }
           ownerOptions={editor.ownerOptions}
