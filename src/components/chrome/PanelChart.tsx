@@ -1,10 +1,31 @@
 'use client';
 
-import { BarList } from '@skylab-kulubu/skylcn-ui';
-import { BarChart as Bars, DonutChart } from '@skylab-kulubu/skylcn-ui/charts';
+import { BarList, Skeleton } from '@skylab-kulubu/skylcn-ui';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { NamedCount } from '@/lib/ozet-stats';
+
+// The chart library (recharts, ~110 KB gzip) loads only on a page that draws a chart, after the
+// page itself; until then a box of the chart's height keeps the layout still. Pages that import
+// only SectionHeading or MetricCard from here no longer carry it.
+const Bars = dynamic(() => import('@skylab-kulubu/skylcn-ui/charts').then((m) => m.BarChart), {
+  ssr: false,
+  loading: () => <ChartPlaceholder height={120} />,
+});
+const DonutChart = dynamic(
+  () => import('@skylab-kulubu/skylcn-ui/charts').then((m) => m.DonutChart),
+  { ssr: false, loading: () => <ChartPlaceholder height={176} /> },
+);
+
+function ChartPlaceholder({ height }: { height: number }) {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="w-full" style={{ height }} />
+    </div>
+  );
+}
 
 /** A small column chart of counts per label, such as events per month. */
 export function BarChart({
