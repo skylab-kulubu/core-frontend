@@ -237,7 +237,8 @@ describe('AdminSearch', () => {
     expect(search).toHaveValue('');
     await keyboard.type(search, 'kut');
     expect(await screen.findByRole('option', { name: /Kutay Yılmaz/ })).toBeInTheDocument();
-    expect(identityApi.listUsers).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(identityApi.listUsers).toHaveBeenCalledTimes(2));
+    expect(identityApi.listUsers).toHaveBeenLastCalledWith('kut');
   });
 
   it('offers the door only to whoever has a door to staff (not DK)', async () => {
