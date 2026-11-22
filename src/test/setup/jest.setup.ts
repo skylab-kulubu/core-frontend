@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { MotionGlobalConfig } from 'motion/react';
+import { forgetAccessToken } from '@/lib/auth/access-token';
 
 // React asks for this flag before it lets state updates run through act(). Testing
 // Library sets it only from its main entry point; rtl.tsx imports the '/pure'
@@ -29,3 +30,6 @@ if (typeof window !== 'undefined') {
     Element.prototype.scrollIntoView = () => undefined;
   }
 }
+
+// The page keeps the access token in memory (access-token.ts); each test starts without one
+afterEach(() => forgetAccessToken());

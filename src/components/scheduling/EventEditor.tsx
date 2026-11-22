@@ -63,6 +63,8 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
+  /** Said at the top of a section, such as choices that could not be loaded. */
+  notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
 };
 
 /** The editor's sections in page order, for the jump list beside the form. */
@@ -164,6 +166,7 @@ export function EventEditor({
   returnTo,
   onLeaveToSkyforms,
   formInUse,
+  notices = {},
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -188,6 +191,7 @@ export function EventEditor({
   return (
     <div className="space-y-10">
       <EditorSection id="temel" title="Temel bilgiler">
+        {notices.temel}
         <label className="block space-y-1">
           <FieldLabel>Ad</FieldLabel>
           <Field
@@ -241,22 +245,23 @@ export function EventEditor({
         />
       </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
+        {notices.zaman}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1">
-            <FieldLabel>Başlangıç</FieldLabel>
-            <DatePicker
-              value={value.startDate ?? ''}
-              onChange={(startDate) => patch({ startDate })}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Bitiş</FieldLabel>
-            <DatePicker value={value.endDate ?? ''} onChange={(endDate) => patch({ endDate })} />
-          </label>
+          <DatePicker
+            label="Başlangıç"
+            value={value.startDate ?? ''}
+            onChange={(startDate) => patch({ startDate })}
+          />
+          <DatePicker
+            label="Bitiş"
+            value={value.endDate ?? ''}
+            onChange={(endDate) => patch({ endDate })}
+          />
         </div>
         <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
       </EditorSection>
       <EditorSection id="basvuru" title="Başvuru ve form">
+        {notices.basvuru}
         <EventFormSlots
           slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
           eventName={value.name}
@@ -306,6 +311,7 @@ export function EventEditor({
         </div>
       </EditorSection>
       <EditorSection id="bilet" title="Bilet ve kapı">
+        {notices.bilet}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1">
             <FieldLabel>Kapasite</FieldLabel>
@@ -316,13 +322,11 @@ export function EventEditor({
               onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
             />
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Son başvuru</FieldLabel>
-            <DatePicker
-              value={value.registrationClosesAt ?? ''}
-              onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
-            />
-          </label>
+          <DatePicker
+            label="Son başvuru"
+            value={value.registrationClosesAt ?? ''}
+            onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
+          />
         </div>
         {assignDoorStaff ? (
           <div className="space-y-2">
@@ -400,6 +404,7 @@ export function EventEditor({
         ) : null}
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
+        {notices.sertifika}
         <label className="block space-y-1">
           <FieldLabel>Sertifika kuralı</FieldLabel>
           <Select
@@ -432,6 +437,7 @@ export function EventEditor({
         ) : null}
       </EditorSection>
       <EditorSection id="yayin" title="Görünürlük ve yayın">
+        {notices.yayin}
         {showSeason ? (
           <label className="block space-y-1">
             <FieldLabel>Sezon</FieldLabel>

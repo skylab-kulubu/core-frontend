@@ -1,254 +1,349 @@
 'use client';
 
-import { useEffect } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, X } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { ActionButton } from '@/components/chrome/ActionButton';
-import { Field } from '@/components/chrome/Field';
-import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
-import { ListPanel } from '@/components/chrome/ListPanel';
-import { SectionHeading } from '@/components/chrome/PanelChart';
-import { SaveButton } from '@/components/chrome/SaveButton';
+import { Badge, Button, Card, Notice } from '@skylab-kulubu/skylcn-ui';
+import { ChevronRight, LogOut, Pencil, Plus, X } from 'lucide-react';
+import Link from 'next/link';
+import { useState, type ReactNode } from 'react';
+import { Avatar } from '@/components/chrome/Avatar';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { PageHeader } from '@/components/layout/PageHeader';
 import type { ClientRole, UserCard, UserProfilePatch } from '@/lib/api/identity';
-import { listStatus } from '@/lib/list-status';
 import { roleKey } from '@/lib/picker';
+import { profilePictureSrc } from '@/lib/profile-picture';
+import { groupTrail, rolesByApp } from '@/lib/user-directory';
+import { UserProfileForm } from './UserProfileForm';
 
-function dash(value: string | undefined): string {
-  const text = (value ?? '').trim();
-  return text || '—';
+type UserCardViewProps = {
+  card: UserCard;
+  canEditProfile?: boolean;
+  canReadFull?: boolean;
+  /** Saves the profile; false keeps the form open with what was typed. */
+  onSaveProfile?: (patch: UserProfilePatch) => boolean | void | Promise<boolean | void>;
+  /** Why the last profile save was refused, said beside its Kaydet. */
+  profileError?: string | null;
+  onAddGroup?: () => void;
+  onRemoveRole?: (role: ClientRole) => void;
+  onLogout?: () => void;
+  /** More buttons beside Düzenle and Oturumları kapat. */
+  actions?: ReactNode;
+  /** More subjects, each a CardSection, after Yetkiler. */
+  sections?: ReactNode;
+};
+
+/** One subject of the person card: a titled card with its own actions. */
+export function CardSection({
+  id,
+  title,
+  count,
+  actions,
+  className,
+  children,
+}: {
+  id?: string;
+  title: string;
+  count?: number;
+  actions?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card id={id} className={`space-y-3 p-4 ${className ?? ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-foreground text-sm font-semibold">
+          {title}
+          {count !== undefined ? (
+            <span className="text-subtle-foreground ml-1 font-normal tabular-nums">{count}</span>
+          ) : null}
+        </h2>
+        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+      </div>
+      {children}
+    </Card>
+  );
 }
 
-const profileSchema = z.object({
-  firstName: z.string().trim(),
-  lastName: z.string().trim(),
-  university: z.string().trim(),
-  faculty: z.string().trim(),
-  department: z.string().trim(),
-  linkedin: z.string().trim(),
-  phone: z.string().trim(),
-});
+function facts(card: UserCard, canReadFull?: boolean): { label: string; value: string }[] {
+  const dash = (value?: string) => (value ?? '').trim() || '—';
+  const rows = [
+    { label: 'Üniversite', value: dash(card.university) },
+    { label: 'Fakülte', value: dash(card.faculty) },
+    { label: 'Bölüm', value: dash(card.department) },
+    { label: 'LinkedIn', value: dash(card.linkedin) },
+  ];
+  if (canReadFull) rows.push({ label: 'Telefon', value: dash(card.phone) });
+  if (card.studentCardUid) rows.push({ label: 'Öğrenci kartı UID', value: card.studentCardUid });
+  return rows;
+}
 
-type ProfileForm = z.infer<typeof profileSchema>;
+function Facts({ rows }: { rows: { label: string; value: string }[] }) {
+  return (
+    <dl className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] content-start gap-x-4 gap-y-2 text-sm">
+      {rows.map((row) => (
+        <div key={row.label} className="contents">
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="text-secondary-foreground truncate">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
-export function UserCardView({
+function Trail({ path }: { path: string }) {
+  const parts = groupTrail(path);
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-sm">
+      {parts.map((part, index) => (
+        <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1">
+          {index ? <ChevronRight className="text-subtle-foreground size-3 shrink-0" /> : null}
+          <span
+            className={
+              index === parts.length - 1
+                ? 'text-foreground-strong truncate font-medium'
+                : 'text-muted-foreground truncate'
+            }
+          >
+            {part}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function GroupList({ card }: { card: UserCard }) {
+  const groups = card.groups ?? [];
+  if (!groups.length) return <p className="text-subtle-foreground text-sm">Grup yok</p>;
+  return (
+    <ul className="divide-border-subtle divide-y">
+      {groups.map((group) => (
+        <li key={group.id}>
+          <Link
+            href={`/groups/${encodeURIComponent(group.id)}`}
+            className="hover:bg-accent group/row -mx-2 flex items-center gap-2 rounded-md px-2 py-2"
+          >
+            <Trail path={group.path} />
+            <ChevronRight className="text-muted-foreground group-hover/row:text-skylab-300 ml-auto size-4 shrink-0" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RoleList({
   card,
-  canEditProfile,
-  canReadFull,
-  onSaveProfile,
-  onAddGroup,
   onRemoveRole,
 }: {
   card: UserCard;
-  canEditProfile?: boolean;
-  /** core's `user.readFull`: the card carries the phone and the student card UID. */
-  canReadFull?: boolean;
-  onSaveProfile?: (patch: UserProfilePatch) => void | Promise<void>;
-  onAddGroup?: () => void;
   onRemoveRole?: (role: ClientRole) => void;
 }) {
-  const groups = card.groups ?? [];
-  const inheritedRoles = card.inheritedRoles ?? [];
-  const extraRoles = card.extraRoles ?? [];
-  const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim();
-  const profileDefaults = {
-    firstName: card.firstName ?? '',
-    lastName: card.lastName ?? '',
-    university: card.university ?? '',
-    faculty: card.faculty ?? '',
-    department: card.department ?? '',
-    linkedin: card.linkedin ?? '',
-    phone: card.phone ?? '',
-  };
-  const {
-    register,
-    reset,
-    handleSubmit,
-    formState: { isSubmitting },
-  } = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: profileDefaults,
-  });
+  const inherited = rolesByApp(card.inheritedRoles ?? []);
+  const extra = card.extraRoles ?? [];
+  return (
+    <div className="space-y-4">
+      {inherited.length ? (
+        <ul aria-label="Gruptan gelen roller" className="space-y-2">
+          {inherited.map((entry) => (
+            <li key={entry.app} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted-foreground w-24 shrink-0 text-xs">{entry.app}</span>
+              {entry.roles.map((role) => (
+                <Badge key={role} tone="neutral">
+                  {role}
+                </Badge>
+              ))}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-subtle-foreground text-sm">Gruptan gelen rol yok</p>
+      )}
+      {extra.length ? (
+        <Notice tone="warning" title={`Doğrudan rol: ${extra.length}`}>
+          <ul aria-label="Doğrudan roller" className="mt-2 space-y-1.5">
+            {extra.map((role) => (
+              <li key={roleKey(role)} className="flex items-center gap-2">
+                <span className="text-muted-foreground w-24 shrink-0 text-xs">{role.clientId}</span>
+                <Badge tone="warning">{role.role}</Badge>
+                {onRemoveRole ? (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="ml-auto"
+                    onClick={() => onRemoveRole(role)}
+                  >
+                    <X className="size-3.5" />
+                    Kaldır
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Notice>
+      ) : null}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    reset(profileDefaults);
-  }, [card, reset]);
+function Count({
+  label,
+  value,
+  href,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  href?: string;
+  tone?: 'warning';
+  onClick?: () => void;
+}) {
+  const body = (
+    <>
+      <span className="text-2xs text-subtle-foreground font-medium">{label}</span>
+      <span
+        className={`text-xl leading-none font-semibold tabular-nums ${
+          tone === 'warning' && value ? 'text-warning' : 'text-foreground-strong'
+        }`}
+      >
+        {value}
+      </span>
+    </>
+  );
+  const className =
+    'bg-card border-border-subtle hover:border-border-strong flex flex-col gap-1.5 rounded-lg border p-3 text-left transition-colors';
+  if (href)
+    return (
+      <a href={href} className={className}>
+        {body}
+      </a>
+    );
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {body}
+    </button>
+  );
+}
+
+function Header({
+  card,
+  actions,
+  size = 'lg',
+}: {
+  card: UserCard;
+  actions?: ReactNode;
+  size?: 'lg' | 'md';
+}) {
+  const name = `${card.firstName ?? ''} ${card.lastName ?? ''}`.trim() || card.email;
+  return (
+    <div className="flex flex-wrap items-start gap-4">
+      <Avatar
+        name={name}
+        email={card.email}
+        src={profilePictureSrc(card)}
+        size={size}
+        className={size === 'lg' ? 'size-16 text-lg' : undefined}
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <h1 className="text-foreground-strong truncate text-xl font-semibold">{name}</h1>
+        <p className="text-muted-foreground truncate text-sm">{card.email}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {card.skyNumber ? <StatusChip kind="member" label={card.skyNumber} /> : null}
+          {card.schoolEmail ? <StatusChip kind="neutral" label={card.schoolEmail} /> : null}
+        </div>
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * The person card: who, then a card per subject (Profil, Gruplar, Yetkiler).
+ * More subjects come as their own cards through `sections`, more actions through `actions`.
+ */
+export function UserCardView(props: UserCardViewProps) {
+  const {
+    card,
+    canEditProfile,
+    canReadFull,
+    onSaveProfile,
+    onAddGroup,
+    onRemoveRole,
+    onLogout,
+    actions,
+    sections,
+    profileError,
+  } = props;
+  const [editing, setEditing] = useState(false);
+  const groups = card.groups ?? [];
+  const inherited = card.inheritedRoles ?? [];
+  const extra = card.extraRoles ?? [];
+  const save = onSaveProfile
+    ? async (patch: UserProfilePatch) => {
+        // A refused save keeps the form and what was typed; the reason shows at Kaydet
+        if ((await onSaveProfile(patch)) !== false) setEditing(false);
+      }
+    : undefined;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={name || card.email}
-        description={card.email}
-        meta={
+      <Header
+        card={card}
+        actions={
           <>
-            {card.skyNumber ? <StatusChip kind="member" label={card.skyNumber} /> : null}
-            {card.schoolEmail ? <StatusChip kind="neutral" label={card.schoolEmail} /> : null}
+            {canEditProfile && !editing ? (
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                <Pencil className="size-4" />
+                Düzenle
+              </Button>
+            ) : null}
+            {onLogout ? (
+              <Button size="sm" variant="outline" onClick={onLogout}>
+                <LogOut className="size-4" />
+                Oturumları kapat
+              </Button>
+            ) : null}
+            {actions}
           </>
         }
       />
-      <section className="space-y-3">
-        <SectionHeading title="Profil" />
-        {canEditProfile ? (
-          <form
-            className="grid max-w-md gap-3"
-            noValidate
-            onSubmit={handleSubmit(async (profile) => {
-              const patch: UserProfilePatch = {
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                university: profile.university,
-                faculty: profile.faculty,
-                department: profile.department,
-                linkedin: profile.linkedin,
-              };
-              if (card.phone !== undefined || profile.phone.trim() !== '') {
-                patch.phone = profile.phone;
-              }
-              await onSaveProfile?.(patch);
-            })}
+      <div className="grid grid-cols-3 gap-3">
+        <Count label="Grup" value={groups.length} href="#gruplar" />
+        <Count label="Rol" value={inherited.length} href="#yetkiler" />
+        <Count label="Doğrudan rol" value={extra.length} href="#yetkiler" tone="warning" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CardSection title="Profil" className="self-start">
+          {editing && canEditProfile ? (
+            <UserProfileForm card={card} onSave={save} error={profileError} className="grid gap-3">
+              <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
+                Vazgeç
+              </Button>
+            </UserProfileForm>
+          ) : (
+            <Facts rows={facts(card, canReadFull)} />
+          )}
+        </CardSection>
+        <div className="space-y-4">
+          <CardSection
+            id="gruplar"
+            title="Gruplar"
+            count={groups.length}
+            actions={
+              onAddGroup ? (
+                <Button size="xs" variant="outline" onClick={onAddGroup}>
+                  <Plus className="size-3.5" />
+                  Grup ekle
+                </Button>
+              ) : null
+            }
           >
-            <label className="block space-y-1">
-              <FieldLabel>Ad</FieldLabel>
-              <Field {...register('firstName')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>Soyad</FieldLabel>
-              <Field {...register('lastName')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>Üniversite</FieldLabel>
-              <Field {...register('university')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>Fakülte</FieldLabel>
-              <Field {...register('faculty')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>Bölüm</FieldLabel>
-              <Field {...register('department')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>LinkedIn</FieldLabel>
-              <Field {...register('linkedin')} />
-            </label>
-            <label className="block space-y-1">
-              <FieldLabel>Telefon</FieldLabel>
-              <Field {...register('phone')} />
-            </label>
-            {card.studentCardUid ? (
-              <label className="block space-y-1">
-                <FieldLabel>Öğrenci kartı UID</FieldLabel>
-                <Field value={card.studentCardUid} readOnly />
-              </label>
-            ) : null}
-            <SaveButton disabled={isSubmitting}>
-              {isSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
-            </SaveButton>
-          </form>
-        ) : (
-          <dl className="grid max-w-md gap-3">
-            <div className="space-y-1">
-              <FieldLabel>Üniversite</FieldLabel>
-              <p className="text-secondary-foreground text-sm">{dash(card.university)}</p>
-            </div>
-            <div className="space-y-1">
-              <FieldLabel>Fakülte</FieldLabel>
-              <p className="text-secondary-foreground text-sm">{dash(card.faculty)}</p>
-            </div>
-            <div className="space-y-1">
-              <FieldLabel>Bölüm</FieldLabel>
-              <p className="text-secondary-foreground text-sm">{dash(card.department)}</p>
-            </div>
-            <div className="space-y-1">
-              <FieldLabel>LinkedIn</FieldLabel>
-              <p className="text-secondary-foreground text-sm">{dash(card.linkedin)}</p>
-            </div>
-            {canReadFull ? (
-              <div className="space-y-1">
-                <FieldLabel>Telefon</FieldLabel>
-                <p className="text-secondary-foreground text-sm">{dash(card.phone)}</p>
-              </div>
-            ) : null}
-            {card.studentCardUid ? (
-              <div className="space-y-1">
-                <FieldLabel>Öğrenci kartı UID</FieldLabel>
-                <p className="text-secondary-foreground text-sm">{card.studentCardUid}</p>
-              </div>
-            ) : null}
-          </dl>
-        )}
-      </section>
-      <section className="space-y-2">
-        <SectionHeading
-          title="Gruplar"
-          meta={`${groups.length} grup`}
-          actions={
-            onAddGroup ? (
-              <ActionButton icon={Plus} variant="primary" label="Grup ekle" onClick={onAddGroup} />
-            ) : null
-          }
-        />
-        <ListPanel
-          status={listStatus({
-            loading: false,
-            rowCount: groups.length,
-            emptyMessage: 'Grup yok',
-          })}
-        >
-          {groups.map((g) => (
-            <ListItem key={g.id} href={`/groups/${encodeURIComponent(g.id)}`} title={g.path} />
-          ))}
-        </ListPanel>
-      </section>
-      <section className="space-y-2">
-        <SectionHeading title="Gruptan gelen roller" meta={`${inheritedRoles.length} rol`} />
-        <ListPanel
-          status={listStatus({
-            loading: false,
-            rowCount: inheritedRoles.length,
-            emptyMessage: 'Miras rol yok',
-          })}
-        >
-          {inheritedRoles.map((r) => (
-            <ListItem key={roleKey(r)} title={r.role} subtitle={r.clientId} />
-          ))}
-        </ListPanel>
-      </section>
-      <section className="space-y-2">
-        <SectionHeading title="Doğrudan roller" meta={`${extraRoles.length} rol`} />
-        <p className="text-3xs text-subtle-foreground">
-          Yetkiler rol grupları ve ekip grupları üzerinden verilir; kişiye doğrudan rol verilmez. Bu
-          roller bir gruptan verilmeli: kişiyi rolü taşıyan gruba (ör. /ROLLER altındaki rol grubu)
-          ekle, sonra buradan kaldır.
-        </p>
-        <ListPanel
-          status={listStatus({
-            loading: false,
-            rowCount: extraRoles.length,
-            emptyMessage: 'Doğrudan rol yok',
-          })}
-        >
-          {extraRoles.map((r) => (
-            <ListItem
-              key={roleKey(r)}
-              title={r.role}
-              subtitle={r.clientId}
-              trailing={
-                <span className="flex items-center gap-2">
-                  <StatusChip kind="pending" label="Taşınacak" />
-                  {onRemoveRole ? (
-                    <ActionButton icon={X} label="Kaldır" onClick={() => onRemoveRole(r)} />
-                  ) : null}
-                </span>
-              }
-            />
-          ))}
-        </ListPanel>
-      </section>
+            <GroupList card={card} />
+          </CardSection>
+          <CardSection id="yetkiler" title="Yetkiler">
+            <RoleList card={card} onRemoveRole={onRemoveRole} />
+          </CardSection>
+          {sections}
+        </div>
+      </div>
     </div>
   );
 }

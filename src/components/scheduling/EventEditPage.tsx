@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useFormState, useWatch } from 'react-hook-form';
+import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
@@ -90,6 +91,14 @@ export function EventEditPage() {
           ]}
           returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           formInUse={editor.inUse}
+          notices={{
+            temel: editor.optionsFailed.teams ? (
+              <LoadError title="Ekipler yüklenemedi" onRetry={editor.reloadOptions} />
+            ) : null,
+            yayin: editor.optionsFailed.seasons ? (
+              <LoadError title="Sezonlar yüklenemedi" onRetry={editor.reloadOptions} />
+            ) : null,
+          }}
         />
       </EventFormLayout>
       {guard.dialog}

@@ -363,22 +363,20 @@ export default function EventProgramPage() {
               </span>
             ) : null}
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Başlangıç</FieldLabel>
-            <Controller
-              control={dayForm.control}
-              name="startDate"
-              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Bitiş</FieldLabel>
-            <Controller
-              control={dayForm.control}
-              name="endDate"
-              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
-            />
-          </label>
+          <Controller
+            control={dayForm.control}
+            name="startDate"
+            render={({ field }) => (
+              <DatePicker label="Başlangıç" value={field.value} onChange={field.onChange} />
+            )}
+          />
+          <Controller
+            control={dayForm.control}
+            name="endDate"
+            render={({ field }) => (
+              <DatePicker label="Bitiş" value={field.value} onChange={field.onChange} />
+            )}
+          />
           {dayError ? (
             <p role="alert" className="text-destructive text-sm">
               {dayError}
@@ -493,22 +491,20 @@ export default function EventProgramPage() {
             <FieldLabel>Açıklama</FieldLabel>
             <TextArea rows={3} {...sessionForm.register('description')} />
           </label>
-          <label className="block space-y-1">
-            <FieldLabel>Başlangıç</FieldLabel>
-            <Controller
-              control={sessionForm.control}
-              name="startTime"
-              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>Bitiş</FieldLabel>
-            <Controller
-              control={sessionForm.control}
-              name="endTime"
-              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
-            />
-          </label>
+          <Controller
+            control={sessionForm.control}
+            name="startTime"
+            render={({ field }) => (
+              <DatePicker label="Başlangıç" value={field.value} onChange={field.onChange} />
+            )}
+          />
+          <Controller
+            control={sessionForm.control}
+            name="endTime"
+            render={({ field }) => (
+              <DatePicker label="Bitiş" value={field.value} onChange={field.onChange} />
+            )}
+          />
           <label className="block space-y-1">
             <FieldLabel>Tür</FieldLabel>
             <Select {...sessionForm.register('sessionType')}>

@@ -174,8 +174,8 @@ describe('UserCardView', () => {
     render(<UserCardView card={card} canReadFull />);
     expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
-    expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Gruptan gelen rol yok')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Doğrudan roller' })).not.toBeInTheDocument();
     expect(screen.getByText('Telefon').closest('div')).toHaveTextContent('—');
     expect(screen.queryByText('Öğrenci kartı UID')).not.toBeInTheDocument();
   });
@@ -208,11 +208,8 @@ describe('UserCardView', () => {
         onRemoveRole={onRemoveRole}
       />,
     );
-    const section = screen.getByText('Doğrudan roller').closest('section') as HTMLElement;
-    expect(section).toHaveTextContent('forms:admin');
-    expect(section).toHaveTextContent('Taşınacak');
-    expect(section).toHaveTextContent('Yetkiler rol grupları ve ekip grupları üzerinden verilir');
-    expect(section).toHaveTextContent('bir gruptan verilmeli');
+    expect(screen.getByRole('list', { name: 'Doğrudan roller' })).toHaveTextContent('forms:admin');
+    expect(screen.getByText('Doğrudan rol: 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kaldır' })).toBeInTheDocument();
   });
@@ -231,12 +228,11 @@ describe('UserCardView', () => {
         }}
       />,
     );
-    expect(screen.getByText('Gruptan gelen roller').closest('section')).toHaveTextContent(
-      'skyforms:access',
-    );
-    expect(screen.getByText('Doğrudan roller').closest('section')).toHaveTextContent(
-      'skyforms:form:manage',
-    );
+    const inherited = screen.getByRole('list', { name: 'Gruptan gelen roller' });
+    const direct = screen.getByRole('list', { name: 'Doğrudan roller' });
+    expect(inherited).toHaveTextContent('skyforms:access');
+    expect(inherited).not.toHaveTextContent('skyforms:form:manage');
+    expect(direct).toHaveTextContent('skyforms:form:manage');
   });
 
   it('shows school email when present', () => {
@@ -272,8 +268,8 @@ describe('UserCardView', () => {
       />,
     );
     expect(screen.getByText('Grup yok')).toBeInTheDocument();
-    expect(screen.getByText('Miras rol yok')).toBeInTheDocument();
-    expect(screen.getByText('Doğrudan rol yok')).toBeInTheDocument();
+    expect(screen.getByText('Gruptan gelen rol yok')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Doğrudan roller' })).not.toBeInTheDocument();
   });
 
   it('shows sky number when present', () => {
@@ -344,9 +340,11 @@ describe('UserCardView', () => {
         onSaveProfile={onSaveProfile}
       />,
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
     const university = screen.getByLabelText('Üniversite');
     await userEvent.clear(university);
     await userEvent.type(university, 'İTÜ');
+    expect(screen.getByLabelText('Öğrenci kartı UID')).toHaveAttribute('readOnly');
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(onSaveProfile).toHaveBeenCalledTimes(1);
     const patch = onSaveProfile.mock.calls[0][0];
@@ -355,7 +353,6 @@ describe('UserCardView', () => {
     expect(patch).not.toHaveProperty('studentCardUid');
     expect(patch).not.toHaveProperty('password');
     expect(patch).not.toHaveProperty('phone');
-    expect(screen.getByLabelText('Öğrenci kartı UID')).toHaveAttribute('readOnly');
   });
 
   it('clears phone only when the operator emptied a value that was on the card', async () => {
@@ -376,6 +373,7 @@ describe('UserCardView', () => {
         onSaveProfile={onSaveProfile}
       />,
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
     await userEvent.clear(screen.getByLabelText('Telefon'));
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ phone: '' }));
@@ -398,6 +396,7 @@ describe('UserCardView', () => {
         onSaveProfile={onSaveProfile}
       />,
     );
+    await userEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
     await userEvent.clear(screen.getByLabelText('Ad'));
     await userEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(onSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ firstName: '' }));

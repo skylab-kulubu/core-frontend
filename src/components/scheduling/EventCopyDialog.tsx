@@ -173,10 +173,7 @@ export function EventCopyDialog({
               <FieldLabel>Ad</FieldLabel>
               <Field value={name} onChange={(e) => setName(e.target.value)} required />
             </label>
-            <label className="block space-y-1">
-              <FieldLabel>Başlangıç</FieldLabel>
-              <DatePicker value={start} onChange={setStart} aria-label="Başlangıç" />
-            </label>
+            <DatePicker label="Başlangıç" value={start} onChange={setStart} />
             {end ? (
               <p className="text-2xs text-subtle-foreground">Bitiş: {formatDatetimeLabel(end)}</p>
             ) : null}

@@ -1,4 +1,4 @@
-import { noteAccessToken } from '@/lib/auth/session-renewal';
+import { accessToken, forgetAccessToken, isKeptAccessToken } from '@/lib/auth/access-token';
 
 export const CORE_API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(
   /\/+$/,
@@ -56,28 +56,46 @@ export function problemFromResponse(status: number, text: string): ProblemError 
   return new ProblemError(status, title, { code, detail, fields });
 }
 
-/** The session's access token for core, read through this app's token route. */
+/** The session's access token for core, Forms and the CMS (kept in memory, access-token.ts). */
 export async function bearer(): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-  const res = await fetch('/api/auth/token', { credentials: 'include' });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { token?: string };
-  const token = body.token ?? null;
-  noteAccessToken(token);
-  return token;
+  return accessToken();
+}
+
+/**
+ * Sends a request with the session's token. A 401 for a token the page kept (core may have ended
+ * the session or the token may have been replaced) drops it and tries once more with a new read;
+ * core refuses a request without a valid token before doing anything, so the retry repeats nothing.
+ */
+export async function fetchWithToken(
+  url: string,
+  init: RequestInit,
+  headersFor: (token: string | null) => Record<string, string>,
+): Promise<Response> {
+  const token = await bearer();
+  const res = await fetch(url, { ...init, headers: headersFor(token) });
+  if (res.status !== 401 || !isKeptAccessToken(token)) return res;
+  forgetAccessToken(token);
+  const again = await bearer();
+  if (!again || again === token) return res;
+  return fetch(url, { ...init, headers: headersFor(again) });
 }
 
 export async function coreFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await bearer();
-  const headers: Record<string, string> = {};
-  if (typeof init.body === 'string') {
-    headers['Content-Type'] = 'application/json';
-  }
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (init.headers) {
-    Object.assign(headers, init.headers as Record<string, string>);
-  }
-  const res = await fetch(`${CORE_API_URL}${path}`, { ...init, credentials: 'include', headers });
+  const res = await fetchWithToken(
+    `${CORE_API_URL}${path}`,
+    { ...init, credentials: 'include' },
+    (token) => {
+      const headers: Record<string, string> = {};
+      if (typeof init.body === 'string') {
+        headers['Content-Type'] = 'application/json';
+      }
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (init.headers) {
+        Object.assign(headers, init.headers as Record<string, string>);
+      }
+      return headers;
+    },
+  );
   if (res.status === 204) {
     return undefined as T;
   }
@@ -90,14 +108,14 @@ export async function coreFetch<T>(path: string, init: RequestInit = {}): Promis
 }
 
 export async function coreFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
-  const token = await bearer();
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${CORE_API_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
-  });
+  const res = await fetchWithToken(
+    `${CORE_API_URL}${path}`,
+    { ...init, credentials: 'include' },
+    (token) => ({
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers as Record<string, string> | undefined),
+    }),
+  );
   if (!res.ok) {
     throw problemFromResponse(res.status, await res.text());
   }

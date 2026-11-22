@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { isJwtExpired } from '@/lib/auth/jwt-expiry';
+import { isJwtExpired, jwtSecondsLeft } from '@/lib/auth/jwt-expiry';
 import { RefreshTokenRejectedError } from '@/lib/auth/oauth2';
 import { refreshSession } from '@/lib/auth/refresh-session';
 import {
@@ -9,6 +9,11 @@ import {
   readSessionAccessToken,
   readSessionRefreshToken,
 } from '@/lib/auth/session-cookies';
+
+/** The token and how many seconds it has left, so the page reuses it until then (access-token.ts). */
+function tokenAnswer(token: string) {
+  return NextResponse.json({ token, expiresIn: jwtSecondsLeft(token) });
+}
 
 export async function GET() {
   try {
@@ -20,7 +25,7 @@ export async function GET() {
     const token = readSessionAccessToken(cookieStore);
 
     if (token && !isJwtExpired(token)) {
-      return NextResponse.json({ token });
+      return tokenAnswer(token);
     }
 
     // Access token yoksa refresh token ile sessizce yenilemeyi dene.
@@ -33,7 +38,7 @@ export async function GET() {
       // Keycloak's ID token, not the cookie, says when the admin signed in (refresh-session.ts).
       const accessToken = await refreshSession(cookieStore, refreshToken);
       if (!accessToken) return NextResponse.json({ token: null }, { status: 401 });
-      return NextResponse.json({ token: accessToken });
+      return tokenAnswer(accessToken);
     } catch (error) {
       if (error instanceof RefreshTokenRejectedError) clearSessionCookies(cookieStore);
       return NextResponse.json({ token: null }, { status: 401 });
