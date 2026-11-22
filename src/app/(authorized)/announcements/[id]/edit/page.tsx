@@ -6,6 +6,7 @@ import { ShieldAlert, Trash2 } from 'lucide-react';
 import { StateCard } from '@/components/chrome/StateCard';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { NewsForm } from '../../NewsForm';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
@@ -36,6 +37,7 @@ export default function EditAnnouncementPage() {
       })
       .catch((err) => setError(coreProblemMessage(err, 'Duyuru yüklenemedi')));
   }, [privileged, slug]);
+  useChromeCrumbName(`/announcements/${params.id}`, item ? item.data?.title || item.slug : null);
 
   if (!privileged) {
     return (
