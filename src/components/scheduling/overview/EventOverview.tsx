@@ -261,7 +261,7 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
       {ws.canTickets && o.status !== 'draft' ? (
         <section aria-label="İzleme" className="space-y-3">
           <AttendanceTiles o={o} />
-          <RosterCharts tickets={ws.tickets} />
+          {ws.tickets.length ? <RosterCharts tickets={ws.tickets} /> : null}
         </section>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -271,6 +271,9 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
             tickets={ws.tickets}
             ended={o.status === 'ended'}
           />
+          {ws.canTickets && o.status !== 'draft' ? (
+            <SessionAttendance sessions={ws.sessions} tickets={ws.tickets} />
+          ) : null}
         </ObjectCard>
         {ws.canTickets ? (
           <ObjectCard title="Son kayıtlar" href={o.href('participants')} linkLabel="Tümü">
