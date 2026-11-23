@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { ticketsApi } from '@/lib/api/tickets';
 import type { SidebarNavigationContext } from '@/lib/navigation/sidebar-nav';
+import { showsManagementTerms } from '@/lib/management-terms';
 import { siteEditLinks } from '@/lib/site-edit-links';
 import type { UserDto } from '@/types/api';
 
@@ -29,6 +30,8 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
   // Harita bölgeleri only once core says the person holds media:manage (ADMIN, YK)
   const mapRegionsVisible =
     capabilities.status === 'ready' && capabilities.data.can?.['media.delete'] === true;
+  // Dönem devri only once core says the person reads Groups or leads a Team
+  const managementTermsVisible = showsManagementTerms(capabilities);
   // Ekiplerim only once core names a Team the person leads (delegation on)
   const managedTeamsVisible =
     capabilities.status === 'ready' && (capabilities.data.managedTeams?.length ?? 0) > 0;
@@ -50,6 +53,7 @@ export function useNavigationContext(user: UserDto): SidebarNavigationContext {
     hasDoorAssignment: doorEventIds.length > 0,
     appsVisible,
     managedTeamsVisible,
+    managementTermsVisible,
     subjectRequestsVisible,
     mapRegionsVisible,
     editSites,

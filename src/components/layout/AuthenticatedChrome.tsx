@@ -19,6 +19,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { ChromeCrumbNamesProvider, useChromeCrumbNames } from './chrome-crumb-names';
 import { EnvironmentBadge, EnvironmentStrip } from './EnvironmentStrip';
 import { UserMenu } from './UserMenu';
+import { ExpiredTermsBanner } from './ExpiredTermsBanner';
 import { useNavigationContext } from './use-navigation-context';
 
 type AuthenticatedChromeProps = Readonly<{
@@ -81,7 +82,12 @@ function SignedInChrome({ children, current }: { children: React.ReactNode; curr
   const pathname = usePathname() || '/dashboard';
   const navigationContext = useNavigationContext(current);
   // Inputs and selects at skylcn-ui's lg size: 14px text, the panel's body size
-  const page = <ControlSizeProvider size="lg">{children}</ControlSizeProvider>;
+  const page = (
+    <ControlSizeProvider size="lg">
+      <ExpiredTermsBanner />
+      {children}
+    </ControlSizeProvider>
+  );
 
   return (
     <NewEventProvider>

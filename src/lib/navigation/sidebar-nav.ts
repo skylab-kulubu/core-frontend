@@ -19,6 +19,8 @@ export type SidebarNavigationContext = Readonly<{
   appsVisible?: boolean;
   /** core's `managedTeams` is not empty: team delegation is on and the reader leads a Team. */
   managedTeamsVisible?: boolean;
+  /** core's `group.read` or a led Team: the management membership terms (Dönem devri). */
+  managementTermsVisible?: boolean;
   /** core's `subjectRequest.manage`: the KVKK md. 11 register (ADMIN and YK, never DK). */
   subjectRequestsVisible?: boolean;
   /**
@@ -94,6 +96,12 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     section: 'people',
     visibleWhen: ({ groups, context }) =>
       !isAdminOrYk(groups) && context.managedTeamsVisible === true,
+  },
+  {
+    href: '/management-memberships',
+    label: 'Dönem devri',
+    section: 'people',
+    visibleWhen: ({ context }) => context.managementTermsVisible === true,
   },
   {
     href: '/subject-requests',
