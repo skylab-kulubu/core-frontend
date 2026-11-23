@@ -130,7 +130,7 @@ describe('AuthenticatedChrome', () => {
       </AuthenticatedChrome>,
     );
 
-    await pointer.click(screen.getByRole('button', { name: 'Y K' }));
+    await pointer.click(screen.getByRole('button', { name: 'Hesap: Y K' }));
     await pointer.click(await screen.findByRole('menuitem', { name: 'Siteyi düzenle' }));
     expect(await screen.findByRole('menuitem', { name: 'ARTLAB' })).toHaveAttribute(
       'href',
@@ -148,7 +148,7 @@ describe('AuthenticatedChrome', () => {
 
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     const pointer = userEvent.setup();
-    await pointer.click(screen.getByRole('button', { name: 'Y K' }));
+    await pointer.click(screen.getByRole('button', { name: 'Hesap: Y K' }));
     await screen.findByRole('menuitem', { name: 'Hesap merkezi' });
     expect(screen.queryByRole('menuitem', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
   });
@@ -286,6 +286,6 @@ describe('AuthenticatedChrome', () => {
         <p>İçerik</p>
       </AuthenticatedChrome>,
     );
-    expect(await screen.findAllByRole('button', { name: 'Y K' })).toHaveLength(1);
+    expect(await screen.findAllByRole('button', { name: 'Hesap: Y K' })).toHaveLength(1);
   });
 });

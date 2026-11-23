@@ -45,7 +45,7 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={name}
+        aria-label={`Hesap: ${name}`}
         title={name}
         className="hover:bg-accent data-popup-open:bg-accent focus-visible:ring-ring grid size-8 shrink-0 place-items-center rounded-full outline-hidden focus-visible:ring-2"
       >

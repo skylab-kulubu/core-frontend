@@ -134,7 +134,13 @@ export function SearchTrigger({ variant = 'box' }: { variant?: 'box' | 'icon' })
   if (!open) return null;
   if (variant === 'icon') {
     return (
-      <Button variant="ghost" size="icon" onClick={open} aria-label="Ara">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={open}
+        aria-label="Ara"
+        aria-keyshortcuts="Control+K Meta+K"
+      >
         <Search />
       </Button>
     );
@@ -144,6 +150,7 @@ export function SearchTrigger({ variant = 'box' }: { variant?: 'box' | 'icon' })
       type="button"
       onClick={open}
       aria-label="Ara"
+      aria-keyshortcuts="Control+K Meta+K"
       className="border-border-subtle bg-card/60 text-subtle-foreground hover:border-border hover:text-secondary-foreground focus-visible:ring-ring flex h-7 w-full items-center gap-2 rounded-md border px-2.5 text-[13px] outline-hidden transition-colors focus-visible:ring-2"
     >
       <Search className="size-3.5 shrink-0" aria-hidden />

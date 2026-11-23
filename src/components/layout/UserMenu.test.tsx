@@ -23,7 +23,7 @@ const user: UserDto = {
 async function openMenu(editSites?: Array<{ href: string; label: string }>) {
   const pointer = userEvent.setup();
   render(<UserMenu user={user} editSites={editSites} />);
-  await pointer.click(screen.getByRole('button', { name: 'Deniz Aydın' }));
+  await pointer.click(screen.getByRole('button', { name: 'Hesap: Deniz Aydın' }));
   return pointer;
 }
 
