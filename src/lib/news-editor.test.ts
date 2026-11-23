@@ -4,6 +4,7 @@ import {
   bodyToHtml,
   dataFromForm,
   formFromData,
+  linkHref,
   parseTags,
   publishBlocker,
   sameNews,
@@ -59,6 +60,16 @@ describe('news editor', () => {
     const data = { title: 'T', body: '<p>b</p>', tags: ['x'], featured: true };
     expect(sameNews(formFromData(data), formFromData({ ...data }))).toBe(true);
     expect(sameNews(formFromData(data), formFromData({ ...data, title: 'U' }))).toBe(false);
+  });
+
+  it('gives a link typed without a scheme https://, and leaves the others to the editor', () => {
+    expect(linkHref(' ornek.com/a ')).toBe('https://ornek.com/a');
+    expect(linkHref('localhost:3000/x')).toBe('https://localhost:3000/x');
+    expect(linkHref('http://ornek.com')).toBe('http://ornek.com');
+    expect(linkHref('mailto:yk@ornek.com')).toBe('mailto:yk@ornek.com');
+    expect(linkHref('javascript:alert(1)')).toBe('javascript:alert(1)');
+    expect(linkHref('/etkinlikler')).toBe('/etkinlikler');
+    expect(linkHref('')).toBe('');
   });
 
   it('asks for a title and a body before publishing', () => {

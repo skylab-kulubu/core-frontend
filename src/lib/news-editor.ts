@@ -103,6 +103,21 @@ export function dataFromForm(form: NewsForm): NewsData {
   return data;
 }
 
+/**
+ * A link address as typed, made whole: "ornek.com" (or "ornek.com:8080/a") gets https://, so
+ * it does not become a link relative to the announcement's page. One with a scheme
+ * ("mailto:", "javascript:") or a site path ("/", "#") is left for the editor to allow or
+ * refuse.
+ */
+export function linkHref(raw: string): string {
+  const value = raw.trim();
+  if (!value || value.startsWith('/') || value.startsWith('#')) return value;
+  const scheme = /^[a-z][a-z0-9+.-]*:/i.exec(value);
+  // "host:port" is not a scheme
+  if (scheme && !/^\d/.test(value.slice(scheme[0].length))) return value;
+  return `https://${value}`;
+}
+
 /** Whether two forms would store the same announcement. */
 export function sameNews(a: NewsForm, b: NewsForm): boolean {
   return JSON.stringify(dataFromForm(a)) === JSON.stringify(dataFromForm(b));

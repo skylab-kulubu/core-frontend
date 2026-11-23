@@ -18,8 +18,9 @@ import {
   Undo2,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Field } from '@/components/chrome/Field';
+import { linkHref } from '@/lib/news-editor';
 
 /**
  * The same Tiptap set the CMS's own editor (inscribed SDK, use-rich-text-editor) uses, so a
@@ -180,6 +181,8 @@ export function RichTextEditor({
   const quiet = useRef(true);
   const [linkOpen, setLinkOpen] = useState(false);
   const [href, setHref] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const linkErrorId = useId();
   const editorProps = useMemo(
     () => ({
       attributes: {
@@ -226,15 +229,21 @@ export function RichTextEditor({
   function openLink() {
     if (!editor) return;
     setHref((editor.getAttributes('link').href as string | undefined) ?? '');
+    setLinkError(null);
     setLinkOpen(true);
   }
 
   function applyLink() {
     if (!editor) return;
-    const next = href.trim();
+    const next = linkHref(href);
     const chain = editor.chain().focus().extendMarkRange('link');
-    if (next) chain.setLink({ href: next }).run();
-    else chain.unsetLink().run();
+    if (!next) chain.unsetLink().run();
+    // The link extension refuses what it does not allow (javascript: and the like)
+    else if (!chain.setLink({ href: next }).run()) {
+      setLinkError('Bu adres bağlanamaz. https:// ile başlayan bir adres yaz.');
+      return;
+    }
+    setLinkError(null);
     setLinkOpen(false);
   }
 
@@ -248,8 +257,13 @@ export function RichTextEditor({
             placeholder="https://…"
             value={href}
             autoFocus
+            aria-invalid={Boolean(linkError)}
+            aria-describedby={linkError ? linkErrorId : undefined}
             className="min-w-48 flex-1"
-            onChange={(event) => setHref(event.target.value)}
+            onChange={(event) => {
+              setHref(event.target.value);
+              setLinkError(null);
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
@@ -265,6 +279,11 @@ export function RichTextEditor({
           >
             {href.trim() ? 'Bağla' : 'Bağlantıyı kaldır'}
           </button>
+          {linkError ? (
+            <p id={linkErrorId} role="alert" className="text-destructive w-full text-[13px]">
+              {linkError}
+            </p>
+          ) : null}
         </div>
       ) : null}
       <EditorContent editor={editor} />

@@ -7,6 +7,7 @@ import { Drawer } from '@/components/chrome/Drawer';
 import { mediaApi, type Media } from '@/lib/api/media';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
+import { useAppCan } from '@/lib/use-app-can';
 import { pickerMatch } from '@/lib/picker';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
@@ -57,6 +58,8 @@ export function CoverField({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // The library is core's media.list; who cannot read it only uploads
+  const canList = useAppCan(true)('media.list');
 
   async function upload(file: File | undefined) {
     if (!file) return;
@@ -101,16 +104,18 @@ export function CoverField({
           <Upload aria-hidden />
           {uploading ? 'Yükleniyor…' : value.trim() ? 'Değiştir' : 'Yükle'}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className={BUTTON_TEXT}
-          onClick={() => setPicking(true)}
-        >
-          <ImagePlus aria-hidden />
-          Kütüphaneden seç
-        </Button>
+        {canList ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={BUTTON_TEXT}
+            onClick={() => setPicking(true)}
+          >
+            <ImagePlus aria-hidden />
+            Kütüphaneden seç
+          </Button>
+        ) : null}
         {value.trim() ? (
           <Button
             type="button"

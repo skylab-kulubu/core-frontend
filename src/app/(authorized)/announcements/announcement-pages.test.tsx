@@ -4,6 +4,7 @@ import React from 'react';
 import EditAnnouncementPage from '@/app/(authorized)/announcements/[id]/edit/page';
 import NewAnnouncementPage from '@/app/(authorized)/announcements/new/page';
 import { AUTOSAVE_DELAY_MS } from '@/components/announcements/NewsEditor';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
@@ -32,6 +33,9 @@ jest.mock('@/lib/api/cms', () => ({
     savePendingDraft: jest.fn(),
     discardPendingDraft: jest.fn(),
   },
+}));
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
 }));
 jest.mock('@/lib/api/media', () => ({
   mediaApi: { upload: jest.fn(), list: jest.fn() },
@@ -82,7 +86,15 @@ beforeEach(() => {
   (newsApi.savePendingDraft as jest.Mock).mockResolvedValue(undefined);
   (newsApi.discardDraft as jest.Mock).mockResolvedValue(undefined);
   (newsApi.discardPendingDraft as jest.Mock).mockResolvedValue(undefined);
+  (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.list': true } });
 });
+
+/** Whether the browser would ask before the tab is closed. */
+function asksBeforeUnload(): boolean {
+  const event = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
 
 afterEach(() => {
   jest.useRealTimers();
@@ -205,6 +217,59 @@ describe('Edit announcement', () => {
     expect(await screen.findByDisplayValue('Bahar şenliği')).toBeInTheDocument();
   });
 
+  it('opens a draft as it was left: a summary and Öne çıkar cleared there stay cleared', async () => {
+    (newsApi.get as jest.Mock).mockResolvedValue({
+      ...item,
+      data: { ...item.data, summary: 'Kampüste', featured: true },
+      // The writer cleared both; the draft leaves empty fields out
+      draftData: { title: 'Bahar şenliği', body: '<p>Gel.</p>' },
+    });
+    render(<EditAnnouncementPage />);
+    expect(await screen.findByLabelText('Özet')).toHaveValue('');
+    expect(screen.getByRole('switch', { name: 'Öne çıkar' })).not.toBeChecked();
+    expect(screen.getByText('Yayınlanmamış değişiklik')).toBeInTheDocument();
+  });
+
+  it('publishes only after the autosave on its way has answered', async () => {
+    const user = typist();
+    let answer: () => void = () => undefined;
+    (newsApi.saveDraft as jest.Mock).mockReturnValue(
+      new Promise<void>((resolve) => {
+        answer = resolve;
+      }),
+    );
+    (newsApi.update as jest.Mock).mockResolvedValue(item);
+    render(<EditAnnouncementPage />);
+    await user.type(await screen.findByLabelText('Başlık'), '!');
+    await rest();
+    expect(newsApi.saveDraft).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Güncelle' }));
+    // A draft write landing after the publish would bring the cleared draft back
+    expect(newsApi.update).not.toHaveBeenCalled();
+    await act(async () => answer());
+    await waitFor(() =>
+      expect(newsApi.update).toHaveBeenCalledWith(
+        'bahar-senligi',
+        { title: 'Bahar şenliği!', body: '<p>Gel.</p>' },
+        3,
+      ),
+    );
+  });
+
+  it('keeps asking before leaving when autosave stopped for a moved announcement', async () => {
+    const user = typist();
+    (newsApi.saveDraft as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { fields: { reason: 'moved' } }),
+    );
+    render(<EditAnnouncementPage />);
+    await user.type(await screen.findByLabelText('Başlık'), '!');
+    await rest();
+    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0));
+    expect(screen.getByRole('button', { name: 'Güncelle' })).toBeDisabled();
+    // What was typed is saved nowhere: leaving still asks
+    expect(asksBeforeUnload()).toBe(true);
+  });
+
   it('says a version conflict in Turkish and keeps the text', async () => {
     const user = typist();
     (newsApi.update as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
@@ -271,6 +336,16 @@ describe('Edit announcement', () => {
 });
 
 describe('Cover', () => {
+  it('offers the media library only to who may list it', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.list': false } });
+    render(<NewAnnouncementPage />);
+    expect(await screen.findByLabelText('Kapak görseli dosyası')).toBeInTheDocument();
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(screen.queryByRole('button', { name: 'Kütüphaneden seç' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Yükle' })).toBeInTheDocument();
+  });
+
   it('uploads a cover and shows it whole', async () => {
     const user = typist();
     (mediaApi.upload as jest.Mock).mockResolvedValue({

@@ -54,10 +54,11 @@ export function NewsEditor({
 }) {
   const published = source.kind === 'edit' ? formFromData(source.item.data) : EMPTY_NEWS_FORM;
   const startDraft = source.kind === 'edit' ? source.item.draftData : source.draft;
+  // The draft alone: it is the whole announcement as last typed (dataFromForm), where an
+  // empty field is left out. Laid over the published data, a summary or Öne çıkar the writer
+  // had cleared would come back.
   const [form, setForm] = useState<NewsForm>(() =>
-    startDraft
-      ? formFromData({ ...(source.kind === 'edit' ? source.item.data : {}), ...startDraft })
-      : published,
+    startDraft ? formFromData(startDraft) : published,
   );
   const [tagsText, setTagsText] = useState(form.tags.join(', '));
   const [hasDraft, setHasDraft] = useState(Boolean(startDraft));
@@ -72,11 +73,15 @@ export function NewsEditor({
   const stored = useRef<NewsForm>(form);
   const slug = source.kind === 'edit' ? source.item.slug : null;
   const publishedRef = useRef(published);
+  // The autosave on its way, for Yayınla to wait for: a late draft write would bring back
+  // the draft that publishing has just cleared
+  const saving = useRef<Promise<void> | null>(null);
 
   const unsynced = !sameNews(form, stored.current) || saveState === 'saving';
-  const leaving = useUnsavedChanges(unsynced && !stopped);
+  // Kept on after autosave stopped (archived, moved): what was typed is saved nowhere
+  const leaving = useUnsavedChanges(unsynced);
 
-  const persist = useCallback(
+  const save = useCallback(
     async (next: NewsForm) => {
       if (sameNews(next, stored.current)) return;
       setSaveState('saving');
@@ -105,6 +110,18 @@ export function NewsEditor({
     [slug],
   );
 
+  const persist = useCallback(
+    (next: NewsForm) => {
+      const run = save(next);
+      saving.current = run;
+      void run.finally(() => {
+        if (saving.current === run) saving.current = null;
+      });
+      return run;
+    },
+    [save],
+  );
+
   useEffect(() => {
     if (stopped || publishing || sameNews(form, stored.current)) return undefined;
     const timer = window.setTimeout(() => void persist(form), AUTOSAVE_DELAY_MS);
@@ -125,6 +142,7 @@ export function NewsEditor({
     setPublishing(true);
     setPublishError(null);
     try {
+      if (saving.current) await saving.current;
       const data = dataFromForm(form);
       // Publishing clears the writer's draft in the CMS too
       const item =
