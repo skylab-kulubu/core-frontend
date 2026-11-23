@@ -216,7 +216,7 @@ export function EventLocationFields({
                   {place.name}
                 </span>
                 {place.address ? (
-                  <span className="text-3xs text-subtle-foreground block truncate">
+                  <span className="text-subtle-foreground block truncate text-[13px]/5">
                     {place.address}
                   </span>
                 ) : null}
@@ -256,7 +256,7 @@ export function EventLocationFields({
             onPoint={setPoint}
             onFailed={() => setMapFailed(true)}
           />
-          <div className="text-3xs text-subtle-foreground flex flex-wrap items-center justify-between gap-2">
+          <div className="text-subtle-foreground flex flex-wrap items-center justify-between gap-2 text-[13px]/5">
             <a
               href={MAP_ATTRIBUTION_URL}
               target="_blank"
@@ -281,7 +281,7 @@ export function EventLocationFields({
         </div>
       ) : point ? (
         // No map (no WebGL, no ready region, tiles that would not load): the point stays in sight
-        <div className="text-3xs text-subtle-foreground flex flex-wrap items-center gap-2">
+        <div className="text-subtle-foreground flex flex-wrap items-center gap-2 text-[13px]/5">
           <span className="tabular-nums">Nokta: {formatPoint(point)}</span>
           <button
             type="button"

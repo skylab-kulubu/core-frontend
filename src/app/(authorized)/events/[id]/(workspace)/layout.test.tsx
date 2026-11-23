@@ -340,7 +340,9 @@ describe('Event workspace layout', () => {
     await screen.findByRole('heading', { name: 'GeceKodu' });
     // No competitor yet: the tab is there because core lets the member manage them
     await waitFor(() => expect(tabNames()).toContain('Yarışma'));
-    expect((await screen.findAllByLabelText('Yarışmacı ekle')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('link', { name: 'Yarışmacı ekle' })).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('shows a member no competitor tools once the Leader turned the setting off', async () => {

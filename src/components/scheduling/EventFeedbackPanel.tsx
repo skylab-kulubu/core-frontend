@@ -83,7 +83,7 @@ export function FeedbackFormPanel({
   return (
     <section className="space-y-3">
       <FieldLabel>Geri bildirim formu</FieldLabel>
-      <p className="text-3xs text-subtle-foreground">
+      <p className="text-subtle-foreground text-[13px]/5">
         <a
           className="text-skylab-300 hover:text-foreground"
           href={link}

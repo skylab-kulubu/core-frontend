@@ -184,7 +184,7 @@ function PublishFields({
         describedBy={names ? namesId : undefined}
       />
       {names ? (
-        <p id={namesId} className="text-muted-foreground text-xs">
+        <p id={namesId} className="text-muted-foreground text-[13px]/5">
           {names}
         </p>
       ) : null}

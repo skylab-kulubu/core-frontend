@@ -135,7 +135,9 @@ export default function HomeCharts({
           <Card className="flex min-w-0 flex-col gap-5 p-4">
             <div>
               <h3 className="text-foreground text-sm font-semibold">Başvuranlar</h3>
-              <p className="text-muted-foreground text-xs">Bütün başvurular: {fmt(totals.total)}</p>
+              <p className="text-muted-foreground text-[13px]/5">
+                Bütün başvurular: {fmt(totals.total)}
+              </p>
             </div>
             <ProportionBar
               segments={[

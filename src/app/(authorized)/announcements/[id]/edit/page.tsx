@@ -64,6 +64,7 @@ export default function EditAnnouncementPage() {
           <ActionButton
             icon={Trash2}
             label="Sil"
+            showLabel
             onClick={() =>
               confirm({
                 title: `"${item.data?.title || item.slug}" duyurusu silinsin mi?`,

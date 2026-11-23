@@ -93,9 +93,7 @@ export function UrlList({
                 <>
                   <StatusChip kind="neutral" label={linkKindLabel(kind)} />
                   {note ? (
-                    <span className="text-3xs text-subtle-foreground whitespace-nowrap">
-                      {note}
-                    </span>
+                    <span className="text-subtle-foreground text-xs whitespace-nowrap">{note}</span>
                   ) : null}
                   {/* The tick shows in place; a copy is not a write, so no toast */}
                   <CopyButton value={short} label="Kopyala" variant="outline" size="icon" />

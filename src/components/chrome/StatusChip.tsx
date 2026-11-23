@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, StatusDot as Dot, type BadgeTone } from '@skylab-kulubu/skylcn-ui';
+import { Badge, StatusDot as Dot, cn, type BadgeTone } from '@skylab-kulubu/skylcn-ui';
 import { statusChip, type StatusChipKind } from '@/lib/status-chip';
 
 const TONE: Record<StatusChipKind, BadgeTone> = {
@@ -49,7 +49,8 @@ export function StatusChip({
   className?: string;
 }) {
   return (
-    <Badge tone={TONE[kind]} className={className}>
+    // 12px: skylcn-ui's badge writes 10px
+    <Badge tone={TONE[kind]} className={cn('text-xs', className)}>
       {label ?? statusChip(kind).label}
     </Badge>
   );

@@ -174,7 +174,7 @@ export function EventCertificatesPanel({
               ['İptal', summary.revokedCount],
             ].map(([label, value]) => (
               <div key={label} className="border-border bg-sidebar/40 rounded-lg border p-3">
-                <p className="text-2xs text-subtle-foreground font-medium">{label}</p>
+                <p className="text-subtle-foreground text-[13px]/5 font-medium">{label}</p>
                 <p className="text-foreground mt-1 text-2xl font-semibold">{value}</p>
               </div>
             ))}
@@ -184,11 +184,11 @@ export function EventCertificatesPanel({
               <p className="text-foreground text-sm font-semibold">
                 {summary.resolution.template.name}
               </p>
-              <p className="text-subtle-foreground mt-1 text-xs">
+              <p className="text-subtle-foreground mt-1 text-[13px]/5">
                 {sourceLabel(summary.resolution.source, ownerTeam)} · v
                 {summary.resolution.version.version}
               </p>
-              <p className="text-muted-foreground mt-3 text-xs">
+              <p className="text-muted-foreground mt-3 text-[13px]/5">
                 Katılım kuralı:{' '}
                 {attendanceRule === 'ratio'
                   ? `%${Math.round((attendanceRatio ?? 0) * 100)} oturum`
@@ -204,7 +204,7 @@ export function EventCertificatesPanel({
                   </>
                 ) : null}
               </p>
-              <p className="text-subtle-foreground mt-1 text-xs">
+              <p className="text-subtle-foreground mt-1 text-[13px]/5">
                 {summary.attendanceFinalizedAt
                   ? `Katılım ${new Date(summary.attendanceFinalizedAt).toLocaleString('tr-TR')} tarihinde kapatıldı.`
                   : !finalizeOpen
@@ -216,6 +216,7 @@ export function EventCertificatesPanel({
               <ActionButton
                 icon={Eye}
                 label="Örnek PDF"
+                showLabel
                 onClick={async () => {
                   try {
                     const blob = await certificatesApi.previewEvent(eventId);
@@ -262,7 +263,7 @@ export function EventCertificatesPanel({
         <div className="space-y-3">
           <p className="text-secondary-foreground text-sm font-semibold">Başarısız üretim işleri</p>
           {failedUnread ? (
-            <p role="alert" className="text-destructive text-xs">
+            <p role="alert" className="text-destructive text-[13px]/5">
               Başarısız üretim işleri okunamadı. Sayfayı yenileyip yeniden dene.
             </p>
           ) : null}
@@ -356,7 +357,7 @@ export function EventCertificatesPanel({
                 {summary?.resolution.source === 'event' ? (
                   <button
                     type="button"
-                    className="border-border text-secondary-foreground hover:bg-accent h-8 rounded-md border px-3 text-xs"
+                    className="border-border text-secondary-foreground hover:bg-accent h-8 rounded-md border px-3 text-[13px]"
                     onClick={async () => {
                       setBusy(true);
                       try {

@@ -217,7 +217,7 @@ export function EventFormSlots({
             {slot.key === APPLY_SLOT_KEY ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
-                <p className="text-2xs text-subtle-foreground">
+                <p className="text-subtle-foreground text-[13px]/5">
                   Giriş yapmış kişiler hesaplarıyla kaydolur. Bu link hesabı olmayanlar veya hesap
                   açmak istemeyenler içindir.
                 </p>
@@ -225,7 +225,7 @@ export function EventFormSlots({
             ) : isFeedbackSlotKey(slot.key) ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
-                <p className="text-2xs text-subtle-foreground">Cevapları kayıt yazmaz.</p>
+                <p className="text-subtle-foreground text-[13px]/5">Cevapları kayıt yazmaz.</p>
               </div>
             ) : (
               <Field
@@ -264,7 +264,7 @@ export function EventFormSlots({
                 <a
                   href={bounceFor(slot) ?? undefined}
                   onClick={() => onLeaveToSkyforms?.()}
-                  className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 font-medium"
+                  className="border-skylab-400/40 bg-skylab-500/10 text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
                 >
                   {skyformsFormId(slot.url, origin)
                     ? 'Daha önceki taslağa git'
@@ -283,7 +283,7 @@ export function EventFormSlots({
                   }
                 />
               ) : null}
-              <p className="text-3xs text-subtle-foreground">
+              <p className="text-subtle-foreground text-[13px]/5">
                 Skyforms’ta kaydet, sonra etkinliğe dön. Form adresi bu alana yazılır; kısa link
                 skyl.app’den basılır. Yeni taslak açık gelir.
               </p>
@@ -334,7 +334,7 @@ export function EventFormSlots({
             />
           ) : null}
           {slot.alias ? (
-            <p className="text-3xs text-subtle-foreground">
+            <p className="text-subtle-foreground text-[13px]/5">
               {publicShortUrl(shortAliasFromSlug(slot.alias))}
             </p>
           ) : null}
@@ -396,7 +396,7 @@ function FormInUseNotice({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-destructive text-xs">
+      <p className="text-destructive text-[13px]/5">
         {inUse.event ? (
           <>
             Bu form şu etkinlikte kullanılıyor:{' '}
@@ -418,7 +418,7 @@ function FormInUseNotice({
         <a
           href={newFormHref}
           onClick={() => onLeaveToSkyforms?.()}
-          className="border-skylab-400/40 bg-skylab-500/10 text-2xs text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 font-medium"
+          className="border-skylab-400/40 bg-skylab-500/10 text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
         >
           Skyforms’ta bu formdan yeni form aç
         </a>
@@ -441,7 +441,7 @@ function ModeRadio({
   onPick: () => void;
 }) {
   return (
-    <label className="text-secondary-foreground flex items-center gap-2 text-xs">
+    <label className="text-secondary-foreground flex items-center gap-2 text-[13px]/5">
       <input
         type="radio"
         name={name}

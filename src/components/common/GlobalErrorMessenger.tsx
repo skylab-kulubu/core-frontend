@@ -23,7 +23,7 @@ const styles = {
   icon: 'text-xl',
   title: 'font-semibold',
   description: 'text-sm',
-  detail: 'mt-1 text-xs opacity-70',
+  detail: 'mt-1 text-[13px]/5 opacity-70',
 } as const;
 
 const INITIAL_STATE: MessageState = {

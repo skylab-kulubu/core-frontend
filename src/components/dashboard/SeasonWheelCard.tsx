@@ -71,7 +71,7 @@ export function SeasonWheelCard({
             {season.name} · {where}
           </CardDescription>
         </div>
-        <div className="text-2xs text-subtle-foreground flex items-center gap-3">
+        <div className="text-subtle-foreground flex items-center gap-3 text-[13px]/5">
           <span className="flex items-center gap-1.5">
             <span className="bg-skylab-500 size-2 rounded-full" aria-hidden /> geçti
           </span>
@@ -117,7 +117,7 @@ export function SeasonWheelCard({
                 x={p.x}
                 y={p.y + 4}
                 textAnchor="middle"
-                className="fill-subtle-foreground font-mono text-[11px]"
+                className="fill-subtle-foreground font-mono text-xs"
               >
                 {month.label}
               </text>
@@ -185,11 +185,14 @@ export function SeasonWheelCard({
         />
       </div>
 
-      <div className="text-muted-foreground relative min-h-10 px-6 pb-5 text-xs" aria-live="polite">
+      <div
+        className="text-muted-foreground relative min-h-10 px-6 pb-5 text-[13px]/5"
+        aria-live="polite"
+      >
         {active ? (
           <>
             <span className="text-foreground text-sm font-medium">{active.name}</span>
-            <span className="text-subtle-foreground block font-mono text-[11px]">
+            <span className="text-subtle-foreground block font-mono text-xs">
               {active.ownerTeam} · {shortDate(active.startDate)} · {active.week + 1}. hafta
             </span>
           </>

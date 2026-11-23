@@ -47,7 +47,7 @@ export function FeedbackSessionList({ sessions }: { sessions: EventSession[] }) 
           <option value="self">Kişi katıldığı oturumları işaretler</option>
         </Select>
       </label>
-      <p className="text-3xs text-subtle-foreground">{STYLE_HINT[style]}</p>
+      <p className="text-subtle-foreground text-[13px]/5">{STYLE_HINT[style]}</p>
       <ul className="text-muted-foreground space-y-1 text-sm">
         {lines.map((line, index) => (
           <li key={`${index}-${line}`}>{line}</li>

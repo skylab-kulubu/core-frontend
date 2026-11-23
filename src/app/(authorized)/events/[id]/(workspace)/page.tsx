@@ -114,7 +114,7 @@ export default function EventOverviewPage() {
             width={1280}
             height={480}
           />
-          <figcaption className="text-3xs text-subtle-foreground flex flex-wrap justify-between gap-2">
+          <figcaption className="text-subtle-foreground flex flex-wrap justify-between gap-2 text-[13px]/5">
             <span>{event.locationAddress || event.location}</span>
             <a
               href={event.mapAttributionUrl || MAP_ATTRIBUTION_URL}
@@ -128,7 +128,7 @@ export default function EventOverviewPage() {
         </figure>
       ) : null}
       {event.formAlias || event.formUrl ? (
-        <p className="text-3xs text-subtle-foreground">
+        <p className="text-subtle-foreground text-[13px]/5">
           Misafir başvurusu (hesabı olmayanlar):{' '}
           <a
             className="text-skylab-300 hover:text-foreground"

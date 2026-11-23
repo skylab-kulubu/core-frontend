@@ -105,6 +105,7 @@ import {
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 export const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
@@ -627,7 +628,7 @@ export function EventWorkspace({
       >
         Taslağa al
         {ticketCount ? (
-          <span className="text-subtle-foreground ml-auto pl-3 text-xs">
+          <span className="text-subtle-foreground ml-auto pl-3 text-[13px]/5">
             {ticketCount} kayıt var
           </span>
         ) : null}
@@ -778,7 +779,12 @@ export function EventWorkspace({
                 </SaveButton>
               ) : null}
               {can.canMutate && !onEditPage ? (
-                <ActionButton icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} />
+                <ActionButton
+                  icon={Pencil}
+                  label="Düzenle"
+                  showLabel
+                  href={eventEditHref(event.id)}
+                />
               ) : null}
               {can.canTickets ? (
                 <ActionButton
@@ -813,12 +819,19 @@ export function EventWorkspace({
               rights.canUpdate || closeFormHref ? (
                 <div className="flex flex-wrap items-center gap-2">
                   {rights.canUpdate ? (
-                    <Button size="sm" onClick={() => statusActions.askUncancel(event)}>
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="sm"
+                      onClick={() => statusActions.askUncancel(event)}
+                    >
                       İptali geri al
                     </Button>
                   ) : null}
                   {closeFormHref ? (
-                    <a href={closeFormHref} className="text-skylab-300 text-xs hover:underline">
+                    <a
+                      href={closeFormHref}
+                      className="text-skylab-300 text-[13px]/5 hover:underline"
+                    >
                       SkyForms&apos;ta formu kapat
                     </a>
                   ) : null}

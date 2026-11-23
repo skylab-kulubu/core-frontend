@@ -197,7 +197,7 @@ export default function CertificateDefaultsPage() {
           <button
             type="button"
             disabled={saving}
-            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-xs disabled:opacity-50"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-[13px] disabled:opacity-50"
             onClick={() =>
               confirm({
                 title: `${team} varsayılanı kaldırılsın mı?`,

@@ -255,7 +255,7 @@ export default function SeasonsPage() {
           {editingId ? (
             <button
               type="button"
-              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
+              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-[13px]"
               onClick={() => {
                 const id = editingId;
                 const name = seasons.find((season) => season.id === id)?.name ?? form.name;

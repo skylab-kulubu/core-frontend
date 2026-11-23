@@ -151,7 +151,7 @@ export function MapRegionDrawer({ open, onClose, onRequested, taken = [] }: MapR
           ))}
         </div>
         {large ? (
-          <p role="status" className="text-2xs text-warning">
+          <p role="status" className="text-warning text-[13px]/5">
             Büyük bölge: çıkarım core’un belleğini zorlayabilir; boyutu core sınırlar.
           </p>
         ) : null}

@@ -308,7 +308,7 @@ function MediaList({
           ))}
         </ul>
       ) : canEdit ? null : (
-        <p className="text-muted-foreground text-xs">Henüz yok.</p>
+        <p className="text-muted-foreground text-[13px]/5">Henüz yok.</p>
       )}
 
       {problem ? (
@@ -345,7 +345,7 @@ function MediaList({
                     {row.pendingMediaId ? (
                       <button
                         type="button"
-                        className="text-skylab-300 text-xs hover:underline"
+                        className="text-skylab-300 text-[13px]/5 hover:underline"
                         onClick={() => void attach(row.key, row.pendingMediaId!, row.name)}
                       >
                         Etkinliğe ekle
@@ -363,7 +363,7 @@ function MediaList({
                     />
                   </div>
                   {row.error ? (
-                    <p role="alert" className="text-destructive mt-1 text-xs">
+                    <p role="alert" className="text-destructive mt-1 text-[13px]/5">
                       {row.error}
                     </p>
                   ) : (
@@ -397,8 +397,17 @@ function MediaList({
 
 function StatusBadge({ item }: { item: EventFile }) {
   if (item.status === 'scanning' || item.status === 'pending')
-    return <Badge tone="warning">Taranıyor</Badge>;
-  if (item.status === 'rejected') return <Badge tone="danger">Reddedildi</Badge>;
+    return (
+      <Badge tone="warning" className="text-xs">
+        Taranıyor
+      </Badge>
+    );
+  if (item.status === 'rejected')
+    return (
+      <Badge tone="danger" className="text-xs">
+        Reddedildi
+      </Badge>
+    );
   return null;
 }
 
@@ -462,9 +471,11 @@ function MediaRow({
           )}
           <StatusBadge item={item} />
         </div>
-        <p className="text-2xs text-subtle-foreground tabular-nums">{formatBytes(item.size)}</p>
+        <p className="text-subtle-foreground text-xs tabular-nums">{formatBytes(item.size)}</p>
         {item.status === 'rejected' ? (
-          <p className="text-destructive mt-0.5 text-xs">{scanResultMessage(item.scanResult)}</p>
+          <p className="text-destructive mt-0.5 text-[13px]/5">
+            {scanResultMessage(item.scanResult)}
+          </p>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">

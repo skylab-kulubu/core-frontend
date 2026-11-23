@@ -303,11 +303,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             />
           </label>
           {errors.sessionId ? (
-            <p id="door-session-note" role="alert" className="text-2xs text-destructive">
+            <p id="door-session-note" role="alert" className="text-destructive text-[13px]/5">
               {errors.sessionId.message}
             </p>
           ) : sessionNote ? (
-            <p id="door-session-note" className="text-2xs text-muted-foreground">
+            <p id="door-session-note" className="text-muted-foreground text-[13px]/5">
               {sessionNote}
             </p>
           ) : null}
@@ -331,7 +331,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             aria-invalid={Boolean(errors.email)}
           />
           {errors.email ? (
-            <span role="alert" className="text-2xs text-destructive">
+            <span role="alert" className="text-destructive text-[13px]/5">
               {errors.email.message}
             </span>
           ) : null}

@@ -165,6 +165,7 @@ export default function EventProgramPage() {
               <ActionButton
                 icon={Plus}
                 label="Gün ekle"
+                showLabel
                 onClick={() => {
                   setDayError(null);
                   setDayOpen(true);
@@ -210,7 +211,7 @@ export default function EventProgramPage() {
               <div className="flex items-center justify-between px-3 py-2">
                 <div>
                   <p className="text-secondary-foreground text-sm">{day.name}</p>
-                  <p className="text-3xs text-subtle-foreground">
+                  <p className="text-subtle-foreground text-[13px]/5">
                     {day.startDate ? new Date(day.startDate).toLocaleString('tr-TR') : '—'}
                   </p>
                 </div>
@@ -358,7 +359,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(dayForm.formState.errors.name)}
             />
             {dayForm.formState.errors.name ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {dayForm.formState.errors.name.message}
               </span>
             ) : null}
@@ -454,7 +455,7 @@ export default function EventProgramPage() {
               ))}
             </Select>
             {sessionForm.formState.errors.eventDayId ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.eventDayId.message}
               </span>
             ) : null}
@@ -466,7 +467,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(sessionForm.formState.errors.title)}
             />
             {sessionForm.formState.errors.title ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.title.message}
               </span>
             ) : null}
@@ -478,7 +479,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(sessionForm.formState.errors.speakerName)}
             />
             {sessionForm.formState.errors.speakerName ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.speakerName.message}
               </span>
             ) : null}
@@ -541,7 +542,7 @@ export default function EventProgramPage() {
           {editingSessionId ? (
             <button
               type="button"
-              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
+              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-[13px]"
               onClick={() => {
                 const id = editingSessionId;
                 const title = sessions.find((session) => session.id === id)?.title;
@@ -671,7 +672,7 @@ export default function EventProgramPage() {
                 aria-invalid={Boolean(deskForm.formState.errors.email)}
               />
               {deskForm.formState.errors.email ? (
-                <span role="alert" className="text-2xs text-destructive">
+                <span role="alert" className="text-destructive text-[13px]/5">
                   {deskForm.formState.errors.email.message}
                 </span>
               ) : null}

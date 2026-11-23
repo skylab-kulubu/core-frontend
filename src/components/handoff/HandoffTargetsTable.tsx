@@ -16,7 +16,7 @@ import {
   type HandoffTargetInput,
 } from '@/lib/handoff/targets';
 
-const COLUMN_LABEL = 'text-2xs font-medium text-subtle-foreground';
+const COLUMN_LABEL = 'text-[13px]/5 font-medium text-subtle-foreground';
 
 function targetTitle(target: HandoffTarget): string {
   const name = target.name?.trim();
@@ -59,7 +59,7 @@ function trimmed(input: HandoffTargetInput): HandoffTargetInput {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="text-3xs text-destructive mt-1 leading-snug">
+    <p id={id} className="text-destructive mt-1 text-[13px]/5 leading-snug">
       {message}
     </p>
   ) : null;
@@ -146,15 +146,15 @@ function HandoffTargetRow({ target, onSaved, onForbidden }: { target: HandoffTar
             label={target.enabled ? 'Açık' : 'Kapalı'}
           />
         </div>
-        <p className="text-3xs text-subtle-foreground mt-0.5 truncate">
+        <p className="text-subtle-foreground mt-0.5 truncate text-[13px]/5">
           {target.clientId} · {target.rootUrl || 'kök adres yok'}
         </p>
         {rowError ? (
-          <p role="alert" className="text-3xs text-warning mt-1 leading-snug">
+          <p role="alert" className="text-warning mt-1 text-[13px]/5 leading-snug">
             {rowError}
           </p>
         ) : !originAllowed ? (
-          <p className="text-3xs text-subtle-foreground mt-1 leading-snug">
+          <p className="text-subtle-foreground mt-1 text-[13px]/5 leading-snug">
             {ROOT_URL_OUTSIDE_DOMAIN}
           </p>
         ) : null}
@@ -214,14 +214,14 @@ function HandoffTargetRow({ target, onSaved, onForbidden }: { target: HandoffTar
                   setDraft(stored);
                   setProblem(null);
                 }}
-                className="text-2xs text-muted-foreground hover:bg-accent hover:text-foreground h-8 rounded-md px-2"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground h-8 rounded-md px-2 text-[13px]"
               >
                 Vazgeç
               </button>
             ) : null}
             <SaveButton disabled={!canSave}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</SaveButton>
           </div>
-          {saved && !dirty ? <span className="text-3xs text-success">Kaydedildi</span> : null}
+          {saved && !dirty ? <span className="text-success text-[13px]/5">Kaydedildi</span> : null}
         </form>
       </td>
     </tr>

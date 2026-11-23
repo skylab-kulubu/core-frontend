@@ -25,7 +25,7 @@ const DonutChart = dynamic(
 
 function ChartFailed() {
   return (
-    <p role="alert" className="text-3xs text-subtle-foreground py-6 text-center">
+    <p role="alert" className="text-subtle-foreground py-6 text-center text-[13px]/5">
       Grafik yüklenemedi.
     </p>
   );
@@ -112,7 +112,7 @@ export function HorizontalBars({
           items={data.map((row) => ({ key: row.label, label: row.label, value: row.count }))}
         />
       ) : (
-        <p className="text-3xs text-subtle-foreground py-6 text-center">{empty}</p>
+        <p className="text-subtle-foreground py-6 text-center text-[13px]/5">{empty}</p>
       )}
     </div>
   );
@@ -142,7 +142,7 @@ export function MixChart({
 }
 
 function PanelTitle({ children }: { children: ReactNode }) {
-  return <span className="text-2xs text-subtle-foreground font-medium">{children}</span>;
+  return <span className="text-subtle-foreground text-[13px]/5 font-medium">{children}</span>;
 }
 
 export function MetricCard({
@@ -170,7 +170,7 @@ export function MetricCard({
     >
       <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
       <div className="min-w-0">
-        <p className="text-3xs text-subtle-foreground truncate">{label}</p>
+        <p className="text-subtle-foreground truncate text-[13px]/5">{label}</p>
         <p
           className={`text-lg leading-tight font-semibold tabular-nums ${error ? 'text-destructive' : tone}`}
         >
@@ -193,8 +193,8 @@ export function SectionHeading({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-muted-foreground text-xs font-medium">{title}</h2>
-        {meta ? <p className="text-2xs text-subtle-foreground mt-0.5">{meta}</p> : null}
+        <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+        {meta ? <p className="text-subtle-foreground mt-0.5 text-[13px]/5">{meta}</p> : null}
       </div>
       {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </div>
