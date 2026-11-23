@@ -4,7 +4,7 @@ import { Badge } from '@skylab-kulubu/skylcn-ui';
 import { Plus, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TemplateThumb } from '@/components/certificates/TemplateThumb';
+import { TemplateThumbBox } from '@/components/certificates/TemplateThumb';
 import {
   shownLayout,
   useTemplateBackgrounds,
@@ -140,7 +140,8 @@ export default function CertificateTemplatesPage() {
                   href={`/certificates/templates/${template.id}`}
                   className="bg-card border-border-subtle hover:border-border focus-visible:ring-ring flex h-full flex-col gap-3 rounded-lg border p-3 outline-hidden transition-colors focus-visible:ring-2"
                 >
-                  <TemplateThumb
+                  <TemplateThumbBox
+                    className="aspect-[3/2] w-full p-2"
                     layout={layout}
                     background={
                       layout.backgroundMediaId ? backgrounds[layout.backgroundMediaId] : null

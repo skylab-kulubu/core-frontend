@@ -3,7 +3,7 @@
 import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
 import { Link2, Pencil, Unlink } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { TemplateThumb } from '@/components/certificates/TemplateThumb';
+import { TemplateThumbBox } from '@/components/certificates/TemplateThumb';
 import {
   shownLayout,
   useTemplateBackgrounds,
@@ -168,7 +168,7 @@ export default function CertificateDefaultsPage() {
   const columns: DataListColumn<DefaultRow>[] = [
     {
       id: 'scope',
-      width: 'minmax(0,12rem)',
+      width: { base: 'minmax(0,7rem)', sm: 'minmax(0,12rem)' },
       header: 'Kapsam',
       cell: (row) => (
         <DataListTitle
@@ -197,10 +197,10 @@ export default function CertificateDefaultsPage() {
         const layout = shownLayout(template);
         return (
           <span className="flex min-w-0 items-center gap-3">
-            <TemplateThumb
+            <TemplateThumbBox
               layout={layout}
               background={layout.backgroundMediaId ? backgrounds[layout.backgroundMediaId] : null}
-              className="w-16 shrink-0"
+              className="h-10 w-14 shrink-0"
             />
             <span className="min-w-0">
               <span className="text-foreground block truncate text-sm">{template.name}</span>
@@ -226,6 +226,7 @@ export default function CertificateDefaultsPage() {
     {
       id: 'actions',
       width: '6.5rem',
+      from: 'sm',
       label: 'Eylemler',
       interactive: true,
       align: 'end',
@@ -239,10 +240,8 @@ export default function CertificateDefaultsPage() {
   return (
     <ListPage
       title="Sertifika varsayılanları"
-      badge={
-        <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-          Sıra: etkinlik → ekip → kulüp
-        </span>
+      toolbar={
+        <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Sıra: etkinlik → ekip → kulüp</p>
       }
     >
       {failed ? (
@@ -253,6 +252,8 @@ export default function CertificateDefaultsPage() {
           rows={rows}
           getRowId={(row) => row.key}
           rowLabel={(row) => row.label}
+          // On a phone the row itself opens its panel; the written action is for wide screens
+          onRowSelect={(row) => (canAssign(row) ? openRow(row) : undefined)}
         />
       )}
       {confirmDialog}
@@ -284,12 +285,12 @@ export default function CertificateDefaultsPage() {
                         onChange={() => setChoice(template.id)}
                         className="accent-skylab-400"
                       />
-                      <TemplateThumb
+                      <TemplateThumbBox
                         layout={layout}
                         background={
                           layout.backgroundMediaId ? backgrounds[layout.backgroundMediaId] : null
                         }
-                        className="w-20 shrink-0"
+                        className="h-14 w-20 shrink-0"
                       />
                       <span className="min-w-0">
                         <span className="text-foreground block truncate text-sm">

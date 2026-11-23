@@ -7,6 +7,31 @@ import type { CertificateLayout } from '@/lib/api/certificates';
 import { SAMPLE, certificateFontStack } from '@/lib/certificate-layout';
 
 /**
+ * The picture inside a fixed box (a card's or a row's), whole: a portrait page stands as
+ * tall as the box, a landscape one as wide.
+ */
+export function TemplateThumbBox({
+  layout,
+  background,
+  className,
+}: {
+  layout: CertificateLayout;
+  background?: { url: string; type?: string } | null;
+  className?: string;
+}) {
+  const portrait = (layout.height || 794) > (layout.width || 1123);
+  return (
+    <div className={cn('bg-muted grid place-items-center overflow-hidden rounded-md', className)}>
+      <TemplateThumb
+        layout={layout}
+        background={background}
+        className={portrait ? 'h-full w-auto' : 'h-auto w-full'}
+      />
+    </div>
+  );
+}
+
+/**
  * A certificate's layout drawn small, as the editor draws it: the page colour, the
  * background picture when it is one, each layer in place with its sample text. A PDF
  * background shows as a plain page with a mark, since a PDF cannot be drawn this small.
