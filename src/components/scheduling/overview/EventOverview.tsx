@@ -3,25 +3,21 @@
 import { Card, Progress, Sparkline } from '@skylab-kulubu/skylcn-ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { ObjectCard, ObjectEssentials } from '@/components/chrome/object-page/ObjectPage';
 import { RosterCharts } from '@/components/scheduling/roster/RosterOverview';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList';
-import { eventReadiness, sessionNowAndNext, sessionClock } from '@/lib/event-overview';
+import { eventReadiness } from '@/lib/event-overview';
 import { eventEditHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
 import { attendanceFinalizeOpen, eventDisplayStatus } from '@/lib/events-view';
 import { recentRegistrations, registrationsByDay } from '@/lib/roster-insights';
-import { withDesignVariant, type DesignVariant } from '@/lib/ui/design-variant';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import {
-  CapacityMeter,
   CertificateFigures,
-  EventEssentials,
-  Figure,
-  GuestMemberSplit,
+  eventEssentialItems,
   LatestRegistrations,
   LocationBlock,
-  OverviewCard,
   ReadinessList,
   RelatedCounts,
   SessionAttendance,
@@ -31,12 +27,12 @@ import {
   useCertificateSummary,
 } from './OverviewParts';
 
-/** What both directions read for the overview, worked out once. */
-function useOverview(variant: DesignVariant) {
+/** What the overview reads, worked out once. */
+function useOverview() {
   const ws = useEventWorkspace();
   const { event, sessions, tickets, competitors } = ws;
   const status = eventDisplayStatus(event);
-  const href = (tab: EventTab) => withDesignVariant(eventTabHref(event.id, tab), variant);
+  const href = (tab: EventTab) => eventTabHref(event.id, tab);
   const readiness = eventReadiness(event, sessions.length);
   const missing = readiness.filter((item) => !item.done);
   const certificate = useCertificateSummary(event.id, ws.canCertificates && status !== 'draft');
@@ -68,10 +64,10 @@ function useOverview(variant: DesignVariant) {
 type Overview = ReturnType<typeof useOverview>;
 
 /** "5/8 hazır" over a bar, and the list of what is left, for a draft event. */
-function PublishReadiness({ o, columns }: { o: Overview; columns: 2 | 4 }) {
+function PublishReadiness({ o }: { o: Overview }) {
   const done = o.readiness.length - o.missing.length;
   return (
-    <OverviewCard
+    <ObjectCard
       title="Yayına hazırlık"
       action={
         <span className={`text-subtle-foreground tabular-nums ${TEXT_SECONDARY}`}>
@@ -80,8 +76,8 @@ function PublishReadiness({ o, columns }: { o: Overview; columns: 2 | 4 }) {
       }
     >
       <Progress value={done} max={o.readiness.length} aria-label="Yayına hazırlık" />
-      <ReadinessList items={o.readiness} columns={columns} />
-    </OverviewCard>
+      <ReadinessList items={o.readiness} columns={4} />
+    </ObjectCard>
   );
 }
 
@@ -111,13 +107,13 @@ function ToDo({ o }: { o: Overview }) {
       : []),
   ];
   return (
-    <OverviewCard title="Yapılacaklar">
+    <ObjectCard title="Yapılacaklar">
       {items.length ? (
         <ReadinessList items={items} />
       ) : (
         <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Eksik yok</p>
       )}
-    </OverviewCard>
+    </ObjectCard>
   );
 }
 
@@ -218,11 +214,16 @@ function Tile({
 function DescriptionAndFeedback({ o }: { o: Overview }) {
   return (
     <>
-      <OverviewCard title="Açıklama" href={eventEditHref(o.event.id)} linkLabel="Düzenle">
+      <ObjectCard
+        title="Açıklama"
+        href={o.ws.canMutate ? eventEditHref(o.event.id) : undefined}
+        linkLabel="Düzenle"
+        linkName="Açıklamayı düzenle"
+      >
         <p className="text-muted-foreground text-sm whitespace-pre-wrap">
           {o.event.description || '—'}
         </p>
-      </OverviewCard>
+      </ObjectCard>
       {o.event.feedbackFormUrl ? (
         <Card className="p-4">
           <EventFeedbackPanel event={o.event} canSend={o.ws.canMutate} />
@@ -238,24 +239,25 @@ function DescriptionAndFeedback({ o }: { o: Overview }) {
 }
 
 /**
- * Direction A, after the admin centre's resource overview: the event's essentials as a
+ * The event's overview, after the admin centre's resource overview: the event's essentials as a
  * two-column property grid, then the monitoring figures and charts, then one card per
  * related part (programme, latest registrations, to-dos, links, place, certificates, files).
  */
-export function EventOverviewA({ previous }: { previous: ReactNode }) {
-  const o = useOverview('a');
+export function EventOverview({ previous }: { previous: ReactNode }) {
+  const o = useOverview();
   const { ws, event } = o;
   return (
     <div className="space-y-4">
       {previous}
-      {o.status === 'draft' ? <PublishReadiness o={o} columns={4} /> : null}
-      <OverviewCard title="Temel bilgiler" href={eventEditHref(event.id)} linkLabel="Düzenle">
-        <EventEssentials
-          event={event}
-          seasonName={o.seasonName}
-          registered={ws.canTickets ? ws.tickets.length : undefined}
-        />
-      </OverviewCard>
+      {o.status === 'draft' ? <PublishReadiness o={o} /> : null}
+      <ObjectEssentials
+        editHref={ws.canMutate ? eventEditHref(event.id) : undefined}
+        items={eventEssentialItems({
+          event,
+          seasonName: o.seasonName,
+          registered: ws.canTickets ? ws.tickets.length : undefined,
+        })}
+      />
       {ws.canTickets && o.status !== 'draft' ? (
         <section aria-label="İzleme" className="space-y-3">
           <AttendanceTiles o={o} />
@@ -263,36 +265,36 @@ export function EventOverviewA({ previous }: { previous: ReactNode }) {
         </section>
       ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <OverviewCard title="Program" href={o.href('program')}>
+        <ObjectCard title="Program" href={o.href('program')}>
           <SessionNowNext
             sessions={ws.sessions}
             tickets={ws.tickets}
             ended={o.status === 'ended'}
           />
-        </OverviewCard>
+        </ObjectCard>
         {ws.canTickets ? (
-          <OverviewCard title="Son kayıtlar" href={o.href('participants')} linkLabel="Tümü">
+          <ObjectCard title="Son kayıtlar" href={o.href('participants')} linkLabel="Tümü">
             <LatestRegistrations
               tickets={ws.tickets}
               personById={ws.personById}
               participantsHref={o.href('participants')}
             />
-          </OverviewCard>
+          </ObjectCard>
         ) : null}
         {o.status !== 'draft' && ws.canMutate ? <ToDo o={o} /> : null}
-        <OverviewCard title="Paylaş">
+        <ObjectCard title="Paylaş">
           <ShareLinks event={event} />
-        </OverviewCard>
-        <OverviewCard title="Konum">
+        </ObjectCard>
+        <ObjectCard title="Konum">
           <LocationBlock event={event} />
-        </OverviewCard>
+        </ObjectCard>
         {ws.canCertificates ? (
-          <OverviewCard title="Sertifikalar" href={o.href('certificates')}>
+          <ObjectCard title="Sertifikalar" href={o.href('certificates')}>
             <CertificateFigures event={event} {...o.certificate} />
-          </OverviewCard>
+          </ObjectCard>
         ) : null}
         {o.hasContent || o.showsCompetition ? (
-          <OverviewCard title="İlgili">
+          <ObjectCard title="İlgili">
             <RelatedCounts
               event={event}
               competitors={ws.competitors.length}
@@ -300,130 +302,8 @@ export function EventOverviewA({ previous }: { previous: ReactNode }) {
               contentHref={o.hasContent ? o.href('content') : undefined}
               competitionHref={o.showsCompetition ? o.href('competition') : undefined}
             />
-          </OverviewCard>
+          </ObjectCard>
         ) : null}
-      </div>
-      <DescriptionAndFeedback o={o} />
-    </div>
-  );
-}
-
-/**
- * Direction B, after the organizer pages of Luma and Eventbrite: large cards, one per part
- * of the event, each with its figure and a way into its page; a draft opens on its
- * publishing checklist.
- */
-export function EventOverviewB({ previous }: { previous: ReactNode }) {
-  const o = useOverview('b');
-  const { ws, event } = o;
-  const { counts, entered, enteredShare } = o.figures;
-  const { current, next } = sessionNowAndNext(ws.sessions);
-  const draft = o.status === 'draft';
-  return (
-    <div className="space-y-4">
-      {previous}
-      {draft ? <PublishReadiness o={o} columns={2} /> : null}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {ws.canTickets && !draft ? (
-          <OverviewCard
-            title="Katılımcılar"
-            href={o.href('participants')}
-            linkLabel="Listeyi aç"
-            className="lg:col-span-2"
-          >
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Figure
-                label="Kayıt"
-                value={counts.all}
-                hint={o.week ? `+${o.week} bu hafta` : undefined}
-              />
-              <Figure
-                label="Giriş"
-                value={entered}
-                hint={counts.all ? enteredShare : undefined}
-                tone="success"
-              />
-              <Figure label="Misafir · Üye" value={`${counts.guest} · ${counts.member}`} />
-              <Figure
-                label="Bilet gitmedi"
-                value={counts.unsent}
-                tone={counts.unsent ? 'warning' : undefined}
-              />
-            </div>
-            <CapacityMeter registered={counts.all} capacity={event.capacity} />
-            <GuestMemberSplit tickets={ws.tickets} />
-          </OverviewCard>
-        ) : null}
-        <OverviewCard
-          title={current ? 'Şimdi' : 'Program'}
-          href={o.href('program')}
-          className={ws.canTickets && !draft ? undefined : 'lg:col-span-1'}
-        >
-          <SessionNowNext
-            sessions={ws.sessions}
-            tickets={ws.tickets}
-            ended={o.status === 'ended'}
-          />
-          {ws.canTickets && !draft ? (
-            <SessionAttendance sessions={ws.sessions} tickets={ws.tickets} />
-          ) : null}
-          {!current && !next && ws.sessions.length ? (
-            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-              {ws.sessions.length} oturum
-              {ws.sessions[0]?.startTime ? ` · ilk ${sessionClock(ws.sessions[0])}` : ''}
-            </p>
-          ) : null}
-        </OverviewCard>
-        {!draft && ws.canTickets ? (
-          <div className="lg:col-span-3">
-            <RosterCharts tickets={ws.tickets} />
-          </div>
-        ) : null}
-        {ws.canTickets ? (
-          <OverviewCard title="Son kayıtlar" href={o.href('participants')} linkLabel="Tümü">
-            <LatestRegistrations
-              tickets={ws.tickets}
-              personById={ws.personById}
-              participantsHref={o.href('participants')}
-            />
-          </OverviewCard>
-        ) : null}
-        <OverviewCard title="Paylaş">
-          <ShareLinks event={event} />
-        </OverviewCard>
-        {!draft && ws.canMutate ? <ToDo o={o} /> : null}
-        <OverviewCard title="Konum" className={event.mapImageUrl ? 'lg:col-span-2' : undefined}>
-          <LocationBlock event={event} />
-        </OverviewCard>
-        {ws.canCertificates ? (
-          <OverviewCard title="Sertifikalar" href={o.href('certificates')}>
-            <CertificateFigures event={event} {...o.certificate} />
-          </OverviewCard>
-        ) : null}
-        {o.hasContent || o.showsCompetition ? (
-          <OverviewCard title="Dosyalar ve yarışma">
-            <RelatedCounts
-              event={event}
-              competitors={ws.competitors.length}
-              winners={o.winners}
-              contentHref={o.hasContent ? o.href('content') : undefined}
-              competitionHref={o.showsCompetition ? o.href('competition') : undefined}
-            />
-          </OverviewCard>
-        ) : null}
-        <OverviewCard
-          title="Bilgiler"
-          href={eventEditHref(event.id)}
-          linkLabel="Düzenle"
-          className="lg:col-span-3"
-        >
-          <EventEssentials
-            event={event}
-            seasonName={o.seasonName}
-            registered={ws.canTickets ? ws.tickets.length : undefined}
-            columns={3}
-          />
-        </OverviewCard>
       </div>
       <DescriptionAndFeedback o={o} />
     </div>

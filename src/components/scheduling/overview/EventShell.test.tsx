@@ -2,7 +2,13 @@ import { screen, within } from '@testing-library/react';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
-import { primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
+import { eventsApi } from '@/lib/api/events';
+import {
+  primeEventWorkspace,
+  renderEventTab,
+  signInAs,
+  workspaceEvent,
+} from '@/test/event-workspace';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
 jest.mock('@/context/AuthContext', () => jest.requireActual('@/test/event-workspace').authModule);
@@ -34,12 +40,10 @@ jest.mock('@/lib/scheduling/save-event', () =>
 
 const LEADER = ['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'];
 
-describe('event pages on trial (?tasarim=a|b)', () => {
+describe('event object page', () => {
   beforeEach(primeEventWorkspace);
-  afterEach(() => window.history.replaceState(null, '', '/'));
 
-  it('draws no tab line in A: a command bar, the event menu and the essentials', async () => {
-    window.history.replaceState(null, '', '/events/e1?tasarim=a');
+  it('has a command bar, the event menu and the essentials, no tab line', async () => {
     signInAs(LEADER);
     await renderEventTab(<EventOverviewPage />);
 
@@ -48,54 +52,42 @@ describe('event pages on trial (?tasarim=a|b)', () => {
     const commands = screen.getByRole('toolbar', { name: 'Etkinlik komutları' });
     expect(within(commands).getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
       'href',
-      '/events/e1/edit?tasarim=a',
+      '/events/e1/edit',
     );
     expect(within(commands).getByRole('link', { name: 'Kapı' })).toHaveAttribute(
       'href',
       '/events/e1/door',
     );
     const menu = screen.getAllByRole('navigation', { name: 'Etkinlik' })[0];
-    // Every page keeps the direction on trial
     expect(within(menu).getByRole('link', { name: /Program/ })).toHaveAttribute(
       'href',
-      '/events/e1/program?tasarim=a',
+      '/events/e1/program',
     );
   });
 
-  it('names the open page beside the event in A', async () => {
-    window.history.replaceState(null, '', '/events/e1/program?tasarim=a');
+  it('names the open page beside the event', async () => {
     signInAs(LEADER);
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /GeceKodu \| Program/ }),
-    ).toBeInTheDocument();
+    const title = await screen.findByRole('heading', { level: 1, name: 'GeceKodu' });
+    expect(title.parentElement).toHaveTextContent('GeceKodu| Program');
   });
 
-  it('marks the open page among the pills in B, with the door beside the actions', async () => {
-    window.history.replaceState(null, '', '/events/e1/program?tasarim=b');
-    signInAs(LEADER);
-    await renderEventTab(<EventProgramPage />, '/events/e1/program');
-
-    const pills = await screen.findByRole('navigation', { name: 'Etkinlik' });
-    expect(within(pills).getByRole('link', { name: /Program/ })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-    expect(within(pills).getByRole('link', { name: /Genel bakış/ })).not.toHaveAttribute(
-      'aria-current',
-    );
-    expect(screen.getByRole('link', { name: 'Kapıyı aç' })).toHaveAttribute(
-      'href',
-      '/events/e1/door',
-    );
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-  });
-
-  it('keeps the tab line without the switch', async () => {
+  it('draws the door as the main command while the event runs', async () => {
+    const now = Date.now();
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      status: 'published',
+      active: true,
+      startDate: new Date(now - 3600_000).toISOString(),
+      endDate: new Date(now + 3600_000).toISOString(),
+    });
     signInAs(LEADER);
     await renderEventTab(<EventOverviewPage />);
-    expect(await screen.findByRole('tab', { name: 'Genel bakış' })).toBeInTheDocument();
-    expect(screen.queryByRole('toolbar', { name: 'Etkinlik komutları' })).not.toBeInTheDocument();
+
+    const commands = await screen.findByRole('toolbar', { name: 'Etkinlik komutları' });
+    const buttons = within(commands).getAllByRole('link');
+    expect(buttons[0]).toHaveAccessibleName('Kapı');
+    expect(buttons[0].className).toContain('bg-skylab-500/10');
   });
 });

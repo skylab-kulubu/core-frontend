@@ -2,25 +2,12 @@
 
 import {
   BarList,
-  Card,
   CopyButton,
-  DescriptionList,
+  type DescriptionItem,
   IconButton,
-  Meter,
-  ProportionBar,
   cn,
 } from '@skylab-kulubu/skylcn-ui';
-import {
-  ArrowRight,
-  CheckCircle2,
-  Circle,
-  Clock,
-  FileText,
-  MapPin,
-  QrCode,
-  Trophy,
-  Video,
-} from 'lucide-react';
+import { CheckCircle2, Circle, Clock, FileText, MapPin, QrCode, Trophy, Video } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
@@ -53,42 +40,6 @@ import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
 const percent = (part: number, whole: number) =>
   whole ? `%${Math.round((part / whole) * 100)}` : '—';
-
-/** A framed block of the overview: its name, an optional way into its page, its content. */
-export function OverviewCard({
-  title,
-  href,
-  linkLabel = 'Aç',
-  action,
-  children,
-  className,
-}: {
-  title: ReactNode;
-  href?: string;
-  linkLabel?: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <Card className={cn('flex min-w-0 flex-col gap-3 p-4', className)}>
-      <div className="flex min-h-6 items-center justify-between gap-3">
-        <h2 className="text-foreground-strong text-sm font-semibold">{title}</h2>
-        {action ??
-          (href ? (
-            <Link
-              href={href}
-              className={`text-skylab-300 hover:text-foreground inline-flex items-center gap-1 ${TEXT_SECONDARY}`}
-            >
-              {linkLabel}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
-          ) : null)}
-      </div>
-      {children}
-    </Card>
-  );
-}
 
 /** The things an event needs, ticked when done; each open one goes where it is filled. */
 export function ReadinessList({
@@ -128,18 +79,16 @@ export function ReadinessList({
   );
 }
 
-/** The event's key facts, two columns wide: when, where, who, how people apply. */
-export function EventEssentials({
+/** The event's key facts for the object page's essentials: when, where, who, how people apply. */
+export function eventEssentialItems({
   event,
   seasonName,
   registered,
-  columns = 2,
 }: {
   event: CoreEvent;
   seasonName?: string;
   registered?: number;
-  columns?: 1 | 2 | 3;
-}) {
+}): DescriptionItem[] {
   const status = eventDisplayStatus(event);
   const fill = registered === undefined ? null : capacityFill(registered, event.capacity);
   const registration =
@@ -194,37 +143,7 @@ export function EventEssentials({
         ]
       : []),
   ];
-  return <DescriptionList items={items} columns={columns} />;
-}
-
-/** Capacity as a filling bar, amber near full; the count alone when there is no limit. */
-export function CapacityMeter({ registered, capacity }: { registered: number; capacity: number }) {
-  if (!(capacity > 0)) {
-    return <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Kapasite sınırı yok</p>;
-  }
-  return (
-    <Meter
-      label="Doluluk"
-      value={Math.min(registered, capacity)}
-      max={capacity}
-      warnAt={0.8}
-      dangerAt={1}
-    />
-  );
-}
-
-/** Guests against members on one thin bar, in the participant page's colours. */
-export function GuestMemberSplit({ tickets }: { tickets: readonly Ticket[] }) {
-  const counts = rosterViewCounts(tickets);
-  if (!counts.all) return null;
-  return (
-    <ProportionBar
-      segments={[
-        { key: 'guest', label: 'Misafir', value: counts.guest, color: 'var(--chart-1)' },
-        { key: 'member', label: 'Üye', value: counts.member, color: 'var(--chart-2)' },
-      ]}
-    />
-  );
+  return items;
 }
 
 /** The session running now and the next one, with how many came to each. */
