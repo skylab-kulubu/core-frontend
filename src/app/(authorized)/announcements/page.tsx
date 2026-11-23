@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge, DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
-import { ImageIcon, Plus, RefreshCw } from 'lucide-react';
+import { ImageIcon, PenLine, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
 import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
@@ -12,7 +12,7 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
-import { newsApi, type NewsItem } from '@/lib/api/cms';
+import { newsApi, pendingNewsDraft, type NewsItem, type NewsVirtualItem } from '@/lib/api/cms';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
 import { matchesQuery, paginateRows } from '@/lib/list-query';
@@ -26,8 +26,17 @@ const COLUMNS: readonly ColumnChoice[] = [
   { id: 'title', label: 'Başlık', fixed: true },
   { id: 'author', label: 'Yazar' },
   { id: 'tags', label: 'Etiketler' },
-  { id: 'featured', label: 'Öne çıkan', fixed: true },
+  { id: 'updated', label: 'Son değişiklik' },
+  { id: 'featured', label: 'Durum', fixed: true },
 ];
+
+const DAY = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
+
+function shortDate(raw?: string): string {
+  if (!raw) return '—';
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? '—' : DAY.format(at);
+}
 
 /** The cover at a glance, uncropped; a placeholder when there is none. */
 function Cover({ src }: { src?: string }) {
@@ -47,6 +56,8 @@ export default function AnnouncementsPage() {
   const { user } = useAuth();
   const privileged = isPrivileged(user?.groups ?? []);
   const [items, setItems] = useState<NewsItem[]>([]);
+  // The reader's own draft of a new announcement, kept by the CMS
+  const [pending, setPending] = useState<NewsVirtualItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
   const [params, setParams] = useListParams({ view: 'all' });
@@ -58,6 +69,7 @@ export default function AnnouncementsPage() {
     try {
       const result = await newsApi.list({ limit: 100 });
       setItems((result.items ?? []).filter((item) => Boolean(item.slug)));
+      setPending(pendingNewsDraft(result));
       setFailed(null);
     } catch (error) {
       // inscribed's reason in Turkish (no access, maintenance), never its English detail
@@ -144,11 +156,31 @@ export default function AnnouncementsPage() {
           },
         ]
       : []),
+    ...(columns.isShown('updated')
+      ? [
+          {
+            id: 'updated',
+            width: '8rem',
+            from: 'md' as const,
+            header: 'Son değişiklik',
+            cell: (item: NewsItem) => (
+              <span className="text-secondary-foreground text-[13px]/5">
+                {shortDate(item.updatedAt)}
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       id: 'featured',
-      width: { base: 'auto', sm: '7rem' },
-      label: 'Öne çıkan',
-      cell: (item) => (item.data?.featured ? <StatusChip kind="featured" /> : null),
+      width: { base: 'auto', sm: '11rem' },
+      label: 'Durum',
+      cell: (item) => (
+        <span className="flex flex-wrap justify-end gap-1">
+          {item.draftData ? <StatusChip kind="pending" label="Taslakta değişiklik" /> : null}
+          {item.data?.featured ? <StatusChip kind="featured" /> : null}
+        </span>
+      ),
     },
   ];
 
@@ -225,6 +257,15 @@ export default function AnnouncementsPage() {
         />
       }
     >
+      {pending ? (
+        <div className="border-border-subtle bg-card flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2">
+          <StatusChip kind="draft" label="Taslak" />
+          <span className="text-foreground min-w-0 flex-1 truncate text-sm">
+            {pending.draftData?.title?.trim() || 'Başlıksız duyuru'}
+          </span>
+          <ActionButton href="/announcements/new" icon={PenLine} label="Devam et" showLabel />
+        </div>
+      ) : null}
       {!loading && (failed || rows.length === 0) ? (
         empty
       ) : (

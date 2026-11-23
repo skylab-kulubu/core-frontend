@@ -1,8 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import TicketDetailPage from '@/app/(authorized)/events/[id]/tickets/[ticketId]/page';
 import { identityApi } from '@/lib/api/identity';
 import { ticketsApi } from '@/lib/api/tickets';
+import { eventDaysApi } from '@/lib/api/eventDays';
+import { UNDO_GRACE_MS } from '@/lib/ui/use-deferred-undo';
 
 const mockAuth = { user: { id: 'yk', groups: ['/UYELER/YK'], roles: [] }, loading: false };
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
@@ -12,9 +15,22 @@ jest.mock('@/lib/api/events', () => ({
   },
 }));
 jest.mock('@/lib/api/eventDays', () => ({
-  eventDaysApi: { listByEvent: jest.fn().mockResolvedValue([]), listSessions: jest.fn() },
+  eventDaysApi: { listByEvent: jest.fn(), listSessions: jest.fn() },
 }));
-jest.mock('@/lib/api/tickets', () => ({ ticketsApi: { get: jest.fn(), listByEvent: jest.fn() } }));
+jest.mock('@/lib/api/tickets', () => ({
+  ticketsApi: {
+    get: jest.fn(),
+    listByEvent: jest.fn(),
+    checkIn: jest.fn(),
+    undoCheckIn: jest.fn(),
+    resend: jest.fn(),
+    renewLink: jest.fn(),
+  },
+}));
+// core's capabilities cannot be read: the group rule decides (YK may do everything)
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn().mockRejectedValue(new Error('down')) },
+}));
 jest.mock('@/lib/api/identity', () => ({
   identityApi: { listUsers: jest.fn(), getUser: jest.fn() },
 }));
@@ -36,7 +52,10 @@ async function renderTicket() {
 }
 
 describe('Ticket detail page', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (eventDaysApi.listByEvent as jest.Mock).mockResolvedValue([]);
+  });
 
   it('names the applicant from the ticket without reading the directory', async () => {
     (ticketsApi.get as jest.Mock).mockResolvedValue({
@@ -61,5 +80,71 @@ describe('Ticket detail page', () => {
     expect(await screen.findByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(identityApi.getUser).toHaveBeenCalledWith('u-ada');
     expect(identityApi.listUsers).not.toHaveBeenCalled();
+  });
+
+  it('offers Katıldı, the ticket mail and a new link as commands, and the person card', async () => {
+    (eventDaysApi.listByEvent as jest.Mock).mockResolvedValue([{ id: 'd1', eventId: 'e1' }]);
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { id: 's1', eventDayId: 'd1', title: 'Açılış' },
+    ]);
+    (ticketsApi.get as jest.Mock).mockResolvedValue({
+      ...registered,
+      owner: { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+    });
+    (ticketsApi.checkIn as jest.Mock).mockResolvedValue({
+      id: 'c1',
+      ticketId: 't1',
+      sessionId: 's1',
+      eventDayId: 'd1',
+      createdAt: '2026-09-19T09:00:00.000Z',
+    });
+    const user = userEvent.setup();
+    await renderTicket();
+    const commands = await screen.findByRole('group', { name: 'Kayıt komutları' });
+    expect(
+      within(commands).getByRole('button', { name: 'Bileti yeniden gönder' }),
+    ).toBeInTheDocument();
+    expect(within(commands).getByRole('button', { name: 'Bağlantıyı yenile' })).toBeInTheDocument();
+    await user.click(within(commands).getByRole('button', { name: 'Katıldı' }));
+    expect(ticketsApi.checkIn).toHaveBeenCalledWith('t1', 's1');
+  });
+
+  it('takes an entry back from the entries card', async () => {
+    (eventDaysApi.listByEvent as jest.Mock).mockResolvedValue([{ id: 'd1', eventId: 'e1' }]);
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { id: 's1', eventDayId: 'd1', title: 'Açılış' },
+    ]);
+    (ticketsApi.get as jest.Mock).mockResolvedValue({
+      ...registered,
+      owner: { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+      checkIns: [
+        {
+          id: 'c1',
+          ticketId: 't1',
+          sessionId: 's1',
+          eventDayId: 'd1',
+          createdAt: '2026-09-19T09:00:00.000Z',
+        },
+      ],
+    });
+    (ticketsApi.undoCheckIn as jest.Mock).mockResolvedValue(undefined);
+    await renderTicket();
+    const undo = await screen.findByRole('button', { name: 'Açılış: girişi geri al' });
+    jest.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(undo);
+      // Not at the first press: Vazgeç stands in its place for a few seconds
+      expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('button', { name: 'Açılış: geri almaktan vazgeç' }),
+      ).toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(UNDO_GRACE_MS);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenCalledWith('s1', 'c1'));
   });
 });

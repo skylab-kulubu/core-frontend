@@ -48,6 +48,11 @@ export type ConfirmRequest = {
    */
   onConfirm: () => void | Promise<void>;
   /**
+   * Runs when the reader leaves the question without the action going through (Vazgeç,
+   * Escape), for a field that showed the change being asked about to show what is saved again.
+   */
+  onCancel?: () => void;
+  /**
    * What to say in the dialog when `onConfirm` throws: the fallback for the
    * panel's one problem text (core-problems), or a function for another
    * service's wording. core's English title and detail never reach the reader.
@@ -118,6 +123,7 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
   const close = () => {
     setOpen(false);
     setError(null);
+    if (!succeeded.current) request?.onCancel?.();
   };
 
   const ask = (next: ConfirmRequest) => {
