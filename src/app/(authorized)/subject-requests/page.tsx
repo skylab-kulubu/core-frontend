@@ -14,7 +14,6 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { TextArea } from '@/components/chrome/TextArea';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -45,6 +44,8 @@ import {
 } from '@/lib/subject-requests';
 import { useAppCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
+import { Forbidden } from '@/components/chrome/PageState';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 type Filter = 'open' | 'concluded' | 'all';
 
@@ -168,8 +169,8 @@ export default function SubjectRequestsPage() {
   );
   const paged = paginateRows(filtered, page);
 
-  if (capabilities.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
-  if (!canManage) return <StateCard title="Bu kayda yalnız YK ve yöneticiler erişir" />;
+  if (capabilities.status === 'loading') return <PageSkeleton />;
+  if (!canManage) return <Forbidden pageTitle="KVKK başvuruları" />;
 
   const concluded = isConcluded(form.status);
 

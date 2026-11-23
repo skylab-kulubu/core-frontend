@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CircleAlert, ShieldAlert } from 'lucide-react';
+import { CircleAlert } from 'lucide-react';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { HandoffTargetsTable } from '@/components/handoff/HandoffTargetsTable';
 import { HandoffProblemError, handoffTargetsApi } from '@/lib/api/handoff-targets';
 import type { HandoffTarget } from '@/lib/handoff/targets';
+import { Forbidden } from '@/components/chrome/PageState';
 
 function enabledFirst(targets: HandoffTarget[]): HandoffTarget[] {
   return [...targets].sort(
@@ -48,17 +49,7 @@ export default function HandoffTargetsPage() {
   }, [load]);
 
   if (state.kind === 'forbidden') {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="SkyApp'ten geçiş" />
-        <StateCard
-          title="Erişimin yok"
-          description="SkyApp geçişlerini yalnız ADMIN grubu değiştirir."
-          Icon={ShieldAlert}
-          tone="warning"
-        />
-      </div>
-    );
+    return <Forbidden pageTitle="SkyApp'ten geçiş" />;
   }
 
   return (

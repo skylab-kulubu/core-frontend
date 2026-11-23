@@ -196,7 +196,7 @@ describe('Harita bölgeleri', () => {
   it('tells anyone without media:manage that the page is not theirs', async () => {
     (mapRegionsApi.list as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
     render(<MapRegionsPage />);
-    expect(await screen.findByText('Bu sayfa ADMIN ve YK’ya açık')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
   });
 
   it('shows the ready regions without a button to whoever core gives no media:manage', async () => {

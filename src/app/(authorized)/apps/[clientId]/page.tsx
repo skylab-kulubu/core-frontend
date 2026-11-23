@@ -46,6 +46,7 @@ import { rolePlacementMessage } from '@/lib/role-placement';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 type PageTab = 'assignments' | 'audit';
 
@@ -122,10 +123,10 @@ export default function AppAssignmentsPage() {
 
   useChromeCrumbName(`/apps/${clientId}`, data?.app.name);
 
-  if (capabilities.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
+  if (capabilities.status === 'loading') return <PageSkeleton variant="detail" />;
   if (!canRead) return <StateCard title="Uygulama atamaları açık değil" />;
   if (error && !data) return <StateCard title={error} tone="danger" />;
-  if (!data) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!data) return <PageSkeleton variant="detail" />;
 
   const app = data.app;
   const rows = data.assignments.filter((row) => !peopleOnly || row.type === 'user');

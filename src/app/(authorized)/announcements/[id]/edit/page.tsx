@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ShieldAlert, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { StateCard } from '@/components/chrome/StateCard';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -14,6 +14,8 @@ import { newsApi, newsProblemMessage, type NewsItem } from '@/lib/api/cms';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+import { Forbidden } from '@/components/chrome/PageState';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 export default function EditAnnouncementPage() {
   const router = useRouter();
@@ -39,21 +41,12 @@ export default function EditAnnouncementPage() {
   }, [privileged, slug]);
   useChromeCrumbName(`/announcements/${params.id}`, item ? item.data?.title || item.slug : null);
 
-  if (!privileged) {
-    return (
-      <StateCard
-        title="Duyuru yetkin yok"
-        description="Duyuruları YK ve kurullar yönetir."
-        Icon={ShieldAlert}
-        tone="warning"
-      />
-    );
-  }
+  if (!privileged) return <Forbidden pageTitle="Duyuruyu düzenle" />;
 
   if (error) {
     return <StateCard title={error} description="Duyuruya dönemiyor." tone="danger" />;
   }
-  if (!item) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!item) return <PageSkeleton variant="detail" />;
 
   return (
     <div className="space-y-6">
