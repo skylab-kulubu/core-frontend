@@ -167,6 +167,25 @@ describe('Harita bölgeleri', () => {
     );
   });
 
+  it('says a failed retry in the panel the button is in, and above the list once it closes', async () => {
+    (mapRegionsApi.retry as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { code: 'map_region_state' }),
+    );
+    const user = userEvent.setup();
+    render(<MapRegionsPage />);
+    const panel = await open(user, 'Kocaeli');
+    await user.click(within(panel).getByRole('button', { name: 'Tekrar dene' }));
+
+    expect(await within(panel).findByRole('alert')).toHaveTextContent(
+      'Bölge bu durumda değiştirilemez.',
+    );
+    expect(screen.getAllByText('Bölge bu durumda değiştirilemez.')).toHaveLength(1);
+
+    await user.click(within(panel).getByRole('button', { name: 'Paneli kapat' }));
+    await waitFor(() => expect(window.location.search).not.toContain('panel='));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bölge bu durumda değiştirilemez.');
+  });
+
   it('asks a province by its box, the name following the province', async () => {
     (mapRegionsApi.list as jest.Mock).mockResolvedValue([]);
     (mapRegionsApi.request as jest.Mock).mockResolvedValue({

@@ -242,6 +242,19 @@ describe('AuthenticatedChrome', () => {
     expect(within(trail).queryByText('…')).not.toBeInTheDocument();
   });
 
+  it('keeps the section whole in the trail and cuts the page name instead', async () => {
+    currentPathname = '/events/event-1/program';
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <NamedEvent />
+      </AuthenticatedChrome>,
+    );
+
+    const trail = screen.getAllByRole('navigation', { name: 'Sayfa yolu' })[0];
+    expect(trail.className).toContain('[&_ol>li:first-child]:shrink-0');
+    expect(trail.className).toContain('[&_ol>li:last-child:not(:first-child)]:shrink');
+  });
+
   it('lists Harita bölgeleri only once core says media.delete (media:manage)', async () => {
     currentPathname = '/seasons';
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'media.delete': true } });

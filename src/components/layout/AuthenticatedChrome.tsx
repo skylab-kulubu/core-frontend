@@ -26,8 +26,21 @@ type AuthenticatedChromeProps = Readonly<{
   sidebarUser: UserDto;
 }>;
 
+/**
+ * How the wide trail gives way when the row is narrow: the steps between go first, then the
+ * current page's name is cut; the first step (the section) stays whole. skylcn-ui's own rule
+ * keeps the last step whole and cuts the first, which left "S > 2026-2027 Güz-Bahar".
+ */
+export const TRAIL_GIVES_WAY =
+  '[&_ol>li:first-child]:shrink-0 [&_ol>li:last-child:not(:first-child)]:min-w-0 [&_ol>li:last-child:not(:first-child)]:shrink';
+
 function ChromeTrail({ pathname }: { pathname: string }) {
-  return <Breadcrumbs items={chromeCrumbs(pathname, useChromeCrumbNames())} />;
+  return (
+    <Breadcrumbs
+      className={TRAIL_GIVES_WAY}
+      items={chromeCrumbs(pathname, useChromeCrumbNames())}
+    />
+  );
 }
 
 /**
