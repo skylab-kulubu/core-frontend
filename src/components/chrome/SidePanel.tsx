@@ -3,35 +3,70 @@
 import { IconButton } from '@skylab-kulubu/skylcn-ui';
 import { ChevronDown, ChevronUp, Maximize2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
+import { useConfirm } from '@/lib/ui/use-confirm';
+import { DISCARD_ACTION, DISCARD_TITLE } from '@/lib/ui/use-unsaved-changes';
+
+/** Keys inside these belong to the control: a menu, a list box, tabs, a field, a dialog. */
+const OWN_ARROWS = [
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable=""]',
+  '[contenteditable="true"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  '[role="listbox"]',
+  '[role="option"]',
+  '[role="combobox"]',
+  '[role="radiogroup"]',
+  '[role="radio"]',
+  '[role="tablist"]',
+  '[role="tab"]',
+  '[role="slider"]',
+  '[role="grid"]',
+  '[role="tree"]',
+  '[role="alertdialog"]',
+].join(', ');
+
+/** Whether the panel's body can still scroll that way: the arrow scrolls it first. */
+function canScroll(body: HTMLElement | null, down: boolean): boolean {
+  if (!body) return false;
+  return down ? body.scrollTop + body.clientHeight < body.scrollHeight - 1 : body.scrollTop > 0;
+}
 
 /**
- * Moves to the next or previous row's panel with ↓/↑ while a panel is open,
- * unless the reader is typing.
+ * Steps to the next or previous row with ↓/↑ while the focus is in the panel and on
+ * none of its own controls (a menu, a list box, tabs, a field, a question), and only
+ * once the panel's body has nothing left to scroll that way.
  */
-function usePanelKeys(open: boolean, onPrev?: () => void, onNext?: () => void) {
+function usePanelKeys(
+  open: boolean,
+  content: RefObject<HTMLDivElement | null>,
+  onPrev?: () => void,
+  onNext?: () => void,
+) {
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const down = event.key === 'ArrowDown';
+      if (!down && event.key !== 'ArrowUp') return;
+      const step = down ? onNext : onPrev;
+      if (!step) return;
+      const panel = content.current?.closest<HTMLElement>('[role="dialog"]');
       const target = event.target instanceof Element ? event.target : null;
-      if (
-        target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')
-      )
-        return;
-      if (event.key === 'ArrowDown' && onNext) {
-        event.preventDefault();
-        onNext();
-      } else if (event.key === 'ArrowUp' && onPrev) {
-        event.preventDefault();
-        onPrev();
-      }
+      if (!panel || !target || !panel.contains(target)) return;
+      if (target.closest(OWN_ARROWS)) return;
+      if (canScroll(content.current?.parentElement ?? null, down)) return;
+      event.preventDefault();
+      step();
     };
-    // Captured: the drawer's own key handling may stop the event before it bubbles
+    // Captured: the dialog keeps its keys from bubbling; the checks above leave its controls alone
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [open, onPrev, onNext]);
+  }, [open, content, onPrev, onNext]);
 }
 
 /**
@@ -39,6 +74,8 @@ function usePanelKeys(open: boolean, onPrev?: () => void, onNext?: () => void) {
  * the right, "Tam sayfa" leads to the row's own page, ↑/↓ and the arrows step
  * through the rows. On phones it takes nearly the whole screen. Keep the open row
  * in the address (`useListParams().panel`) so a link or reload opens it again.
+ * With unsaved typing (`dirty`), closing and stepping to another row ask first.
+ * Put the row's facts in ObjectCard / ObjectEssentials, as on an object's overview.
  */
 export function SidePanel({
   open,
@@ -48,6 +85,7 @@ export function SidePanel({
   onPrev,
   onNext,
   dirty,
+  finalFocus,
   children,
 }: {
   open: boolean;
@@ -58,11 +96,38 @@ export function SidePanel({
   /** The row before and after; left out at the ends of the page. */
   onPrev?: () => void;
   onNext?: () => void;
-  /** Unsaved typing in the panel: closing asks first. */
+  /** Unsaved typing in the panel: closing or stepping asks first. */
   dirty?: boolean;
+  /**
+   * Where focus goes on close, such as the row now open (after ↑/↓) rather than
+   * the one first clicked.
+   */
+  finalFocus?: () => HTMLElement | null;
   children: ReactNode;
 }) {
-  usePanelKeys(open && !dirty, onPrev, onNext);
+  const content = useRef<HTMLDivElement>(null);
+  const [confirm, confirmDialog] = useConfirm();
+  const guard = useCallback(
+    (step?: () => void) =>
+      step
+        ? () => {
+            if (!dirty) {
+              step();
+              return;
+            }
+            confirm({
+              title: DISCARD_TITLE,
+              actionLabel: DISCARD_ACTION,
+              destructive: true,
+              onConfirm: step,
+            });
+          }
+        : undefined,
+    [dirty, confirm],
+  );
+  const prev = guard(onPrev);
+  const next = guard(onNext);
+  usePanelKeys(open, content, prev, next);
   const actions = (
     <>
       {onPrev || onNext ? (
@@ -72,16 +137,16 @@ export function SidePanel({
             size="icon-sm"
             variant="ghost"
             label="Önceki"
-            disabled={!onPrev}
-            onClick={onPrev}
+            disabled={!prev}
+            onClick={prev}
           />
           <IconButton
             icon={ChevronDown}
             size="icon-sm"
             variant="ghost"
             label="Sonraki"
-            disabled={!onNext}
-            onClick={onNext}
+            disabled={!next}
+            onClick={next}
           />
         </>
       ) : null}
@@ -102,10 +167,14 @@ export function SidePanel({
       onClose={onClose}
       title={title}
       dirty={dirty}
+      finalFocus={finalFocus}
       actions={actions}
       className="w-[min(100vw,480px)] sm:w-[min(92vw,480px)]"
     >
-      {children}
+      <div ref={content} className="flex flex-col gap-3">
+        {children}
+      </div>
+      {confirmDialog}
     </Drawer>
   );
 }
