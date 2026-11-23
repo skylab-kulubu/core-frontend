@@ -148,6 +148,7 @@ function EventsPageContent() {
                 icon={Plus}
                 variant="primary"
                 label="Etkinlik ekle"
+                iconOnlyOnPhone
                 onClick={openNewEvent}
               />
             ) : null}
