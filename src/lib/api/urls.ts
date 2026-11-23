@@ -95,6 +95,29 @@ export function asHitList(rows: ShortUrlHit[] | null | undefined): ShortUrlHit[]
   return Array.isArray(rows) ? rows : [];
 }
 
+/** A count under one name: a referring site or a device. */
+export type ShortUrlNamedCount = { name: string; count: number };
+
+/**
+ * core's click summary of one link (`GET /v1/urls/:id/stats`): counts by day, channel,
+ * referring site and device, and nothing of any single click.
+ */
+export type ShortUrlStats = {
+  since: string;
+  days: number;
+  total: number;
+  /** The part of total that came from a QR code. */
+  scans: number;
+  /** Every day of the window, oldest first; `day` is YYYY-MM-DD in Turkey's time. */
+  daily: Array<{ day: string; count: number }>;
+  /** By channel: instagram, whatsapp…, `other`, or '' for an untagged click. */
+  sources: Array<{ source: string; count: number; scans: number }>;
+  /** By the referring site's host; '' named no site, `other` holds the rest past ten. */
+  referrers: ShortUrlNamedCount[];
+  /** mobile, tablet, desktop, bot or unknown. */
+  devices: ShortUrlNamedCount[];
+};
+
 /** The list endpoints' kind filter; Tümü asks for every link, as before. */
 function sourceQuery(kind: LinkKindFilter): string {
   return kind === 'all' ? '' : `?source=${kind}`;
@@ -107,6 +130,8 @@ export const urlsApi = {
   availability: (alias: string) =>
     coreFetch<AliasAvailability>(`/v1/urls/availability?alias=${encodeURIComponent(alias)}`),
   listHits: (id: string) => coreFetch<ShortUrlHit[]>(`/v1/urls/${encodeURIComponent(id)}/hits`),
+  stats: (id: string, days = 30) =>
+    coreFetch<ShortUrlStats>(`/v1/urls/${encodeURIComponent(id)}/stats?days=${days}`),
   create: (body: ShortUrlBody) =>
     coreFetch<ShortUrl>('/v1/urls', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: ShortUrlBody) =>

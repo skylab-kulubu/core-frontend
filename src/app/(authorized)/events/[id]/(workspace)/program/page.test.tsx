@@ -6,7 +6,13 @@ import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { sessionsApi } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
-import { guestTicket, primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
+import {
+  guestTicket,
+  primeEventWorkspace,
+  renderEventTab,
+  signInAs,
+  workspaceSession,
+} from '@/test/event-workspace';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
 jest.mock('@/context/AuthContext', () => jest.requireActual('@/test/event-workspace').authModule);
@@ -32,6 +38,13 @@ jest.mock('@/lib/scheduling/save-event', () =>
 
 const renderProgram = () => renderEventTab(<EventProgramPage />, '/events/e1/program');
 
+/** Opens the session's "⋯" menu and presses one of its items. */
+async function sessionAction(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const menus = await screen.findAllByRole('button', { name: /: eylemler$/ });
+  await user.click(menus[menus.length - 1]);
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 describe('Event Program tab Katıldı', () => {
   beforeEach(primeEventWorkspace);
 
@@ -43,15 +56,19 @@ describe('Event Program tab Katıldı', () => {
     );
     expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Katıldı' })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Açılış: eylemler' }));
+    expect(await screen.findByRole('menuitem', { name: 'Oturumu düzenle' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Katıldı' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Kapıyı aç' })).not.toBeInTheDocument();
   });
 
   it('shows Katıldı for the owner-team Leader', async () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     await renderProgram();
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
-    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Açılış: eylemler' }));
+    expect(await screen.findByRole('menuitem', { name: 'Katıldı' })).toBeInTheDocument();
   });
 
   it('shows Katıldı for assigned door staff without exposing the roster', async () => {
@@ -62,9 +79,9 @@ describe('Event Program tab Katıldı', () => {
 
     await renderProgram();
 
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
-    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Açılış: eylemler' }));
+    expect(await screen.findByRole('menuitem', { name: 'Katıldı' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Katılımcılar' })).not.toBeInTheDocument();
     expect(ticketsApi.listByEvent).not.toHaveBeenCalled();
   });
@@ -81,11 +98,7 @@ describe('Event Program tab Katıldı', () => {
       createdAt: new Date(2026, 8, 19, 9, 4, 0).toISOString(),
     });
     await renderProgram();
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Katıldı' }).length).toBeGreaterThan(0),
-    );
-    const deskButtons = screen.getAllByRole('button', { name: 'Katıldı' });
-    await user.click(deskButtons[deskButtons.length - 1]);
+    await sessionAction(user, 'Katıldı');
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     expect(within(dialog).getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
     const field = within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu') as HTMLInputElement;
@@ -176,12 +189,12 @@ describe('Event Program tab days and sessions', () => {
     (sessionsApi.update as jest.Mock).mockResolvedValue({});
     (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
     await renderProgram();
-    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    await sessionAction(user, 'Oturumu düzenle');
     let dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await screen.findByText('Oturum kaydedildi')).toBeInTheDocument();
 
-    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    await sessionAction(user, 'Oturumu düzenle');
     dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
     const confirm = await screen.findByRole('alertdialog', {
@@ -196,7 +209,7 @@ describe('Event Program tab days and sessions', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
     await renderProgram();
-    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    await sessionAction(user, 'Oturumu düzenle');
     const drawer = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
     await user.click(within(drawer).getByRole('button', { name: 'Sil' }));
 
@@ -263,7 +276,7 @@ describe('Event Program tab days and sessions', () => {
     (sessionsApi.delete as jest.Mock).mockResolvedValue(undefined);
     (sessionsApi.restore as jest.Mock).mockResolvedValue({});
     await renderProgram();
-    await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+    await sessionAction(user, 'Oturumu düzenle');
     const dialog = await screen.findByRole('dialog', { name: 'Oturumu düzenle' });
     await user.click(within(dialog).getByRole('button', { name: 'Sil' }));
     await user.click(
@@ -283,8 +296,7 @@ describe('Event Program tab days and sessions', () => {
       new ProblemError(404, 'Not Found', { detail: 'no ticket for person' }),
     );
     await renderProgram();
-    const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
-    await user.click(deskButtons[deskButtons.length - 1]);
+    await sessionAction(user, 'Katıldı');
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     await user.type(within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu'), 'Yok Kişi');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
@@ -300,13 +312,44 @@ describe('Event Program tab days and sessions', () => {
       new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
     );
     await renderProgram();
-    const deskButtons = await screen.findAllByRole('button', { name: 'Katıldı' });
-    await user.click(deskButtons[deskButtons.length - 1]);
+    await sessionAction(user, 'Katıldı');
     const dialog = await screen.findByRole('dialog', { name: 'Açılış · Katıldı' });
     await user.type(within(dialog).getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada Lovelace');
     await user.click(within(dialog).getByRole('button', { name: 'Katıldı' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu kişi bu oturuma zaten girmiş.',
+    );
+  });
+});
+
+describe('Event Program tab timeline', () => {
+  beforeEach(primeEventWorkspace);
+
+  it('shows each session with its hours, marks the one running now, and opens the door', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    const hour = 3600_000;
+    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      {
+        ...workspaceSession,
+        id: 's2',
+        title: 'Panel',
+        startTime: iso(2 * hour),
+        endTime: iso(3 * hour),
+      },
+      { ...workspaceSession, startTime: iso(-hour), endTime: iso(hour) },
+    ]);
+    await renderProgram();
+    const list = await screen.findByRole('list', { name: /oturumları$/ });
+    const rows = within(list).getAllByRole('listitem');
+    // By start time, whatever order core gave
+    expect(rows[0]).toHaveTextContent('Açılış');
+    expect(rows[0]).toHaveTextContent(/\d{2}:\d{2}–\d{2}:\d{2}/);
+    expect(within(rows[0]).getByText('Şimdi')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Sıradaki')).toBeInTheDocument();
+    expect(within(rows[0]).getByRole('link', { name: 'Kapıyı aç' })).toHaveAttribute(
+      'href',
+      '/events/e1/door',
     );
   });
 });

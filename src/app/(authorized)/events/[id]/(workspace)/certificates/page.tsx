@@ -1,7 +1,6 @@
 'use client';
 
-import { SectionHeading } from '@/components/chrome/PanelChart';
-import { StateCard } from '@/components/chrome/StateCard';
+import { Forbidden } from '@/components/chrome/PageState';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { eventEditHref } from '@/lib/event-workspace';
@@ -21,25 +20,22 @@ export default function EventCertificatesPage() {
   } = useEventWorkspace();
 
   if (!canCertificates) {
-    return <StateCard title="Sertifikaları görme yetkin yok" tone="danger" />;
+    return <Forbidden />;
   }
 
   return (
-    <div className="space-y-3">
-      <SectionHeading title="Sertifikalar" />
-      <EventCertificatesPanel
-        eventId={event.id}
-        ownerTeam={event.ownerTeam}
-        attendanceRule={event.attendanceRule ?? 'none'}
-        attendanceRatio={event.attendanceRatio}
-        finalizeOpen={attendanceFinalizeOpen(event)}
-        tickets={tickets}
-        canIssue={canIssueCertificate}
-        canBind={canBindCertificate}
-        canRevoke={canRevokeCertificate}
-        canReadIssued={canReadIssuedCertificates}
-        ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
-      />
-    </div>
+    <EventCertificatesPanel
+      eventId={event.id}
+      ownerTeam={event.ownerTeam}
+      attendanceRule={event.attendanceRule ?? 'none'}
+      attendanceRatio={event.attendanceRatio}
+      finalizeOpen={attendanceFinalizeOpen(event)}
+      tickets={tickets}
+      canIssue={canIssueCertificate}
+      canBind={canBindCertificate}
+      canRevoke={canRevokeCertificate}
+      canReadIssued={canReadIssuedCertificates}
+      ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
+    />
   );
 }

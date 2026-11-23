@@ -87,7 +87,7 @@ describe('CertificateTemplateEditor', () => {
     expect(screen.getByText(/Bu şablon salt okunur/)).toBeInTheDocument();
   });
 
-  it('explains that a Canva link is a source reference and an export must be uploaded', async () => {
+  it('shows the Canva steps in one line: link, export, upload', async () => {
     const user = userEvent.setup();
     render(<CertificateTemplateEditor templateId="system-default" />);
 
@@ -98,10 +98,14 @@ describe('CertificateTemplateEditor', () => {
       'https://www.canva.com/design/example/edit',
     );
 
-    expect(
-      screen.getByText(/Canva bağlantısı tasarımı otomatik olarak içe aktarmaz/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Canva exportunu yükle')).toBeInTheDocument();
+    const steps = screen.getByRole('list', { name: 'Canva adımları' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
+    expect(steps).toHaveTextContent('3 · Dosyayı yükle');
+    expect(screen.getByText('Canva dosyasını yükle')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Canva'da aç/ })).toHaveAttribute(
+      'href',
+      'https://www.canva.com/design/example/edit',
+    );
   });
 
   it('offers a broad server-safe font library for editable text layers', async () => {
@@ -145,7 +149,7 @@ describe('CertificateTemplateEditor', () => {
 
     await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
     await user.selectOptions(screen.getByLabelText('Tasarım kaynağı'), 'canva');
-    const input = screen.getByLabelText('Canva exportunu yükle');
+    const input = screen.getByLabelText('Canva dosyasını yükle');
     expect(input).toHaveAttribute('accept', expect.stringContaining('application/pdf'));
 
     const pdf = new File(['%PDF-1.7 example'], 'certificate.pdf', {
@@ -154,7 +158,7 @@ describe('CertificateTemplateEditor', () => {
     await user.upload(input, pdf);
 
     expect(mediaApi.upload).toHaveBeenCalledWith(pdf);
-    expect(await screen.findByText(/PDF arka planı hazır/i)).toBeInTheDocument();
+    expect(await screen.findByText('3 · Dosyayı yükle ✓')).toBeInTheDocument();
     expect(screen.getByTitle('PDF arka plan önizlemesi')).toBeInTheDocument();
   });
 

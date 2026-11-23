@@ -8,14 +8,20 @@ import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { identityApi } from '@/lib/api/identity';
 import { ticketsApi } from '@/lib/api/tickets';
+import { dashboardApi, type EventStat } from '@/lib/api/dashboard';
 
 const mockReplace = jest.fn();
-let mockSearch = new URLSearchParams();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: mockReplace }),
-  useSearchParams: () => mockSearch,
+  usePathname: () => '/events',
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
+
+/** Starts the page at `/events?<query>`, as the address and the hooks read it. */
+function at(query: string) {
+  window.history.replaceState(null, '', query ? `/events?${query}` : '/events');
+}
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1', groups: [], roles: [] } }),
 }));
@@ -25,6 +31,7 @@ jest.mock('@/components/scheduling/NewEventProvider', () => ({
 jest.mock('@/lib/api/events', () => ({
   eventsApi: {
     list: jest.fn(),
+    stats: jest.fn(),
     publish: jest.fn(),
     cancel: jest.fn(),
     uncancel: jest.fn(),
@@ -36,6 +43,7 @@ jest.mock('@/lib/api/events', () => ({
 jest.mock('@/lib/api/tickets', () => ({ ticketsApi: { listByEvent: jest.fn() } }));
 jest.mock('@/lib/api/identity', () => ({ identityApi: { getUser: jest.fn() } }));
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
+jest.mock('@/lib/api/dashboard', () => ({ dashboardApi: { summary: jest.fn() } }));
 
 const future = '2099-10-01T10:00:00+03:00';
 const past = '2020-10-01T10:00:00+03:00';
@@ -76,12 +84,12 @@ function capabilities(write: boolean) {
 }
 
 function rowOf(name: string): HTMLElement {
-  const link = screen.getByRole('link', { name });
-  return link.closest('[data-slot="list-item"]') as HTMLElement;
+  const row = screen.getByRole('button', { name });
+  return row.closest('[data-slot="data-list-row"]') as HTMLElement;
 }
 
-/** The list is in once this Event's row link is. */
-const listed = (name: string) => screen.findByRole('link', { name });
+/** The list is in once this Event's row is. */
+const listed = (name: string) => screen.findByRole('button', { name });
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
   await user.click(await screen.findByRole('button', { name: `${name}: eylemler` }));
@@ -98,8 +106,10 @@ beforeAll(() => {
 describe('Etkinlikler listesi', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSearch = new URLSearchParams();
+    at('');
+    window.localStorage.clear();
     (eventsApi.list as jest.Mock).mockResolvedValue(rows);
+    (eventsApi.stats as jest.Mock).mockResolvedValue({ eventStats: [] });
     (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
     capabilities(true);
   });
@@ -123,14 +133,14 @@ describe('Etkinlikler listesi', () => {
     expect(within(filter).getByRole('button', { name: /Tümü/ })).toHaveTextContent('4');
     expect(within(filter).getByRole('button', { name: /Taslak/ })).toHaveTextContent('1');
     await user.click(within(filter).getByRole('button', { name: /İptal/ }));
-    expect(mockReplace).toHaveBeenCalledWith('/events?status=cancelled');
+    expect(window.location.search).toBe('?status=cancelled');
   });
 
   it('shows only the slice the address names', async () => {
-    mockSearch = new URLSearchParams('status=draft');
+    at('status=draft');
     render(<EventsPage />);
     expect(await listed('Taslak Kodu')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Yakın Kodu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Yakın Kodu' })).not.toBeInTheDocument();
   });
 
   it('offers publish and delete on a draft, never on a published event', async () => {
@@ -338,7 +348,105 @@ describe('Etkinlikler listesi', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Etkinliği sil' }));
     expect(eventsApi.delete).toHaveBeenCalledWith('d');
     await waitFor(() =>
-      expect(screen.queryByRole('link', { name: 'Taslak Kodu' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('button', { name: 'Taslak Kodu' })).not.toBeInTheDocument(),
     );
   });
+
+  it('shows each row with its registrations, entries and what a draft lacks', async () => {
+    (eventsApi.list as jest.Mock).mockResolvedValue([
+      { ...rows[1], capacity: 120 },
+      { ...rows[0], location: '', formUrl: undefined },
+    ]);
+    (eventsApi.stats as jest.Mock).mockResolvedValue({ eventStats: [stat('u', 42, 21)] });
+    render(<EventsPage />);
+    await listed('Yakın Kodu');
+    const row = rowOf('Yakın Kodu');
+    expect(await within(row).findByText('42')).toBeInTheDocument();
+    expect(within(row).getByText('/ 120')).toBeInTheDocument();
+    expect(within(row).getByText('· %50')).toBeInTheDocument();
+    // The draft has no cover, place nor form: the first two are named
+    expect(within(rowOf('Taslak Kodu')).getByText('Yer, kapak +1 eksik')).toBeInTheDocument();
+  });
+
+  it("falls back on the dashboard's figures when core has no list figures yet", async () => {
+    (eventsApi.stats as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
+    (dashboardApi.summary as jest.Mock).mockResolvedValue({ eventStats: [stat('u', 7, 3)] });
+    render(<EventsPage />);
+    await listed('Yakın Kodu');
+    expect(await within(rowOf('Yakın Kodu')).findByText('7')).toBeInTheDocument();
+  });
+
+  it('turns the list to a slice from its summary card and back', async () => {
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    const cards = screen.getByRole('group', { name: 'Özet' });
+    await user.click(within(cards).getByRole('button', { name: /Taslak/ }));
+    expect(window.location.search).toBe('?status=draft');
+  });
+
+  it('opens a row beside the list and leads to its page', async () => {
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    await user.click(await listed('Yakın Kodu'));
+    expect(window.location.search).toBe('?panel=u');
+  });
+
+  it('shows the row the address names beside the list, with its full page', async () => {
+    at('panel=u');
+    (eventsApi.stats as jest.Mock).mockResolvedValue({ eventStats: [stat('u', 42, 21)] });
+    render(<EventsPage />);
+    const panel = await screen.findByRole('dialog', { name: 'Yakın Kodu' });
+    expect(within(panel).getByRole('link', { name: /Tam sayfa/ })).toHaveAttribute(
+      'href',
+      '/events/u',
+    );
+    expect(await within(panel).findByText('Son 14 gün: 6 kayıt')).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Katılımcılar' })).toHaveAttribute(
+      'href',
+      '/events/u/participants',
+    );
+  });
+
+  it('draws the calendar from the address and opens an event from its bar', async () => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), 10, 10).toISOString();
+    const end = new Date(today.getFullYear(), today.getMonth(), 12, 18).toISOString();
+    (eventsApi.list as jest.Mock).mockResolvedValue([
+      event('m', 'Üç Günlük Kamp', { status: 'published', startDate: start, endDate: end }),
+      event('n', 'Tarihsiz Buluşma', { status: 'published' }),
+    ]);
+    at('view=calendar');
+    const user = userEvent.setup();
+    render(<EventsPage />);
+    const month = await waitFor(() => {
+      const el = document.querySelector('[data-slot="event-calendar-month"]');
+      if (!el) throw new Error('no month yet');
+      return el as HTMLElement;
+    });
+    // One bar for the three days
+    expect(within(month).getAllByRole('button', { name: 'Üç Günlük Kamp' })).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Tarihsiz' })).toBeInTheDocument();
+    await user.click(within(month).getByRole('button', { name: 'Üç Günlük Kamp' }));
+    expect(window.location.search).toBe('?view=calendar&panel=m');
+  });
 });
+
+function stat(id: string, applications: number, checkedIn: number): EventStat {
+  return {
+    id,
+    name: id,
+    ownerTeam: 'GECEKODU',
+    location: 'YTÜ',
+    active: true,
+    live: false,
+    capacity: 120,
+    hasApplicationForm: true,
+    hasCoverImage: false,
+    applications,
+    members: applications - 2,
+    guests: 2,
+    checkedIn,
+    dailyApplications: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 3, 0],
+  };
+}
