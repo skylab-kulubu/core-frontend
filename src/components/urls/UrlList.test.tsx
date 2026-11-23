@@ -200,6 +200,30 @@ describe('UrlList', () => {
         {...handlers}
       />,
     );
-    expect(screen.getByText('Eşleşen kısa URL yok.')).toBeInTheDocument();
+    expect(screen.getByText('Eşleşen kısa link yok')).toBeInTheDocument();
+  });
+});
+
+describe('UrlList on a phone', () => {
+  it('puts the row actions in one menu that does what the buttons do', async () => {
+    const user = userEvent.setup();
+    render(
+      <UrlList title="Linklerim" items={[row]} loading={false} failed={false} {...handlers} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'https://skyl.app/hack: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'QR' }));
+    expect(handlers.onQr).toHaveBeenCalledWith(row);
+  });
+
+  it('keeps a managed link closed to editing in the menu too', async () => {
+    const user = userEvent.setup();
+    render(
+      <UrlList title="Tümü" items={[eventRow]} loading={false} failed={false} {...handlers} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'https://skyl.app/gecekodu: eylemler' }));
+    expect(await screen.findByRole('menuitem', { name: 'Düzenle' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 });

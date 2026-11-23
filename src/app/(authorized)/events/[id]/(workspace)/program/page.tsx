@@ -15,7 +15,6 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
@@ -212,7 +211,13 @@ export default function EventProgramPage() {
                 <div>
                   <p className="text-secondary-foreground text-sm">{day.name}</p>
                   <p className="text-subtle-foreground text-[13px]/5">
-                    {day.startDate ? new Date(day.startDate).toLocaleString('tr-TR') : '—'}
+                    {day.startDate
+                      ? new Date(day.startDate).toLocaleDateString('tr-TR', {
+                          day: 'numeric',
+                          month: 'long',
+                          weekday: 'long',
+                        })
+                      : '—'}
                   </p>
                 </div>
                 {canMutate ? (
@@ -259,10 +264,6 @@ export default function EventProgramPage() {
                       subtitle={`${session.speakerName} · ${sessionTypeLabel(session.sessionType)}`}
                       trailing={
                         <div className="flex items-center gap-1">
-                          <StatusChip
-                            kind="neutral"
-                            label={sessionTypeLabel(session.sessionType)}
-                          />
                           {canDesk ? (
                             <ActionButton
                               icon={CheckCircle2}

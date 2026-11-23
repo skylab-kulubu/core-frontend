@@ -1,8 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { CopyButton } from '@skylab-kulubu/skylcn-ui';
-import { MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
+import {
+  CopyButton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+  MenuItem,
+} from '@skylab-kulubu/skylcn-ui';
+import { MoreHorizontal, MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
@@ -69,13 +76,12 @@ export function UrlList({
           failed,
           rowCount: visible.length,
           emptyMessage: emptyListCopy({
-            none: 'Henüz kısa URL yok.',
-            noneMatch: 'Eşleşen kısa URL yok.',
+            none: 'Kısa link yok',
+            noneMatch: 'Eşleşen kısa link yok',
             query,
             filtered,
           }),
         })}
-        emptyDescription="Hedef adresi kısalt."
       >
         {paged.slice.map((row) => {
           const short = publicShortUrl(row.alias);
@@ -91,38 +97,86 @@ export function UrlList({
               subtitle={details.filter(Boolean).join(' · ')}
               trailing={
                 <>
-                  <StatusChip kind="neutral" label={linkKindLabel(kind)} />
+                  {/* On a phone the short link keeps the row: kind and note give way */}
+                  <StatusChip
+                    kind="neutral"
+                    label={linkKindLabel(kind)}
+                    className="hidden sm:inline-flex"
+                  />
                   {note ? (
-                    <span className="text-subtle-foreground text-xs whitespace-nowrap">{note}</span>
+                    <span className="text-subtle-foreground hidden text-xs whitespace-nowrap sm:inline">
+                      {note}
+                    </span>
                   ) : null}
                   {/* The tick shows in place; a copy is not a write, so no toast */}
                   <CopyButton value={short} label="Kopyala" variant="outline" size="icon" />
-                  <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
-                  {onHits ? (
-                    <ActionButton
-                      icon={MousePointerClick}
-                      label="Tıklamalar"
-                      onClick={() => onHits(row)}
-                    />
-                  ) : null}
-                  {canChange(row) ? (
-                    <>
+                  <span className="hidden items-center gap-1 sm:flex">
+                    <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
+                    {onHits ? (
                       <ActionButton
-                        icon={Pencil}
-                        label="Düzenle"
-                        title={note ?? undefined}
-                        disabled={managed}
-                        onClick={() => onEdit(row)}
+                        icon={MousePointerClick}
+                        label="Tıklamalar"
+                        onClick={() => onHits(row)}
                       />
-                      <ActionButton
-                        icon={Trash2}
-                        label="Sil"
-                        title={managed && !canDeleteManaged ? (note ?? undefined) : undefined}
-                        disabled={managed && !canDeleteManaged}
-                        onClick={() => onDelete(row)}
+                    ) : null}
+                    {canChange(row) ? (
+                      <>
+                        <ActionButton
+                          icon={Pencil}
+                          label="Düzenle"
+                          title={note ?? undefined}
+                          disabled={managed}
+                          onClick={() => onEdit(row)}
+                        />
+                        <ActionButton
+                          icon={Trash2}
+                          label="Sil"
+                          title={managed && !canDeleteManaged ? (note ?? undefined) : undefined}
+                          disabled={managed && !canDeleteManaged}
+                          onClick={() => onDelete(row)}
+                        />
+                      </>
+                    ) : null}
+                  </span>
+                  {/* Under 640px the other actions sit in one menu, so the row does not overflow */}
+                  <span className="sm:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <IconButton
+                            icon={MoreHorizontal}
+                            variant="outline"
+                            label={`${short}: eylemler`}
+                          />
+                        }
                       />
-                    </>
-                  ) : null}
+                      <DropdownMenuContent align="end">
+                        <MenuItem icon={QrCode} onClick={() => onQr(row)}>
+                          QR
+                        </MenuItem>
+                        {onHits ? (
+                          <MenuItem icon={MousePointerClick} onClick={() => onHits(row)}>
+                            Tıklamalar
+                          </MenuItem>
+                        ) : null}
+                        {canChange(row) ? (
+                          <>
+                            <MenuItem icon={Pencil} disabled={managed} onClick={() => onEdit(row)}>
+                              Düzenle
+                            </MenuItem>
+                            <MenuItem
+                              icon={Trash2}
+                              destructive
+                              disabled={managed && !canDeleteManaged}
+                              onClick={() => onDelete(row)}
+                            >
+                              Sil
+                            </MenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </span>
                 </>
               }
             />
