@@ -306,3 +306,22 @@ export function sortEvents<T extends DatedEvent>(
   };
   return [...events].sort((a, b) => start(b) - start(a) || byName(a, b));
 }
+
+/** A list cell's dates, short: "22–23 Kas 2026", "30 Kas – 2 Ara 2026", "3 Ara 2026"; '' undated. */
+export function formatEventWhenShort(event: Pick<DatedEvent, 'startDate' | 'endDate'>): string {
+  if (!event.startDate) return '';
+  const start = new Date(event.startDate);
+  if (Number.isNaN(start.getTime())) return '';
+  const rawEnd = event.endDate ? new Date(event.endDate) : start;
+  const end = Number.isNaN(rawEnd.getTime()) ? start : rawEnd;
+  const day = (d: Date) => new Intl.DateTimeFormat('tr-TR', { day: 'numeric' }).format(d);
+  const dayMonth = (d: Date) =>
+    new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' }).format(d);
+  const full = (d: Date) =>
+    new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+  const sameDay = localDateKey(start) === localDateKey(end);
+  if (sameDay) return full(start);
+  if (start.getFullYear() !== end.getFullYear()) return `${full(start)} – ${full(end)}`;
+  if (start.getMonth() === end.getMonth()) return `${day(start)}–${full(end)}`;
+  return `${dayMonth(start)} – ${full(end)}`;
+}

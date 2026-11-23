@@ -13,6 +13,7 @@ import {
   eventsOnDateKey,
   filterEventsByStatus,
   formatEventWhen,
+  formatEventWhenShort,
   sortEventsForList,
   undatedEvents,
 } from './events-view';
@@ -264,5 +265,24 @@ describe('sortEvents', () => {
       'a',
       'b',
     ]);
+  });
+});
+
+describe('formatEventWhenShort', () => {
+  it('writes a span within a month, across months and on one day short', () => {
+    expect(
+      formatEventWhenShort({
+        startDate: '2026-11-22T09:00:00+03:00',
+        endDate: '2026-11-23T18:00:00+03:00',
+      }),
+    ).toBe('22–23 Kas 2026');
+    expect(
+      formatEventWhenShort({
+        startDate: '2026-11-30T09:00:00+03:00',
+        endDate: '2026-12-02T18:00:00+03:00',
+      }),
+    ).toBe('30 Kas – 2 Ara 2026');
+    expect(formatEventWhenShort({ startDate: '2026-12-03T18:00:00+03:00' })).toBe('3 Ara 2026');
+    expect(formatEventWhenShort({})).toBe('');
   });
 });

@@ -20,7 +20,7 @@ import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar'
 import { EmptyState } from '@/components/chrome/PageState';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SidePanel, panelNeighbours } from '@/components/chrome/SidePanel';
-import { StatusChip } from '@/components/chrome/StatusChip';
+import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import { EventCalendar } from '@/components/scheduling/EventCalendar';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventListPanel, ShareBar } from '@/components/scheduling/EventListPanel';
@@ -37,6 +37,7 @@ import { useEventCreate } from '@/lib/use-event-create';
 import {
   countEventsByStatus,
   EVENT_SORTS,
+  EVENT_STATUS_LABELS,
   EVENT_STATUS_FILTERS,
   eventDisplayStatus,
   eventGapLine,
@@ -44,7 +45,8 @@ import {
   eventSortFrom,
   eventStatusFilterFrom,
   filterEventsByStatus,
-  formatEventWhen,
+  formatEventWhenShort,
+  sortEventsForList,
   sortEvents,
   type EventStatusFilter,
 } from '@/lib/events-view';
@@ -204,9 +206,11 @@ function EventsPageContent() {
       });
     }
     const recent = daily.reduce((sum, n) => sum + n, 0);
+    const live = filterEventsByStatus(sortEventsForList(events), 'live')[0];
+    const next = filterEventsByStatus(sortEventsForList(events), 'upcoming')[0];
     const lastWeek = daily.slice(7).reduce((sum, n) => sum + n, 0);
     const weekBefore = daily.slice(0, 7).reduce((sum, n) => sum + n, 0);
-    return { all, lacking, daily, recent, lastWeek, weekBefore };
+    return { all, lacking, daily, recent, lastWeek, weekBefore, live, next };
   }, [events, stats]);
 
   const pick = (slice: EventStatusFilter) =>
@@ -219,7 +223,8 @@ function EventsPageContent() {
       header: 'Etkinlik',
       cell: (ev) => {
         const gaps = eventGaps(ev);
-        const when = formatEventWhen(ev);
+        const when = formatEventWhenShort(ev);
+        const status = eventDisplayStatus(ev);
         return (
           <DataListTitle
             leading={<Cover src={ev.coverImageUrl} />}
@@ -231,6 +236,11 @@ function EventsPageContent() {
                     .filter(Boolean)
                     .join(' · ')}
                   {when ? <span className="md:hidden"> · {when}</span> : null}
+                </span>
+                {/* A phone has no status column: the state is the first word of a line */}
+                <span className="inline-flex items-center gap-1.5 sm:hidden">
+                  <StatusDot kind={status} />
+                  {EVENT_STATUS_LABELS[status]}
                 </span>
                 {gaps.length ? (
                   <span className="text-warning inline-flex items-center gap-1">
@@ -253,7 +263,7 @@ function EventsPageContent() {
             header: 'Tarih',
             cell: (ev: CoreEvent) => (
               <span className="text-secondary-foreground text-[13px]/5 tabular-nums">
-                {formatEventWhen(ev) || 'Tarihsiz'}
+                {formatEventWhenShort(ev) || 'Tarihsiz'}
               </span>
             ),
           },
@@ -330,7 +340,8 @@ function EventsPageContent() {
       : []),
     {
       id: 'status',
-      width: { base: 'auto', sm: '6.5rem' },
+      width: '6.5rem',
+      from: 'sm',
       label: 'Durum',
       cell: (ev) => <StatusChip kind={eventDisplayStatus(ev)} />,
     },
@@ -418,6 +429,11 @@ function EventsPageContent() {
                 key: 'live',
                 label: 'Sürüyor',
                 value: summary.all.live,
+                hint: summary.live ? (
+                  <span className={cn('text-secondary-foreground line-clamp-2', TEXT_SECONDARY)}>
+                    {summary.live.name}
+                  </span>
+                ) : undefined,
                 active: statusFilter === 'live',
                 onSelect: () => pick('live'),
               },
@@ -425,6 +441,11 @@ function EventsPageContent() {
                 key: 'upcoming',
                 label: 'Yaklaşan',
                 value: summary.all.upcoming,
+                hint: summary.next ? (
+                  <span className={cn('text-secondary-foreground line-clamp-2', TEXT_SECONDARY)}>
+                    Sıradaki: {summary.next.name} · {formatEventWhenShort(summary.next)}
+                  </span>
+                ) : undefined,
                 active: statusFilter === 'upcoming',
                 onSelect: () => pick('upcoming'),
               },

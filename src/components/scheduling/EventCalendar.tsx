@@ -2,7 +2,7 @@
 
 import { Button, cn } from '@skylab-kulubu/skylcn-ui';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SectionHeading } from '@/components/chrome/PanelChart';
 import { StatusChip, StatusDot } from '@/components/chrome/StatusChip';
 import type { CoreEvent } from '@/lib/api/events';
@@ -96,6 +96,7 @@ export function EventCalendar({
   }));
   const [selectedKey, setSelectedKey] = useState(todayKey);
   const agendaRefs = useRef(new Map<string, HTMLElement>());
+  const strip = useRef<HTMLDivElement>(null);
   const weeks = useMemo(() => monthWeeks(cursor.year, cursor.month), [cursor.year, cursor.month]);
   const agenda = useMemo(
     () => monthAgenda(events, cursor.year, cursor.month),
@@ -107,6 +108,14 @@ export function EventCalendar({
   const selectedEvents = selected ? eventsOnDateKey(events, selected) : [];
   const monthDays = weeks.flat().filter((day) => day.inMonth);
   const busy = new Set(agenda.map((day) => day.key));
+
+  // The day strip opens on today (or the month's first day), not on the 1st
+  useEffect(() => {
+    const row = strip.current;
+    const chip = row?.querySelector<HTMLElement>('[data-today="true"]');
+    if (row && chip) row.scrollLeft = chip.offsetLeft - row.clientWidth / 2 + chip.clientWidth / 2;
+    else if (row) row.scrollLeft = 0;
+  }, [cursor.year, cursor.month]);
 
   const move = (delta: number) => setCursor((cur) => shiftMonth(cur.year, cur.month, delta));
   const goToday = () => {
@@ -236,6 +245,7 @@ export function EventCalendar({
       {/* Phones: a strip of the month's days and the agenda under it */}
       <div className="space-y-3 sm:hidden" data-slot="event-calendar-agenda">
         <div
+          ref={strip}
           role="group"
           aria-label="Günler"
           className="scrollbar-hidden -mx-4 flex gap-1 overflow-x-auto px-4 pb-1"
@@ -248,6 +258,7 @@ export function EventCalendar({
                 key={day.key}
                 type="button"
                 disabled={!has}
+                data-today={isToday ? 'true' : undefined}
                 aria-label={`${dayTitle(day.date)}${has ? '' : ', etkinlik yok'}`}
                 onClick={() =>
                   agendaRefs.current
