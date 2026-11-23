@@ -25,6 +25,60 @@ jest.mock('@/lib/api/certificates', () => ({
   },
 }));
 
+/** Opens the GECEKODU row's panel: the club row comes first. */
+async function openTeam(user: ReturnType<typeof userEvent.setup>) {
+  const change = await screen.findAllByRole('button', { name: 'Değiştir' });
+  await user.click(change[1]);
+  await screen.findByRole('dialog', { name: 'GECEKODU varsayılanı' });
+}
+
+describe('Certificate defaults: the table', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (certificatesApi.templates as jest.Mock).mockResolvedValue([
+      { id: 't0', name: 'Kulüp şablonu', ownerTeam: '', publishedVersion: { version: 2 } },
+      {
+        id: 't1',
+        name: 'GECEKODU şablonu',
+        ownerTeam: 'GECEKODU',
+        publishedVersion: { version: 1 },
+      },
+    ]);
+    (certificatesApi.bindings as jest.Mock).mockResolvedValue([
+      { id: 'b0', scope: 'club', scopeKey: 'SKY_LAB', templateId: 't0', updatedAt: '' },
+    ]);
+    (certificatesApi.setBinding as jest.Mock).mockImplementation(async (body) => ({
+      id: 'b1',
+      updatedAt: '2026-11-23T09:00:00Z',
+      ...body,
+    }));
+  });
+
+  it('lists every default at once, a team without one on the club default', async () => {
+    render(<CertificateDefaultsPage />);
+    expect(await screen.findByText('SKY LAB (kulüp)')).toBeInTheDocument();
+    expect(screen.getByText('Kulüp şablonu')).toBeInTheDocument();
+    expect(screen.getByText('Kulüp varsayılanı: Kulüp şablonu')).toBeInTheDocument();
+    expect(screen.getByText('Sıra: etkinlik → ekip → kulüp')).toBeInTheDocument();
+  });
+
+  it('gives a team its own default from the panel', async () => {
+    const user = userEvent.setup();
+    render(<CertificateDefaultsPage />);
+    await openTeam(user);
+    await user.click(screen.getByRole('radio', { name: /GECEKODU şablonu/ }));
+    await user.click(screen.getByRole('button', { name: 'Varsayılan yap' }));
+    await waitFor(() =>
+      expect(certificatesApi.setBinding).toHaveBeenCalledWith({
+        scope: 'ownerTeam',
+        scopeKey: 'GECEKODU',
+        templateId: 't1',
+      }),
+    );
+    expect(await screen.findByText('GECEKODU varsayılanı güncellendi')).toBeInTheDocument();
+  });
+});
+
 describe('Certificate defaults: remove a team default', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,7 +94,8 @@ describe('Certificate defaults: remove a team default', () => {
   it('asks in a dialog that names the team and what follows', async () => {
     const user = userEvent.setup();
     render(<CertificateDefaultsPage />);
-    await user.click(await screen.findByRole('button', { name: 'Ekip varsayılanını kaldır' }));
+    await openTeam(user);
+    await user.click(screen.getByRole('button', { name: 'Kulüp varsayılanını kullan' }));
     const confirm = await screen.findByRole('alertdialog', {
       name: 'GECEKODU varsayılanı kaldırılsın mı?',
     });
@@ -48,7 +103,7 @@ describe('Certificate defaults: remove a team default', () => {
     await user.click(within(confirm).getByRole('button', { name: 'Vazgeç' }));
     expect(certificatesApi.clearBinding).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Ekip varsayılanını kaldır' }));
+    await user.click(screen.getByRole('button', { name: 'Kulüp varsayılanını kullan' }));
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', {
         name: 'Varsayılanı kaldır',
@@ -70,7 +125,8 @@ describe('Certificate defaults: remove a team default', () => {
       new ProblemError(403, 'Forbidden', { detail: 'missing role certificate:bind' }),
     );
     render(<CertificateDefaultsPage />);
-    await user.click(await screen.findByRole('button', { name: 'Ekip varsayılanını kaldır' }));
+    await openTeam(user);
+    await user.click(screen.getByRole('button', { name: 'Kulüp varsayılanını kullan' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Varsayılanı kaldır' }));
     expect(await within(confirm).findByRole('alert')).toHaveTextContent(
@@ -109,9 +165,9 @@ describe('Certificate defaults: the teams to choose from', () => {
         { team: 'WEBLAB', levels: ['LEADER', 'MEMBER'], can: {} },
       ],
     });
-    expect(await screen.findByRole('option', { name: 'MOBIL' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'WEBLAB' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'GECEKODU' })).toBeNull();
+    expect(await screen.findByText('MOBIL')).toBeInTheDocument();
+    expect(screen.getByText('WEBLAB')).toBeInTheDocument();
+    expect(screen.queryByText('GECEKODU')).toBeNull();
     expect(teamsApi.list).toHaveBeenCalledTimes(1);
     expect(certificatesApi.templates).toHaveBeenCalledTimes(1);
   });

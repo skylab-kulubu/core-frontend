@@ -35,7 +35,7 @@ describe('Event Sertifikalar tab', () => {
       { id: 'e1', name: 'GeceKodu', ownerTeam: 'GECEKODU' },
     ]);
     await renderEventTab(<EventCertificatesPage />, '/events/e1/certificates');
-    expect(await screen.findByText('Sertifikaları görme yetkin yok')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Sertifikalar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Sertifikalar' })).not.toBeInTheDocument();
   });
