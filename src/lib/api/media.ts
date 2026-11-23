@@ -20,6 +20,8 @@ export type Media = {
 };
 
 export const mediaApi = {
+  /** Every current Media the caller may list (privileged people). */
+  list: () => coreFetch<Media[]>('/v1/media'),
   get: (id: string) => coreFetch<Media>(`/v1/media/${encodeURIComponent(id)}`),
   upload: (file: File, purpose?: MediaPurpose) => {
     const body = new FormData();

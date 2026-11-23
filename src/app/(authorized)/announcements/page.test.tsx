@@ -117,4 +117,21 @@ describe('Duyurular', () => {
     expect(screen.getByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(newsApi.list).not.toHaveBeenCalled();
   });
+
+  it('offers the reader’s own unfinished announcement and marks unpublished changes', async () => {
+    (newsApi.list as jest.Mock).mockResolvedValue({
+      items: [{ ...ITEMS[1], draftData: { title: 'Kayıtlar açıldı!' } }],
+      total: 1,
+      offset: 0,
+      limit: 100,
+      virtualItems: [{ origin: 'pending', data: {}, draftData: { title: 'Yarım duyuru' } }],
+    });
+    render(<AnnouncementsPage />);
+    expect(await screen.findByText('Yarım duyuru')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Devam et' })).toHaveAttribute(
+      'href',
+      '/announcements/new',
+    );
+    expect(screen.getByText('Taslakta değişiklik')).toBeInTheDocument();
+  });
 });
