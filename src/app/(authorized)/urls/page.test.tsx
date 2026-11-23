@@ -274,8 +274,20 @@ describe('Kısa link side panel', () => {
     expect(await within(panel).findByRole('alert')).toBeInTheDocument();
   });
 
-  it('shows no click summary to someone who reads only their own links', async () => {
+  it('shows the click summary of their own link to the person who made it', async () => {
     (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    at('panel=u1');
+    render(<UrlsPage />);
+    const panel = await screen.findByRole('dialog', { name: 'hack' });
+    await waitFor(() => expect(urlsApi.stats).toHaveBeenCalledWith('u1', 30));
+    expect(await within(panel).findByText('5 tıklama · 2 QR')).toBeInTheDocument();
+    // The totals over every link stay with URL moderators
+    expect(screen.queryByRole('group', { name: 'Özet' })).not.toBeInTheDocument();
+  });
+
+  it('reads no summary of a link someone else made, for a reader who is no moderator', async () => {
+    (useAuth as jest.Mock).mockReturnValue({ user: creator() });
+    (urlsApi.listMine as jest.Mock).mockResolvedValue([{ ...short, createdBy: 'someone-else' }]);
     at('panel=u1');
     render(<UrlsPage />);
     await screen.findByRole('dialog', { name: 'hack' });

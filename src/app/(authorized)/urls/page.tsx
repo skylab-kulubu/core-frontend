@@ -503,7 +503,8 @@ export default function UrlsPage() {
         ) : openRow ? (
           <LinkDetails
             row={openRow}
-            moderate={moderate}
+            // core lets the person who made a link read its summary (url.listMine)
+            showStats={moderate || (Boolean(user?.id) && openRow.createdBy === user?.id)}
             canEdit={canChange(openRow) && !isManaged(openRow)}
             canDelete={canChange(openRow) && (!isManaged(openRow) || moderateWrite)}
             onEdit={() => startEdit(openRow)}
@@ -518,14 +519,15 @@ export default function UrlsPage() {
 /** One link beside the list: the address to copy, its facts, its QR code and its clicks. */
 function LinkDetails({
   row,
-  moderate,
+  showStats,
   canEdit,
   canDelete,
   onEdit,
   onDelete,
 }: {
   row: ShortUrl;
-  moderate: boolean;
+  /** A URL moderator, or the person who made the link. */
+  showStats: boolean;
   canEdit: boolean;
   canDelete: boolean;
   onEdit: () => void;
@@ -568,7 +570,7 @@ function LinkDetails({
           { label: 'Oluşturma', value: formatApplicantWhen(row.createdAt) },
         ]}
       />
-      {moderate ? <LinkStats id={row.id} /> : null}
+      {showStats ? <LinkStats id={row.id} /> : null}
       <ObjectCard title="QR kodu">
         <QrPreview
           imageUrl={shortQrUrl(row.alias)}
