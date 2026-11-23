@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Link from 'next/link';
 import React, { useState } from 'react';
@@ -7,7 +7,16 @@ import { DangerSection, SettingsPage, SettingsSection } from '@/components/chrom
 const push = jest.fn();
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
-function GroupSettings({ save }: { save: (name: string) => Promise<void> }) {
+function GroupSettings({
+  save,
+  remove = jest.fn(),
+  reportErrors = true,
+}: {
+  save: (name: string) => Promise<void>;
+  remove?: () => void;
+  /** false: the page leaves the failure to SettingsPage (a plain rejecting onSave). */
+  reportErrors?: boolean;
+}) {
   const [saved, setSaved] = useState('GeceKodu');
   const [name, setName] = useState(saved);
   const [saving, setSaving] = useState(false);
@@ -18,6 +27,11 @@ function GroupSettings({ save }: { save: (name: string) => Promise<void> }) {
       saving={saving}
       error={error}
       onSave={async () => {
+        if (!reportErrors) {
+          await save(name);
+          setSaved(name);
+          return;
+        }
         setSaving(true);
         try {
           await save(name);
@@ -37,7 +51,11 @@ function GroupSettings({ save }: { save: (name: string) => Promise<void> }) {
       <SettingsSection title="Görünürlük">
         <Link href="/groups">Gruplar</Link>
       </SettingsSection>
-      <DangerSection title="Grubu sil" actionLabel="Sil" onAction={jest.fn()} />
+      <DangerSection
+        title="Grubu sil"
+        actionLabel="Sil"
+        confirm={{ title: '"GeceKodu" silinsin mi?', actionLabel: 'Grubu sil', onConfirm: remove }}
+      />
     </SettingsPage>
   );
 }
@@ -95,5 +113,31 @@ describe('SettingsPage', () => {
       await screen.findByRole('alertdialog', { name: 'Kaydedilmemiş değişiklikler silinsin mi?' }),
     ).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('says a rejected save in the bar when the page leaves it to the bar', async () => {
+    const pointer = userEvent.setup();
+    const save = jest.fn().mockRejectedValue(new Error('x'));
+    render(<GroupSettings save={save} reportErrors={false} />);
+    await pointer.type(screen.getByLabelText('Görünen ad'), ' 2');
+    await pointer.click(screen.getByRole('button', { name: 'Kaydet' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Kaydedilemedi');
+    expect(screen.getByLabelText('Görünen ad')).toHaveValue('GeceKodu 2');
+  });
+
+  it('asks before the dangerous work and does nothing unasked', async () => {
+    const pointer = userEvent.setup();
+    const remove = jest.fn();
+    render(<GroupSettings save={jest.fn()} remove={remove} />);
+    await pointer.click(screen.getByRole('button', { name: 'Sil' }));
+    const ask = await screen.findByRole('alertdialog', { name: '"GeceKodu" silinsin mi?' });
+    expect(remove).not.toHaveBeenCalled();
+    await pointer.click(within(ask).getByRole('button', { name: 'Vazgeç' }));
+    expect(remove).not.toHaveBeenCalled();
+    await pointer.click(screen.getByRole('button', { name: 'Sil' }));
+    await pointer.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Grubu sil' }),
+    );
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });
