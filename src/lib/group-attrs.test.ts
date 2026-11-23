@@ -3,6 +3,8 @@ import {
   competitionManagers,
   extraGroupAttrs,
   isKnownGroupAttr,
+  isRetiredGroupAttr,
+  isTeamSettingAttr,
   isToggleOn,
 } from './group-attrs';
 
@@ -26,9 +28,12 @@ describe('group attributes', () => {
     expect(competitionManagers({ team_competition_manage: ' TRUE ' })).toBe('members');
   });
 
-  it('knows both Team settings as attributes set elsewhere', () => {
-    expect(isKnownGroupAttr('members_manage_competitors')).toBe(true);
+  it('knows the Team setting and the retired one as attributes set elsewhere', () => {
     expect(isKnownGroupAttr('team_competition_manage')).toBe(true);
+    expect(isTeamSettingAttr('team_competition_manage')).toBe(true);
+    expect(isKnownGroupAttr('members_manage_competitors')).toBe(true);
+    expect(isTeamSettingAttr('members_manage_competitors')).toBe(false);
+    expect(isRetiredGroupAttr('members_manage_competitors')).toBe(true);
   });
 
   it('keeps unknown keys as extras', () => {
