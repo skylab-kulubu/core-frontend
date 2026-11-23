@@ -18,6 +18,28 @@ export type NewsItem = {
   data: NewsData;
   version: number;
   canEdit?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  /**
+   * The caller's own autosaved, unpublished changes to this item (inscribed keeps one per
+   * editor, in Redis); absent when there are none.
+   */
+  draftData?: Partial<NewsData>;
+  isArchived?: boolean;
+  archivedAt?: string;
+};
+
+/**
+ * Something the editor may bring into being: on News, the caller's one draft of an item
+ * not created yet (`origin: "pending"`). It has no slug, id or version.
+ */
+export type NewsVirtualItem = {
+  origin: 'pending' | 'derived';
+  canEdit?: boolean;
+  slug?: string;
+  data: Partial<NewsData>;
+  draftData?: Partial<NewsData> | null;
+  updatedAt?: string;
 };
 
 export type NewsPage = {
@@ -25,6 +47,8 @@ export type NewsPage = {
   total: number;
   offset: number;
   limit: number;
+  /** Only for an editor: the caller's draft of a new item, whatever the page. */
+  virtualItems?: NewsVirtualItem[];
 };
 
 /** What inscribed answers a delete with: the item is archived, not erased. */
@@ -90,7 +114,35 @@ export const newsApi = {
     ),
   remove: (slug: string, version: number, token?: string | null) =>
     cmsFetch<NewsArchived>(`${newsPath(slug)}?version=${version}`, { method: 'DELETE' }, token),
+  /** Brings an archived item back, at the version it was archived with. */
+  restore: (slug: string, version: number, token?: string | null) =>
+    cmsFetch<NewsItem>(`${newsPath(slug)}/restore?version=${version}`, { method: 'POST' }, token),
+  /** Autosaves the caller's draft of an item; only they see it, until they publish. */
+  saveDraft: (slug: string, data: Partial<NewsData>, token?: string | null) =>
+    cmsFetch<void>(
+      `${newsPath(slug)}/draft`,
+      { method: 'PUT', body: JSON.stringify({ data }) },
+      token,
+    ),
+  /** Drops the caller's draft of an item: the published text stands. */
+  discardDraft: (slug: string, token?: string | null) =>
+    cmsFetch<void>(`${newsPath(slug)}/draft`, { method: 'DELETE' }, token),
+  /** Autosaves the caller's one draft of an item not created yet. */
+  savePendingDraft: (data: Partial<NewsData>, token?: string | null) =>
+    cmsFetch<void>(
+      `${NEWS_COLLECTION}/drafts`,
+      { method: 'POST', body: JSON.stringify({ data }) },
+      token,
+    ),
+  discardPendingDraft: (token?: string | null) =>
+    cmsFetch<void>(`${NEWS_COLLECTION}/drafts`, { method: 'DELETE' }, token),
 };
+
+/** The caller's draft of a new item from a listing, or null. */
+export function pendingNewsDraft(page: Pick<NewsPage, 'virtualItems'> | null | undefined) {
+  const entry = page?.virtualItems?.find((row) => row.origin === 'pending');
+  return entry?.draftData && Object.keys(entry.draftData).length ? entry : null;
+}
 
 /**
  * A Turkish sentence for a refused News write. inscribed answers 409 when the
@@ -102,6 +154,9 @@ export function newsProblemMessage(error: unknown, fallback: string): string {
   if (error instanceof ProblemError && error.status === 409) {
     if (error.fields.reason === 'archived') {
       return 'Bu duyuru bu arada başka biri tarafından silindi.';
+    }
+    if (error.fields.reason === 'moved') {
+      return 'Bu duyurunun adresi değişti. Sayfayı yenileyip tekrar dene.';
     }
     return 'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Sayfayı yenileyip tekrar dene.';
   }

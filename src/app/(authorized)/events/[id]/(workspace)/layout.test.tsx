@@ -36,6 +36,10 @@ jest.mock(
   '@/lib/api/competitors',
   () => jest.requireActual('@/test/event-workspace').competitorsModule,
 );
+jest.mock('@/lib/api/competitions', () => ({
+  ...jest.requireActual('@/lib/api/competitions'),
+  competitionsApi: { listByEvent: jest.fn().mockResolvedValue([]), leaderboard: jest.fn() },
+}));
 jest.mock('@/lib/api/teams', () => jest.requireActual('@/test/event-workspace').teamsModule);
 jest.mock('@/lib/api/seasons', () => jest.requireActual('@/test/event-workspace').seasonsModule);
 // Unreadable by default (the group rule stands); a test sets core's answer
@@ -155,11 +159,14 @@ describe('Event workspace layout', () => {
     competitorsApi.listByEvent.mockResolvedValue([{ id: 'c1', userId: 'u9', eventId: 'e1' }]);
     await renderEventTab(<EventCompetitionPage />, '/events/e1/competition');
     await waitFor(() => expect(tab('Yarışma')).toHaveAttribute('aria-current', 'page'));
-    expect(screen.getByRole('link', { name: /u9/ })).toHaveAttribute(
+    // The old records sit folded under the competitions
+    expect(await screen.findByText('Henüz yarışma yok')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Göster' }));
+    expect(await screen.findByRole('link', { name: /u9/ })).toHaveAttribute(
       'href',
       '/events/e1/competition/c1',
     );
-    expect(screen.queryByRole('button', { name: 'Yarışmacı ekle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Yarışma ekle' })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -316,7 +323,7 @@ describe('Event workspace layout', () => {
     away.remove();
   });
 
-  /** core's answer for a GECEKODU member: competitor writes as the Team's Leader chose. */
+  /** core's answer for a GECEKODU member: competition writes as the Team's Leader chose. */
   const memberCompetitors = (manage: boolean) =>
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({
       teams: [
@@ -327,19 +334,20 @@ describe('Event workspace layout', () => {
             'competitor.read': true,
             'competitor.create': manage,
             'competitor.update': manage,
+            'competition.manage': manage,
           },
         },
       ],
     });
 
-  it('lets a member manage competitors when core does (the Team setting on)', async () => {
+  it('lets a member manage competitions when core does (the Team setting on)', async () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
     memberCompetitors(true);
     await renderEventTab(<EventCompetitionPage />, '/events/e1/competition');
     await screen.findByRole('heading', { name: 'GeceKodu' });
     // No competitor yet: the tab is there because core lets the member manage them
     await waitFor(() => expect(tabNames()).toContain('Yarışma'));
-    expect((await screen.findAllByRole('link', { name: 'Yarışmacı ekle' })).length).toBeGreaterThan(
+    expect((await screen.findAllByRole('button', { name: 'Yarışma ekle' })).length).toBeGreaterThan(
       0,
     );
   });

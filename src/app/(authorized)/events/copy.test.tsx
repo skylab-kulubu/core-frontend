@@ -10,6 +10,7 @@ const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/events',
 }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'u1', groups: [], roles: [] } }),
@@ -79,7 +80,8 @@ describe('Etkinlikler listesi: Kopyala…', () => {
   it('has no Kopyala for a reader core lets create nothing', async () => {
     capabilities(false);
     render(<EventsPage />);
-    await screen.findByRole('link', { name: 'Eski Kodu' });
+    // The row opens the side panel (a button), its menu sits beside it
+    await screen.findByRole('button', { name: 'Eski Kodu' });
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: 'Eski Kodu: eylemler' })).not.toBeInTheDocument();
   });

@@ -6,8 +6,9 @@ import { DoorDesk } from '@/components/scheduling/DoorDesk';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
+import { UNDO_GRACE_MS } from '@/lib/ui/use-deferred-undo';
 
-let mockAuthUser = {
+const mockAuthUser = {
   id: 'op',
   username: 'yk',
   email: 'yk@example.com',
@@ -36,7 +37,10 @@ jest.mock('@/lib/api/tickets', () => ({
     listDoorEvents: jest.fn(),
     searchDoorAttendees: jest.fn(),
     resolveAndCheckIn: jest.fn(),
+    scanCheckIn: jest.fn(),
+    undoCheckIn: jest.fn(),
     doorActivity: jest.fn(),
+    createDoorQr: jest.fn(),
   },
 }));
 
@@ -62,18 +66,47 @@ const session = {
   sessionType: 'KEYNOTE',
 };
 
+/** Lets the few seconds of Vazgeç run out, then goes back to real time. */
+async function waitOutUndo() {
+  await act(async () => {
+    jest.advanceTimersByTime(UNDO_GRACE_MS);
+  });
+  jest.useRealTimers();
+}
+
+/** A camera that reads `codes` one after another, then nothing, through BarcodeDetector. */
+function fakeCamera(codes: string[]) {
+  const queue = [...codes];
+  class FakeDetector {
+    async detect() {
+      const next = queue.shift();
+      return next ? [{ rawValue: next }] : [];
+    }
+  }
+  const track = { stop: jest.fn() };
+  (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector = FakeDetector;
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [track] }) },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+    configurable: true,
+    value: () => Promise.resolve(),
+  });
+  return {
+    track,
+    remove() {
+      delete (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    },
+  };
+}
+
 describe('DoorDesk', () => {
+  afterEach(() => jest.useRealTimers());
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAuthUser = {
-      id: 'op',
-      username: 'yk',
-      email: 'yk@example.com',
-      firstName: 'Y',
-      lastName: 'K',
-      roles: [],
-      groups: ['/UYELER/YK'],
-    };
     (eventsApi.list as jest.Mock).mockResolvedValue([event]);
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([event]);
     (eventDaysApi.listByEvent as jest.Mock).mockResolvedValue([
@@ -82,8 +115,9 @@ describe('DoorDesk', () => {
     (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([session]);
     (ticketsApi.searchDoorAttendees as jest.Mock).mockResolvedValue([]);
     (ticketsApi.doorActivity as jest.Mock).mockResolvedValue({ total: 0, items: [] });
+    (ticketsApi.createDoorQr as jest.Mock).mockReturnValue(new Promise(() => undefined));
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockResolvedValue({
-      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      id: 'ci-new',
       sessionId: 's1',
       eventDayId: 'd1',
       personName: 'Ada Lovelace',
@@ -91,283 +125,70 @@ describe('DoorDesk', () => {
     });
   });
 
-  it('checks in by person or email and labels success as name · session · time', async () => {
+  const box = () => screen.getByLabelText('Kişi ya da bilet');
+  const ready = () => waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
+
+  it('reads the doors and the days in one round, the event being in the address', async () => {
+    let doors: (rows: unknown[]) => void = () => undefined;
+    (ticketsApi.listDoorEvents as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        doors = resolve;
+      }),
+    );
+    render(<DoorDesk eventId="e1" />);
+    // The days are asked for before the doors answer
+    expect(eventDaysApi.listByEvent).toHaveBeenCalledWith('e1');
+    await act(async () => doors([event]));
+    await ready();
+  });
+
+  it('writes an entry from one box and says it large, with the way back', async () => {
     const user = userEvent.setup();
     render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    expect(screen.queryByPlaceholderText('Bilet kimliği')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
+    await ready();
+    await user.type(box(), 'ada@example.com{Enter}');
     await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
-        personId: undefined,
-        query: 'ada@example.com',
-      }),
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', { query: 'ada@example.com' }),
     );
     const result = screen.getByRole('status', { name: 'Giriş sonucu' });
-    expect(result).toHaveTextContent(/Ada Lovelace · Açılış · /);
-    // Right under the button, so a phone shows it without scrolling past the guest QR
-    const button = screen.getByRole('button', { name: 'Girişi yaz' });
-    expect(button.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(
-      result.compareDocumentPosition(screen.getByRole('region', { name: "Misafir QR'ı" })) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toHaveValue('');
-    expect(screen.queryByText(/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/)).not.toBeInTheDocument();
+    expect(result).toHaveTextContent('Girdi');
+    expect(result).toHaveTextContent('Ada Lovelace');
+    expect(within(result).getByRole('button', { name: 'Geri al' })).toBeInTheDocument();
+    expect(box()).toHaveValue('');
+    expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent('1');
   });
 
-  it('shows the running session as selected and checks in to that same session', async () => {
-    const user = userEvent.setup();
-    const hour = 3600_000;
-    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
-    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
-      { ...session, startTime: iso(-3 * hour), endTime: iso(-2 * hour) },
-      { ...session, id: 's2', title: 'Panel', startTime: iso(-hour), endTime: iso(hour) },
-    ]);
-    (ticketsApi.resolveAndCheckIn as jest.Mock).mockResolvedValue({
-      id: 'ci-2',
-      sessionId: 's2',
-      eventDayId: 'd1',
-      personName: 'Ada Lovelace',
-      createdAt: new Date().toISOString(),
-    });
-
-    render(<DoorDesk eventId="e1" />);
-    const picker = await screen.findByLabelText('Oturum');
-    await waitFor(() => expect(picker).toHaveValue('s2'));
-    expect(within(picker).getByRole('option', { selected: true })).toHaveTextContent('Panel');
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-
-    await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith(
-        (picker as HTMLSelectElement).value,
-        {
-          personId: undefined,
-          query: 'ada@example.com',
-        },
-      ),
-    );
-    expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', expect.anything());
-    expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toHaveTextContent(
-      /Ada Lovelace · Panel · /,
-    );
-    expect(screen.getByText(/^Panel · SkyDays · /)).toBeInTheDocument();
-  });
-
-  it('notes, without blocking, that the chosen session has not started yet', async () => {
-    const user = userEvent.setup();
-    const hour = 3600_000;
-    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
-      {
-        ...session,
-        startTime: new Date(Date.now() + 2 * hour).toISOString(),
-        endTime: new Date(Date.now() + 3 * hour).toISOString(),
-      },
-    ]);
-
-    render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
-      /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
-    );
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', expect.anything()),
-    );
-  });
-
-  it('makes staff pick a session when several exist and none is running', async () => {
-    const user = userEvent.setup();
-    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
-      session,
-      { ...session, id: 's2', title: 'Panel' },
-    ]);
-
-    render(<DoorDesk eventId="e1" />);
-    await screen.findByRole('option', { name: 'Panel' });
-    const picker = screen.getByLabelText('Oturum');
-    expect(picker).toHaveValue('');
-    expect(screen.getByText(/Şu an süren oturum yok/)).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-
-    expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Giriş oturumunu seç');
-
-    await user.selectOptions(picker, 's2');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', {
-        personId: undefined,
-        query: 'ada@example.com',
-      }),
-    );
-  });
-
-  it('accepts a typed name in the person field', async () => {
-    const user = userEvent.setup();
-    render(<DoorDesk eventId="e1" />);
-    await waitFor(() =>
-      expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toBeInTheDocument(),
-    );
-    const field = screen.getByLabelText('Ad, e-posta ya da bilet kodu') as HTMLInputElement;
-    expect(field).toHaveAttribute('type', 'text');
-    expect(field).toHaveAttribute('placeholder', 'Ad, e-posta ya da bilet kodu');
-    await user.type(field, 'Ada Lovelace');
-    expect(field.checkValidity()).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
-        personId: undefined,
-        query: 'Ada Lovelace',
-      }),
-    );
-  });
-
-  it('requires a person or email before attempting check-in', async () => {
-    const user = userEvent.setup();
-    render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Girişi yaz' })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Kişi veya e-posta girin');
-  });
-
-  it('offers an assigned event to door staff without a leader group', async () => {
-    mockAuthUser = {
-      id: 'door-1',
-      username: 'door',
-      email: 'door@example.com',
-      firstName: 'Door',
-      lastName: 'Staff',
-      roles: [],
-      groups: ['/UYELER/ARGE/WEBLAB'],
-    };
-    (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([event]);
-
-    render(<DoorDesk eventId="e1" />);
-
-    expect(await screen.findByRole('link', { name: 'SkyDays' })).toHaveAttribute(
-      'href',
-      '/events/e1',
-    );
-    expect(screen.queryByText('Bu etkinlik için kapı yetkisi yok')).not.toBeInTheDocument();
-    expect(eventsApi.list).not.toHaveBeenCalled();
-  });
-
-  it('announces event loading failures instead of showing an empty authorization state', async () => {
-    (ticketsApi.listDoorEvents as jest.Mock).mockRejectedValue(new Error('offline'));
-    render(<DoorDesk eventId="e1" />);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Etkinlikler yüklenemedi');
-    expect(screen.queryByText('Bu etkinlik için kapı yetkisi yok')).not.toBeInTheDocument();
-  });
-
-  it('opens no form for an event that is not among the person’s doors', async () => {
-    render(<DoorDesk eventId="e9" />);
-    expect(await screen.findByText('Bu etkinlik için kapı yetkisi yok')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Girişi yaz' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Etkinliğe dön' })).toHaveAttribute(
-      'href',
-      '/events/e9',
-    );
-  });
-
-  it('lets door staff find and select a guest through the safe attendee projection', async () => {
-    const user = userEvent.setup();
-    mockAuthUser = {
-      id: 'door-1',
-      username: 'door',
-      email: 'door@example.com',
-      firstName: 'Door',
-      lastName: 'Staff',
-      roles: [],
-      groups: ['/UYELER/ARGE/WEBLAB'],
-    };
-    (ticketsApi.searchDoorAttendees as jest.Mock).mockResolvedValue([
-      { name: 'Ada Lovelace', email: 'ada@example.com' },
-    ]);
-
-    render(<DoorDesk eventId="e1" />);
-    await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
-    const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
-    await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-
-    await waitFor(() =>
-      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
-        personId: undefined,
-        query: 'ada@example.com',
-      }),
-    );
-  });
-
-  it('clears a selected attendee when the address names another event', async () => {
-    const user = userEvent.setup();
-    (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([
-      event,
-      { ...event, id: 'e2', name: 'SkySec' },
-    ]);
-    (ticketsApi.searchDoorAttendees as jest.Mock).mockResolvedValue([
-      { name: 'Ada Lovelace', email: 'ada@example.com' },
-    ]);
-    (eventDaysApi.listByEvent as jest.Mock).mockImplementation((eventId: string) =>
-      eventId === 'e2'
-        ? new Promise(() => undefined)
-        : Promise.resolve([{ id: 'd1', eventId: 'e1', name: 'Gün 1' }]),
-    );
-
-    const { rerender } = render(<DoorDesk eventId="e1" />);
-    await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
-    const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
-    await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
-    expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toHaveTextContent('Ada Lovelace');
-
-    rerender(<DoorDesk eventId="e2" />);
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toHaveTextContent(
-        'Katılımcı bul',
-      ),
-    );
-    expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toHaveValue('');
-    expect(screen.getByLabelText('Oturum')).toHaveValue('');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
-  });
-
-  it('uses manual input instead of a stale selected person', async () => {
+  it('offers the matching people under the box and writes the one pressed', async () => {
     const user = userEvent.setup();
     (ticketsApi.searchDoorAttendees as jest.Mock).mockResolvedValue([
       { personId: 'u-ada', name: 'Ada Lovelace', email: 'ada@example.com' },
+      { name: 'Grace Hopper', email: 'grace@example.com' },
     ]);
-
     render(<DoorDesk eventId="e1" />);
-    await user.click(await screen.findByRole('button', { name: 'Katılımcı bul' }));
-    const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
-    await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
-    await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Grace Hopper');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-
+    await ready();
+    await user.type(box(), 'ad');
+    const list = await screen.findByRole('list', { name: 'Eşleşen kişiler' });
+    await user.click(within(list).getByRole('button', { name: /Grace Hopper/ }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
-        personId: undefined,
-        query: 'Grace Hopper',
+        query: 'grace@example.com',
       }),
+    );
+    await user.type(box(), 'ad');
+    await user.click(
+      within(await screen.findByRole('list', { name: 'Eşleşen kişiler' })).getByRole('button', {
+        name: /Ada Lovelace/,
+      }),
+    );
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', { personId: 'u-ada' }),
     );
   });
 
-  it('shows the server-backed live count and recent check-ins', async () => {
+  it('takes an entry back after a few seconds with Vazgeç, from the band and the last entries', async () => {
+    (ticketsApi.undoCheckIn as jest.Mock).mockResolvedValue(undefined);
     (ticketsApi.doorActivity as jest.Mock).mockResolvedValue({
-      total: 12,
+      total: 5,
       items: [
         {
           id: 'ci-1',
@@ -378,16 +199,213 @@ describe('DoorDesk', () => {
         },
       ],
     });
-
     render(<DoorDesk eventId="e1" />);
+    await ready();
+    const row = await screen.findByRole('button', { name: 'Grace Hopper: girişi geri al' });
+    jest.useFakeTimers();
+    let user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(row);
+    // Not at the first press: the row waits with Vazgeç, and a toast says so
+    expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+    expect(screen.getByText('Grace Hopper: giriş geri alınıyor')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Grace Hopper: geri almaktan vazgeç' }),
+    ).toBeInTheDocument();
+    await waitOutUndo();
+    await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenCalledWith('s1', 'ci-1'));
+    expect(await screen.findByText('Geri alındı')).toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent('12'),
-    );
-    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    user = userEvent.setup();
+    await user.type(box(), 'ada{Enter}');
+    const result = await screen.findByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(within(result).getByRole('button', { name: 'Geri al' }));
+    expect(
+      within(result).getByRole('button', { name: 'Geri almaktan vazgeç' }),
+    ).toBeInTheDocument();
+    await waitOutUndo();
+    await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenLastCalledWith('s1', 'ci-new'));
   });
 
-  it('clears a transient live-activity error after the next successful refresh', async () => {
+  it('keeps the entry when Vazgeç is pressed in the few seconds', async () => {
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    let user = userEvent.setup();
+    await user.type(box(), 'ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(within(result).getByRole('button', { name: 'Geri al' }));
+    await user.click(within(result).getByRole('button', { name: 'Geri almaktan vazgeç' }));
+    await waitOutUndo();
+    expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+    expect(result).toHaveTextContent('Girdi');
+    expect(within(result).getByRole('button', { name: 'Geri al' })).toBeInTheDocument();
+  });
+
+  it('says so when core cannot take the entry back', async () => {
+    let user = userEvent.setup();
+    (ticketsApi.undoCheckIn as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    await user.type(box(), 'ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(within(result).getByRole('button', { name: 'Geri al' }));
+    await waitOutUndo();
+    await waitFor(() => expect(result).toHaveTextContent('Girmedi'));
+  });
+
+  it('writes what the camera reads and keeps the camera open for the next code', async () => {
+    const camera = fakeCamera(['TOKEN-1', 'TOKEN-2']);
+    (ticketsApi.scanCheckIn as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'ci-scan-1',
+        ticketId: 't1',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        createdAt: new Date(2026, 8, 19, 9, 6, 0).toISOString(),
+      })
+      .mockResolvedValueOnce({
+        id: 'ci-scan-2',
+        ticketId: 't2',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        createdAt: new Date(2026, 8, 19, 9, 7, 0).toISOString(),
+      });
+    // core's list of entries names the holder the scan answer leaves out
+    (ticketsApi.doorActivity as jest.Mock).mockImplementation(async () => {
+      const calls = (ticketsApi.scanCheckIn as jest.Mock).mock.calls.length;
+      const items = [
+        { id: 'ci-scan-1', name: 'Ada Lovelace' },
+        { id: 'ci-scan-2', name: 'Grace Hopper' },
+      ]
+        .slice(0, calls)
+        .reverse()
+        .map((row) => ({
+          id: row.id,
+          sessionId: 's1',
+          eventDayId: 'd1',
+          personName: row.name,
+          createdAt: '2026-09-19T06:06:00.000Z',
+        }));
+      return { total: items.length, items };
+    });
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      await waitFor(() => expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-1'));
+      const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+      await waitFor(() => expect(result).toHaveTextContent('Ada Lovelace'));
+      // The camera did not close after the first code: the next one is read too
+      await waitFor(() => expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-2'), {
+        timeout: 2000,
+      });
+      await waitFor(() => expect(result).toHaveTextContent('Grace Hopper'));
+      expect(screen.getByRole('region', { name: 'Kamerayla tara' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Kamerayı kapat' })).toBeInTheDocument();
+      expect(camera.track.stop).not.toHaveBeenCalled();
+      expect(ticketsApi.scanCheckIn).toHaveBeenCalledTimes(2);
+    } finally {
+      camera.remove();
+    }
+  });
+
+  it('names the search box by its label alone, the button standing outside it', async () => {
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    expect(screen.getByRole('searchbox')).toHaveAccessibleName('Kişi ya da bilet');
+  });
+
+  it('shows the running session as selected and writes to that same session', async () => {
+    const user = userEvent.setup();
+    const hour = 3600_000;
+    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { ...session, startTime: iso(-3 * hour), endTime: iso(-2 * hour) },
+      { ...session, id: 's2', title: 'Panel', startTime: iso(-hour), endTime: iso(hour) },
+    ]);
+    render(<DoorDesk eventId="e1" />);
+    const picker = await screen.findByLabelText('Oturum');
+    await waitFor(() => expect(picker).toHaveValue('s2'));
+    expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent('Panel');
+    await user.type(box(), 'ada{Enter}');
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', expect.anything()),
+    );
+  });
+
+  it('notes, without blocking, that the chosen session has not started yet', async () => {
+    const hour = 3600_000;
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      {
+        ...session,
+        startTime: new Date(Date.now() + 2 * hour).toISOString(),
+        endTime: new Date(Date.now() + 3 * hour).toISOString(),
+      },
+    ]);
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    expect(screen.getByLabelText('Oturum')).toHaveAccessibleDescription(
+      /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
+    );
+    expect(box()).toBeEnabled();
+  });
+
+  it('makes staff pick a session when several exist and none is running', async () => {
+    const user = userEvent.setup();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      session,
+      { ...session, id: 's2', title: 'Panel' },
+    ]);
+    render(<DoorDesk eventId="e1" />);
+    await screen.findByRole('option', { name: /Panel/ });
+    expect(screen.getByLabelText('Oturum')).toHaveValue('');
+    expect(screen.getByText(/Şu an süren oturum yok/)).toBeInTheDocument();
+    expect(box()).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText('Oturum'), 's2');
+    await user.type(box(), 'ada{Enter}');
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', { query: 'ada' }),
+    );
+  });
+
+  it('asks for something to look for before writing', async () => {
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
+    expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
+    expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toHaveTextContent(
+      'Ad, e-posta ya da bilet kodu yaz.',
+    );
+  });
+
+  it('announces event loading failures instead of showing an empty authorization state', async () => {
+    (ticketsApi.listDoorEvents as jest.Mock).mockRejectedValue(new Error('offline'));
+    render(<DoorDesk eventId="e1" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Etkinlikler yüklenemedi');
+  });
+
+  it('opens no desk for an event that is not among the person’s doors', async () => {
+    render(<DoorDesk eventId="e9" />);
+    expect(await screen.findByText('Bu etkinliğin kapısında görevin yok')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Girişi yaz' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Etkinliğe dön' })).toHaveAttribute(
+      'href',
+      '/events/e9',
+    );
+    expect(eventsApi.list).not.toHaveBeenCalled();
+  });
+
+  it('shows the live count and the last entries, and clears a passing error', async () => {
     let refresh: (() => void) | undefined;
     const interval = jest.spyOn(window, 'setInterval').mockImplementation((handler) => {
       refresh = handler as () => void;
@@ -395,30 +413,43 @@ describe('DoorDesk', () => {
     });
     (ticketsApi.doorActivity as jest.Mock)
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValue({ total: 1, items: [] });
+      .mockResolvedValue({
+        total: 12,
+        items: [
+          {
+            id: 'ci-1',
+            sessionId: 's1',
+            eventDayId: 'd1',
+            personName: 'Grace Hopper',
+            createdAt: '2026-09-19T08:05:00.000Z',
+          },
+        ],
+      });
     render(<DoorDesk eventId="e1" />);
-    expect(await screen.findByText('Canlı kapı kayıtları yüklenemedi')).toBeInTheDocument();
-
+    expect(await screen.findByText('Son girişler yüklenemedi')).toBeInTheDocument();
     await act(async () => refresh?.());
     await waitFor(() =>
-      expect(screen.queryByText('Canlı kapı kayıtları yüklenemedi')).not.toBeInTheDocument(),
+      expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent('12'),
     );
+    expect(screen.queryByText('Son girişler yüklenemedi')).not.toBeInTheDocument();
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
     interval.mockRestore();
   });
 
-  it('says the person is already in when core refuses a second check-in', async () => {
+  it('says the person is already in when core refuses a second entry', async () => {
     const user = userEvent.setup();
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
       new ProblemError(409, 'Conflict', { detail: 'Conflict' }),
     );
     render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
+    await ready();
+    await user.type(box(), 'ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Zaten girmiş'));
+    expect(result).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
 
-  it('says a refused check-in under the button, in Turkish, never core’s English', async () => {
+  it('says a refused entry in Turkish, never core’s English', async () => {
     const user = userEvent.setup();
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(
       new ProblemError(422, 'Unprocessable Entity', {
@@ -426,17 +457,19 @@ describe('DoorDesk', () => {
       }),
     );
     render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
-    await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada');
-    const button = screen.getByRole('button', { name: 'Girişi yaz' });
-    await user.click(button);
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Gönderilen bilgiler geçersiz');
+    await ready();
+    await user.type(box(), 'Ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Girmedi'));
     expect(document.body).not.toHaveTextContent(/matched more than one|Unprocessable/);
-    // Right after the button in the form, before the result line
-    expect(button.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(alert.closest('form')).not.toBeNull();
-    expect(button.nextElementSibling).toBe(alert);
+  });
+
+  it('opens the guest QR from its own button', async () => {
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    await user.click(screen.getByRole('button', { name: 'Misafir QR’ı' }));
+    expect(screen.getByRole('region', { name: "Misafir QR'ı" })).toBeInTheDocument();
+    expect(ticketsApi.createDoorQr).toHaveBeenCalledWith('s1');
   });
 });
