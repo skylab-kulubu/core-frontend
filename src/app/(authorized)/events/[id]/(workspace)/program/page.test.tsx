@@ -6,11 +6,13 @@ import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { sessionsApi } from '@/lib/api/sessions';
 import { ticketsApi } from '@/lib/api/tickets';
+import { eventsApi } from '@/lib/api/events';
 import {
   guestTicket,
   primeEventWorkspace,
   renderEventTab,
   signInAs,
+  workspaceEvent,
   workspaceSession,
 } from '@/test/event-workspace';
 
@@ -350,6 +352,60 @@ describe('Event Program tab timeline', () => {
     expect(within(rows[0]).getByRole('link', { name: 'Kapıyı aç' })).toHaveAttribute(
       'href',
       '/events/e1/door',
+    );
+  });
+});
+
+describe('Program tab certificate marks', () => {
+  beforeEach(primeEventWorkspace);
+
+  it('marks the uncounted and the required Sessions while the event gives certificates', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, attendanceRule: 'count' });
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { ...workspaceSession, certificateCounted: true, certificateRequired: true },
+      {
+        ...workspaceSession,
+        id: 's2',
+        title: 'Tanışma',
+        sessionType: 'NETWORKING',
+        certificateCounted: false,
+        certificateRequired: false,
+      },
+    ]);
+    await renderProgram();
+    const list = await screen.findByRole('list', { name: 'Gün 1 oturumları' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(within(rows[0]).getByText('Zorunlu')).toBeInTheDocument();
+    expect(within(rows[0]).queryByText('Sayılmaz')).not.toBeInTheDocument();
+    expect(within(rows[1]).getByText('Sayılmaz')).toBeInTheDocument();
+  });
+
+  it('shows no marks while the event gives no certificate', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { ...workspaceSession, certificateCounted: false, certificateRequired: false },
+    ]);
+    await renderProgram();
+    await screen.findByRole('list', { name: 'Gün 1 oturumları' });
+    expect(screen.queryByText('Sayılmaz')).not.toBeInTheDocument();
+  });
+
+  it('creates a networking Session not counted', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    (sessionsApi.create as jest.Mock).mockResolvedValue({ id: 's9' });
+    await renderProgram();
+    await user.click(await screen.findByRole('button', { name: 'Oturum ekle' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Oturum ekle' });
+    await user.type(within(dialog).getByLabelText('Başlık'), 'Tanışma');
+    await user.type(within(dialog).getByLabelText('Konuşmacı'), 'Ekip');
+    await user.selectOptions(within(dialog).getByLabelText('Tür'), 'NETWORKING');
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
+    await waitFor(() =>
+      expect(sessionsApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionType: 'NETWORKING', certificateCounted: false }),
+      ),
     );
   });
 });

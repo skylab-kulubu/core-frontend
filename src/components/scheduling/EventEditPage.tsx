@@ -1,13 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormState, useWatch } from 'react-hook-form';
 import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { certificatesApi } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
@@ -15,6 +17,25 @@ import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 export function showIssueSection(issue: string | undefined) {
   if (!issue || typeof document === 'undefined') return;
   document.getElementById(sectionOfIssue(issue))?.scrollIntoView({ block: 'start' });
+}
+
+/**
+ * Whether core has the certificate rule editor (GET /certificate-rule): an
+ * older core answers 404 and the rule keeps its ratio field on this page.
+ */
+export function useLegacyCertificateRules(eventId: string, enabled: boolean): boolean {
+  const [legacy, setLegacy] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    certificatesApi.rule(eventId).catch((err: unknown) => {
+      if (!cancelled && err instanceof ProblemError && err.status === 404) setLegacy(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, enabled]);
+  return legacy;
 }
 
 /** /events/[id]/edit: the whole event on one page in sections, saved from the bar below. */
@@ -34,6 +55,7 @@ export function EventEditPage() {
   });
   const guard = useUnsavedChanges(dirty && !saving);
   const overview = eventTabHref(event.id);
+  const legacyRules = useLegacyCertificateRules(event.id, canMutate);
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);
@@ -91,6 +113,11 @@ export function EventEditPage() {
           ]}
           returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           formInUse={editor.inUse}
+          certificatesHref={eventTabHref(event.id, 'certificates')}
+          legacyRules={legacyRules}
+          storedRatio={
+            event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
+          }
           notices={{
             temel: editor.optionsFailed.teams ? (
               <LoadError title="Ekipler yüklenemedi" onRetry={editor.reloadOptions} />

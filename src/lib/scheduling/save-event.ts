@@ -50,6 +50,9 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     coverImageId: form.coverImageId || undefined,
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? form.attendanceRatio : undefined,
+    // The count rule's threshold; left out for the default (the Sertifikalar tab sets it)
+    attendanceMinCount:
+      form.attendanceRule === 'count' ? (form.attendanceMinCount ?? undefined) : undefined,
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') || undefined,
   };
@@ -90,6 +93,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     coverImageId: form.coverImageId || null,
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
+    attendanceMinCount: form.attendanceRule === 'count' ? (form.attendanceMinCount ?? null) : null,
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };

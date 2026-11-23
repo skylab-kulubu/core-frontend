@@ -162,11 +162,19 @@ export function eventInitials(name: string): string {
   );
 }
 
-/** The certificate rule as the edit page names it: "Yok", "En az bir oturum", "Oran %50". */
+/**
+ * The certificate rule as the edit page names it: "Yok", "En az bir oturum",
+ * "En az 6 oturum", "Oturumların %75'i" (the count rule's default, or an older ratio).
+ */
 export function certificateRuleLabel(
-  event: Pick<CoreEvent, 'attendanceRule' | 'attendanceRatio'>,
+  event: Pick<CoreEvent, 'attendanceRule' | 'attendanceRatio' | 'attendanceMinCount'>,
 ): string {
   if (event.attendanceRule === 'once') return 'En az bir oturum';
+  if (event.attendanceRule === 'count') {
+    return event.attendanceMinCount
+      ? `En az ${event.attendanceMinCount} oturum`
+      : `Oturumların ${percentWithEnding(75)}`;
+  }
   if (event.attendanceRule === 'ratio') {
     const ratio = event.attendanceRatio ?? 0.75;
     return `Oturumların ${percentWithEnding(ratio * 100)}`;
