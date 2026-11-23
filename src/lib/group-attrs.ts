@@ -12,7 +12,7 @@ export const GROUP_TOGGLES = [
   {
     key: 'team_door_scan',
     label: 'Ekip kapı taraması',
-    hint: 'Bu ekibin üyeleri kendi etkinliklerinde check-in yapabilir.',
+    hint: 'Bu ekibin üyeleri kendi etkinliklerinde kapıda giriş yazabilir.',
   },
 ] as const;
 
@@ -32,22 +32,25 @@ const knownKeys = new Set<string>([
  * A Team's settings, written through core's settings route (not the profile
  * save, which keeps them as they are): not listed or added as extra attributes.
  */
-export const TEAM_SETTING_ATTRS = [
-  'members_manage_competitors',
-  'team_competition_manage',
-] as const;
+export const TEAM_SETTING_ATTRS = ['team_competition_manage'] as const;
+
+/**
+ * Retired attributes core reads no more: members_manage_competitors (2026-11-23;
+ * only who manages the Event adds someone else as a competitor). A Team may still
+ * carry the value an older core wrote: not listed or added as an extra attribute.
+ */
+export const RETIRED_GROUP_ATTRS = ['members_manage_competitors'] as const;
 
 export function isTeamSettingAttr(key: string): boolean {
   return (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
 }
 
-export function isKnownGroupAttr(key: string): boolean {
-  return knownKeys.has(key) || (TEAM_SETTING_ATTRS as readonly string[]).includes(key);
+export function isRetiredGroupAttr(key: string): boolean {
+  return (RETIRED_GROUP_ATTRS as readonly string[]).includes(key);
 }
 
-/** members_manage_competitors: on unless it says false (core's default). */
-export function membersManageCompetitors(attrs: Record<string, string> | undefined): boolean {
-  return (attrs?.members_manage_competitors ?? '').trim().toLowerCase() !== 'false';
+export function isKnownGroupAttr(key: string): boolean {
+  return knownKeys.has(key) || isTeamSettingAttr(key) || isRetiredGroupAttr(key);
 }
 
 /** Who manages a Team's Competitions ("Yarışmaları kim yönetir"); core's values. */

@@ -25,7 +25,7 @@ describe('chromeCrumbs', () => {
     expect(chromeCrumbs(`${event}/participants`).at(-1)?.label).toBe('Katılımcılar');
     expect(chromeCrumbs(`${event}/program`).at(-1)?.label).toBe('Program');
     expect(chromeCrumbs(`${event}/certificates`).at(-1)?.label).toBe('Sertifikalar');
-    expect(chromeCrumbs(`${event}/content`).at(-1)?.label).toBe('İçerik');
+    expect(chromeCrumbs(`${event}/content`).at(-1)?.label).toBe('Dosyalar');
     expect(chromeCrumbs(`${event}/competition`).at(-1)?.label).toBe('Yarışma');
   });
 

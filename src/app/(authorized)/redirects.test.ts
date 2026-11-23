@@ -15,7 +15,7 @@ jest.mock('next/navigation', () => jest.requireActual('@/test/server/redirect').
 const query = (search: Record<string, string> = {}) => Promise.resolve(search);
 
 describe('removed global pages', () => {
-  it('sends /media to the events, whose İçerik tab holds the files', async () => {
+  it('sends /media to the events, whose Dosyalar page holds the files', async () => {
     expect(await redirectTarget(() => MediaRedirect())).toBe('/events');
   });
 

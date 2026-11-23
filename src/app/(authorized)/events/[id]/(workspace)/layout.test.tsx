@@ -60,7 +60,13 @@ afterEach(() => {
   );
 });
 
-const tabNames = () => screen.getAllByRole('tab').map((tab) => tab.textContent);
+/** The event's own menu (its pages), the open one marked as the current page. */
+const menu = () => screen.getByRole('navigation', { name: 'Etkinlik' });
+const tab = (name: string) => within(menu()).getByRole('link', { name: new RegExp(`^${name}`) });
+const tabNames = () =>
+  within(menu())
+    .getAllByRole('link')
+    .map((link) => link.textContent?.replace(/\d+$/, ''));
 
 describe('Event workspace layout', () => {
   beforeEach(primeEventWorkspace);
@@ -72,11 +78,8 @@ describe('Event workspace layout', () => {
 
     expect(await screen.findByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Program' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Genel bakış' })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    );
+    expect(tab('Program')).toHaveAttribute('aria-current', 'page');
+    expect(tab('Genel bakış')).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
   });
 
@@ -92,10 +95,7 @@ describe('Event workspace layout', () => {
 
     // The participants tab is drawn (its roster's search), from the workspace's data
     expect(await screen.findByRole('searchbox', { name: 'Katılımcı ara' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Katılımcılar' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    expect(tab('Katılımcılar')).toHaveAttribute('aria-current', 'page');
     expect(
       [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
         (call) => (call as jest.Mock).mock.calls.length,
@@ -108,12 +108,9 @@ describe('Event workspace layout', () => {
     await renderEventTab(<EventOverviewPage />);
     await screen.findByRole('heading', { name: 'GeceKodu' });
     expect(tabNames()).toEqual(
-      expect.arrayContaining(['Genel bakış', 'Katılımcılar', 'Program', 'İçerik', 'Yarışma']),
+      expect.arrayContaining(['Genel bakış', 'Katılımcılar', 'Program', 'Dosyalar', 'Yarışma']),
     );
-    expect(screen.getByRole('tab', { name: 'Genel bakış' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
+    expect(tab('Genel bakış')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/events/e1/door');
     expect(screen.queryByRole('button', { name: 'Hesabınla kaydol' })).not.toBeInTheDocument();
   });
@@ -129,7 +126,7 @@ describe('Event workspace layout', () => {
     expect(tabNames()).toEqual(['Genel bakış', 'Program']);
   });
 
-  it('shows the cover beside the title and whole on the overview, not cut to a strip', async () => {
+  it('shows the cover whole beside the title, its colours behind the header', async () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     (eventsApi.get as jest.Mock).mockResolvedValue({
       ...workspaceEvent,
@@ -139,11 +136,17 @@ describe('Event workspace layout', () => {
     await renderEventTab(<EventOverviewPage />);
     await screen.findByRole('heading', { name: 'GeceKodu' });
 
-    const headerCover = document.querySelector('[data-slot="page-header-cover"] img');
-    expect(headerCover).toHaveAttribute('src', 'https://cdn.example/kapak.png');
-    const overviewCover = document.querySelector('[data-slot="event-cover"] img');
-    expect(overviewCover).toHaveAttribute('src', 'https://cdn.example/kapak.png');
-    expect(overviewCover).toHaveClass('object-contain');
+    // Whole in front of its own colours: the frame shows all of it, a blurred copy fills the ground
+    const header = document.querySelector('[data-slot="object-page-header"]');
+    const shown = [...(header?.querySelectorAll('img') ?? [])].filter((img) =>
+      img.classList.contains('object-contain'),
+    );
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toHaveAttribute('src', 'https://cdn.example/kapak.png');
+    expect(header?.querySelector('[data-slot="object-cover-backdrop"] img')).toHaveAttribute(
+      'src',
+      'https://cdn.example/kapak.png',
+    );
   });
 
   it('shows the competitor list to readers who cannot manage it once it has rows', async () => {
@@ -151,9 +154,7 @@ describe('Event workspace layout', () => {
     const { competitorsApi } = jest.requireMock('@/lib/api/competitors');
     competitorsApi.listByEvent.mockResolvedValue([{ id: 'c1', userId: 'u9', eventId: 'e1' }]);
     await renderEventTab(<EventCompetitionPage />, '/events/e1/competition');
-    await waitFor(() =>
-      expect(screen.getByRole('tab', { name: 'Yarışma' })).toHaveAttribute('aria-selected', 'true'),
-    );
+    await waitFor(() => expect(tab('Yarışma')).toHaveAttribute('aria-current', 'page'));
     expect(screen.getByRole('link', { name: /u9/ })).toHaveAttribute(
       'href',
       '/events/e1/competition/c1',
@@ -201,9 +202,7 @@ describe('Event workspace layout', () => {
         expect.objectContaining({ formUrl: '' }),
       ),
     );
-    expect(
-      await screen.findByText('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Form bağlandı.')).toBeInTheDocument();
     // The edit page shows what was linked, without the return in the address
     expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/edit');
   });
@@ -340,7 +339,9 @@ describe('Event workspace layout', () => {
     await screen.findByRole('heading', { name: 'GeceKodu' });
     // No competitor yet: the tab is there because core lets the member manage them
     await waitFor(() => expect(tabNames()).toContain('Yarışma'));
-    expect((await screen.findAllByLabelText('Yarışmacı ekle')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('link', { name: 'Yarışmacı ekle' })).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('shows a member no competitor tools once the Leader turned the setting off', async () => {
@@ -458,9 +459,10 @@ describe('Event workspace layout', () => {
     expect(
       within(dialog).getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
     ).toHaveAttribute('href', '/events/e9');
-    expect(
-      within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
-    ).toHaveAttribute('href', expect.stringContaining(`fromForm=${formId}`));
+    expect(within(dialog).getByRole('link', { name: 'Bu formdan yeni form aç' })).toHaveAttribute(
+      'href',
+      expect.stringContaining(`fromForm=${formId}`),
+    );
   });
 
   it('shows why the event did not load instead of its tabs', async () => {

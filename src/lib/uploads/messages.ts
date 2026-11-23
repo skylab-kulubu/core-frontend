@@ -59,7 +59,7 @@ export function uploadErrorMessage(
     case 'part_failed':
       return 'Dosyanın bir kısmı gönderilemedi. Bağlantını kontrol edip aynı dosyayı yeniden seç; kaldığı yerden devam eder.';
     default:
-      return 'Yükleme tamamlanamadı. Lütfen yeniden dene.';
+      return 'Yükleme tamamlanamadı. Tekrar dene.';
   }
 }
 
@@ -67,16 +67,16 @@ export function uploadErrorMessage(
 export function scanResultMessage(result: ScanResult | string | undefined): string {
   switch (result) {
     case 'infected':
-      return 'Dosyada zararlı içerik bulundu ve silindi. Temiz bir kopyasını yükleyin.';
+      return 'Dosyada zararlı içerik bulundu ve silindi. Temiz bir kopyasını yükle.';
     case 'too_large_to_scan':
-      return 'Dosya bütünüyle taranamadı. Daha sade bir kopya ya da PDF yükleyin.';
+      return 'Dosya bütünüyle taranamadı. Daha sade bir kopya ya da PDF yükle.';
     case 'archive_invalid':
-      return 'Dosya bozuk ya da şifreli. Şifresiz, sağlam bir kopya yükleyin.';
+      return 'Dosya bozuk ya da şifreli. Şifresiz, sağlam bir kopya yükle.';
     case 'archive_nested':
-      return 'İçteki arşivleri açıp tekrar yükleyin.';
+      return 'İçteki arşivleri açıp tekrar yükle.';
     case 'scan_timeout':
-      return 'Tarama tamamlanamadı. Lütfen yeniden yükleyin.';
+      return 'Tarama tamamlanamadı. Yeniden yükle.';
     default:
-      return 'Dosya işlenemedi. Lütfen yeniden yükleyin.';
+      return 'Dosya işlenemedi. Yeniden yükle.';
   }
 }

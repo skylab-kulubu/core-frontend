@@ -197,7 +197,7 @@ describe('KVKK başvuruları', () => {
       can: { 'subjectRequest.manage': false },
     });
     render(<SubjectRequestsPage />);
-    expect(await screen.findByText('Bu kayda yalnız YK ve yöneticiler erişir')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(subjectRequestsApi.list).not.toHaveBeenCalled();
   });
 });

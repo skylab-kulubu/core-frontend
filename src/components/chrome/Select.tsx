@@ -22,7 +22,7 @@ export function Select({ className = '', children, size, ...props }: SelectProps
       {...props}
       data-size={box}
       className={cn(
-        'border-input bg-background/60 text-foreground w-full min-w-0 border px-2.5 text-xs outline-hidden pointer-coarse:text-base',
+        'border-input bg-background/60 text-foreground w-full min-w-0 border px-2.5 text-sm outline-hidden pointer-coarse:text-base',
         'ease-enter transition-[border-color,box-shadow,background-color] duration-(--motion-duration-fast)',
         'hover:border-border-strong focus-visible:border-skylab-600/60 focus-visible:ring-skylab-600/25 focus-visible:ring-2',
         'aria-invalid:border-destructive/50 aria-invalid:ring-destructive/20',

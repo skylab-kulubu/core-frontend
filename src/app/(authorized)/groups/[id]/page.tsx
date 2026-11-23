@@ -15,7 +15,6 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { Switch } from '@/components/chrome/Switch';
 import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
@@ -43,12 +42,11 @@ import {
 import { isLeaderGroupPath, isPrivileged, isTeamGroupPath } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import {
-  TEAM_SETTING_ATTRS,
   competitionManagers,
   extraGroupAttrs,
   isKnownGroupAttr,
+  isRetiredGroupAttr,
   isTeamSettingAttr,
-  membersManageCompetitors,
 } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
@@ -225,7 +223,7 @@ export default function GroupDetailPage() {
   // The Team's settings have their own switch below, not a row here
   const extraAttrs = Object.fromEntries(
     Object.entries(extraGroupAttrs(group?.attributes)).filter(
-      ([key]) => !(TEAM_SETTING_ATTRS as readonly string[]).includes(key),
+      ([key]) => !isTeamSettingAttr(key) && !isRetiredGroupAttr(key),
     ),
   );
   // A Team's settings show to whoever reads the Team; whoever manages it (its
@@ -390,7 +388,7 @@ export default function GroupDetailPage() {
       <PageHeader
         title={group?.name ?? id}
         description={group?.path}
-        meta={<span className="text-2xs text-subtle-foreground">{members.length} üye</span>}
+        meta={<span className="text-subtle-foreground text-xs">{members.length} üye</span>}
       />
       {error ? <LoadError title={error} onRetry={load} /> : null}
 
@@ -506,31 +504,12 @@ export default function GroupDetailPage() {
               </p>
             ) : null}
             {settingsKnown && !settingsWrite ? (
-              <p className="text-3xs text-subtle-foreground">
+              <p className="text-subtle-foreground text-[13px]/5">
                 {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
               </p>
             ) : null}
-            <Switch
-              checked={membersManageCompetitors(group.attributes)}
-              label="Üyeler yarışmacı ekleyip düzenleyebilir"
-              hint="Kapalıysa yalnız liderler."
-              disabled={!settingsWrite || savingSettings}
-              onChange={async (next) => {
-                if (!settingsWrite || savingSettings) return;
-                setSavingSettings(true);
-                setSettingsError(null);
-                try {
-                  await saveTeamSettings({ membersManageCompetitors: next });
-                  notify.success('Ayar kaydedildi');
-                } catch (err) {
-                  setSettingsError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
-                } finally {
-                  setSavingSettings(false);
-                }
-              }}
-            />
             <div className="space-y-2">
-              <span id="competition-managers" className="text-xs font-medium">
+              <span id="competition-managers" className="text-[13px]/5 font-medium">
                 Yarışmaları kim yönetir
               </span>
               <RadioGroup
@@ -621,15 +600,15 @@ export default function GroupDetailPage() {
             }
           />
           {rolesOnApps ? (
-            <p className="text-3xs text-subtle-foreground">
+            <p className="text-subtle-foreground text-[13px]/5">
               Uygulama rolleri{' '}
               <Link href="/apps" className="underline">
                 Uygulamalar
               </Link>{' '}
-              sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
+              sayfasından atanır; yönetici rolleri buradan değişmez.
             </p>
           ) : canWrite && placement ? (
-            <p className="text-3xs text-subtle-foreground">
+            <p className="text-subtle-foreground text-[13px]/5">
               {rolePlacementMessage(placement)}
               {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
             </p>
@@ -679,9 +658,6 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <SectionHeading title="Ekstra öznitelikler" />
-        <p className="text-3xs text-subtle-foreground">
-          Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
-        </p>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -732,7 +708,9 @@ export default function GroupDetailPage() {
                 setAttrError(
                   isTeamSettingAttr(attrKey.trim())
                     ? 'Bu ayar yukarıdaki Ekip ayarları bölümünde.'
-                    : 'Bu alan yukarıdaki kulüp alanlarında.',
+                    : isRetiredGroupAttr(attrKey.trim())
+                      ? 'Bu ayar kaldırıldı.'
+                      : 'Bu alan yukarıdaki kulüp alanlarında.',
                 );
                 return;
               }
@@ -786,6 +764,7 @@ export default function GroupDetailPage() {
               <ActionButton
                 icon={Trash2}
                 label="Grubu sil"
+                showLabel
                 onClick={() =>
                   confirm({
                     title: `${group.name} silinsin mi?`,
@@ -803,9 +782,6 @@ export default function GroupDetailPage() {
               />
             }
           />
-          <p className="text-subtle-foreground text-sm">
-            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
-          </p>
         </section>
       ) : null}
       {confirmDialog}

@@ -13,7 +13,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/my-teams': 'Ekiplerim',
   '/subject-requests': 'KVKK başvuruları',
   '/qr': 'Kapı',
-  '/urls': 'Kısa URL',
+  '/urls': 'Kısa link',
   '/certificates': 'Sertifikalar',
   '/certificates/templates': 'Şablonlar',
   '/certificates/templates/new': 'Yeni şablon',
@@ -42,7 +42,7 @@ function formatSegment(part: string): string {
     delete: 'Sil',
     participants: 'Katılımcılar',
     certificates: 'Sertifikalar',
-    content: 'İçerik',
+    content: 'Dosyalar',
     competition: 'Yarışma',
     door: 'Kapı',
   };

@@ -193,7 +193,7 @@ describe('ticket detail fields', () => {
     expect(byLabel['Fakülte']?.value).toBe('Elektrik');
     expect(byLabel['Bölüm']?.value).toBe('Bilgisayar');
     expect(byLabel['Sınıf']?.value).toBe('3');
-    expect(byLabel['Mail']?.value).toBe('Hayır');
+    expect(byLabel['Bilet e-postası']?.value).toBe('Hayır');
     expect(byLabel['Oluşturulma']?.value).toBe('Bugün, 08:05');
     expect(byLabel['Bilet kodu']?.group).toBe('Bilet');
     expect(fields.some((field) => field.value === 't-guest')).toBe(false);

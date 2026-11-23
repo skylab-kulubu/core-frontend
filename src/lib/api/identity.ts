@@ -92,8 +92,6 @@ export type ManagedGroup = {
 
 /** A Team's own settings, kept as its Group's attributes (core docs/team-delegation.md). */
 export type TeamSettings = {
-  /** Whether the Team's members add and edit its Events' competitors; off keeps it to Leaders. */
-  membersManageCompetitors: boolean;
   /** Who manages its Events' Competitions: the Leaders (default) or all its members too. */
   competitionManagers: 'leaders' | 'members';
 };

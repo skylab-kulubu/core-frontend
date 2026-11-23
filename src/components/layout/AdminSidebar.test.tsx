@@ -8,15 +8,10 @@ import type { UserDto } from '@/types/api';
 
 let currentPathname = '/dashboard';
 let currentSearch = '';
-const mockPerformClientLogout = jest.fn();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
   useSearchParams: () => new URLSearchParams(currentSearch),
-}));
-
-jest.mock('@/lib/auth/client-logout', () => ({
-  performClientLogout: () => mockPerformClientLogout(),
 }));
 
 const user: UserDto = {
@@ -52,18 +47,8 @@ describe('AdminSidebar', () => {
     window.localStorage.clear();
   });
 
-  it('signs out from the profile menu', async () => {
-    const pointer = userEvent.setup();
+  it('shows the destinations the person’s groups allow', () => {
     renderSidebar();
-    await pointer.click(screen.getByRole('button', { name: 'Deniz Aydın' }));
-    await pointer.click(await screen.findByRole('menuitem', { name: 'Çıkış yap' }));
-    expect(mockPerformClientLogout).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows the person, their role and the destinations their groups allow', () => {
-    renderSidebar();
-    expect(screen.getByText('Deniz Aydın')).toBeInTheDocument();
-    expect(screen.getByText('YÖNETİM')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Özet' })).toHaveAttribute('href', '/dashboard');
     expect(screen.getByRole('link', { name: 'Etkinlikler' })).toHaveAttribute('href', '/events');
     expect(screen.queryByRole('link', { name: 'Oturumlar' })).not.toBeInTheDocument();
@@ -76,16 +61,6 @@ describe('AdminSidebar', () => {
     expect(await screen.findByRole('menuitem', { name: /Forms/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /İletişim/ })).toHaveTextContent(
       'E-posta ve bildirim gönderimi',
-    );
-  });
-
-  it('links the account center from the profile menu', async () => {
-    const pointer = userEvent.setup();
-    renderSidebar();
-    await pointer.click(screen.getByRole('button', { name: 'Deniz Aydın' }));
-    expect(await screen.findByRole('menuitem', { name: 'Hesap merkezi' })).toHaveAttribute(
-      'href',
-      'https://my.yildizskylab.com',
     );
   });
 
@@ -149,29 +124,10 @@ describe('AdminSidebar', () => {
     expect(screen.queryByRole('link', { name: 'Kapı' })).not.toBeInTheDocument();
   });
 
-  it('lists the edited sites before Ayarlar, which closes the list', () => {
+  it('keeps the account and the edited sites out of the sidebar (top bar menu)', () => {
     renderSidebar({ editSites: [{ href: 'https://artlab.example/api/signin', label: 'ARTLAB' }] });
-    const sites = screen.getByRole('button', { name: 'Siteyi düzenle' });
-    const settings = screen.getByRole('button', { name: 'Ayarlar' });
-    expect(sites.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('offers to edit only the sites the person may edit', async () => {
-    const pointer = userEvent.setup();
-    renderSidebar({
-      editSites: [{ href: 'https://artlab.yildizskylab.com/api/signin', label: 'ARTLAB' }],
-    });
-    await pointer.click(screen.getByRole('button', { name: 'Siteyi düzenle' }));
-    expect(screen.getByRole('link', { name: 'ARTLAB' })).toHaveAttribute(
-      'href',
-      'https://artlab.yildizskylab.com/api/signin',
-    );
-    expect(screen.queryByRole('link', { name: 'Ana site' })).not.toBeInTheDocument();
-  });
-
-  it('shows no site editing to a person who edits no site', () => {
-    renderSidebar({ editSites: [] });
     expect(screen.queryByRole('button', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Deniz Aydın' })).not.toBeInTheDocument();
   });
 
   it('remembers a group the reader opened', async () => {

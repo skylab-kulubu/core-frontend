@@ -87,14 +87,14 @@ describe('Group detail Üye ekle', () => {
     const user = userEvent.setup();
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
-    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 3 karakter yaz')).toBeInTheDocument();
     const search = screen.getByPlaceholderText('Ad veya tam e-posta');
     await user.type(search, 'ad');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     });
     expect(identityApi.memberCandidates).not.toHaveBeenCalled();
-    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 3 karakter yaz')).toBeInTheDocument();
 
     await user.type(search, 'a');
     await waitFor(() => expect(identityApi.memberCandidates).toHaveBeenCalledWith('g1', 'ada'));
@@ -670,9 +670,7 @@ describe('Group detail role mapping', () => {
       const roles = screen.getByText('Uygulama rolleri').closest('section') as HTMLElement;
       expect(within(roles).getByText('skyforms:access')).toBeInTheDocument();
       expect(within(roles).queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
-      expect(
-        within(roles).getByText(/Yönetici rolleri kodda tanımlı; burada yalnız görünür/),
-      ).toBeInTheDocument();
+      expect(within(roles).getByText(/yönetici rolleri buradan değişmez/)).toBeInTheDocument();
       unmount();
     }
   });
@@ -733,7 +731,9 @@ describe('Group detail role mapping', () => {
     );
     await user.click(within(dialog).getByRole('button', { name: /system-mails:read/ }));
     await waitFor(() =>
-      expect(within(dialog).getByRole('alert')).toHaveTextContent('Keycloak yönetim yetkisi'),
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        'hesap sisteminin yönetim yetkisini',
+      ),
     );
     expect(dialog).not.toHaveTextContent(/takes no role|realm-management/);
     expect(identityApi.setGroupRoles).toHaveBeenCalledWith('g1', [
@@ -983,93 +983,50 @@ describe('Group detail for a Team Leader (Ekiplerim, ticket 08)', () => {
   });
 });
 
-describe('Group detail: the Team setting for competitors', () => {
-  // jsdom has no PointerEvent; base-ui's Switch sends one on a click
-  beforeAll(() => {
-    if (!('PointerEvent' in window)) {
-      Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
-    }
-  });
-
-  const leader = { user: { id: 'lead', groups: ['/UYELER/ARGE/WEBLAB/LIDERLER'] } };
+describe('Group detail: the retired competitor setting', () => {
   const weblab = (attributes?: Record<string, string>) => ({
     id: 'g1',
     name: 'WEBLAB',
     path: '/UYELER/ARGE/WEBLAB',
     attributes,
   });
-  const leads = () => {
-    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
-      can: { 'group.write': false },
-      managedTeams: [{ id: 'g1', path: '/UYELER/ARGE/WEBLAB', code: 'WEBLAB' }],
-    });
-    (identityApi.managedGroups as jest.Mock).mockResolvedValue([
-      {
-        id: 'g1',
-        code: 'WEBLAB',
-        path: '/UYELER/ARGE/WEBLAB',
-        can: { 'members.write': true, 'team.settings': true },
-      },
-    ]);
-  };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useAuth as jest.Mock).mockReturnValue(leader);
-    (identityApi.members as jest.Mock).mockResolvedValue([]);
-    (identityApi.groupRoles as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
-    (identityApi.setTeamSettings as jest.Mock).mockResolvedValue({
-      membersManageCompetitors: false,
-    });
-  });
-
-  it('lets the Leader turn the members’ competitor writes off, on by default', async () => {
-    leads();
-    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
-    const user = userEvent.setup();
-    render(<GroupDetailPage />);
-    const toggle = await screen.findByRole('switch', {
-      name: /Üyeler yarışmacı ekleyip düzenleyebilir/,
-    });
-    expect(toggle).toBeChecked();
-    await user.click(toggle);
-    await waitFor(() =>
-      expect(identityApi.setTeamSettings).toHaveBeenCalledWith('g1', {
-        membersManageCompetitors: false,
-      }),
-    );
-  });
-
-  it('takes no second change while the first is being saved', async () => {
-    leads();
-    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
-    let finish: (value: unknown) => void = () => undefined;
-    (identityApi.setTeamSettings as jest.Mock).mockReturnValue(
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-    );
-    const user = userEvent.setup();
-    render(<GroupDetailPage />);
-    const toggle = await screen.findByRole('switch', {
-      name: /Üyeler yarışmacı ekleyip düzenleyebilir/,
-    });
-    await user.click(toggle);
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-disabled', 'true'));
-    await user.click(toggle);
-    expect(identityApi.setTeamSettings).toHaveBeenCalledTimes(1);
-    await act(async () => finish({ membersManageCompetitors: false }));
-    await waitFor(() => expect(toggle).not.toHaveAttribute('aria-disabled', 'true'));
-  });
-
-  it('points to the switch when Privileged types the setting as an extra attribute', async () => {
     (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
+    (identityApi.members as jest.Mock).mockResolvedValue([]);
     (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+  });
+
+  it('offers no switch for it and lists an older core’s value as no extra attribute', async () => {
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(
+      weblab({ members_manage_competitors: 'false' }),
+    );
+    render(<GroupDetailPage />);
+    expect(
+      await screen.findByRole('radiogroup', { name: 'Yarışmaları kim yönetir' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /yarışmacı/ })).toBeNull();
+    expect(screen.queryByText(/Üyeler yarışmacı ekleyip düzenleyebilir/)).toBeNull();
+    expect(screen.queryByText('members_manage_competitors')).toBeNull();
+  });
+
+  it('refuses it as an extra attribute', async () => {
     (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
     const user = userEvent.setup();
     render(<GroupDetailPage />);
     await user.type(await screen.findByLabelText('Anahtar'), 'members_manage_competitors');
+    await user.click(screen.getByRole('button', { name: 'Ekle' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bu ayar kaldırıldı.');
+    expect(identityApi.updateGroup).not.toHaveBeenCalled();
+  });
+
+  it('points to Ekip ayarları when Privileged types a Team setting as an extra attribute', async () => {
+    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
+    const user = userEvent.setup();
+    render(<GroupDetailPage />);
+    await user.type(await screen.findByLabelText('Anahtar'), 'team_competition_manage');
     await user.click(screen.getByRole('button', { name: 'Ekle' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Bu ayar yukarıdaki Ekip ayarları bölümünde.',
@@ -1077,31 +1034,7 @@ describe('Group detail: the Team setting for competitors', () => {
     expect(identityApi.updateGroup).not.toHaveBeenCalled();
   });
 
-  it('reads the setting from the Team and lists it as no extra attribute', async () => {
-    leads();
-    (identityApi.getGroup as jest.Mock).mockResolvedValue(
-      weblab({ members_manage_competitors: 'false' }),
-    );
-    render(<GroupDetailPage />);
-    expect(
-      await screen.findByRole('switch', { name: /Üyeler yarışmacı ekleyip düzenleyebilir/ }),
-    ).not.toBeChecked();
-    expect(screen.queryByText('members_manage_competitors')).toBeNull();
-  });
-
-  it('shows it read-only to someone who does not manage the Team, and not on a Leader group', async () => {
-    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {}, managedTeams: [] });
-    (identityApi.getGroup as jest.Mock).mockResolvedValue(weblab());
-    const view = render(<GroupDetailPage />);
-    // Who does not manage the Team reads its settings, and why they cannot change them
-    const toggle = await screen.findByRole('switch', { name: /yarışmacı/ });
-    expect(toggle).toHaveAttribute('aria-disabled', 'true');
-    expect(await screen.findByText(/Bu ayarları ekibin liderleri/)).toBeInTheDocument();
-    view.unmount();
-
-    (useAuth as jest.Mock).mockReturnValue({ user: { id: 'yk', groups: ['/UYELER/YK'] } });
-    (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'group.write': true } });
-    (identityApi.groupRoles as jest.Mock).mockResolvedValue([]);
+  it('shows no Team settings on a Leader group', async () => {
     (identityApi.getGroup as jest.Mock).mockResolvedValue({
       id: 'g1',
       name: 'LIDERLER',
@@ -1110,7 +1043,6 @@ describe('Group detail: the Team setting for competitors', () => {
     render(<GroupDetailPage />);
     expect((await screen.findAllByText('LIDERLER')).length).toBeGreaterThan(0);
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
-    expect(screen.queryByRole('switch', { name: /yarışmacı/ })).toBeNull();
     expect(screen.queryByRole('radiogroup', { name: 'Yarışmaları kim yönetir' })).toBeNull();
   });
 });
@@ -1149,7 +1081,6 @@ describe('Group detail: who manages the Team’s Competitions (yarışma 27)', (
     (identityApi.members as jest.Mock).mockResolvedValue([]);
     (identityApi.groupRoles as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
     (identityApi.setTeamSettings as jest.Mock).mockResolvedValue({
-      membersManageCompetitors: true,
       competitionManagers: 'leaders',
     });
   });
@@ -1242,20 +1173,13 @@ describe('Group detail: who manages the Team’s Competitions (yarışma 27)', (
       }),
     );
     await user.click(screen.getByRole('button', { name: 'Geri al' }));
-    const toggle = screen.getByRole('switch', { name: /yarışmacı/ });
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-disabled', 'true'));
-    expect(screen.getByRole('radio', { name: /Tüm üyeler/ })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
-    await user.click(toggle);
-    await user.click(screen.getByRole('radio', { name: /Tüm üyeler/ }));
+    const members = screen.getByRole('radio', { name: /Tüm üyeler/ });
+    await waitFor(() => expect(members).toHaveAttribute('aria-disabled', 'true'));
+    await user.click(members);
     expect(identityApi.setTeamSettings).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    await act(async () =>
-      finish({ membersManageCompetitors: true, competitionManagers: 'members' }),
-    );
-    await waitFor(() => expect(toggle).not.toHaveAttribute('aria-disabled', 'true'));
+    await act(async () => finish({ competitionManagers: 'members' }));
+    await waitFor(() => expect(members).not.toHaveAttribute('aria-disabled', 'true'));
     expect(await screen.findByText('Ayar geri alındı')).toBeInTheDocument();
   });
 

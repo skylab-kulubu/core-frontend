@@ -50,9 +50,7 @@ describe("SkyApp'ten geçiş page", () => {
     render(<HandoffTargetsPage />);
 
     expect(await screen.findByText('SkyForms')).toBeInTheDocument();
-    expect(
-      screen.getByText(/SkyApp, açık bir siteyi uygulamadaki kullanıcının oturumuyla açar/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "SkyApp'ten geçiş" })).toBeInTheDocument();
 
     const forms = row('SkyForms');
     // The list cross-fades in from its loading state
@@ -80,12 +78,12 @@ describe("SkyApp'ten geçiş page", () => {
 
   it('hides the settings when Keycloak says the admin is not a realm super admin', async () => {
     (handoffTargetsApi.list as jest.Mock).mockRejectedValue(
-      new HandoffProblemError(403, 'Bu işlem için realm süper yöneticisi olmalısın.'),
+      new HandoffProblemError(403, 'Bu işlem için ADMIN grubunda olmalısın.'),
     );
 
     render(<HandoffTargetsPage />);
 
-    expect(await screen.findByText('Bu sayfa realm süper yöneticisine açık')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
@@ -93,7 +91,10 @@ describe("SkyApp'ten geçiş page", () => {
   it('shows why the list could not load and lets the admin retry', async () => {
     (handoffTargetsApi.list as jest.Mock)
       .mockRejectedValueOnce(
-        new HandoffProblemError(502, 'Keycloak şu an yanıt vermiyor. Biraz sonra tekrar dene.'),
+        new HandoffProblemError(
+          502,
+          'Hesap sistemi şu an yanıt vermiyor. Biraz sonra tekrar dene.',
+        ),
       )
       .mockResolvedValueOnce([skyforms]);
     const user = userEvent.setup();
@@ -101,7 +102,7 @@ describe("SkyApp'ten geçiş page", () => {
     render(<HandoffTargetsPage />);
 
     expect(
-      await screen.findByText('Keycloak şu an yanıt vermiyor. Biraz sonra tekrar dene.'),
+      await screen.findByText('Hesap sistemi şu an yanıt vermiyor. Biraz sonra tekrar dene.'),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Tekrar dene' }));
     expect(await screen.findByText('SkyForms')).toBeInTheDocument();
@@ -290,7 +291,7 @@ describe("SkyApp'ten geçiş page", () => {
 
   it('hides the settings when Keycloak refuses a save with 403', async () => {
     (handoffTargetsApi.update as jest.Mock).mockRejectedValue(
-      new HandoffProblemError(403, 'Bu işlem için realm süper yöneticisi olmalısın.'),
+      new HandoffProblemError(403, 'Bu işlem için ADMIN grubunda olmalısın.'),
     );
     const user = userEvent.setup();
     render(<HandoffTargetsPage />);
@@ -300,7 +301,7 @@ describe("SkyApp'ten geçiş page", () => {
     await user.click(within(forms).getByRole('switch'));
     await user.click(within(forms).getByRole('button', { name: 'Kaydet' }));
 
-    expect(await screen.findByText('Bu sayfa realm süper yöneticisine açık')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

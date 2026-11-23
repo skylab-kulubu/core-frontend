@@ -14,7 +14,7 @@ import { ticketsApi, type GuestApplyBody, type Ticket } from '@/lib/api/tickets'
 import { useNotify } from '@/lib/ui/use-notify';
 
 const memberSchema = z.object({
-  personId: z.string().trim().min(1, 'Kişi seçin'),
+  personId: z.string().trim().min(1, 'Kişi seç'),
 });
 
 const guestSchema = z.object({
@@ -95,7 +95,7 @@ export function AddParticipantDrawer({
             searchPeople={(query) => ticketsApi.listAssignableUsers(eventId, query)}
           />
           {memberForm.formState.errors.personId ? (
-            <p className="text-2xs text-destructive">
+            <p className="text-destructive text-[13px]/5">
               {memberForm.formState.errors.personId.message}
             </p>
           ) : null}
@@ -132,7 +132,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.firstName)}
             />
             {guestForm.formState.errors.firstName ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {guestForm.formState.errors.firstName.message}
               </span>
             ) : null}
@@ -144,7 +144,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.lastName)}
             />
             {guestForm.formState.errors.lastName ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {guestForm.formState.errors.lastName.message}
               </span>
             ) : null}
@@ -157,7 +157,7 @@ export function AddParticipantDrawer({
               aria-invalid={Boolean(guestForm.formState.errors.email)}
             />
             {guestForm.formState.errors.email ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {guestForm.formState.errors.email.message}
               </span>
             ) : null}

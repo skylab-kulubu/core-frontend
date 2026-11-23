@@ -10,7 +10,7 @@ describe('PageSkeleton', () => {
     },
   );
 
-  it('outlines an event with its tabs', () => {
+  it('outlines an event as an object page: band, commands, menu and cards', () => {
     const { container } = render(<PageSkeleton variant="workspace" />);
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(8);
   });

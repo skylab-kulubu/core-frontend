@@ -54,7 +54,7 @@ describe('managed links', () => {
   });
 
   it('says where a managed link is managed, and nothing for a personal one', () => {
-    expect(managedNote({ formId: FORM })).toBe('Forms’ta yönetiliyor');
+    expect(managedNote({ formId: FORM })).toBe('Formda yönetiliyor');
     expect(managedNote({ formId: FORM, eventId: EVENT })).toBe('Etkinlikte yönetiliyor');
     expect(managedNote({})).toBeNull();
   });
@@ -78,13 +78,13 @@ describe('managed links', () => {
 
   it('explains a managed refusal by the row, and names both when the list still showed it personal', () => {
     expect(managedRefusalMessage({ formId: FORM })).toBe(
-      'Forms’ta yönetiliyor; buradan değiştirilemez.',
+      'Formda yönetiliyor; buradan değiştirilemez.',
     );
     expect(managedRefusalMessage({ eventId: EVENT })).toBe(
       'Etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
     expect(managedRefusalMessage({})).toBe(
-      'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
+      'Formda ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
   });
 });

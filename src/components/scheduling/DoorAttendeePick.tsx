@@ -71,7 +71,7 @@ export function DoorAttendeePick({
         <button
           type="button"
           aria-label="Katılımcı bul"
-          className="focus:border-skylab-400/50 border-border bg-card text-foreground h-8 w-full rounded-md border px-3 text-left text-xs"
+          className="focus:border-skylab-400/50 border-border bg-card text-foreground h-8 w-full rounded-md border px-3 text-left text-sm"
           onClick={() => {
             setQuery('');
             setOpen(true);
@@ -94,7 +94,7 @@ export function DoorAttendeePick({
           title: attendee.name,
           subtitle: attendee.email,
         }))}
-        emptyMessage={query.trim().length < 2 ? 'En az 2 karakter yazın' : 'Katılımcı yok'}
+        emptyMessage={query.trim().length < 2 ? 'En az 2 karakter yaz' : 'Katılımcı yok'}
         onPick={(id) => {
           const attendee = attendees.find((row) => optionID(row) === id);
           if (!attendee) return;

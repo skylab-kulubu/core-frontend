@@ -306,7 +306,7 @@ export function EventEditor({
             checked={value.feedbackAutoSend ?? true}
             onChange={(checked) => patch({ feedbackAutoSend: checked })}
             label="Etkinlik bitince gönder"
-            hint="Bitişten 2 saat sonra yoklaması alınanlara posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+            hint="Bitişten 2 saat sonra katılanlara e-postayla gider."
           />
         </div>
       </EditorSection>

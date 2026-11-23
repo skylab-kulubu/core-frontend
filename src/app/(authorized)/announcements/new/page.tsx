@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NewsForm } from '../NewsForm';
 import { useAuth } from '@/context/AuthContext';
-import { StateCard } from '@/components/chrome/StateCard';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, newsProblemMessage } from '@/lib/api/cms';
 import { useNotify } from '@/lib/ui/use-notify';
+import { Forbidden } from '@/components/chrome/PageState';
 
 export default function NewAnnouncementPage() {
   const router = useRouter();
@@ -18,16 +17,7 @@ export default function NewAnnouncementPage() {
   const [pending, setPending] = useState(false);
   const notify = useNotify();
 
-  if (!privileged) {
-    return (
-      <StateCard
-        title="Duyurular yalnızca YK ve kurul içindir."
-        description="Bu ekran yayın yetkisi ister."
-        Icon={ShieldAlert}
-        tone="warning"
-      />
-    );
-  }
+  if (!privileged) return <Forbidden pageTitle="Yeni duyuru" />;
 
   return (
     <div className="space-y-6">

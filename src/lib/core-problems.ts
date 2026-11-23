@@ -1,6 +1,7 @@
 import { ProblemError } from '@/lib/api/core';
 import { mediaPurposeLabel, mediaRoleName } from '@/lib/media-purposes';
 import { rolePlacementMessage } from '@/lib/role-placement';
+import { passwordPolicyMessage } from '@/lib/user-account';
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -105,6 +106,23 @@ const CODE_MESSAGES: Record<string, string> = {
   feedback_form_missing: 'Geri bildirim formu bağlı değil.',
   feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
+  // A person's account from the person card (core docs/user-accounts.md)
+  own_account: 'Kendi hesabını Hesap merkezinden değiştir.',
+  privileged_target: 'Yönetim üyesinin hesabını yalnız ADMIN değiştirir.',
+  service_account: 'Servis hesabı buradan değiştirilmez.',
+  account_not_active: 'Hesap silinmiş ya da siliniyor.',
+  school_domain: 'Okul adresi buradan eklenmez; YTÜ hesabı bağlanınca gelir.',
+  email_invalid: 'E-posta adresi geçerli değil.',
+  email_taken: 'Bu adres başka bir hesapta.',
+  email_not_verified: 'Önce kişisel adresi onayla.',
+  no_address: 'Bu adres hesapta yok.',
+  no_email: 'Hesapta e-posta adresi yok.',
+  unknown_required_action: 'Bu eylem seçilemez.',
+  credential_not_found: 'Kimlik bilgisi bulunamadı; sayfayı yenile.',
+  provider_not_found: 'Bağlantı bulunamadı; sayfayı yenile.',
+  mail_not_sent: 'E-posta gönderilemedi. Biraz sonra tekrar dene.',
+  name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',
+  account_invalid: 'Hesap bilgisi kabul edilmedi.',
   // Group name refusals (core teamcode)
   invalid_name:
     'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
@@ -114,10 +132,9 @@ const CODE_MESSAGES: Record<string, string> = {
   // Role rules (core rol-temizligi 06): access comes through Groups only
   direct_role_not_allowed:
     'Kişiye doğrudan rol verilmez; kişiyi rolü taşıyan gruba ekle (/ROLLER altındaki rol grubu, ekibin lider grubu ya da yönetim kökü).',
-  keycloak_admin_role:
-    'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
+  keycloak_admin_role: 'Bu rol hesap sisteminin yönetim yetkisini taşıyor; panelden verilmez.',
   keycloak_admin_group:
-    'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
+    'Bu grup (ya da üstündeki bir grup) hesap sisteminin yönetim yetkisini taşıyor; üyeliği panelden değişmez.',
   // KVKK md. 11 register (core docs/subject-requests.md)
   received_on_invalid: 'Başvuru tarihi geçerli bir gün olmalı ve bugünden sonra olamaz.',
   channel_invalid: 'Kanal seç.',
@@ -272,6 +289,8 @@ export function coreProblemMessage(
   }
   const fields = error.fields;
   switch (error.code) {
+    case 'password_policy':
+      return passwordPolicyMessage(fields.policy);
     case 'purpose_unknown':
       return `Sunucu bu yükleme amacını tanımıyor (${text(fields.purpose)}). Sayfayı yenileyip tekrar dene; sürerse yöneticiye haber ver.`;
     case 'purpose_forbidden':

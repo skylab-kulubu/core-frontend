@@ -143,9 +143,10 @@ describe('Program: a Session feedback form (per_session)', () => {
     expect(
       await within(dialog).findByText('Bu form başka bir yerde kullanılıyor.'),
     ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
-    ).toHaveAttribute('href', expect.stringContaining('fromForm=55555555'));
+    expect(within(dialog).getByRole('link', { name: 'Bu formdan yeni form aç' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('fromForm=55555555'),
+    );
   });
 
   it('clears a removed form with null', async () => {
@@ -282,7 +283,7 @@ describe('Overview: the Sessions for the Event form (event_with_sessions)', () =
     await renderEventTab(<EventOverviewPage />);
 
     expect(await screen.findByText('Açılış (Ada)')).toBeInTheDocument();
-    expect(screen.getByText(/matris sorusu/)).toBeInTheDocument();
+    expect(screen.getByText(/Tek tablo/)).toBeInTheDocument();
     await user.selectOptions(
       screen.getByLabelText('Formda oturumlar'),
       'Kişi katıldığı oturumları işaretler',

@@ -14,7 +14,6 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { Pagination } from '@/components/chrome/Pagination';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { TextArea } from '@/components/chrome/TextArea';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -36,6 +35,7 @@ import {
   STATUS_LABELS,
   TYPE_LABELS,
   TYPE_ORDER,
+  answerDueOn,
   deadlineBadge,
   describeFields,
   formatDay,
@@ -45,6 +45,8 @@ import {
 } from '@/lib/subject-requests';
 import { useAppCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
+import { Forbidden } from '@/components/chrome/PageState';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 type Filter = 'open' | 'concluded' | 'all';
 
@@ -168,8 +170,8 @@ export default function SubjectRequestsPage() {
   );
   const paged = paginateRows(filtered, page);
 
-  if (capabilities.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
-  if (!canManage) return <StateCard title="Bu kayda yalnız YK ve yöneticiler erişir" />;
+  if (capabilities.status === 'loading') return <PageSkeleton />;
+  if (!canManage) return <Forbidden pageTitle="KVKK başvuruları" />;
 
   const concluded = isConcluded(form.status);
 
@@ -177,7 +179,6 @@ export default function SubjectRequestsPage() {
     <div className="space-y-6">
       <PageHeader
         title="KVKK başvuruları"
-        description="İlgili kişi başvuruları (KVKK md. 11). Cevap süresi başvurudan itibaren 30 gün."
         actions={
           <ActionButton
             icon={Plus}
@@ -297,7 +298,7 @@ export default function SubjectRequestsPage() {
             }
           }}
         >
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-[13px]/5">
             T.C. kimlik no, ikamet adresi (cevabın gideceği adres dışında), onay kodu ya da kimlik
             belgesi yazma.
           </p>
@@ -309,6 +310,11 @@ export default function SubjectRequestsPage() {
             onChange={(receivedOn) => setForm({ ...form, receivedOn })}
             required
           />
+          {answerDueOn(form.receivedOn) ? (
+            <p className="text-subtle-foreground text-[13px]/5">
+              Cevap için son gün {formatDay(answerDueOn(form.receivedOn))} (30 gün)
+            </p>
+          ) : null}
           <label className="block space-y-1">
             <FieldLabel>Kanal</FieldLabel>
             <Select
@@ -415,7 +421,7 @@ export default function SubjectRequestsPage() {
           {editingId && events.length ? (
             <section className="space-y-1">
               <FieldLabel>Geçmiş</FieldLabel>
-              <ul className="text-muted-foreground space-y-1 text-xs">
+              <ul className="text-muted-foreground space-y-1 text-[13px]/5">
                 {events.map((event, index) => (
                   <li key={`${event.at}-${index}`}>{eventLine(event)}</li>
                 ))}

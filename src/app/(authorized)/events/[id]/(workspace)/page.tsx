@@ -1,20 +1,16 @@
 'use client';
 
-import { buttonVariants } from '@skylab-kulubu/skylcn-ui';
+import { buttonVariants, cn } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState } from 'react';
 import { saveClass } from '@/components/chrome/SaveButton';
-import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
-import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
-import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { EventOverview } from '@/components/scheduling/overview/EventOverview';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import type { EventSession } from '@/lib/api/sessions';
-import { publicShortUrl } from '@/lib/api/urls';
 import { previousFormHref, previousForms, previousSessionForms } from '@/lib/event-copy';
 import { APPLY_SLOT_KEY, formsAdminOrigin } from '@/lib/event-forms';
-import { publicMediaUrl } from '@/lib/event-media';
-import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
  * A copy's "Geçen seferin formundan yeni form oluştur" (SPEC §5.4): Skyforms
@@ -78,7 +74,7 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
           className={
             form.slotKey === APPLY_SLOT_KEY
               ? saveClass
-              : buttonVariants({ variant: 'outline', size: 'sm' })
+              : cn(buttonVariants({ variant: 'outline', size: 'sm' }), BUTTON_TEXT)
           }
         >
           {form.slotKey === APPLY_SLOT_KEY
@@ -90,60 +86,19 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
   );
 }
 
-/** Genel bakış tab: the event's cover, description, guest form link and feedback form. */
+/**
+ * Genel bakış: the event's essentials, its figures and charts, what runs now, the latest
+ * registrations, what is left to do, its links, place, certificates and files.
+ */
 export default function EventOverviewPage() {
   const { event, sessions, canMutate } = useEventWorkspace();
-
   return (
-    <div className="space-y-6">
-      {canMutate && event.copiedFromEventId ? (
-        <PreviousForms event={event} sessions={sessions} />
-      ) : null}
-      {event.coverImageUrl ? (
-        <EventCoverImage src={publicMediaUrl(event.coverImageUrl)} className="max-w-3xl" />
-      ) : null}
-      <p className="text-muted-foreground text-sm whitespace-pre-wrap">
-        {event.description || '—'}
-      </p>
-      {event.mapImageUrl ? (
-        <figure className="max-w-3xl space-y-1">
-          <img
-            src={publicMediaUrl(event.mapImageUrl)}
-            alt={`${event.location} haritası`}
-            className="border-border w-full rounded-md border"
-            width={1280}
-            height={480}
-          />
-          <figcaption className="text-3xs text-subtle-foreground flex flex-wrap justify-between gap-2">
-            <span>{event.locationAddress || event.location}</span>
-            <a
-              href={event.mapAttributionUrl || MAP_ATTRIBUTION_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-foreground"
-            >
-              {event.mapAttribution || MAP_ATTRIBUTION}
-            </a>
-          </figcaption>
-        </figure>
-      ) : null}
-      {event.formAlias || event.formUrl ? (
-        <p className="text-3xs text-subtle-foreground">
-          Misafir başvurusu (hesabı olmayanlar):{' '}
-          <a
-            className="text-skylab-300 hover:text-foreground"
-            href={event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}
-          </a>
-        </p>
-      ) : null}
-      <EventFeedbackPanel event={event} canSend={canMutate} />
-      {canMutate && event.feedbackMode === 'event_with_sessions' ? (
-        <FeedbackSessionList sessions={sessions} />
-      ) : null}
-    </div>
+    <EventOverview
+      previous={
+        canMutate && event.copiedFromEventId ? (
+          <PreviousForms event={event} sessions={sessions} />
+        ) : null
+      }
+    />
   );
 }
