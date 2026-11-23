@@ -62,7 +62,7 @@ describe('Duyurular', () => {
 
   it('writes the main command in the command bar', async () => {
     render(<AnnouncementsPage />);
-    const bar = screen.getByRole('toolbar', { name: 'Duyuru komutları' });
+    const bar = screen.getByRole('group', { name: 'Duyuru komutları' });
     expect(within(bar).getAllByRole('link')[0]).toHaveAttribute('href', '/announcements/new');
     expect(within(bar).getAllByRole('link')[0]).toHaveTextContent('Duyuru ekle');
     await screen.findByRole('link', { name: 'Bahar şenliği' });
