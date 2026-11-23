@@ -1,188 +1,372 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { buttonVariants, cn, TaskPage } from '@skylab-kulubu/skylcn-ui';
-import { ArrowLeft, CheckCircle2, Inbox } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Button, buttonVariants, cn, TaskPage } from '@skylab-kulubu/skylcn-ui';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CircleAlert,
+  Inbox,
+  QrCode,
+  ScanLine,
+  Search,
+  Undo2,
+  UserCheck,
+} from 'lucide-react';
 import Link from 'next/link';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
-import { ListPanel } from '@/components/chrome/ListPanel';
-import { ListToolbar } from '@/components/chrome/ListToolbar';
-import { SaveButton } from '@/components/chrome/SaveButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { Select } from '@/components/chrome/Select';
 import { StateCard } from '@/components/chrome/StateCard';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { DoorScanner, canScanWithCamera } from '@/components/scheduling/DoorScanner';
 import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
+import { ProblemError } from '@/lib/api/core';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { type EventSession } from '@/lib/api/sessions';
-import { ticketsApi, type DoorEvent } from '@/lib/api/tickets';
+import { ticketsApi, type DoorAttendee, type DoorEvent } from '@/lib/api/tickets';
 import {
   ALREADY_CHECKED_IN,
-  checkInSuccessLine,
   defaultDoorSessionId,
   doorSessionLabel,
   doorSessionTiming,
 } from '@/lib/door-check-in';
 import { eventTabHref } from '@/lib/event-workspace';
-import { emptyListCopy, matchesQuery } from '@/lib/list-query';
-import { listStatus } from '@/lib/list-status';
-import { BUTTON_TEXT } from '@/lib/ui/type-scale';
+import { formatApplicantWhen } from '@/lib/tickets-ui';
+import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useDeferredUndo } from '@/lib/ui/use-deferred-undo';
 
-type RecentCheckIn = {
-  id: string;
-  name: string;
-  eventName: string;
-  sessionTitle: string;
-  createdAt: string;
+type Entry = { id: string; name: string; createdAt: string };
+
+/** What the last attempt came to, in one large band (pretixSCAN): in, already in, or not. */
+type Outcome =
+  | { kind: 'in'; entry: Entry }
+  | { kind: 'undone'; name: string }
+  | { kind: 'already'; text: string }
+  | { kind: 'refused'; text: string };
+
+const RECENT = 10;
+const SUGGESTIONS = 6;
+/** What the band says for a code the camera read until core's list names its holder. */
+const SCANNED = 'Bilet okundu';
+
+const clock = new Intl.DateTimeFormat('tr-TR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Istanbul',
+});
+const timeOf = (iso: string) => {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? '' : clock.format(at);
 };
 
-const doorSchema = z
-  .object({
-    eventId: z.string().min(1, 'Etkinlik seç'),
-    sessionId: z.string().min(1, 'Giriş oturumunu seç'),
-    personId: z.string(),
-    email: z.string().trim(),
-  })
-  .refine((value) => value.personId !== '' || value.email !== '', {
-    message: 'Kişi veya e-posta girin',
-    path: ['email'],
-  });
+/** A refusal in the door's words: already in, nobody found, or core's Turkish reason. */
+function refusal(err: unknown, fallback: string): Outcome {
+  if (err instanceof ProblemError && err.status === 409) {
+    return { kind: 'already', text: coreProblemMessage(err, fallback, ALREADY_CHECKED_IN) };
+  }
+  if (err instanceof ProblemError && err.status === 404) {
+    return { kind: 'refused', text: 'Bulunamadı. Adı, e-postayı ya da bilet kodunu denetle.' };
+  }
+  return { kind: 'refused', text: coreProblemMessage(err, fallback, ALREADY_CHECKED_IN) };
+}
 
-type DoorForm = z.infer<typeof doorSchema>;
+function OutcomeBand({
+  outcome,
+  waiting,
+  onUndo,
+  onKeep,
+}: {
+  outcome: Outcome | null;
+  /** The entries taken back but still waiting for Vazgeç. */
+  waiting: ReadonlySet<string>;
+  onUndo: (entry: Entry) => void;
+  onKeep: (entry: Entry) => void;
+}) {
+  // Always mounted, so each new line is read out
+  return (
+    <div role="status" aria-label="Giriş sonucu" aria-live="polite">
+      {outcome ? (
+        <div
+          className={cn(
+            'flex items-center gap-3 rounded-xl border p-4',
+            outcome.kind === 'in' && 'border-success/50 bg-success/15',
+            outcome.kind === 'undone' && 'border-border bg-muted',
+            outcome.kind === 'already' && 'border-warning/50 bg-warning/15',
+            outcome.kind === 'refused' && 'border-destructive/50 bg-destructive/15',
+          )}
+        >
+          {outcome.kind === 'in' ? (
+            <CheckCircle2 className="text-success size-8 shrink-0" aria-hidden />
+          ) : outcome.kind === 'undone' ? (
+            <Undo2 className="text-muted-foreground size-8 shrink-0" aria-hidden />
+          ) : (
+            <CircleAlert
+              className={cn(
+                'size-8 shrink-0',
+                outcome.kind === 'already' ? 'text-warning' : 'text-destructive',
+              )}
+              aria-hidden
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground-strong text-lg leading-tight font-semibold">
+              {outcome.kind === 'in'
+                ? 'Girdi'
+                : outcome.kind === 'undone'
+                  ? 'Geri alındı'
+                  : outcome.kind === 'already'
+                    ? 'Zaten girmiş'
+                    : 'Girmedi'}
+            </p>
+            <p className={cn('text-secondary-foreground break-words', TEXT_SECONDARY)}>
+              {outcome.kind === 'in'
+                ? `${outcome.entry.name} · ${timeOf(outcome.entry.createdAt)}`
+                : outcome.kind === 'undone'
+                  ? outcome.name
+                  : outcome.text}
+            </p>
+          </div>
+          {outcome.kind === 'in' ? (
+            waiting.has(outcome.entry.id) ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className={BUTTON_TEXT}
+                aria-label="Geri almaktan vazgeç"
+                onClick={() => onKeep(outcome.entry)}
+              >
+                Vazgeç
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="lg"
+                className={BUTTON_TEXT}
+                onClick={() => onUndo(outcome.entry)}
+              >
+                <Undo2 aria-hidden />
+                Geri al
+              </Button>
+            )
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /**
- * The door of one event, a page of its own without the sidebar: back to the
- * event on top, then the session, the person and the live count.
+ * The door of one event, a focus page without the sidebar: the session and its count on top,
+ * one box for a name, an e-mail or a ticket code (or the camera), a large result band that can
+ * take the entry back, the guest QR and the last entries.
  */
 export function DoorDesk({ eventId }: { eventId: string }) {
   const [events, setEvents] = useState<DoorEvent[]>([]);
   const [sessions, setSessions] = useState<EventSession[]>([]);
+  const [sessionId, setSessionId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
-  // A refused check-in shows under the button, where the operator is looking
-  const [checkInError, setCheckInError] = useState<string | null>(null);
-  const [successLine, setSuccessLine] = useState<string | null>(null);
-  const [recent, setRecent] = useState<RecentCheckIn[]>([]);
-  const [activityTotal, setActivityTotal] = useState(0);
+  const [recent, setRecent] = useState<Entry[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const {
-    register,
-    control,
-    watch,
-    setValue,
-    resetField,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<DoorForm>({
-    resolver: zodResolver(doorSchema),
-    defaultValues: { eventId: '', sessionId: '', personId: '', email: '' },
-  });
-  const sessionId = watch('sessionId');
-  const personId = watch('personId');
-  const doorQuery = watch('email');
+  const [suggestions, setSuggestions] = useState<DoorAttendee[]>([]);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [busy, setBusy] = useState(false);
+  // The camera stays open between codes; a code read while the last one is being written waits
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const scanBusy = useRef(false);
+  const [guestQr, setGuestQr] = useState(false);
+  const [camera, setCamera] = useState(false);
+  const deferred = useDeferredUndo();
+  // The session the desk shows now, for answers that arrive after it was changed
+  const shownSession = useRef(sessionId);
+  shownSession.current = sessionId;
 
-  useEffect(() => {
-    ticketsApi
-      .listDoorEvents()
-      .then((rows) => {
-        setEvents(rows);
-      })
-      .catch((err) => setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi')))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => setCamera(canScanWithCamera()), []);
 
-  // The form writes to the event of the address, once core lists it among the person's doors
-  const event = events.find((row) => row.id === eventId);
+  // The doors and the event's days in one round: the event is in the address
   useEffect(() => {
-    setValue('eventId', event ? event.id : '');
-  }, [event, setValue]);
-  const formEventId = watch('eventId');
-  useChromeCrumbName(`/events/${eventId}`, event?.name);
-
-  useEffect(() => {
-    resetField('personId');
-    resetField('email');
-    setSuccessLine(null);
-    setCheckInError(null);
-    setSessions([]);
-    setValue('sessionId', '');
-    setRecent([]);
-    setActivityTotal(0);
-    setActivityError(null);
-    if (!formEventId) {
-      return;
-    }
     let cancelled = false;
-    eventDaysApi
-      .listByEvent(formEventId)
-      .then(async (days) => {
-        const nested = await Promise.all(days.map((day) => eventDaysApi.listSessions(day.id)));
+    const doors = ticketsApi.listDoorEvents();
+    const days = eventDaysApi.listByEvent(eventId);
+    doors
+      .then(async (rows) => {
         if (cancelled) return;
-        const rows = nested.flat();
-        setSessions(rows);
-        setValue('sessionId', defaultDoorSessionId(rows));
+        setEvents(rows);
+        if (!rows.some((row) => row.id === eventId)) return;
+        try {
+          const listed = await days;
+          const nested = await Promise.all(listed.map((day) => eventDaysApi.listSessions(day.id)));
+          if (cancelled) return;
+          const flat = nested.flat();
+          setSessions(flat);
+          setSessionId(defaultDoorSessionId(flat));
+        } catch (err) {
+          if (!cancelled) setError(coreProblemMessage(err, 'Oturumlar yüklenemedi'));
+        }
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(coreProblemMessage(err, 'Oturumlar yüklenemedi'));
-        }
+        if (!cancelled) setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
+    // A refused days read for a door that is not the person's says nothing
+    days.catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [formEventId, resetField, setValue]);
+  }, [eventId]);
+
+  const event = events.find((row) => row.id === eventId);
+  useChromeCrumbName(`/events/${eventId}`, event?.name);
+
+  const refresh = useCallback(async (): Promise<Entry[]> => {
+    if (!sessionId) return [];
+    try {
+      const activity = await ticketsApi.doorActivity(sessionId);
+      const rows = activity.items
+        .slice(0, RECENT)
+        .map((item) => ({ id: item.id, name: item.personName, createdAt: item.createdAt }));
+      setTotal(activity.total);
+      setActivityError(null);
+      setRecent(rows);
+      return rows;
+    } catch (err) {
+      setActivityError(coreProblemMessage(err, 'Son girişler yüklenemedi'));
+      return [];
+    }
+  }, [sessionId]);
 
   useEffect(() => {
-    if (!sessionId) {
-      setRecent([]);
-      setActivityTotal(0);
+    setRecent([]);
+    setTotal(0);
+    setActivityError(null);
+    setOutcome(null);
+    if (!sessionId) return;
+    let live = true;
+    void refresh();
+    const timer = window.setInterval(() => {
+      if (live) void refresh();
+    }, 5000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [sessionId, refresh]);
+
+  // Names as the door types: the people and guests of this event, from two letters on
+  useEffect(() => {
+    const typed = query.trim();
+    if (typed.length < 2 || !event) {
+      setSuggestions([]);
       return;
     }
     let cancelled = false;
-    const refresh = () => {
-      void ticketsApi
-        .doorActivity(sessionId)
-        .then((activity) => {
-          if (cancelled) return;
-          const eventName = events.find((event) => event.id === eventId)?.name || eventId;
-          const sessionTitle =
-            sessions.find((session) => session.id === sessionId)?.title || sessionId;
-          setActivityTotal(activity.total);
-          setActivityError(null);
-          setRecent(
-            activity.items.map((item) => ({
-              id: item.id,
-              name: item.personName,
-              eventName,
-              sessionTitle,
-              createdAt: item.createdAt,
-            })),
-          );
+    const handle = window.setTimeout(() => {
+      ticketsApi
+        .searchDoorAttendees(eventId, typed)
+        .then((rows) => {
+          if (!cancelled) setSuggestions(rows.slice(0, SUGGESTIONS));
         })
-        .catch((err) => {
-          if (!cancelled) {
-            setActivityError(coreProblemMessage(err, 'Canlı kapı kayıtları yüklenemedi'));
-          }
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
         });
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 5000);
+    }, 250);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(handle);
     };
-  }, [eventId, events, sessionId, sessions]);
+  }, [query, eventId, event]);
+
+  function admitted(entry: Entry) {
+    setOutcome({ kind: 'in', entry });
+    setRecent((rows) => [entry, ...rows.filter((row) => row.id !== entry.id)].slice(0, RECENT));
+    setTotal((count) => count + 1);
+    setQuery('');
+    setSuggestions([]);
+  }
+
+  async function checkIn(target: { personId?: string; query?: string }, label: string) {
+    if (!sessionId || busy) return;
+    setBusy(true);
+    try {
+      const created = await ticketsApi.resolveAndCheckIn(sessionId, target);
+      admitted({ id: created.id, name: created.personName || label, createdAt: created.createdAt });
+    } catch (err) {
+      setOutcome(refusal(err, 'Giriş yazılamadı'));
+    } finally {
+      setBusy(false);
+      document.getElementById('door-query')?.focus();
+    }
+  }
+
+  async function scanned(token: string) {
+    // One code at a time; the scanner itself does not read the same code again for a while
+    if (!sessionId || scanBusy.current) return;
+    scanBusy.current = true;
+    try {
+      const created = await ticketsApi.scanCheckIn(sessionId, token);
+      // The scan answers with the entry, not the name: core's list of entries names the holder
+      admitted({
+        id: created.id,
+        name: created.personName || SCANNED,
+        createdAt: created.createdAt,
+      });
+      const rows = await refresh();
+      const found = rows.find((row) => row.id === created.id);
+      if (found?.name) {
+        setOutcome((shown) =>
+          shown?.kind === 'in' && shown.entry.id === created.id
+            ? { kind: 'in', entry: { ...shown.entry, name: found.name } }
+            : shown,
+        );
+      }
+    } catch (err) {
+      setOutcome(refusal(err, 'Kod okunamadı'));
+    } finally {
+      scanBusy.current = false;
+    }
+  }
+
+  /**
+   * Takes an entry back after a few seconds with Vazgeç on a toast and in place: the desk
+   * cannot write the same entry again from the list, so the wait is the way back.
+   */
+  function undo(entry: Entry) {
+    const session = sessionId;
+    if (!session) return;
+    deferred.schedule(entry.id, `${entry.name}: giriş geri alınıyor`, async () => {
+      try {
+        await ticketsApi.undoCheckIn(session, entry.id);
+        if (shownSession.current !== session) return;
+        setOutcome({ kind: 'undone', name: entry.name });
+        setRecent((rows) => rows.filter((row) => row.id !== entry.id));
+        setTotal((count) => Math.max(0, count - 1));
+        void refresh();
+      } catch (err) {
+        if (shownSession.current !== session) return;
+        setOutcome({ kind: 'refused', text: coreProblemMessage(err, 'Geri alınamadı') });
+      }
+    });
+  }
+
+  function submit(form: FormEvent) {
+    form.preventDefault();
+    const typed = query.trim();
+    if (!typed) {
+      setOutcome({ kind: 'refused', text: 'Ad, e-posta ya da bilet kodu yaz.' });
+      return;
+    }
+    void checkIn({ query: typed }, typed);
+  }
 
   const selectedSession = sessions.find((session) => session.id === sessionId);
-  // Never blocks: says why nothing is chosen, or that the chosen session is not running now.
+  // Never blocks: says why nothing is chosen, or that the chosen session is not running now
   const sessionNote =
     !sessionId && sessions.length > 0
       ? 'Şu an süren oturum yok; giriş oturumunu seç.'
@@ -213,193 +397,237 @@ export function DoorDesk({ eventId }: { eventId: string }) {
     </TaskPage>
   );
 
-  if (loading) {
-    return shell(<StateCard title="Yükleniyor…" isLoading />);
-  }
+  if (loading) return shell(<PageSkeleton variant="detail" />);
 
   if (error && events.length === 0) {
     return shell(
       <div role="alert">
-        <StateCard title={error} description="Bağlantını denetleyip tekrar dene." />
+        <StateCard title={error} tone="danger" />
       </div>,
     );
   }
 
   if (!event) {
-    return shell(<StateCard title="Bu etkinlik için kapı yetkisi yok" Icon={Inbox} />);
+    return shell(<StateCard title="Bu etkinliğin kapısında görevin yok" Icon={Inbox} />);
   }
 
   return shell(
-    <>
+    <div className="space-y-4">
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : null}
-      {activityError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {activityError}
+
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <label className="block space-y-1">
+          <FieldLabel>Oturum</FieldLabel>
+          <Select
+            value={sessionId}
+            onChange={(change) => setSessionId(change.target.value)}
+            aria-describedby={sessionNote ? 'door-session-note' : undefined}
+            className="h-11"
+          >
+            <option value="">Oturum seç</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {doorSessionLabel(session)}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <Button
+          variant={guestQr ? 'primary' : 'outline'}
+          size="lg"
+          className={BUTTON_TEXT}
+          disabled={!sessionId}
+          aria-pressed={guestQr}
+          onClick={() => setGuestQr((open) => !open)}
+        >
+          <QrCode aria-hidden />
+          Misafir QR’ı
+        </Button>
+      </div>
+      {sessionNote ? (
+        <p id="door-session-note" className={cn('text-muted-foreground', TEXT_SECONDARY)}>
+          {sessionNote}
         </p>
       ) : null}
-      <form
-        className="space-y-3"
-        noValidate
-        onSubmit={handleSubmit(async (form) => {
-          setCheckInError(null);
-          try {
-            const created = await ticketsApi.resolveAndCheckIn(form.sessionId, {
-              personId: form.personId || undefined,
-              query: form.email.trim(),
-            });
-            const eventName = events.find((ev) => ev.id === form.eventId)?.name || form.eventId;
-            const sessionTitle =
-              sessions.find((session) => session.id === form.sessionId)?.title || form.sessionId;
-            const name = created.personName;
-            const line = checkInSuccessLine({
-              name,
-              sessionTitle,
-              createdAt: created.createdAt,
-            });
-            setSuccessLine(line);
-            setRecent((prev) =>
-              [
-                {
-                  id: created.id,
-                  name,
-                  eventName,
-                  sessionTitle,
-                  createdAt: created.createdAt,
-                },
-                ...prev,
-              ].slice(0, 8),
-            );
-            setActivityTotal((total) => total + 1);
-            resetField('personId');
-            resetField('email');
-          } catch (err) {
-            setSuccessLine(null);
-            setCheckInError(coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN));
-          }
-        })}
+
+      <div
+        role="status"
+        aria-label="Giren sayısı"
+        className="border-border-subtle bg-card flex items-end justify-between gap-3 rounded-xl border p-4"
       >
-        <div className="space-y-1">
-          <label className="block space-y-1">
-            <FieldLabel>Oturum</FieldLabel>
-            {/* Controlled, so the picker always shows the session the check-in is sent to. */}
-            <Controller
-              control={control}
-              name="sessionId"
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  aria-invalid={Boolean(errors.sessionId)}
-                  aria-describedby={
-                    errors.sessionId || sessionNote ? 'door-session-note' : undefined
-                  }
-                >
-                  <option value="">Oturum seç</option>
-                  {sessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {doorSessionLabel(session)}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            />
-          </label>
-          {errors.sessionId ? (
-            <p id="door-session-note" role="alert" className="text-destructive text-[13px]/5">
-              {errors.sessionId.message}
-            </p>
-          ) : sessionNote ? (
-            <p id="door-session-note" className="text-muted-foreground text-[13px]/5">
-              {sessionNote}
-            </p>
-          ) : null}
+        <div className="min-w-0">
+          <p className={cn('text-muted-foreground truncate', TEXT_SECONDARY)}>
+            {selectedSession ? selectedSession.title : 'Oturum seçilmedi'}
+          </p>
+          <p className="text-foreground-strong text-4xl leading-none font-semibold tabular-nums">
+            {sessionId ? total : '—'}
+          </p>
         </div>
-        <DoorAttendeePick
-          eventId={formEventId}
-          valueKey={personId || doorQuery}
-          onPick={(attendee) => {
-            setValue('personId', attendee.personId ?? '', { shouldValidate: true });
-            setValue('email', attendee.personId ? '' : attendee.email || attendee.name, {
-              shouldValidate: true,
-            });
-          }}
-        />
-        <label className="block space-y-1">
-          <FieldLabel>Ad, e-posta ya da bilet kodu</FieldLabel>
-          <Field
-            type="text"
-            placeholder="Ad, e-posta ya da bilet kodu"
-            {...register('email', { onChange: () => setValue('personId', '') })}
-            aria-invalid={Boolean(errors.email)}
-          />
-          {errors.email ? (
-            <span role="alert" className="text-destructive text-[13px]/5">
-              {errors.email.message}
-            </span>
-          ) : null}
-        </label>
-        <SaveButton disabled={isSubmitting}>
-          {isSubmitting ? 'Yazılıyor…' : 'Girişi yaz'}
-        </SaveButton>
-        {checkInError ? (
+        <p className={cn('text-muted-foreground', TEXT_SECONDARY)}>giren</p>
+      </div>
+
+      {guestQr ? <GuestDoorQr sessionId={sessionId} open /> : null}
+
+      <form className="space-y-2" noValidate onSubmit={submit} role="search">
+        <div className="space-y-1">
+          <label htmlFor="door-query" className="block">
+            <FieldLabel>Kişi ya da bilet</FieldLabel>
+          </label>
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="text-subtle-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                aria-hidden
+              />
+              <Field
+                id="door-query"
+                type="search"
+                inputMode="search"
+                autoComplete="off"
+                enterKeyHint="go"
+                placeholder="Ad, e-posta, bilet kodu"
+                value={query}
+                onChange={(change) => setQuery(change.target.value)}
+                disabled={!sessionId}
+                className="h-11 pl-9 text-base"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              className={BUTTON_TEXT}
+              disabled={!sessionId || busy}
+            >
+              <UserCheck aria-hidden />
+              {busy ? 'Yazılıyor…' : 'Girişi yaz'}
+            </Button>
+          </div>
+        </div>
+        {camera && !cameraOpen ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className={cn(BUTTON_TEXT, 'w-full')}
+            disabled={!sessionId}
+            onClick={() => setCameraOpen(true)}
+          >
+            <ScanLine aria-hidden />
+            Kamerayla tara
+          </Button>
+        ) : null}
+      </form>
+      {cameraOpen && sessionId ? (
+        <DoorScanner onScan={(value) => void scanned(value)} onClose={() => setCameraOpen(false)} />
+      ) : null}
+
+      <OutcomeBand
+        outcome={outcome}
+        waiting={deferred.pending}
+        onUndo={undo}
+        onKeep={(entry) => deferred.cancel(entry.id)}
+      />
+
+      {suggestions.length ? (
+        <ul
+          aria-label="Eşleşen kişiler"
+          className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border"
+        >
+          {suggestions.map((attendee) => (
+            <li key={attendee.personId ?? attendee.email}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void checkIn(
+                    attendee.personId
+                      ? { personId: attendee.personId }
+                      : { query: attendee.email || attendee.name },
+                    attendee.name,
+                  )
+                }
+                className="hover:bg-accent focus-visible:ring-ring flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left outline-hidden focus-visible:ring-2"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="text-foreground block truncate text-sm font-medium">
+                    {attendee.name}
+                  </span>
+                  <span className={cn('text-subtle-foreground block truncate', TEXT_SECONDARY)}>
+                    {attendee.email}
+                  </span>
+                </span>
+                <span className={cn('text-skylab-300 shrink-0 font-medium', TEXT_SECONDARY)}>
+                  Girişi yaz
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <section aria-label="Son girişler" className="space-y-2">
+        <h2 className="text-foreground text-sm font-semibold">Son girişler</h2>
+        {activityError ? (
           <p role="alert" className="text-destructive text-sm">
-            {checkInError}
+            {activityError}
           </p>
         ) : null}
-        {/* Under the button, in view on a phone; always mounted so each line is read out */}
-        <div role="status" aria-label="Giriş sonucu" className="flex items-center gap-2">
-          {successLine ? (
-            <>
-              <StatusChip kind="checked-in" />
-              <p className="text-secondary-foreground text-sm">{successLine}</p>
-            </>
-          ) : null}
-        </div>
-      </form>
-      <GuestDoorQr sessionId={sessionId} />
-      <p role="status" aria-label="Giren sayısı" className="text-secondary-foreground text-sm">
-        {sessionId
-          ? `${selectedSession?.title ?? 'Bu oturum'} · giren: ${activityTotal}`
-          : 'Oturum seçilmedi'}
-      </p>
-      <ListToolbar
-        query={query}
-        onQuery={setQuery}
-        placeholder="Oturum, etkinlik, kişi"
-        searchLabel="Kapı kaydı ara"
-      />
-      <ListPanel
-        status={listStatus({
-          loading: false,
-          rowCount: recent.filter((row) =>
-            matchesQuery(query, row.sessionTitle, row.eventName, row.name),
-          ).length,
-          emptyMessage: emptyListCopy({
-            none: 'Bu oturumda henüz kapı kaydı yok.',
-            noneMatch: 'Eşleşen kapı kaydı yok.',
-            query,
-          }),
-        })}
-        emptyIcon={CheckCircle2}
-      >
-        {recent
-          .filter((row) => matchesQuery(query, row.sessionTitle, row.eventName, row.name))
-          .map((row) => (
-            <ListItem
-              key={row.id}
-              title={row.name}
-              subtitle={checkInSuccessLine({
-                name: row.sessionTitle,
-                sessionTitle: row.eventName,
-                createdAt: row.createdAt,
-              })}
-              trailing={<StatusChip kind="checked-in" />}
-            />
-          ))}
-      </ListPanel>
-    </>,
+        {recent.length ? (
+          <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
+            {recent.map((row) => {
+              const leaving = deferred.pending.has(row.id);
+              return (
+                <li
+                  key={row.id}
+                  className={cn(
+                    'flex min-h-12 items-center gap-3 px-3 py-2',
+                    leaving && 'opacity-60',
+                  )}
+                >
+                  <CheckCircle2 className="text-success size-4 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block truncate text-sm">{row.name}</span>
+                    <span className={cn('text-subtle-foreground block', TEXT_SECONDARY)}>
+                      {leaving ? 'Geri alınıyor…' : formatApplicantWhen(row.createdAt)}
+                    </span>
+                  </span>
+                  {leaving ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={BUTTON_TEXT}
+                      aria-label={`${row.name}: geri almaktan vazgeç`}
+                      onClick={() => deferred.cancel(row.id)}
+                    >
+                      Vazgeç
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={BUTTON_TEXT}
+                      aria-label={`${row.name}: girişi geri al`}
+                      onClick={() => undo(row)}
+                    >
+                      <Undo2 aria-hidden />
+                      Geri al
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className={cn('text-subtle-foreground', TEXT_SECONDARY)}>
+            {sessionId ? 'Bu oturumda henüz giriş yok' : 'Oturum seç'}
+          </p>
+        )}
+      </section>
+    </div>,
   );
 }
