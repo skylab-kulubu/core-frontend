@@ -1,6 +1,6 @@
 'use client';
 
-import { buttonVariants } from '@skylab-kulubu/skylcn-ui';
+import { buttonVariants, cn } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState } from 'react';
 import { saveClass } from '@/components/chrome/SaveButton';
 import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
@@ -79,7 +79,7 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
           className={
             form.slotKey === APPLY_SLOT_KEY
               ? saveClass
-              : `${buttonVariants({ variant: 'outline', size: 'sm' })} ${BUTTON_TEXT}`
+              : cn(buttonVariants({ variant: 'outline', size: 'sm' }), BUTTON_TEXT)
           }
         >
           {form.slotKey === APPLY_SLOT_KEY
