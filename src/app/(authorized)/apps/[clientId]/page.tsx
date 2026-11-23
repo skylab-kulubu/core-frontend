@@ -191,7 +191,7 @@ export default function AppAssignmentsPage() {
         title={app.name}
         description={app.clientId}
         meta={
-          <span className="text-2xs text-subtle-foreground">
+          <span className="text-subtle-foreground text-[13px]/5">
             Atama gerekli: {app.assignmentRequired ? 'Evet' : 'Hayır'}
           </span>
         }
@@ -299,7 +299,7 @@ export default function AppAssignmentsPage() {
           </TabsList>
         </Tabs>
         {targetType === 'user' ? (
-          <p className="text-3xs text-subtle-foreground">{PERSON_ASSIGNMENT_HINT}</p>
+          <p className="text-subtle-foreground text-[13px]/5">{PERSON_ASSIGNMENT_HINT}</p>
         ) : null}
         {target ? (
           <div className="space-y-3">

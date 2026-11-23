@@ -134,7 +134,7 @@ export function NewsForm({ initial, submitLabel, pending, onSubmit }: NewsFormPr
           {uploading ? 'Yükleniyor…' : heroImage.trim() ? 'Görseli değiştir' : 'Görsel yükle'}
         </button>
         {uploadError ? (
-          <p role="alert" className="text-2xs text-destructive">
+          <p role="alert" className="text-destructive text-[13px]/5">
             {uploadError}
           </p>
         ) : null}

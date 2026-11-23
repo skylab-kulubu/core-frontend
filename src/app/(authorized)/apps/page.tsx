@@ -34,10 +34,7 @@ export default function AppsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Uygulamalar"
-        description="Hangi ekip, alt ekip ya da kişinin hangi uygulamaya gireceği."
-      />
+      <PageHeader title="Uygulamalar" />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}

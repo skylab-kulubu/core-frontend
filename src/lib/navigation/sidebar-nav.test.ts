@@ -31,7 +31,7 @@ describe('buildSidebarNavigation', () => {
       'Özet',
       'Etkinlikler',
       ['Kişiler', ['Kullanıcılar', 'Gruplar', 'Ekipler', 'KVKK başvuruları']],
-      ['İçerik', ['Duyurular', 'Kısa URL']],
+      ['İçerik', ['Duyurular', 'Kısa link']],
       [
         'Ayarlar',
         [
@@ -100,7 +100,7 @@ describe('buildSidebarNavigation', () => {
   it('gives a url-only member Özet and Kısa URL', () => {
     expect(shape(person(['/UYELER/ARGE/WEBLAB'], ['url:access']))).toEqual([
       'Özet',
-      ['İçerik', ['Kısa URL']],
+      ['İçerik', ['Kısa link']],
     ]);
   });
 
@@ -151,5 +151,13 @@ describe('searchPages', () => {
     expect(searchPages(person(['/UYELER/ARGE/WEBLAB'], ['url:access'])).map((p) => p.href)).toEqual(
       ['/dashboard', '/urls'],
     );
+  });
+
+  it('finds Kısa link by its old name, url', () => {
+    const urls = searchPages(person(['/UYELER/ARGE/WEBLAB'], ['url:access'])).find(
+      (page) => page.href === '/urls',
+    );
+    expect(urls?.label).toBe('Kısa link');
+    expect(urls?.keywords).toMatch(/\burl\b/);
   });
 });

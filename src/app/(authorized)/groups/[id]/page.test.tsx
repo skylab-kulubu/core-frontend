@@ -87,14 +87,14 @@ describe('Group detail Üye ekle', () => {
     const user = userEvent.setup();
     render(<GroupDetailPage />);
     await user.click(await screen.findByRole('button', { name: 'Üye ekle' }));
-    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 3 karakter yaz')).toBeInTheDocument();
     const search = screen.getByPlaceholderText('Ad veya tam e-posta');
     await user.type(search, 'ad');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     });
     expect(identityApi.memberCandidates).not.toHaveBeenCalled();
-    expect(screen.getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 3 karakter yaz')).toBeInTheDocument();
 
     await user.type(search, 'a');
     await waitFor(() => expect(identityApi.memberCandidates).toHaveBeenCalledWith('g1', 'ada'));
@@ -670,9 +670,7 @@ describe('Group detail role mapping', () => {
       const roles = screen.getByText('Uygulama rolleri').closest('section') as HTMLElement;
       expect(within(roles).getByText('skyforms:access')).toBeInTheDocument();
       expect(within(roles).queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
-      expect(
-        within(roles).getByText(/Yönetici rolleri kodda tanımlı; burada yalnız görünür/),
-      ).toBeInTheDocument();
+      expect(within(roles).getByText(/yönetici rolleri buradan değişmez/)).toBeInTheDocument();
       unmount();
     }
   });
@@ -733,7 +731,9 @@ describe('Group detail role mapping', () => {
     );
     await user.click(within(dialog).getByRole('button', { name: /system-mails:read/ }));
     await waitFor(() =>
-      expect(within(dialog).getByRole('alert')).toHaveTextContent('Keycloak yönetim yetkisi'),
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        'hesap sisteminin yönetim yetkisini',
+      ),
     );
     expect(dialog).not.toHaveTextContent(/takes no role|realm-management/);
     expect(identityApi.setGroupRoles).toHaveBeenCalledWith('g1', [

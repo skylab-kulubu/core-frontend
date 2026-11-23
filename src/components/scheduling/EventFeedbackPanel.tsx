@@ -46,7 +46,7 @@ export function EventFeedbackPanel({ event, canSend }: { event: CoreEvent; canSe
       alias={event.feedbackFormAlias}
       count={count}
       canSend={canSend}
-      description="Yoklaması alınanlara kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; etkinlik bitince yeniden gitmez."
+      description="Katılanlara kişiye özel bağlantıyla bir kez gider."
       send={() => eventsApi.sendFeedback(event.id)}
     />
   );
@@ -83,7 +83,7 @@ export function FeedbackFormPanel({
   return (
     <section className="space-y-3">
       <FieldLabel>Geri bildirim formu</FieldLabel>
-      <p className="text-3xs text-subtle-foreground">
+      <p className="text-subtle-foreground text-[13px]/5">
         <a
           className="text-skylab-300 hover:text-foreground"
           href={link}

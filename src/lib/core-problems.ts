@@ -114,10 +114,9 @@ const CODE_MESSAGES: Record<string, string> = {
   // Role rules (core rol-temizligi 06): access comes through Groups only
   direct_role_not_allowed:
     'Kişiye doğrudan rol verilmez; kişiyi rolü taşıyan gruba ekle (/ROLLER altındaki rol grubu, ekibin lider grubu ya da yönetim kökü).',
-  keycloak_admin_role:
-    'Bu rol Keycloak yönetim yetkisi taşıyor; panelden verilmez, yalnız Keycloak konsolundan verilir.',
+  keycloak_admin_role: 'Bu rol hesap sisteminin yönetim yetkisini taşıyor; panelden verilmez.',
   keycloak_admin_group:
-    'Bu grup (ya da üstündeki bir grup) Keycloak yönetim yetkisi taşıyor; üyeliği yalnız Keycloak konsolundan değişir.',
+    'Bu grup (ya da üstündeki bir grup) hesap sisteminin yönetim yetkisini taşıyor; üyeliği panelden değişmez.',
   // KVKK md. 11 register (core docs/subject-requests.md)
   received_on_invalid: 'Başvuru tarihi geçerli bir gün olmalı ve bugünden sonra olamaz.',
   channel_invalid: 'Kanal seç.',

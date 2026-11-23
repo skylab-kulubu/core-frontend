@@ -53,7 +53,7 @@ export const ROLE_PLACEMENT_MESSAGES: Record<RolePlacementReason, string> = {
   outside_role_places:
     'Roller yalnız yönetim köküne, en üst ekibin lider grubuna ya da /ROLLER altındaki bir rol grubuna verilir.',
   top_team_admin_role:
-    'En üst ekip grubuna yalnız uygulama rolü verilir (ör. Forms koltuğu, SkyMail erişimi). Yönetici rolünü lider grubuna ya da /ROLLER altındaki bir rol grubuna ver.',
+    'En üst ekip grubuna yalnız uygulama rolü verilir (ör. form ya da SkyMail erişimi). Yönetici rolünü lider grubuna ya da /ROLLER altındaki bir rol grubuna ver.',
   admin_role: 'Panelden yalnız uygulama rolü atanır; yönetici rolleri kodda tanımlıdır.',
   code_area: 'Yönetim kökleri ve /ROLLER kodda tanımlıdır; panelden değiştirilmez.',
   service_account: 'Servis hesaplarının rolleri kodda tanımlıdır.',

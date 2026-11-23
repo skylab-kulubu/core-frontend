@@ -48,7 +48,7 @@ function LoginContent() {
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Giriş hatası</h1>
         <p className="text-secondary-foreground mb-4 text-sm">{message}</p>
         {details ? (
-          <p className="border-border bg-card text-muted-foreground mb-4 rounded-md border p-3 text-left text-xs break-all">
+          <p className="border-border bg-card text-muted-foreground mb-4 rounded-md border p-3 text-left text-[13px]/5 break-all">
             {details}
           </p>
         ) : null}
@@ -65,7 +65,7 @@ function LoginContent() {
           <button
             type="button"
             onClick={() => router.push('/login')}
-            className="text-2xs border-border text-muted-foreground h-8 rounded-md border px-3 font-medium"
+            className="border-border text-muted-foreground h-8 rounded-md border px-3 text-[13px] font-medium"
           >
             Sayfayı yenile
           </button>
@@ -89,9 +89,6 @@ function LoginContent() {
     return (
       <LoginShell>
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Çıkış yapıldı</h1>
-        <p className="text-muted-foreground mb-4 text-sm">
-          Tekrar girmek için aşağıdaki düğmeye bas.
-        </p>
         <SaveButton type="button" onClick={() => void handleLogin()}>
           Giriş yap
         </SaveButton>

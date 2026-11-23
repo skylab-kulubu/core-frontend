@@ -39,10 +39,7 @@ export default function TeamsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Ekipler"
-        description="Sitede görünen ekipler. Etkinlikler bu ekibe bağlanır."
-      />
+      <PageHeader title="Ekipler" />
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ListToolbar
         query={query}

@@ -207,7 +207,7 @@ describe('A refused News write is explained in Turkish', () => {
       .catch((err: unknown) => err);
 
     expect(newsProblemMessage(error, 'Güncellenemedi')).toBe(
-      'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Son hâlini görmek için sayfayı yenile, sonra tekrar dene.',
+      'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Sayfayı yenileyip tekrar dene.',
     );
   });
 

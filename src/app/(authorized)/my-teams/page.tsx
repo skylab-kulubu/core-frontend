@@ -19,7 +19,7 @@ export default function MyTeamsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Ekiplerim" description="Lideri olduğun ekipler ve altlarındaki ekipler." />
+      <PageHeader title="Ekiplerim" />
       {managed.status === 'failed' ? (
         <p role="alert" className="text-destructive text-sm">
           Ekipler yüklenemedi

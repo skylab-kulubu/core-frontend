@@ -4,6 +4,7 @@ import { buttonVariants, cn, Tab, Tabs, TabsList } from '@skylab-kulubu/skylcn-u
 import { DoorOpen } from 'lucide-react';
 import Link from 'next/link';
 import { eventDoorHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 type EventWorkspaceNavProps = {
   eventId: string;
@@ -71,6 +72,7 @@ export function EventWorkspaceNav({
           className={cn(
             buttonVariants({ variant: 'ghost', size: 'sm' }),
             'text-skylab-300 shrink-0',
+            BUTTON_TEXT,
           )}
         >
           <DoorOpen aria-hidden /> Kapı

@@ -177,7 +177,7 @@ export default function SubjectRequestsPage() {
     <div className="space-y-6">
       <PageHeader
         title="KVKK başvuruları"
-        description="İlgili kişi başvuruları (KVKK md. 11). Cevap süresi başvurudan itibaren 30 gün."
+        description="KVKK md. 11 · cevap süresi 30 gün"
         actions={
           <ActionButton
             icon={Plus}
@@ -297,7 +297,7 @@ export default function SubjectRequestsPage() {
             }
           }}
         >
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-[13px]/5">
             T.C. kimlik no, ikamet adresi (cevabın gideceği adres dışında), onay kodu ya da kimlik
             belgesi yazma.
           </p>
@@ -415,7 +415,7 @@ export default function SubjectRequestsPage() {
           {editingId && events.length ? (
             <section className="space-y-1">
               <FieldLabel>Geçmiş</FieldLabel>
-              <ul className="text-muted-foreground space-y-1 text-xs">
+              <ul className="text-muted-foreground space-y-1 text-[13px]/5">
                 {events.map((event, index) => (
                   <li key={`${event.at}-${index}`}>{eventLine(event)}</li>
                 ))}

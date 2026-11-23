@@ -176,15 +176,15 @@ function PublishFields({
       <CheckboxRow
         label={
           holders === null
-            ? 'Taslakta yazılan kişilere "biletin hazır" postası gönder'
-            : `Taslakta yazılan ${holders} kişiye "biletin hazır" postası gönder`
+            ? 'Taslakta eklenen kişilere bilet e-postası gönder'
+            : `Taslakta eklenen ${holders} kişiye bilet e-postası gönder`
         }
         defaultChecked
         onChange={onNotify}
         describedBy={names ? namesId : undefined}
       />
       {names ? (
-        <p id={namesId} className="text-muted-foreground text-xs">
+        <p id={namesId} className="text-muted-foreground text-[13px]/5">
           {names}
         </p>
       ) : null}
@@ -230,7 +230,7 @@ export function useEventStatusActions({
       (href) => {
         window.open(href, '_blank', 'noopener,noreferrer');
       },
-    ).catch((err: unknown) => onError(coreProblemMessage(err, 'Skymail listesi yenilenemedi')));
+    ).catch((err: unknown) => onError(coreProblemMessage(err, 'E-posta listesi hazırlanamadı')));
   }
 
   /** `holders`: the Event's Ticket count when the page has it; else it is read here. */

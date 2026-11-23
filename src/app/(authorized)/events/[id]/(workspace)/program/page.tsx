@@ -15,7 +15,6 @@ import { SectionHeading } from '@/components/chrome/PanelChart';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
@@ -56,7 +55,7 @@ const daySchema = z.object({
 });
 
 const sessionSchema = z.object({
-  eventDayId: z.string().min(1, 'Gün seçin'),
+  eventDayId: z.string().min(1, 'Gün seç'),
   title: z.string().trim().min(1, 'Başlık zorunlu'),
   speakerName: z.string().trim().min(1, 'Konuşmacı zorunlu'),
   speakerLinkedin: z.string().trim(),
@@ -165,6 +164,7 @@ export default function EventProgramPage() {
               <ActionButton
                 icon={Plus}
                 label="Gün ekle"
+                showLabel
                 onClick={() => {
                   setDayError(null);
                   setDayOpen(true);
@@ -210,8 +210,14 @@ export default function EventProgramPage() {
               <div className="flex items-center justify-between px-3 py-2">
                 <div>
                   <p className="text-secondary-foreground text-sm">{day.name}</p>
-                  <p className="text-3xs text-subtle-foreground">
-                    {day.startDate ? new Date(day.startDate).toLocaleString('tr-TR') : '—'}
+                  <p className="text-subtle-foreground text-[13px]/5">
+                    {day.startDate
+                      ? new Date(day.startDate).toLocaleDateString('tr-TR', {
+                          day: 'numeric',
+                          month: 'long',
+                          weekday: 'long',
+                        })
+                      : '—'}
                   </p>
                 </div>
                 {canMutate ? (
@@ -258,10 +264,6 @@ export default function EventProgramPage() {
                       subtitle={`${session.speakerName} · ${sessionTypeLabel(session.sessionType)}`}
                       trailing={
                         <div className="flex items-center gap-1">
-                          <StatusChip
-                            kind="neutral"
-                            label={sessionTypeLabel(session.sessionType)}
-                          />
                           {canDesk ? (
                             <ActionButton
                               icon={CheckCircle2}
@@ -358,7 +360,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(dayForm.formState.errors.name)}
             />
             {dayForm.formState.errors.name ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {dayForm.formState.errors.name.message}
               </span>
             ) : null}
@@ -454,7 +456,7 @@ export default function EventProgramPage() {
               ))}
             </Select>
             {sessionForm.formState.errors.eventDayId ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.eventDayId.message}
               </span>
             ) : null}
@@ -466,7 +468,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(sessionForm.formState.errors.title)}
             />
             {sessionForm.formState.errors.title ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.title.message}
               </span>
             ) : null}
@@ -478,7 +480,7 @@ export default function EventProgramPage() {
               aria-invalid={Boolean(sessionForm.formState.errors.speakerName)}
             />
             {sessionForm.formState.errors.speakerName ? (
-              <span className="text-2xs text-destructive">
+              <span className="text-destructive text-[13px]/5">
                 {sessionForm.formState.errors.speakerName.message}
               </span>
             ) : null}
@@ -534,14 +536,14 @@ export default function EventProgramPage() {
                 checked={feedbackAutoSend}
                 onChange={setFeedbackAutoSend}
                 label="Oturum bitince gönder"
-                hint="Bitişten 2 saat sonra oturumun yoklamasına posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+                hint="Bitişten 2 saat sonra katılanlara e-postayla gider."
               />
             </div>
           ) : null}
           {editingSessionId ? (
             <button
               type="button"
-              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-xs"
+              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-[13px]"
               onClick={() => {
                 const id = editingSessionId;
                 const title = sessions.find((session) => session.id === id)?.title;
@@ -595,7 +597,7 @@ export default function EventProgramPage() {
             alias={feedbackSession.feedbackFormAlias}
             count={feedbackCount}
             canSend={canMutate}
-            description="Oturumun yoklamasına kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; oturum bitince yeniden gitmez."
+            description="Katılanlara kişiye özel bağlantıyla bir kez gider."
             send={() => sessionsApi.sendFeedback(feedbackSession.id)}
           />
         ) : null}
@@ -644,7 +646,7 @@ export default function EventProgramPage() {
                 setCheckInSession(null);
                 await reload();
               } catch (err) {
-                setDeskError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
+                setDeskError(coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN));
               }
             })}
           >
@@ -671,7 +673,7 @@ export default function EventProgramPage() {
                 aria-invalid={Boolean(deskForm.formState.errors.email)}
               />
               {deskForm.formState.errors.email ? (
-                <span role="alert" className="text-2xs text-destructive">
+                <span role="alert" className="text-destructive text-[13px]/5">
                   {deskForm.formState.errors.email.message}
                 </span>
               ) : null}

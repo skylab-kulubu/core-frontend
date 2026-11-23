@@ -121,7 +121,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
     expect(
       within(dialog).getByRole('checkbox', {
-        name: 'Taslakta yazılan 2 kişiye "biletin hazır" postası gönder',
+        name: 'Taslakta eklenen 2 kişiye bilet e-postası gönder',
       }),
     ).toBeChecked();
     expect(within(dialog).getByText('Ada Lovelace, Grace Hopper')).toBeInTheDocument();
@@ -339,7 +339,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     await renderEventTab(<EventOverviewPage />);
     await screen.findByText('20 Ekim 2026 tarihinde iptal edildi.');
     expect(screen.queryByRole('link', { name: 'Kapı' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: "SkyForms'ta formu kapat" })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Formu kapat' })).toHaveAttribute(
       'href',
       expect.stringContaining('/forms/11111111-1111-4111-8111-111111111111/edit'),
     );

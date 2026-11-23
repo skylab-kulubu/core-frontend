@@ -12,8 +12,8 @@ import { useNotify } from '@/lib/ui/use-notify';
 type SessionStyle = 'all' | 'self';
 
 const STYLE_HINT: Record<SessionStyle, string> = {
-  all: 'Skyforms’ta matris sorusu: satırlar oturumlar, sütunlar 1–5 ve “Katılmadım”.',
-  self: 'Skyforms’ta “Hangi oturumlara katıldın?” çoklu seçim sorusu: seçenekler oturumlar. Her oturumun sorusu o seçime bağlı gösterilir.',
+  all: 'Tek tablo: her oturum için 1–5 ve “Katılmadım”.',
+  self: 'Önce “Hangi oturumlara katıldın?”, sonra yalnız seçilen oturumlar sorulur.',
 };
 
 /**
@@ -47,7 +47,7 @@ export function FeedbackSessionList({ sessions }: { sessions: EventSession[] }) 
           <option value="self">Kişi katıldığı oturumları işaretler</option>
         </Select>
       </label>
-      <p className="text-3xs text-subtle-foreground">{STYLE_HINT[style]}</p>
+      <p className="text-subtle-foreground text-[13px]/5">{STYLE_HINT[style]}</p>
       <ul className="text-muted-foreground space-y-1 text-sm">
         {lines.map((line, index) => (
           <li key={`${index}-${line}`}>{line}</li>

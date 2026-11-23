@@ -54,6 +54,7 @@ import {
 } from '@/lib/tickets-ui';
 import { RosterCharts, RosterTiles } from './RosterOverview';
 import { TicketPanel } from './TicketPanel';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 const PAGE_SIZE = 20;
 const SORTS = {
@@ -225,7 +226,7 @@ export function ParticipantRoster({
 
   // The toolbar already offers Katılımcı ekle; an empty search offers its way back
   const emptyAction = filtered ? (
-    <Button size="sm" variant="outline" onClick={clearFilters}>
+    <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={clearFilters}>
       <X className="size-4" />
       Süzgeci temizle
     </Button>
@@ -233,9 +234,9 @@ export function ParticipantRoster({
 
   const toolbar = selected.size ? (
     <BulkBar count={selected.size} onClear={() => setSelected(new Set())}>
-      <Button size="sm" variant="outline" onClick={mailChosen}>
+      <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={mailChosen}>
         <Mail className="size-4" />
-        Mail
+        E-posta
       </Button>
     </BulkBar>
   ) : (
@@ -259,7 +260,7 @@ export function ParticipantRoster({
           value={sessionId}
           onChange={(change) => setSessionId(change.target.value)}
         >
-          <option value="">Giriş oturumu seçin</option>
+          <option value="">Giriş oturumu seç</option>
           {sessions.map((session) => (
             <option key={session.id} value={session.id}>
               Giriş: {doorSessionLabel(session)}
@@ -268,7 +269,7 @@ export function ParticipantRoster({
         </Select>
       ) : null}
       {onMarkAttended && sessions.length > 0 && !attendSession ? (
-        <p className="text-2xs text-warning">Katıldı için oturum seçin</p>
+        <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
         {onAddParticipant ? (
@@ -279,7 +280,7 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
-        <ActionButton icon={Mail} label="Mail" onClick={mailChosen} />
+        <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
       </div>
     </div>
   );
@@ -353,7 +354,7 @@ export function ParticipantRoster({
         ) : null}
         {rows.length ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-2xs text-subtle-foreground tabular-nums">
+            <p className="text-subtle-foreground text-xs tabular-nums">
               {`${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} / ${rows.length}`}
             </p>
             <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
@@ -443,9 +444,11 @@ function RosterRow({
           <span className="text-foreground-strong block truncate text-sm font-medium">
             {row.name}
           </span>
-          <span className="text-2xs text-subtle-foreground block truncate">{row.email || '—'}</span>
+          <span className="text-subtle-foreground block truncate text-[13px]/5">
+            {row.email || '—'}
+          </span>
           {/* The status column gives way on phones: said under the name instead */}
-          <span className="text-3xs mt-0.5 flex gap-2 sm:hidden">
+          <span className="mt-0.5 flex gap-2 text-[13px]/5 sm:hidden">
             {entryTime ? (
               <span className="text-success">Giriş {entryTime}</span>
             ) : (
@@ -454,7 +457,7 @@ function RosterRow({
             {ticket.sent === false ? <span className="text-warning">Bilet gitmedi</span> : null}
           </span>
           {error ? (
-            <span role="alert" className="text-destructive mt-0.5 block text-xs">
+            <span role="alert" className="text-destructive mt-0.5 block text-[13px]/5">
               {error}
             </span>
           ) : null}
@@ -463,7 +466,7 @@ function RosterRow({
           <span className="text-secondary-foreground block font-mono text-xs tabular-nums">
             {ticket.code || '—'}
           </span>
-          <span className="text-3xs text-subtle-foreground block truncate">
+          <span className="text-subtle-foreground block truncate text-[13px]/5">
             {row.sourceFormLabel} · {row.createdAtLabel}
           </span>
         </span>
@@ -477,13 +480,14 @@ function RosterRow({
             <StatusChip kind="neutral" label="Gelmedi" />
           )}
           {ticket.sent === false ? (
-            <span className="text-3xs text-warning mt-1 block">Bilet gitmedi</span>
+            <span className="text-warning mt-1 block text-[13px]/5">Bilet gitmedi</span>
           ) : null}
         </span>
       </Link>
       <div className="flex shrink-0 items-center gap-1">
         {canAttend ? (
           <Button
+            className={BUTTON_TEXT}
             size="xs"
             variant="outline"
             disabled={!attendSession || inSession}

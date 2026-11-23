@@ -78,7 +78,7 @@ export function GithubActivitySection() {
         <h2 id="club-development" className="text-foreground text-base font-semibold">
           Kulüp geliştirmesi
         </h2>
-        <p className="text-subtle-foreground text-xs">
+        <p className="text-subtle-foreground text-[13px]/5">
           Son {data.window.days} gün ·{' '}
           <a
             href={`https://github.com/${data.org}`}
@@ -104,7 +104,7 @@ export function GithubActivitySection() {
         <StatCard label="Aktif katkıcı" value={totals.activeContributors} icon={Users} />
       </div>
       {notes.length ? (
-        <p className="text-2xs text-subtle-foreground -mt-2">{notes.join(' ')}</p>
+        <p className="text-subtle-foreground -mt-2 text-[13px]/5">{notes.join(' ')}</p>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-5">
@@ -115,7 +115,7 @@ export function GithubActivitySection() {
           </CardHeader>
           <CardContent>
             {top.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-xs">
+              <p className="text-muted-foreground py-6 text-center text-[13px]/5">
                 Bu dönemde açık repolarda hareket yok
               </p>
             ) : (
@@ -130,14 +130,18 @@ export function GithubActivitySection() {
                         >
                           {repo.name}
                         </a>
-                        {repo.language ? <Badge tone="neutral">{repo.language}</Badge> : null}
+                        {repo.language ? (
+                          <Badge tone="neutral" className="text-xs">
+                            {repo.language}
+                          </Badge>
+                        ) : null}
                       </div>
                       {repo.description ? (
-                        <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                        <p className="text-muted-foreground mt-0.5 truncate text-[13px]/5">
                           {repo.description}
                         </p>
                       ) : null}
-                      <p className="text-2xs text-subtle-foreground mt-1 tabular-nums">
+                      <p className="text-subtle-foreground mt-1 text-xs tabular-nums">
                         {number.format(repo.commits)} commit · {repo.openPullRequests} açık PR · son
                         push {fromNow(repo.pushedAt)}
                       </p>
@@ -167,7 +171,9 @@ export function GithubActivitySection() {
           </CardHeader>
           <CardContent>
             {data.events.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-xs">Henüz bir olay yok</p>
+              <p className="text-muted-foreground py-6 text-center text-[13px]/5">
+                Henüz bir olay yok
+              </p>
             ) : (
               <Timeline
                 items={data.events.slice(0, 8).map((event, index) => ({

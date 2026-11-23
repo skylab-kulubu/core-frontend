@@ -12,7 +12,7 @@ export const GROUP_TOGGLES = [
   {
     key: 'team_door_scan',
     label: 'Ekip kapı taraması',
-    hint: 'Bu ekibin üyeleri kendi etkinliklerinde check-in yapabilir.',
+    hint: 'Bu ekibin üyeleri kendi etkinliklerinde kapıda giriş yazabilir.',
   },
 ] as const;
 

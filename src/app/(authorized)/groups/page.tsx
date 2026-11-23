@@ -65,7 +65,6 @@ export default function GroupsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Gruplar"
-        description="Ekipler, kurullar ve üye ağacı. Site görünürlüğü grup kartında."
         actions={
           canWrite ? (
             <ActionButton
@@ -154,7 +153,7 @@ export default function GroupsPage() {
             <FieldLabel>Üst grup</FieldLabel>
             <button
               type="button"
-              className="focus:border-skylab-400/50 border-border bg-card text-foreground h-9 w-full rounded-lg border px-2.5 text-left text-xs pointer-coarse:h-11 pointer-coarse:text-base"
+              className="focus:border-skylab-400/50 border-border bg-card text-foreground h-9 w-full rounded-lg border px-2.5 text-left text-sm pointer-coarse:h-11 pointer-coarse:text-base"
               onClick={() => {
                 setParentQuery('');
                 setParentOpen(true);

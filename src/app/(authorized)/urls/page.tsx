@@ -167,23 +167,15 @@ export default function UrlsPage() {
   if (!allowed) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Kısa URL" description="Bu ekran kısa link rolü ister." />
-        <StateCard
-          title="Kısa URL yetkin yok"
-          description="url:create veya moderasyon rolü gerekir."
-          Icon={ShieldAlert}
-          tone="warning"
-        />
+        <PageHeader title="Kısa link" />
+        <StateCard title="Kısa link yetkin yok" Icon={ShieldAlert} tone="warning" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Kısa URL"
-        description="Hedef adresi kısalt. İsteğe bağlı kısa ad verebilirsin."
-      />
+      <PageHeader title="Kısa link" />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -362,7 +354,7 @@ export default function UrlsPage() {
       <Drawer
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title="Kısa URL düzenle"
+        title="Kısa linki düzenle"
         dirty={editDirty}
       >
         {editing ? (

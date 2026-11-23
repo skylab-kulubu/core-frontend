@@ -17,6 +17,7 @@ import {
   ticketSourceForm,
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /** What happened to a registration, oldest first: registered, ticket mail, entries. */
 export function ticketTimeline(
@@ -121,6 +122,7 @@ export function TicketPanel({
       <div className="flex flex-wrap gap-2">
         {onMarkAttended ? (
           <Button
+            className={BUTTON_TEXT}
             size="sm"
             variant={inSession ? 'outline' : 'primary'}
             disabled={!attendSession || inSession}
@@ -131,12 +133,22 @@ export function TicketPanel({
           </Button>
         ) : null}
         {onResend ? (
-          <Button size="sm" variant="outline" onClick={() => onResend(ticket)}>
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="outline"
+            onClick={() => onResend(ticket)}
+          >
             Bileti yeniden gönder
           </Button>
         ) : null}
         {onRenew ? (
-          <Button size="sm" variant="outline" onClick={() => onRenew(ticket)}>
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="outline"
+            onClick={() => onRenew(ticket)}
+          >
             Bağlantıyı yenile
           </Button>
         ) : null}

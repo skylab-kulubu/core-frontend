@@ -201,9 +201,7 @@ describe('Event workspace layout', () => {
         expect.objectContaining({ formUrl: '' }),
       ),
     );
-    expect(
-      await screen.findByText('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Form bağlandı.')).toBeInTheDocument();
     // The edit page shows what was linked, without the return in the address
     expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/edit');
   });
@@ -340,7 +338,9 @@ describe('Event workspace layout', () => {
     await screen.findByRole('heading', { name: 'GeceKodu' });
     // No competitor yet: the tab is there because core lets the member manage them
     await waitFor(() => expect(tabNames()).toContain('Yarışma'));
-    expect((await screen.findAllByLabelText('Yarışmacı ekle')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('link', { name: 'Yarışmacı ekle' })).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it('shows a member no competitor tools once the Leader turned the setting off', async () => {
@@ -458,9 +458,10 @@ describe('Event workspace layout', () => {
     expect(
       within(dialog).getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
     ).toHaveAttribute('href', '/events/e9');
-    expect(
-      within(dialog).getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
-    ).toHaveAttribute('href', expect.stringContaining(`fromForm=${formId}`));
+    expect(within(dialog).getByRole('link', { name: 'Bu formdan yeni form aç' })).toHaveAttribute(
+      'href',
+      expect.stringContaining(`fromForm=${formId}`),
+    );
   });
 
   it('shows why the event did not load instead of its tabs', async () => {

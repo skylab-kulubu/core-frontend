@@ -1,6 +1,11 @@
 'use client';
 
-import { AppShell, AppShellActions, Breadcrumbs } from '@skylab-kulubu/skylcn-ui';
+import {
+  AppShell,
+  AppShellActions,
+  Breadcrumbs,
+  ControlSizeProvider,
+} from '@skylab-kulubu/skylcn-ui';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { NewEventProvider } from '@/components/scheduling/NewEventProvider';
@@ -54,6 +59,8 @@ export function AuthenticatedChrome({ children, sidebarUser }: AuthenticatedChro
 function SignedInChrome({ children, current }: { children: React.ReactNode; current: UserDto }) {
   const pathname = usePathname() || '/dashboard';
   const navigationContext = useNavigationContext(current);
+  // Inputs and selects at skylcn-ui's lg size: 14px text, the panel's body size
+  const page = <ControlSizeProvider size="lg">{children}</ControlSizeProvider>;
 
   return (
     <NewEventProvider>
@@ -62,7 +69,7 @@ function SignedInChrome({ children, current }: { children: React.ReactNode; curr
         <EnvironmentStrip />
         {isFocusPath(pathname) ? (
           // A task done start to finish (the door): no sidebar, the page leads back itself
-          children
+          page
         ) : (
           <AppShell
             // Keeps the collapsed choice people made before the move to skylcn-ui
@@ -73,7 +80,7 @@ function SignedInChrome({ children, current }: { children: React.ReactNode; curr
             <AppShellActions>
               <AdminSearch user={current} navigationContext={navigationContext} />
             </AppShellActions>
-            {children}
+            {page}
           </AppShell>
         )}
       </ChromeCrumbNamesProvider>

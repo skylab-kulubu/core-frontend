@@ -150,7 +150,7 @@ export function DatePicker({
         )}
       </div>
       {invalid ? (
-        <p id={hintId} className="text-destructive text-xs">
+        <p id={hintId} className="text-destructive text-[13px]/5">
           {mode === 'date'
             ? 'Okunamadı, önceki değer kaldı. GG.AA.YYYY biçiminde yaz.'
             : 'Okunamadı, önceki değer kaldı. GG.AA.YYYY SS:DD biçiminde yaz.'}

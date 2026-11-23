@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useId, useState, type ReactNode } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { upcomingRows, type TodoRow, type WeekDay } from '@/lib/dashboard/home';
 
 /** A compact titled card of the strip above the charts. */
@@ -132,24 +131,25 @@ export function WeekCard({
               leading={
                 <span className="text-muted-foreground w-20 shrink-0 text-xs leading-tight tabular-nums">
                   <span className="block">{row.day}</span>
-                  <span className="text-foreground block text-sm">{row.time}</span>
+                  {/* A running event says so here, in place of its time: the row's end keeps only
+                      the door, so the name is not cut on a phone */}
+                  <span
+                    className={`block text-sm ${row.live ? 'text-success font-medium' : 'text-foreground'}`}
+                  >
+                    {row.live ? 'Sürüyor' : row.time}
+                  </span>
                 </span>
               }
               title={row.title}
               subtitle={row.subtitle}
               trailing={
-                row.live ? (
-                  <span className="flex items-center gap-2">
-                    <StatusChip kind="live" />
-                    {linked ? (
-                      <Link
-                        href={`/events/${row.eventId}/door`}
-                        className="text-muted-foreground hover:text-foreground text-sm"
-                      >
-                        Kapı
-                      </Link>
-                    ) : null}
-                  </span>
+                row.live && linked ? (
+                  <Link
+                    href={`/events/${row.eventId}/door`}
+                    className="text-muted-foreground hover:text-foreground text-sm"
+                  >
+                    Kapı
+                  </Link>
                 ) : undefined
               }
             />
