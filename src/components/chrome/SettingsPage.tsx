@@ -195,7 +195,8 @@ export function DangerSection({
     actionLabel: string;
     onConfirm: () => void | Promise<void>;
     description?: string;
-    failure?: string;
+    /** As useConfirm's: the fallback text, or a function for a refusal with its own words. */
+    failure?: string | ((error: unknown) => string);
   };
   disabled?: boolean;
   /** One short line, only when the reader must know something first. */

@@ -80,20 +80,16 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     href: '/groups',
     label: 'Gruplar',
     section: 'people',
+    keywords: 'ekipler',
     visibleWhen: ({ privileged }) => privileged,
   },
-  {
-    href: '/teams',
-    label: 'Ekipler',
-    section: 'people',
-    visibleWhen: ({ privileged }) => privileged,
-  },
-  // One teams item: ADMIN and YK run every team from Ekipler and are not offered the ones they
-  // lead apart; a DK member who leads a team keeps Ekiplerim
+  // One teams item: ADMIN and YK run every team from Gruplar (its Ekipler view) and are not
+  // offered the ones they lead apart; a DK member who leads a team keeps Ekibim
   {
     href: '/my-teams',
-    label: 'Ekiplerim',
+    label: 'Ekibim',
     section: 'people',
+    keywords: 'ekiplerim ekipler',
     visibleWhen: ({ groups, context }) =>
       !isAdminOrYk(groups) && context.managedTeamsVisible === true,
   },

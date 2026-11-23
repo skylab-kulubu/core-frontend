@@ -120,6 +120,27 @@ export type MovePreview = {
   newParentLeaders: number;
 };
 
+/**
+ * One row of the Team audit record (GET /v1/team-audit-records; core
+ * docs/team-audit.md): who changed what in a Group, and when. Readable with
+ * core's `audit.read` (ADMIN, YK, DK).
+ */
+export type TeamAuditRecord = {
+  id: string;
+  occurredAt: string;
+  action: string;
+  outcome: 'pending' | 'ok' | 'failed' | 'denied';
+  errorCode?: string | null;
+  actor?: { id: string; displayName: string; basis: string } | null;
+  target?: { id: string; displayName: string } | null;
+  successor?: { id: string; displayName: string } | null;
+  group?: { id: string; path: string; currentPath: string | null } | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+};
+
+export type TeamAuditPage = { items: TeamAuditRecord[]; next: string | null };
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -216,6 +237,19 @@ export const identityApi = {
   listUsers: (q?: string) => {
     const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
     return coreFetch<Person[]>(`/v1/users${query}`);
+  },
+  /**
+   * A Group's audit rows, newest first, with every Group under it (`subtree`):
+   * at most `limit` (core: 1 to 100), the next page by `cursor`.
+   */
+  groupAudit: (
+    groupId: string,
+    { actions, limit = 50, cursor }: { actions?: string[]; limit?: number; cursor?: string } = {},
+  ) => {
+    const query = new URLSearchParams({ groupId, subtree: 'true', limit: String(limit) });
+    if (actions?.length) query.set('action', actions.join(','));
+    if (cursor) query.set('cursor', cursor);
+    return coreFetch<TeamAuditPage>(`/v1/team-audit-records?${query.toString()}`);
   },
   listClientRoles: () => coreFetch<ClientRole[]>('/v1/client-roles'),
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),
