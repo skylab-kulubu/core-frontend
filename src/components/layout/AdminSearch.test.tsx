@@ -83,6 +83,16 @@ describe('AdminSearch', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('finds Kısa link by its old name, url', async () => {
+    const keyboard = userEvent.setup();
+    renderSearch();
+    await keyboard.keyboard('{Meta>}k{/Meta}');
+    const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    await keyboard.type(search, 'url');
+    await keyboard.click(await screen.findByRole('option', { name: /Kısa link/ }));
+    expect(push).toHaveBeenCalledWith('/urls');
+  });
+
   it('does not steal Ctrl+K from a form field', async () => {
     const keyboard = userEvent.setup();
     render(

@@ -40,6 +40,8 @@ type NavigationFacts = Readonly<{
 type NavigationLink = SidebarNavLink & {
   /** The sidebar group the link sits in; none for a top-level link. */
   section?: 'people' | 'content' | 'settings';
+  /** More words Ctrl+K finds the page by, such as its old name. */
+  keywords?: string;
   visibleWhen: (facts: NavigationFacts) => boolean;
 };
 
@@ -105,6 +107,8 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     href: '/urls',
     label: 'Kısa link',
     section: 'content',
+    // Its name until November 2026
+    keywords: 'url kısa url',
     visibleWhen: ({ groups, roles }) => canUseUrls(groups, roles),
   },
   {
@@ -197,14 +201,16 @@ export function buildSidebarNavigation(
 export function searchPages(
   user: UserDto,
   context: SidebarNavigationContext = {},
-): Array<SidebarNavLink & { section?: string }> {
-  const pages: Array<SidebarNavLink & { section?: string }> = visibleLinks(user, context).map(
-    ({ href, label, section }) => ({
-      href,
-      label,
-      section: section ? SECTION_LABELS[section] : undefined,
-    }),
-  );
+): Array<SidebarNavLink & { section?: string; keywords?: string }> {
+  const pages: Array<SidebarNavLink & { section?: string; keywords?: string }> = visibleLinks(
+    user,
+    context,
+  ).map(({ href, label, section, keywords }) => ({
+    href,
+    label,
+    section: section ? SECTION_LABELS[section] : undefined,
+    keywords,
+  }));
   if (context.hasDoorAssignment === true && !pages.some((page) => page.href === '/qr')) {
     const at = pages.findIndex((page) => page.href === '/events');
     pages.splice(at + 1, 0, { href: '/qr', label: 'Kapı' });
