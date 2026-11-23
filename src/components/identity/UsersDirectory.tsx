@@ -184,8 +184,10 @@ export function UsersDirectory({
           setFailed(null);
           return;
         } catch (err) {
-          // An older core: the directory is not there; read as before
-          if (!(err instanceof ProblemError && (err.status === 404 || err.status === 405))) {
+          // An older core has no directory: the address falls to GET /v1/users/{id},
+          // which answers 400 for an id that is no id (404 or 405 elsewhere). The
+          // panel never sends a malformed page or size, so here 400 means that too
+          if (!(err instanceof ProblemError && [400, 404, 405].includes(err.status))) {
             throw err;
           }
           directory.current = false;
@@ -233,7 +235,7 @@ export function UsersDirectory({
         }
       : paginateRows(shownRows, params.page, params.size);
   const count = source === 'directory' ? total : shownRows.length;
-  const selection = useRowSelection(`${params.q}|${view}|${paged.page}|${teamId}`);
+  const selection = useRowSelection(`${params.q}|${view}|${paged.page}|${params.size}|${teamId}`);
   const open = panelNeighbours(paged.slice, params.panel, (row) => row.id);
   const teams = useMemo(() => teamGroups(groups), [groups]);
   const waiting = source === 'recent' ? !summaryRead : loading;
@@ -294,7 +296,8 @@ export function UsersDirectory({
           notify.success(
             done.length === 1 ? `${group.name} grubuna eklendi` : `${done.length} kişi eklendi`,
           );
-          selection.clear();
+          // The refused ones stay chosen for another try
+          for (const id of done) selection.toggle(id);
         }
         if (failures.length) throw new AddsRefused(failures.join(' '));
       },

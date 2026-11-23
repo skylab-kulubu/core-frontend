@@ -1564,6 +1564,24 @@ describe('Group Üyeler: role, term end and when added (Paket 2)', () => {
     expect(await screen.findByText('2 üye çıkarıldı')).toBeInTheDocument();
   });
 
+  it('keeps the members core refused chosen after a partial removal', async () => {
+    (identityApi.removeMember as jest.Mock).mockImplementation((_group: string, userId: string) =>
+      userId === 'u-cem' ? Promise.reject(new ProblemError(403, 'Forbidden')) : Promise.resolve(),
+    );
+    const user = userEvent.setup();
+    render(<GroupPage />);
+    await user.click(await screen.findByRole('checkbox', { name: 'Ada L seç' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Cem D seç' }));
+    await user.click(screen.getByRole('button', { name: 'Gruptan çıkar' }));
+    const ask = await screen.findByRole('alertdialog');
+    await user.click(within(ask).getByRole('button', { name: 'Gruptan çıkar' }));
+    expect(await within(ask).findByRole('alert')).toHaveTextContent('Cem D:');
+    await user.click(within(ask).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(screen.getByRole('checkbox', { name: 'Ada L seç' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Cem D seç' })).toBeChecked();
+  });
+
   it('shows the overview’s figures, each opening its page, and the latest changes', async () => {
     render(<GroupPage which="overview" />);
     const members = await screen.findByRole('link', { name: /^Üye\s*3/ });

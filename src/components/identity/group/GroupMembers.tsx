@@ -219,7 +219,7 @@ export function GroupMembers() {
     );
   const rows = inView(view).filter((m) => matchesQuery(params.q, m.firstName, m.lastName, m.email));
   const paged = paginateRows(rows, params.page, params.size);
-  const selection = useRowSelection(`${params.q}|${view}|${paged.page}`);
+  const selection = useRowSelection(`${params.q}|${view}|${paged.page}|${params.size}`);
   const leaderRows = sorted.filter((m) => roleOf(m) !== 'member').length;
 
   /** A Leader removes members, not someone from a Leader group (that is the Leaders page). */
@@ -401,7 +401,8 @@ export function GroupMembers() {
           notify.success(
             removed.length === 1 ? 'Üye çıkarıldı' : `${removed.length} üye çıkarıldı`,
           );
-          selection.clear();
+          // The refused ones stay chosen for another try
+          for (const id of removed) selection.toggle(id);
           await reload();
         }
         if (failures.length) throw new MembersRefused(failures.join(' '));

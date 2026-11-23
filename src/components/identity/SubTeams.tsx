@@ -31,7 +31,7 @@ const DELETE_TEXT =
 const MOVE_TEXT =
   'Ekip, altındaki gruplar ve üyeleriyle taşınır. Bundan sonra yeni üst ekibin liderleri yönetir.';
 /** core refuses only for its own records; what else holds the code is not checked (docs/team-codes.md). */
-const CODE_HINT = 'Etkinlik ya da sertifika kaydında geçen kodu core değiştirmez.';
+const CODE_HINT = 'Etkinlik ve sertifika kayıtlarındaki kod değişmez.';
 const CODE_TEXT =
   "Geri alınamaz; eski kod bir daha kullanılamaz. Sitede, CMS'te, Forms'ta ya da kapı taramasında kodla eşleşen yerler kırılabilir.";
 /** core's code.write: a Leader's is false unless core opens it (TEAM_DELEGATION_LEADER_CODES). */

@@ -143,9 +143,7 @@ describe('Alt ekipler', () => {
     await user.click(screen.getByRole('button', { name: 'Kodu değiştir' }));
     const drawer = await screen.findByRole('dialog', { name: 'Kodu değiştir: FRONTEND' });
     // The hint names only core's own records
-    expect(drawer).toHaveTextContent(
-      'Etkinlik ya da sertifika kaydında geçen kodu core değiştirmez.',
-    );
+    expect(drawer).toHaveTextContent('Etkinlik ve sertifika kayıtlarındaki kod değişmez.');
     const field = within(drawer).getByLabelText('Yeni kod');
     expect(field).toHaveValue('FRONTEND');
     await user.clear(field);

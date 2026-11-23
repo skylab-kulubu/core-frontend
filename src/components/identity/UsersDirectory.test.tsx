@@ -188,6 +188,31 @@ describe('UsersDirectory with core’s directory', () => {
     expect(await screen.findByText('2 kişi eklendi')).toBeInTheDocument();
   });
 
+  it('keeps the ones core refused chosen after a partial add', async () => {
+    (identityApi.memberCheck as jest.Mock).mockResolvedValue({
+      privileged: false,
+      ytuLinked: true,
+      warnings: [],
+    });
+    (identityApi.addMember as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'));
+    const user = userEvent.setup();
+    render(<UsersDirectory {...props} />);
+    await user.click(await screen.findByRole('checkbox', { name: 'Grace Hopper seç' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Alan Turing seç' }));
+    await user.click(screen.getByRole('button', { name: 'Gruba ekle' }));
+    const picker = await screen.findByRole('dialog', { name: 'Gruba ekle' });
+    await user.click(await within(picker).findByRole('button', { name: /WEBLAB/ }));
+    const ask = await screen.findByRole('alertdialog');
+    await user.click(within(ask).getByRole('button', { name: 'Gruba ekle' }));
+    expect(await within(ask).findByRole('alert')).toHaveTextContent('Alan Turing:');
+    await user.click(within(ask).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(screen.getByRole('checkbox', { name: 'Grace Hopper seç' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Alan Turing seç' })).toBeChecked();
+  });
+
   it('offers no choosing to someone who cannot change Groups', async () => {
     render(<UsersDirectory {...props} canAddToGroup={false} />);
     await screen.findByText('Grace Hopper');
@@ -197,7 +222,16 @@ describe('UsersDirectory with core’s directory', () => {
 
 describe('UsersDirectory with an older core (no directory)', () => {
   beforeEach(() => {
-    (identityApi.userDirectory as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
+    // An older core sends /v1/users/directory to GET /v1/users/{id}: 400, "directory" is no id
+    (identityApi.userDirectory as jest.Mock).mockRejectedValue(
+      new ProblemError(400, 'Bad Request'),
+    );
+  });
+
+  it.each([404, 405])('falls back on %s too', async (status) => {
+    (identityApi.userDirectory as jest.Mock).mockRejectedValue(new ProblemError(status, 'x'));
+    render(<UsersDirectory {...props} />);
+    expect(await screen.findByText('Son katılanlar')).toBeInTheDocument();
   });
 
   it('opens on the latest joiners', async () => {

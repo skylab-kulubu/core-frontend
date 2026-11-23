@@ -8,6 +8,31 @@ import { subjectRequestsApi, type SubjectRequest } from '@/lib/api/subject-reque
 import { todayInTurkey } from '@/lib/subject-requests';
 
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
+// The list's place, kept in state here as the address keeps it in the app
+jest.mock('@/lib/ui/use-list-params', () => {
+  const ReactActual = jest.requireActual<typeof import('react')>('react');
+  return {
+    useListParams: ({ view = 'all' }: { view?: string } = {}) => {
+      const [state, setState] = ReactActual.useState({
+        q: '',
+        view,
+        sort: '',
+        page: 1,
+        size: 25,
+        panel: null as string | null,
+      });
+      return [
+        state,
+        (change: Record<string, unknown>) =>
+          setState((now) => ({
+            ...now,
+            ...('q' in change || 'view' in change || 'size' in change ? { page: 1 } : {}),
+            ...change,
+          })),
+      ];
+    },
+  };
+});
 jest.mock('@/lib/api/subject-requests', () => ({
   subjectRequestsApi: { list: jest.fn(), get: jest.fn(), create: jest.fn(), update: jest.fn() },
 }));
