@@ -145,6 +145,49 @@ export type IssuedCertificate = {
   issuedAt: string;
 };
 
+/** One of the Event's current Sessions as the rule editor shows it, cancelled ones too. */
+export type CertificateRuleSession = {
+  id: string;
+  dayId: string;
+  title: string;
+  sessionType: string;
+  startTime?: string;
+  endTime?: string;
+  cancelled: boolean;
+  /** One of the N; a cancelled Session counts for nothing whatever this says. */
+  counted: boolean;
+  /** Missing it refuses the certificate; always counted. */
+  required: boolean;
+};
+
+/**
+ * GET /v1/events/{id}/certificate-rule (core docs/certificate-rule.md): the
+ * rule, its threshold as stored (`minCount`, null for the default ⌈3N/4⌉) and
+ * as it applies now over `countedTotal`, and the Sessions in program order.
+ */
+export type CertificateRule = {
+  rule: 'none' | 'once' | 'count' | 'ratio';
+  /** An older Event's `ratio` rule alone; a write may not choose it. */
+  ratio?: number;
+  minCount: number | null;
+  effectiveMin: number;
+  countedTotal: number;
+  sessions: CertificateRuleSession[];
+  /**
+   * Close attendance an hour after the last Session ends (ticket 03). Not in
+   * core's answer yet: the panel shows the switch only once core sends it.
+   */
+  autoFinalize?: boolean;
+};
+
+/** PUT /v1/events/{id}/certificate-rule: one transaction; a Session left out keeps its marks. */
+export type CertificateRuleBody = {
+  rule: 'none' | 'once' | 'count';
+  minCount: number | null;
+  sessions: { id: string; counted: boolean; required: boolean }[];
+  autoFinalize?: boolean;
+};
+
 const eventPath = (eventId: string) => `/v1/events/${encodeURIComponent(eventId)}`;
 
 export const certificatesApi = {
@@ -189,6 +232,13 @@ export const certificatesApi = {
     coreFetch<ResolvedCertificateTemplate>(`${eventPath(eventId)}/certificates/template`),
   summary: (eventId: string) =>
     coreFetch<CertificateEventSummary>(`${eventPath(eventId)}/certificates/summary`),
+  /** An older core has no such call and answers 404: the rule stays on the edit page. */
+  rule: (eventId: string) => coreFetch<CertificateRule>(`${eventPath(eventId)}/certificate-rule`),
+  setRule: (eventId: string, body: CertificateRuleBody) =>
+    coreFetch<CertificateRule>(`${eventPath(eventId)}/certificate-rule`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   previewEvent: (eventId: string) =>
     coreFetchBlob(`${eventPath(eventId)}/certificates/preview`, { method: 'POST' }),
   listIssued: (eventId: string) =>

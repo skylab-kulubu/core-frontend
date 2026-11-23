@@ -58,8 +58,11 @@ export type CoreEvent = {
   seasonId?: string;
   coverImageId?: string;
   coverImageUrl?: string;
+  /** none, once, count, or an older Event's ratio (core docs/certificate-rule.md). */
   attendanceRule?: string;
   attendanceRatio?: number;
+  /** The count rule's threshold; left out for the default ⌈3N/4⌉. */
+  attendanceMinCount?: number;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
@@ -143,6 +146,8 @@ export type EventBody = {
   coverImageId?: string;
   attendanceRule?: string;
   attendanceRatio?: number;
+  /** The count rule's threshold; none for the default ⌈3N/4⌉. */
+  attendanceMinCount?: number | null;
   doorStaffIds?: string[];
   /** The deadline of applying; none: no deadline. */
   registrationClosesAt?: string;
@@ -181,6 +186,7 @@ export type EventPatch = {
   coverImageId?: string | null;
   attendanceRule?: string | null;
   attendanceRatio?: number | null;
+  attendanceMinCount?: number | null;
   doorStaffIds?: string[] | null;
   registrationClosed?: boolean;
   registrationClosesAt?: string | null;
