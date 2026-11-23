@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import AnnouncementsPage from '@/app/(authorized)/announcements/page';
 import { newsApi } from '@/lib/api/cms';
+import { ProblemError } from '@/lib/api/core';
 
 const replace = jest.fn();
 let search = '';
@@ -13,6 +14,12 @@ jest.mock('next/navigation', () => ({
   usePathname: () => '/announcements',
   useSearchParams: () => new URLSearchParams(search),
 }));
+
+/** Starts the page at `/announcements?<query>`, as the address and the hook read it. */
+function at(query: string) {
+  search = query;
+  window.history.replaceState(null, '', query ? `/announcements?${query}` : '/announcements');
+}
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'yk', groups, roles: [] } }),
 }));
@@ -41,7 +48,7 @@ const ITEMS = [
 describe('Duyurular', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    search = '';
+    at('');
     groups = ['/UYELER/YK'];
     window.localStorage.clear();
     (newsApi.list as jest.Mock).mockResolvedValue({
@@ -70,30 +77,38 @@ describe('Duyurular', () => {
 
   it('reads the view from the address and keeps a new one there', async () => {
     const pointer = userEvent.setup();
-    search = 'view=featured';
+    at('view=featured');
     render(<AnnouncementsPage />);
     expect(await screen.findByRole('link', { name: 'Bahar şenliği' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Kayıtlar açıldı' })).not.toBeInTheDocument();
     await pointer.click(screen.getByRole('button', { name: /^Hepsi/ }));
-    expect(replace).toHaveBeenLastCalledWith('/announcements', { scroll: false });
+    expect(window.location.search).toBe('');
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('offers to clear a search that found nothing', async () => {
     const pointer = userEvent.setup();
-    search = 'q=yok';
+    at('q=yok');
     render(<AnnouncementsPage />);
     expect(await screen.findByText('Bu süzgeçte sonuç yok')).toBeInTheDocument();
     await pointer.click(screen.getByRole('button', { name: 'Süzgeci temizle' }));
-    expect(replace).toHaveBeenLastCalledWith('/announcements', { scroll: false });
+    expect(window.location.search).toBe('');
   });
 
-  it('says a failed read with a retry', async () => {
+  it('says a failed read, with the reason when there is one, and a retry', async () => {
     const pointer = userEvent.setup();
     (newsApi.list as jest.Mock).mockRejectedValueOnce(new Error('503'));
     render(<AnnouncementsPage />);
     expect(await screen.findByText('Duyurular yüklenemedi')).toBeInTheDocument();
     await pointer.click(screen.getByRole('button', { name: 'Tekrar dene' }));
     expect(await screen.findByRole('link', { name: 'Bahar şenliği' })).toBeInTheDocument();
+  });
+
+  it('says why the read failed when the service says so', async () => {
+    (newsApi.list as jest.Mock).mockRejectedValueOnce(new ProblemError(403, 'Forbidden'));
+    render(<AnnouncementsPage />);
+    expect(await screen.findByText('Bu işlem için yetkin yok.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tekrar dene' })).toBeInTheDocument();
   });
 
   it('says no access the one way', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 
 /**
@@ -32,7 +32,8 @@ export function listParamsHref(
 ): string {
   const params = new URLSearchParams(current.toString());
   for (const key of KEYS) params.delete(key);
-  if (next.q.trim()) params.set('q', next.q);
+  // Kept as typed: a box holding only spaces is not emptied under the reader
+  if (next.q) params.set('q', next.q);
   if (next.view && next.view !== defaults.view) params.set('view', next.view);
   if (next.sort && next.sort !== defaults.sort) params.set('sort', next.sort);
   if (next.page > 1) params.set('page', String(next.page));
@@ -56,16 +57,29 @@ export function readListParams(
   };
 }
 
+/** Marks a history entry this hook pushed to open a row's panel, so closing it goes back. */
+const PANEL_ENTRY = 'skylabListPanel';
+
+function pushedPanel(): boolean {
+  const state: unknown = window.history.state;
+  return Boolean(state && typeof state === 'object' && PANEL_ENTRY in state);
+}
+
 /**
- * The list's place and a setter that writes it to the address without a scroll or a
- * new history entry. A new search, view or sort goes back to page 1 unless the change
- * names a page itself.
+ * The list's place and a setter that writes it to the address with the browser's
+ * history (Next keeps useSearchParams in step), so no request goes to the server and
+ * the page does not scroll. Each change builds on the address as it is now, so two quick
+ * changes (a search, then a view chip) both stay. A new search, view or sort goes back to
+ * page 1 unless the change names a page itself.
+ *
+ * Opening a row's panel adds a history entry, so Geri (a phone's back swipe) closes the
+ * panel instead of leaving the list; closing it with its own button goes back over that
+ * entry. Every other change replaces the entry.
  */
 export function useListParams({
   view: defaultView = 'all',
   sort: defaultSort = '',
 }: { view?: string; sort?: string } = {}): [ListParams, (change: Partial<ListParams>) => void] {
-  const router = useRouter();
   const pathname = usePathname() || '/';
   const search = useSearchParams();
   const searchText = search?.toString() ?? '';
@@ -79,17 +93,30 @@ export function useListParams({
   );
   const set = useCallback(
     (change: Partial<ListParams>) => {
+      const live = new URLSearchParams(window.location.search);
+      const now = readListParams(live, defaults);
       const resets = 'q' in change || 'view' in change || 'sort' in change;
-      const next: ListParams = {
-        ...state,
-        ...(resets ? { page: 1 } : {}),
-        ...change,
-      };
-      router.replace(listParamsHref(pathname, new URLSearchParams(searchText), next, defaults), {
-        scroll: false,
-      });
+      const next: ListParams = { ...now, ...(resets ? { page: 1 } : {}), ...change };
+      const href = listParamsHref(pathname, live, next, defaults);
+      if (!now.panel && next.panel) {
+        window.history.pushState({ [PANEL_ENTRY]: true }, '', href);
+      } else if (
+        now.panel &&
+        !next.panel &&
+        pushedPanel() &&
+        listParamsHref(pathname, live, { ...now, panel: null }, defaults) === href
+      ) {
+        // Closing the panel the list opened: back over its entry, as Geri would
+        window.history.back();
+      } else {
+        window.history.replaceState(
+          pushedPanel() && next.panel ? { [PANEL_ENTRY]: true } : null,
+          '',
+          href,
+        );
+      }
     },
-    [state, router, pathname, searchText, defaults],
+    [pathname, defaults],
   );
   return [state, set];
 }
