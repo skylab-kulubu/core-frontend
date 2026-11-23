@@ -13,6 +13,7 @@ import { ActionButton } from '@/components/chrome/ActionButton';
 import { useAuth } from '@/context/AuthContext';
 import { isPrivileged } from '@/lib/auth/groups';
 import { newsApi, type NewsItem } from '@/lib/api/cms';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
 import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { useListParams } from '@/lib/ui/use-list-params';
@@ -47,7 +48,7 @@ export default function AnnouncementsPage() {
   const privileged = isPrivileged(user?.groups ?? []);
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [params, setParams] = useListParams({ view: 'all' });
   const view: View = params.view === 'featured' ? 'featured' : 'all';
   const columns = useColumnChoice('skylab.admin.columns.announcements', COLUMNS);
@@ -57,9 +58,10 @@ export default function AnnouncementsPage() {
     try {
       const result = await newsApi.list({ limit: 100 });
       setItems((result.items ?? []).filter((item) => Boolean(item.slug)));
-      setFailed(false);
-    } catch {
-      setFailed(true);
+      setFailed(null);
+    } catch (error) {
+      // inscribed's reason in Turkish (no access, maintenance), never its English detail
+      setFailed(coreProblemMessage(error, 'Duyurular yüklenemedi'));
     } finally {
       setLoading(false);
     }
@@ -151,7 +153,7 @@ export default function AnnouncementsPage() {
   ];
 
   const empty = failed ? (
-    <EmptyState kind="failed" title="Duyurular yüklenemedi" onRetry={() => void load()} />
+    <EmptyState kind="failed" title={failed} onRetry={() => void load()} />
   ) : filtered ? (
     <EmptyState kind="no-results" onClear={() => setParams({ q: '', view: 'all' })} />
   ) : (
