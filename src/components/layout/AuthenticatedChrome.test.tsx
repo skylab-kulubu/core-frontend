@@ -22,7 +22,14 @@ jest.mock('@/lib/api/competitors', () => ({
 }));
 
 jest.mock('@/lib/api/events', () => ({
-  eventsApi: { get: jest.fn() },
+  eventsApi: { get: jest.fn(), list: jest.fn().mockResolvedValue([]) },
+}));
+
+jest.mock('@/lib/api/identity', () => ({
+  identityApi: {
+    listGroups: jest.fn().mockResolvedValue([]),
+    listUsers: jest.fn().mockResolvedValue([]),
+  },
 }));
 
 let currentPathname = '/dashboard';
@@ -123,8 +130,9 @@ describe('AuthenticatedChrome', () => {
       </AuthenticatedChrome>,
     );
 
-    await pointer.click(await screen.findByRole('button', { name: 'Siteyi düzenle' }));
-    expect(screen.getByRole('link', { name: 'ARTLAB' })).toHaveAttribute(
+    await pointer.click(screen.getByRole('button', { name: 'Y K' }));
+    await pointer.click(await screen.findByRole('menuitem', { name: 'Siteyi düzenle' }));
+    expect(await screen.findByRole('menuitem', { name: 'ARTLAB' })).toHaveAttribute(
       'href',
       'https://artlab.yildizskylab.com/api/signin',
     );
@@ -139,7 +147,10 @@ describe('AuthenticatedChrome', () => {
     );
 
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
+    const pointer = userEvent.setup();
+    await pointer.click(screen.getByRole('button', { name: 'Y K' }));
+    await screen.findByRole('menuitem', { name: 'Hesap merkezi' });
+    expect(screen.queryByRole('menuitem', { name: 'Siteyi düzenle' })).not.toBeInTheDocument();
   });
 
   it('discovers door assignments and exposes the door workspace', async () => {
@@ -255,5 +266,26 @@ describe('AuthenticatedChrome', () => {
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalledTimes(2));
     await act(async () => undefined);
     expect(screen.queryByRole('link', { name: 'Harita bölgeleri' })).not.toBeInTheDocument();
+  });
+  it('puts the search in the top bar and opens it from there', async () => {
+    const pointer = userEvent.setup();
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+    await pointer.click(screen.getAllByRole('button', { name: 'Ara' })[0]);
+    expect(
+      await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' }),
+    ).toBeInTheDocument();
+  });
+
+  it('draws the account menu once, in the top bar', async () => {
+    render(
+      <AuthenticatedChrome sidebarUser={user}>
+        <p>İçerik</p>
+      </AuthenticatedChrome>,
+    );
+    expect(await screen.findAllByRole('button', { name: 'Y K' })).toHaveLength(1);
   });
 });

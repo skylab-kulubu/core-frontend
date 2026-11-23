@@ -107,13 +107,24 @@ describe('buildSidebarNavigation', () => {
   it('lists the menus core decides only once core says so', () => {
     const hrefs = (context: SidebarNavigationContext) =>
       filterSidebarNavForUser(person(['/UYELER/YK']), context).map((link) => link.href);
-    for (const href of ['/apps', '/subject-requests', '/map-regions', '/my-teams']) {
+    for (const href of ['/apps', '/subject-requests', '/map-regions']) {
       expect(hrefs({})).not.toContain(href);
     }
     expect(hrefs({ appsVisible: true })).toContain('/apps');
     expect(hrefs({ subjectRequestsVisible: true })).toContain('/subject-requests');
     expect(hrefs({ mapRegionsVisible: true })).toContain('/map-regions');
-    expect(hrefs({ managedTeamsVisible: true })).toContain('/my-teams');
+  });
+
+  it('gives one teams item: Ekipler to whoever sees every team, Ekiplerim to a Leader', () => {
+    const yk = filterSidebarNavForUser(person(['/UYELER/YK']), { managedTeamsVisible: true });
+    expect(yk.map((link) => link.href)).toContain('/teams');
+    expect(yk.map((link) => link.href)).not.toContain('/my-teams');
+    const leader = (context: SidebarNavigationContext) =>
+      filterSidebarNavForUser(person(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']), context).map(
+        (link) => link.href,
+      );
+    expect(leader({})).not.toContain('/my-teams');
+    expect(leader({ managedTeamsVisible: true })).toContain('/my-teams');
   });
 
   it('leaves certificate issuing to the event tab: no certificate settings for an issuer', () => {

@@ -85,11 +85,12 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     section: 'people',
     visibleWhen: ({ privileged }) => privileged,
   },
+  // One teams item: whoever sees every team (Ekipler) is not offered the ones they lead apart
   {
     href: '/my-teams',
     label: 'Ekiplerim',
     section: 'people',
-    visibleWhen: ({ context }) => context.managedTeamsVisible === true,
+    visibleWhen: ({ privileged, context }) => !privileged && context.managedTeamsVisible === true,
   },
   {
     href: '/subject-requests',

@@ -16,6 +16,7 @@ import {
   useState,
   useSyncExternalStore,
   type FormEvent,
+  type ReactNode,
 } from 'react';
 import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -31,6 +32,9 @@ import {
 } from '@/lib/navigation/search-items';
 import { searchPages, type SidebarNavigationContext } from '@/lib/navigation/sidebar-nav';
 import type { UserDto } from '@/types/api';
+import { SearchContext, useOpenSearch } from './search-context';
+
+export { useOpenSearch } from './search-context';
 
 const PLACEHOLDER = 'Sayfa, etkinlik ya da kişi ara';
 
@@ -120,13 +124,51 @@ function useRecordSearch(
   );
 }
 
-/** "Hızlı git": every page the sidebar offers, and the events, people and groups the person may open (Ctrl/⌘+K). */
+/**
+ * The search box of the top bar: a wide box with Ctrl/⌘ K from md, a magnifier on
+ * phones (`variant="icon"`). It only opens the palette; any number can be drawn.
+ */
+export function SearchTrigger({ variant = 'box' }: { variant?: 'box' | 'icon' }) {
+  const open = useOpenSearch();
+  const apple = useSyncExternalStore(noSubscription, onApple, () => false);
+  if (!open) return null;
+  if (variant === 'icon') {
+    return (
+      <Button variant="ghost" size="icon" onClick={open} aria-label="Ara">
+        <Search />
+      </Button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={open}
+      aria-label="Ara"
+      className="border-border-subtle bg-card/60 text-subtle-foreground hover:border-border hover:text-secondary-foreground focus-visible:ring-ring flex h-7 w-full items-center gap-2 rounded-md border px-2.5 text-[13px] outline-hidden transition-colors focus-visible:ring-2"
+    >
+      <Search className="size-3.5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate text-left">Ara</span>
+      <span className="flex shrink-0 items-center gap-0.5" aria-hidden>
+        <Kbd>{apple ? '⌘' : 'Ctrl'}</Kbd>
+        <Kbd>K</Kbd>
+      </span>
+    </button>
+  );
+}
+
+/**
+ * The panel's search (Ctrl/⌘+K): every page the sidebar offers, and the events,
+ * people and groups the person may open. Holds the palette once and lets every
+ * SearchTrigger inside open it; with no children it draws one box.
+ */
 export function AdminSearch({
   user,
   navigationContext,
+  children,
 }: {
   user: UserDto;
   navigationContext: SidebarNavigationContext;
+  children?: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -138,7 +180,6 @@ export function AdminSearch({
     setOpenings((n) => n + 1);
     setOpen(true);
   }, []);
-  const apple = useSyncExternalStore(noSubscription, onApple, () => false);
   useCommandShortcut(show);
 
   const pages = useMemo(() => searchPages(user, navigationContext), [navigationContext, user]);
@@ -193,15 +234,8 @@ export function AdminSearch({
   };
 
   return (
-    <>
-      <Button variant="ghost" size="sm" onClick={show} aria-label="Hızlı git" className="gap-2">
-        <Search />
-        <span className="text-subtle-foreground hidden lg:inline">Hızlı git</span>
-        <span className="hidden items-center gap-0.5 lg:flex">
-          <Kbd>{apple ? '⌘' : 'Ctrl'}</Kbd>
-          <Kbd>K</Kbd>
-        </span>
-      </Button>
+    <SearchContext.Provider value={show}>
+      {children ?? <SearchTrigger />}
       <div className="contents" onChange={onPaletteInput}>
         <CommandPalette
           key={openings}
@@ -215,6 +249,6 @@ export function AdminSearch({
           placeholder={PLACEHOLDER}
         />
       </div>
-    </>
+    </SearchContext.Provider>
   );
 }
