@@ -73,6 +73,15 @@ function currentPreset(layout: CertificateLayout) {
   );
 }
 
+// The element box is a flex box, where text-align no longer places a
+// short line: map the alignment to justify-content, as core's PDF does
+// (left → start, center → safe center, right → safe end).
+function justifyClass(align: CertificateElement['align']) {
+  if (align === 'center') return 'justify-center-safe';
+  if (align === 'right') return 'justify-end-safe';
+  return 'justify-start';
+}
+
 function makeElement(kind: CertificateElementKind): CertificateElement {
   const isQr = kind === 'verificationQr';
   const isShape = kind === 'shape';
@@ -753,7 +762,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   aria-label={ELEMENT_LABELS[element.kind]}
                   onPointerDown={(event) => startDrag(event, element)}
                   style={style}
-                  className={`absolute z-10 flex touch-none items-center justify-center overflow-hidden whitespace-nowrap ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
+                  className={`absolute z-10 flex touch-none items-center ${justifyClass(element.align)} overflow-hidden whitespace-nowrap ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
                 >
                   {element.kind === 'image' && element.mediaId ? (
                     <img

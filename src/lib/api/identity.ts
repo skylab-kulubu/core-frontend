@@ -76,7 +76,8 @@ export type MemberCandidate = {
  * A Team the reader manages, with the Teams below it (GET
  * /v1/users/me/managed-groups; core's team delegation, docs/team-delegation.md
  * "Managed tree"). `can` holds core's decisions for it: `group.read`,
- * `members.write` and `leaders.write`.
+ * `members.write`, `leaders.write`, `subteams.write`, `code.write`,
+ * `team.delete`, `team.move` and `team.settings`.
  */
 export type ManagedGroup = {
   id: string;
@@ -94,6 +95,63 @@ export type ManagedGroup = {
 export type TeamSettings = {
   /** Who manages its Events' Competitions: the Leaders (default) or all its members too. */
   competitionManagers: 'leaders' | 'members';
+};
+
+/** A Team's Leader group: Leaders (`LIDERLER`) or Coordinators (`KOORDINATORLER`). */
+export type LeaderKind = 'LIDERLER' | 'KOORDINATORLER';
+
+/** One Leader or Coordinator of a Team (GET /v1/groups/{id}/leaders). */
+export type TeamLeader = Person & { kind: string; groupId: string };
+
+/**
+ * What moving a Team would do (GET /v1/groups/{id}/move-preview): whether
+ * core's rules allow it (`refusal` names the one it breaks), the paths, the
+ * people in the Team and below it, the client roles the Groups above give it
+ * after and before, and the new parent's Leaders.
+ */
+export type MovePreview = {
+  allowed: boolean;
+  refusal?: string;
+  oldPath: string;
+  newPath: string;
+  members: number;
+  rolesGained: string[];
+  rolesLost: string[];
+  newParentLeaders: number;
+};
+
+/**
+ * One row of the Team audit record (GET /v1/team-audit-records; core
+ * docs/team-audit.md): who changed what in a Group, and when. Readable with
+ * core's `audit.read` (ADMIN, YK, DK).
+ */
+export type TeamAuditRecord = {
+  id: string;
+  occurredAt: string;
+  action: string;
+  outcome: 'pending' | 'ok' | 'failed' | 'denied';
+  errorCode?: string | null;
+  actor?: { id: string; displayName: string; basis: string } | null;
+  target?: { id: string; displayName: string } | null;
+  successor?: { id: string; displayName: string } | null;
+  group?: { id: string; path: string; currentPath: string | null } | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+};
+
+export type TeamAuditPage = { items: TeamAuditRecord[]; next: string | null };
+
+/** A person of the directory (GET /v1/users/directory): a user read's fields and when they joined. */
+export type DirectoryPerson = Person & { status?: string; createdAt?: string };
+
+/** `new`: joined this month; `no_school_email`: no school address yet. */
+export type DirectoryFilter = '' | 'new' | 'no_school_email';
+
+export type DirectoryPage = {
+  items: DirectoryPerson[];
+  total: number;
+  page: number;
+  size: number;
 };
 
 export type UserCard = Person & {
@@ -143,6 +201,43 @@ export const identityApi = {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
+  /** Opens a Sub-team under the Team `parentId` (core docs/team-delegation.md "Team structure"). */
+  createSubTeam: (
+    parentId: string,
+    body: { code: string; displayNameTr: string; displayNameEn?: string },
+  ) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(parentId)}/children`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  changeTeamCode: (id: string, code: string) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(id)}/code`, {
+      method: 'PUT',
+      body: JSON.stringify({ code }),
+    }),
+  teamLeaders: (id: string) =>
+    coreFetch<TeamLeader[]>(`/v1/groups/${encodeURIComponent(id)}/leaders`),
+  /** core opens the Leader group when the Team has none. */
+  addTeamLeader: (id: string, userId: string, kind: LeaderKind) =>
+    coreFetch<void>(`/v1/groups/${encodeURIComponent(id)}/leaders`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, kind }),
+    }),
+  /** `lastLeader`: the Team has no Leader or Coordinator left. */
+  removeTeamLeader: (id: string, userId: string) =>
+    coreFetch<{ lastLeader: boolean }>(
+      `/v1/groups/${encodeURIComponent(id)}/leaders/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
+  movePreview: (id: string, parentId: string) =>
+    coreFetch<MovePreview>(
+      `/v1/groups/${encodeURIComponent(id)}/move-preview?parentId=${encodeURIComponent(parentId)}`,
+    ),
+  moveTeam: (id: string, parentId: string) =>
+    coreFetch<Group>(`/v1/groups/${encodeURIComponent(id)}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ parentId }),
+    }),
   groupRoles: (id: string) =>
     coreFetch<ClientRole[]>(`/v1/groups/${encodeURIComponent(id)}/client-roles`),
   setGroupRoles: (id: string, roles: ClientRole[]) =>
@@ -155,6 +250,40 @@ export const identityApi = {
   listUsers: (q?: string) => {
     const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
     return coreFetch<Person[]>(`/v1/users${query}`);
+  },
+  /**
+   * A Group's audit rows, newest first, with every Group under it (`subtree`):
+   * at most `limit` (core: 1 to 100), the next page by `cursor`.
+   */
+  groupAudit: (
+    groupId: string,
+    { actions, limit = 50, cursor }: { actions?: string[]; limit?: number; cursor?: string } = {},
+  ) => {
+    const query = new URLSearchParams({ groupId, subtree: 'true', limit: String(limit) });
+    if (actions?.length) query.set('action', actions.join(','));
+    if (cursor) query.set('cursor', cursor);
+    return coreFetch<TeamAuditPage>(`/v1/team-audit-records?${query.toString()}`);
+  },
+  /**
+   * The people, a page at a time, newest first (core's own rows): a search and a
+   * filter on top. An older core has no such route (404); the page then falls back
+   * to the latest joiners, a team and the search.
+   */
+  userDirectory: ({
+    page = 1,
+    size = 50,
+    q = '',
+    filter = '',
+  }: {
+    page?: number;
+    size?: number;
+    q?: string;
+    filter?: DirectoryFilter;
+  } = {}) => {
+    const query = new URLSearchParams({ page: String(page), size: String(size) });
+    if (q.trim()) query.set('q', q.trim());
+    if (filter) query.set('filter', filter);
+    return coreFetch<DirectoryPage>(`/v1/users/directory?${query.toString()}`);
   },
   listClientRoles: () => coreFetch<ClientRole[]>('/v1/client-roles'),
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),

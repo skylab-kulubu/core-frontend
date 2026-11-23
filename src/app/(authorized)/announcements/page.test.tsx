@@ -64,7 +64,8 @@ describe('Duyurular', () => {
     const row = await screen.findByRole('link', { name: 'Bahar şenliği' });
     expect(row).toHaveAttribute('href', '/announcements/bahar-senligi/edit');
     expect(screen.getByRole('link', { name: 'Kayıtlar açıldı' })).toBeInTheDocument();
-    expect(screen.getByText('2 / 2', { exact: false })).toBeInTheDocument();
+    // The count reads above the list and under it
+    expect(screen.getAllByText('2 / 2', { exact: false })).toHaveLength(2);
   });
 
   it('writes the main command in the command bar', async () => {

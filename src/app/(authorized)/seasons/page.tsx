@@ -1,299 +1,215 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
+import { Plus, RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Drawer } from '@/components/chrome/Drawer';
-import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
-import { Field } from '@/components/chrome/Field';
-import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
-import { SaveButton } from '@/components/chrome/SaveButton';
-import { Select } from '@/components/chrome/Select';
+import { ListPage } from '@/components/chrome/ListPage';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
+import { EmptyState } from '@/components/chrome/PageState';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { Switch } from '@/components/chrome/Switch';
-import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
-import { ListPanel } from '@/components/chrome/ListPanel';
-import { Pagination } from '@/components/chrome/Pagination';
-import { PageHeader } from '@/components/layout/PageHeader';
-import { coreProblemMessage } from '@/lib/core-problems';
-import { eventsApi } from '@/lib/api/events';
-import { seasonsApi, type Season, type SeasonBody } from '@/lib/api/seasons';
-import { canWriteSeason } from '@/lib/auth/groups';
-import { useAppCan } from '@/lib/use-app-can';
-import { DatePicker } from '@/components/forms/DatePicker';
-import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
-import { formatEventWhen } from '@/lib/events-view';
-import { emptyListCopy, matchesQuery, paginateRows } from '@/lib/list-query';
-import { listStatus } from '@/lib/list-status';
-import { activeStatus } from '@/lib/status-chip';
-import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
-import { useNotify } from '@/lib/ui/use-notify';
 import { useAuth } from '@/context/AuthContext';
+import { seasonsApi, type Season } from '@/lib/api/seasons';
+import { canWriteSeason } from '@/lib/auth/groups';
+import { coreProblemMessage } from '@/lib/core-problems';
+import { matchesQuery, paginateRows } from '@/lib/list-query';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useListParams } from '@/lib/ui/use-list-params';
+import { useAppCan } from '@/lib/use-app-can';
+import { NewSeasonDrawer } from './_parts/NewSeasonDrawer';
+import { SeasonBar } from './_parts/SeasonBar';
+import { seasonHref, seasonProgress, seasonRange } from './_parts/season-view';
 
-const emptySeason = (): SeasonBody & { startLocal: string; endLocal: string } => ({
-  name: '',
-  active: true,
-  startLocal: '',
-  endLocal: '',
-});
+type View = 'all' | 'active' | 'passive';
 
+/** Sezonlar: the club's terms; a row opens the season's own page. */
 export default function SeasonsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const groups = user?.groups ?? [];
   // core's season.write (a DK member reads only); the group rule stands in when it cannot be read
   const canWrite = useAppCan(canWriteSeason(groups))('season.write');
   const [seasons, setSeasons] = useState<Season[]>([]);
+  // Events per season, read once the seasons are in; a season whose list failed shows none
+  const [eventCounts, setEventCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState('');
-  const [activeOnly, setActiveOnly] = useState<'all' | 'active' | 'passive'>('all');
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptySeason());
-  const formDirty = useDirtySince(open, form);
-  const [assignEventId, setAssignEventId] = useState('');
-  const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
-  const [formError, setFormError] = useState<string | null>(null);
-  const notify = useNotify();
-  // A deleted season's row goes away (animated): the drawer then returns focus to Sezon ekle
-  const addSeason = useRef<HTMLButtonElement>(null);
-  const deleted = useRef(false);
-  const [confirm, confirmDialog] = useConfirm();
+  const [failed, setFailed] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [params, setParams] = useListParams({ view: 'all' });
+  const view: View = params.view === 'active' || params.view === 'passive' ? params.view : 'all';
+  // The server's clock is not the reader's: the bars wait for the browser
+  const [now, setNow] = useState<Date | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      setSeasons(await seasonsApi.list());
-      setEvents((await eventsApi.list()).map((ev) => ({ id: ev.id, name: ev.name })));
-      setError(null);
-    } catch (err) {
-      setError(coreProblemMessage(err, 'Sezonlar yüklenemedi'));
+      const rows = await seasonsApi.list();
+      setSeasons(rows);
+      setFailed(null);
+      void Promise.allSettled(rows.map((row) => seasonsApi.listEvents(row.id))).then((lists) =>
+        setEventCounts(
+          Object.fromEntries(
+            lists.flatMap((list, at) =>
+              list.status === 'fulfilled' ? [[rows[at].id, list.value.length]] : [],
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      setFailed(coreProblemMessage(error, 'Sezonlar yüklenemedi'));
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    void load();
   }, []);
 
-  const filtered = useMemo(() => {
-    return seasons.filter((season) => {
-      if (activeOnly === 'active' && !season.active) return false;
-      if (activeOnly === 'passive' && season.active) return false;
-      return matchesQuery(query, season.name);
-    });
-  }, [seasons, query, activeOnly]);
-  const paged = paginateRows(filtered, page);
-
   useEffect(() => {
-    setPage(1);
-  }, [query, activeOnly]);
+    setNow(new Date());
+    void load();
+  }, [load]);
+
+  const searched = useMemo(
+    () => seasons.filter((season) => matchesQuery(params.q, season.name)),
+    [seasons, params.q],
+  );
+  const counts = {
+    all: searched.length,
+    active: searched.filter((season) => season.active).length,
+    passive: searched.filter((season) => !season.active).length,
+  };
+  const rows = searched.filter(
+    (season) => view === 'all' || (view === 'active' ? season.active : !season.active),
+  );
+  const paged = paginateRows(rows, params.page, params.size);
+  const filtered = Boolean(params.q.trim()) || view !== 'all';
+
+  const columns: DataListColumn<Season>[] = [
+    {
+      id: 'name',
+      width: 'minmax(0,1fr)',
+      header: 'Sezon',
+      cell: (season) => (
+        <DataListTitle
+          title={season.name}
+          subtitle={<span className={TEXT_SECONDARY}>{seasonRange(season) || 'Tarih yok'}</span>}
+        />
+      ),
+    },
+    {
+      id: 'progress',
+      width: '13rem',
+      from: 'md',
+      header: 'İlerleme',
+      cell: (season) => (now ? <SeasonBar progress={seasonProgress(season, now)} compact /> : null),
+    },
+    {
+      id: 'events',
+      width: '6rem',
+      from: 'sm',
+      align: 'end',
+      header: 'Etkinlik',
+      cell: (season) => (
+        <span className="text-secondary-foreground text-sm tabular-nums">
+          {eventCounts[season.id] ?? '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      width: { base: 'auto', sm: '6rem' },
+      align: 'end',
+      label: 'Durum',
+      cell: (season) =>
+        season.active ? (
+          <StatusChip kind="active" />
+        ) : (
+          // Pasif is not an error: neutral, never red
+          <StatusChip kind="neutral" label="Pasif" />
+        ),
+    },
+  ];
+
+  const empty = failed ? (
+    <EmptyState kind="failed" title={failed} onRetry={() => void load()} />
+  ) : filtered ? (
+    <EmptyState kind="no-results" onClear={() => setParams({ q: '', view: 'all' })} />
+  ) : (
+    <EmptyState
+      kind="first-use"
+      title="Henüz sezon yok"
+      action={
+        canWrite ? (
+          <ActionButton
+            icon={Plus}
+            variant="primary"
+            label="Sezon ekle"
+            showLabel
+            onClick={() => setAdding(true)}
+          />
+        ) : null
+      }
+    />
+  );
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Sezonlar"
-        actions={
-          canWrite ? (
-            <ActionButton
-              icon={Plus}
-              variant="primary"
-              label="Sezon ekle"
-              ref={addSeason}
-              onClick={() => {
-                setEditingId(null);
-                setForm(emptySeason());
-                setAssignEventId('');
-                setFormError(null);
-                deleted.current = false;
-                setOpen(true);
-              }}
-            />
-          ) : undefined
-        }
-      />
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
-      <ListToolbar query={query} onQuery={setQuery} placeholder="Sezon adı" searchLabel="Sezon ara">
-        <FilterPills
-          ariaLabel="Sezon durumu"
-          value={activeOnly}
-          onChange={setActiveOnly}
-          options={[
-            { value: 'all', label: 'Tümü' },
-            { value: 'active', label: 'Aktif' },
-            { value: 'passive', label: 'Pasif' },
+    <ListPage
+      title="Sezonlar"
+      commands={
+        <CommandBar label="Sezon komutları">
+          {canWrite ? (
+            <Command primary icon={Plus} label="Sezon ekle" onClick={() => setAdding(true)} />
+          ) : null}
+          <Command icon={RefreshCw} label="Yenile" onClick={() => void load()} />
+        </CommandBar>
+      }
+      toolbar={
+        <ListToolbar
+          query={params.q}
+          onQuery={(q) => setParams({ q })}
+          commitDelay={250}
+          placeholder="Sezon adı"
+          searchLabel="Sezon ara"
+          viewsLabel="Sezon durumu"
+          views={[
+            { value: 'all', label: 'Hepsi', count: counts.all },
+            { value: 'active', label: 'Aktif', count: counts.active },
+            { value: 'passive', label: 'Pasif', count: counts.passive },
           ]}
+          view={view}
+          onView={(next) => setParams({ view: next })}
         />
-      </ListToolbar>
-      <ListPanel
-        status={listStatus({
-          loading,
-          failed: Boolean(error),
-          rowCount: filtered.length,
-          emptyMessage: emptyListCopy({
-            none: 'Sezon yok',
-            noneMatch: 'Eşleşen sezon yok',
-            query,
-            filtered: activeOnly !== 'all',
-          }),
-        })}
-        emptyDescription="Dönem ekle veya filtreyi temizle."
-      >
-        {paged.slice.map((season) => (
-          <ListItem
-            key={season.id}
-            title={season.name}
-            subtitle={formatEventWhen({
-              id: season.id,
-              name: season.name,
-              startDate: season.startDate,
-              endDate: season.endDate,
-            })}
-            trailing={
-              <div className="flex items-center gap-1">
-                <StatusChip kind={activeStatus(season.active)} />
-                {canWrite ? (
-                  <ActionButton
-                    icon={Pencil}
-                    label="Düzenle"
-                    onClick={() => {
-                      setEditingId(season.id);
-                      setForm({
-                        name: season.name,
-                        active: season.active,
-                        startLocal: toDatetimeLocal(season.startDate),
-                        endLocal: toDatetimeLocal(season.endDate),
-                      });
-                      setAssignEventId('');
-                      setFormError(null);
-                      deleted.current = false;
-                      setOpen(true);
-                    }}
-                  />
-                ) : null}
-              </div>
-            }
-          />
-        ))}
-      </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
-      <Drawer
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editingId ? 'Sezonu düzenle' : 'Sezon ekle'}
-        dirty={formDirty}
-        finalFocus={() => (deleted.current ? addSeason.current : null)}
-      >
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setFormError(null);
-            try {
-              // On update an emptied date goes as null: core keeps a date left out
-              const body: SeasonBody = {
-                name: form.name.trim(),
-                active: form.active,
-                startDate: toRfc3339(form.startLocal) ?? (editingId ? null : undefined),
-                endDate: toRfc3339(form.endLocal) ?? (editingId ? null : undefined),
-              };
-              const saved = editingId
-                ? await seasonsApi.update(editingId, body)
-                : await seasonsApi.create(body);
-              if (assignEventId) {
-                await seasonsApi.assignEvent(saved.id, assignEventId);
-              }
-              setOpen(false);
-              notify.success(editingId ? 'Sezon kaydedildi' : 'Sezon eklendi');
-              await load();
-            } catch (err) {
-              setFormError(coreProblemMessage(err, 'Kaydedilemedi'));
-            }
-          }}
-        >
-          <label className="block space-y-1">
-            <FieldLabel>Ad</FieldLabel>
-            <Field
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </label>
-          <DatePicker
-            label="Başlangıç"
-            value={form.startLocal}
-            onChange={(startLocal) => setForm({ ...form, startLocal })}
-          />
-          <DatePicker
-            label="Bitiş"
-            value={form.endLocal}
-            onChange={(endLocal) => setForm({ ...form, endLocal })}
-          />
-          <Switch
-            checked={form.active}
-            onChange={(checked) => setForm({ ...form, active: checked })}
-            label="Aktif"
-          />
-          <label className="block space-y-1">
-            <FieldLabel>Etkinlik bağla</FieldLabel>
-            <Select value={assignEventId} onChange={(e) => setAssignEventId(e.target.value)}>
-              <option value="">Yok</option>
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {editingId ? (
-            <button
-              type="button"
-              className="border-destructive/30 text-destructive h-8 rounded-md border px-3 text-[13px]"
-              onClick={() => {
-                const id = editingId;
-                const name = seasons.find((season) => season.id === id)?.name ?? form.name;
-                confirm({
-                  title: `"${name}" sezonu silinsin mi?`,
-                  description: `Sezon listeden kalkar. ${UNDO_HINT}`,
-                  actionLabel: 'Sezonu sil',
-                  onConfirm: async () => {
-                    await seasonsApi.delete(id);
-                    notify.undoable(
-                      'Sezon silindi',
-                      async () => {
-                        await seasonsApi.restore(id);
-                        void load();
-                      },
-                      'Sezon geri alındı',
-                    );
-                    // The drawer, and the question inside it, close once the list shows the change
-                    await load();
-                    deleted.current = true;
-                    setOpen(false);
-                  },
-                  failure: 'Sezon silinemedi',
-                  closesDrawer: true,
-                });
-              }}
-            >
-              Sil
-            </button>
-          ) : null}
-          {formError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {formError}
-            </p>
-          ) : null}
-          {confirmDialog}
-          <SaveButton>Kaydet</SaveButton>
-        </form>
-      </Drawer>
-    </div>
+      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
+    >
+      {!loading && (failed || rows.length === 0) ? (
+        empty
+      ) : (
+        <DataList
+          columns={columns}
+          rows={paged.slice}
+          getRowId={(season) => season.id}
+          rowHref={(season) => seasonHref(season.id)}
+          rowLabel={(season) => season.name}
+          loading={loading}
+          skeletonRows={3}
+        />
+      )}
+      <NewSeasonDrawer
+        open={adding}
+        onClose={() => setAdding(false)}
+        onCreated={(season) => {
+          setAdding(false);
+          router.push(seasonHref(season.id));
+        }}
+      />
+    </ListPage>
   );
 }

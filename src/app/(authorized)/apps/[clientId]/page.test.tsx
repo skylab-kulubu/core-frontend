@@ -6,7 +6,40 @@ import { appsApi, type AppAssignment, type AppAssignments } from '@/lib/api/apps
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 
-jest.mock('next/navigation', () => ({ useParams: () => ({ clientId: 'skymail' }) }));
+// The address is the page's state (?bolum=, ?view=): the hooks write history, this reads it back
+const mockListeners = new Set<() => void>();
+function mockSubscribe(listener: () => void) {
+  mockListeners.add(listener);
+  return () => mockListeners.delete(listener);
+}
+for (const method of ['pushState', 'replaceState'] as const) {
+  const original = window.history[method].bind(window.history);
+  window.history[method] = (...args: Parameters<History['pushState']>) => {
+    original(...args);
+    mockListeners.forEach((listener) => listener());
+  };
+}
+jest.mock('next/navigation', () => ({
+  useParams: () => ({ clientId: 'skymail' }),
+  useRouter: () => ({
+    push: (href: string) => window.history.pushState(null, '', href),
+    replace: jest.fn(),
+  }),
+  usePathname: () => '/apps/skymail',
+  useSearchParams: () => {
+    const { useSyncExternalStore } = jest.requireActual('react') as typeof import('react');
+    const text = useSyncExternalStore(
+      mockSubscribe,
+      () => window.location.search,
+      () => '',
+    );
+    return new URLSearchParams(text);
+  },
+}));
+
+function at(search = '') {
+  window.history.replaceState(null, '', `/apps/skymail${search ? `?${search}` : ''}`);
+}
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
 jest.mock('@/lib/api/apps', () => ({
   appsApi: {
@@ -80,6 +113,7 @@ function writer() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  at('bolum=atamalar');
   (appsApi.assignments as jest.Mock).mockResolvedValue(answer([team, board, person]));
   (appsApi.audit as jest.Mock).mockResolvedValue([]);
   (appsApi.assign as jest.Mock).mockResolvedValue(team);
@@ -87,27 +121,54 @@ beforeEach(() => {
 });
 
 describe('SkyMail · Kullanıcılar ve gruplar', () => {
-  it('lists Groups and people, the code’s rows locked, and filters to people', async () => {
+  it('lists Groups and people, the code’s rows locked with the reason written, and filters to people', async () => {
     writer();
     const user = userEvent.setup();
     render(<AppAssignmentsPage />);
     expect(await screen.findByText('Web Lab')).toBeInTheDocument();
-    expect(screen.getByText('Atama gerekli: Evet')).toBeInTheDocument();
+    expect(screen.getAllByText('Yalnız atananlar').length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/Alt ekipleri de kapsar \(4 grup\) · 23 kişi · Yusuf A/),
+      screen.getByText(/\/UYELER\/ARGE\/WEBLAB · Alt ekipleri de kapsar \(4 grup\)/),
     ).toBeInTheDocument();
-    expect(screen.getAllByText(/Kayıt yok \(panel öncesi ya da konsoldan\)/)).toHaveLength(2);
+    expect(screen.getByText('Yusuf A')).toBeInTheDocument();
+    expect(screen.getAllByText('Kayıt yok')).toHaveLength(2);
     expect(screen.getByText('Kodda tanımlı')).toBeInTheDocument();
     // Kaldır on the panel's two rows, not on YK's
     expect(screen.getAllByRole('button', { name: 'Kaldır' })).toHaveLength(2);
 
-    await user.click(screen.getByText('Yalnız kişiler'));
-    expect(screen.getByRole('switch', { name: /Yalnız kişiler/ })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    expect(screen.queryByText('Web Lab')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Yalnız kişiler/ }));
+    await waitFor(() => expect(screen.queryByText('Web Lab')).not.toBeInTheDocument());
     expect(screen.getByText('Ada L')).toBeInTheDocument();
+    expect(window.location.search).toContain('view=user');
+  });
+
+  it('opens on the overview: the id to copy, who may open it, the counts and the latest changes', async () => {
+    writer();
+    at();
+    (appsApi.audit as jest.Mock).mockResolvedValue([
+      {
+        id: 'r1',
+        occurredAt: '2026-10-23T09:30:00Z',
+        action: 'app.assign',
+        outcome: 'ok',
+        actor: { id: 'u-yk', name: 'Yusuf A' },
+        type: 'group',
+        targetId: 'g-web',
+        path: '/UYELER/ARGE/WEBLAB',
+        name: 'Web Lab',
+        role: 'skymail:access',
+      },
+    ]);
+    const user = userEvent.setup();
+    render(<AppAssignmentsPage />);
+    expect(await screen.findByText('skymail')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kimliği kopyala' })).toBeInTheDocument();
+    const figures = screen.getByRole('group', { name: 'Atama sayıları' });
+    expect(within(figures).getByRole('button', { name: /Grup ataması\s*2/ })).toBeInTheDocument();
+    expect(within(figures).getByRole('button', { name: /Kodda tanımlı\s*1/ })).toBeInTheDocument();
+    expect(await screen.findByText('Yusuf A · Atama')).toBeInTheDocument();
+    await user.click(within(figures).getByRole('button', { name: /Kişi ataması/ }));
+    expect(window.location.search).toBe('?bolum=atamalar&view=user');
   });
 
   it('opens Ekle on the Grup tab, suggests SkyMail’s pair and assigns each role, no note', async () => {
@@ -239,7 +300,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     expect(await screen.findByText('Web Lab')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ekle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kaldır' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: 'Denetim' }));
+    act(() => at('bolum=denetim'));
     expect(await screen.findByText('Yusuf A · Atama')).toBeInTheDocument();
     expect(
       screen.getByText(/^\/UYELER\/ARGE\/WEBLAB · skymail:access · [^·]+$/),
@@ -249,7 +310,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
   it('reads nothing while core’s app assignments are off', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {} });
     render(<AppAssignmentsPage />);
-    expect(await screen.findByText('Uygulama atamaları açık değil')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(appsApi.assignments).not.toHaveBeenCalled();
   });
 });

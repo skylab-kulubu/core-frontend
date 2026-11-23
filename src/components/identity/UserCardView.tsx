@@ -323,8 +323,10 @@ export function UserCardView(props: UserCardViewProps) {
         <Count label="Rol" value={inherited.length} href="#yetkiler" />
         <Count label="Doğrudan rol" value={extra.length} href="#yetkiler" tone="warning" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CardSection title="Profil" className="self-start">
+      {/* One column of minmax(0, 1fr) on a phone: an auto column grows to its widest
+          line (a group path, the profile) and pushed the page sideways at 375px */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CardSection title="Profil" className="min-w-0 self-start">
           {editing && canEditProfile ? (
             <UserProfileForm card={card} onSave={save} error={profileError} className="grid gap-3">
               <Button
@@ -341,7 +343,7 @@ export function UserCardView(props: UserCardViewProps) {
             <Facts rows={facts(card, canReadFull)} />
           )}
         </CardSection>
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <CardSection
             id="gruplar"
             title="Gruplar"

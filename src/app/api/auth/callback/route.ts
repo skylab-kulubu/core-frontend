@@ -8,6 +8,19 @@ import {
   readOAuthTransactionCookies,
 } from '@/lib/auth/oauth-transaction';
 import { expireLegacySessionCookies, writeSessionCookies } from '@/lib/auth/session-cookies';
+import { loginErrorCode } from '@/app/login/login-errors';
+
+/**
+ * What the server log keeps of a failed token exchange: the token endpoint's status and its
+ * OAuth error code (RFC 6749 5.2), never its description, the code or a token.
+ */
+function tokenExchangeFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  const status = message.match(/^Token exchange failed: (\d{3})\b/)?.[1];
+  if (!status) return error instanceof Error ? error.name : 'unknown';
+  const code = message.match(/"error"\s*:\s*"([a-z_]{1,64})"/)?.[1];
+  return code ? `status ${status}, ${code}` : `status ${status}`;
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -19,8 +32,9 @@ export async function GET(request: NextRequest) {
   clearOAuthTransactionCookies(cookieStore);
 
   if (error) {
-    console.error('OAuth error:', error);
-    return NextResponse.redirect(new URL('/login?error=' + encodeURIComponent(error), request.url));
+    const shown = loginErrorCode(error);
+    console.error('OAuth error:', shown === error ? error : `unrecognised (${error.length} chars)`);
+    return NextResponse.redirect(new URL('/login?error=' + shown, request.url));
   }
 
   if (!code) {
@@ -89,13 +103,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
-    console.error('❌ OAuth callback: Token exchange başarısız:', error);
-    const errorMessage = error instanceof Error ? error.message : 'unknown_error';
-    return NextResponse.redirect(
-      new URL(
-        '/login?error=token_exchange_failed&details=' + encodeURIComponent(errorMessage),
-        request.url,
-      ),
-    );
+    // The address keeps only the page's code: it stays in the browser's history and proxy logs
+    console.error('OAuth callback: token exchange failed:', tokenExchangeFailure(error));
+    return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
   }
 }
