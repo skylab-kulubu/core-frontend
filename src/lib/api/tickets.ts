@@ -23,10 +23,22 @@ export type DoorEvent = {
   ranked: boolean;
 };
 
+/**
+ * `door`: the door screen, guests pass one by one (core caps a token at 20). `display`: the
+ * attendance QR on the projector or OBS, a whole room scans one frame (cap 400).
+ */
+export type DoorQrUse = 'door' | 'display';
+/** Core's SESSION_QR_MODE: in `qr` the static (printed) session QR no longer checks anyone in. */
+export type SessionQrMode = 'open' | 'qr';
+
 /** A short-lived QR the door shows for guests to check themselves in; token and url are secrets. */
 export type DoorQr = {
   token: string;
   url: string;
+  /** Older cores leave these out. */
+  use?: DoorQrUse;
+  maxUses?: number;
+  sessionQrMode?: SessionQrMode;
   svg: string;
   sessionId: string;
   eventId: string;
@@ -164,10 +176,11 @@ export const ticketsApi = {
       `/v1/sessions/${encodeURIComponent(sessionId)}/check-ins/${encodeURIComponent(checkInId)}`,
       { method: 'DELETE' },
     ),
-  createDoorQr: (sessionId: string) =>
-    coreFetch<DoorQr>(`/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1`, {
-      method: 'POST',
-    }),
+  createDoorQr: (sessionId: string, use: DoorQrUse = 'door') =>
+    coreFetch<DoorQr>(
+      `/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1${use === 'display' ? '&use=display' : ''}`,
+      { method: 'POST' },
+    ),
   /**
    * The Ticket's "biletin hazır" mail again (core docs/ticket-resend.md):
    * 429 `ticket_resend_rate_limited` (3 an hour, 6 a day), 409 for a draft,
