@@ -42,7 +42,7 @@ export function eventLabel(event: Pick<LoginEvent, 'type'>): string {
 const CLIENTS: Record<string, string> = {
   admin: 'Yönetim paneli',
   'account-center': 'Hesap merkezi',
-  skyforms: 'Forms',
+  skyforms: 'Form',
   skymail: 'SkyMail',
   'frontend-main': 'Site',
   'frontend-arge': 'AR-GE sitesi',
