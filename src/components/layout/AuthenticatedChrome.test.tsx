@@ -242,7 +242,7 @@ describe('AuthenticatedChrome', () => {
     expect(within(trail).queryByText('…')).not.toBeInTheDocument();
   });
 
-  it('keeps the section whole in the trail and cuts the page name instead', async () => {
+  it('keeps the section of a two-step trail whole and cuts the record name instead', async () => {
     currentPathname = '/events/event-1/program';
     render(
       <AuthenticatedChrome sidebarUser={user}>
@@ -251,8 +251,8 @@ describe('AuthenticatedChrome', () => {
     );
 
     const trail = screen.getAllByRole('navigation', { name: 'Sayfa yolu' })[0];
-    expect(trail.className).toContain('[&_ol>li:first-child]:shrink-0');
-    expect(trail.className).toContain('[&_ol>li:last-child:not(:first-child)]:shrink');
+    expect(trail.className).toContain('[&_ol>li:first-child:nth-last-child(2)]:shrink-0');
+    expect(trail.className).toContain('[&_ol>li:last-child:nth-child(2)]:shrink');
   });
 
   it('lists Harita bölgeleri only once core says media.delete (media:manage)', async () => {

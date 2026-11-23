@@ -27,12 +27,13 @@ type AuthenticatedChromeProps = Readonly<{
 }>;
 
 /**
- * How the wide trail gives way when the row is narrow: the steps between go first, then the
- * current page's name is cut; the first step (the section) stays whole. skylcn-ui's own rule
- * keeps the last step whole and cuts the first, which left "S > 2026-2027 Güz-Bahar".
+ * How a two-step trail gives way when the row is narrow: the section stays whole and the
+ * record's name is cut ("Sezonlar > 2026-2027 …"). skylcn-ui keeps the last step whole and
+ * cuts the ones before it, which left "S > 2026-2027 Güz-Bahar". Longer trails keep that rule:
+ * the steps between collapse first, so the record's name stays readable.
  */
 export const TRAIL_GIVES_WAY =
-  '[&_ol>li:first-child]:shrink-0 [&_ol>li:last-child:not(:first-child)]:min-w-0 [&_ol>li:last-child:not(:first-child)]:shrink';
+  '[&_ol>li:first-child:nth-last-child(2)]:shrink-0 [&_ol>li:last-child:nth-child(2)]:min-w-0 [&_ol>li:last-child:nth-child(2)]:shrink';
 
 function ChromeTrail({ pathname }: { pathname: string }) {
   return (
