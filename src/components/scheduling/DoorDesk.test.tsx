@@ -99,17 +99,17 @@ describe('DoorDesk', () => {
     expect(screen.queryByLabelText('Bilet')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Katılımcı bul' })).toBeInTheDocument();
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
         personId: undefined,
         query: 'ada@example.com',
       }),
     );
-    const result = screen.getByRole('status', { name: 'Check-in sonucu' });
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
     expect(result).toHaveTextContent(/Ada Lovelace · Açılış · /);
     // Right under the button, so a phone shows it without scrolling past the guest QR
-    const button = screen.getByRole('button', { name: 'Check-in' });
+    const button = screen.getByRole('button', { name: 'Girişi yaz' });
     expect(button.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(
       result.compareDocumentPosition(screen.getByRole('region', { name: "Misafir QR'ı" })) &
@@ -140,7 +140,7 @@ describe('DoorDesk', () => {
     await waitFor(() => expect(picker).toHaveValue('s2'));
     expect(within(picker).getByRole('option', { selected: true })).toHaveTextContent('Panel');
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
 
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith(
@@ -152,7 +152,7 @@ describe('DoorDesk', () => {
       ),
     );
     expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', expect.anything());
-    expect(screen.getByRole('status', { name: 'Check-in sonucu' })).toHaveTextContent(
+    expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toHaveTextContent(
       /Ada Lovelace · Panel · /,
     );
     expect(screen.getByText(/^Panel · SkyDays · /)).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('DoorDesk', () => {
       /Bu oturum henüz başlamadı \(başlangıç .*\); misafir QR’ı şimdiden açık\./,
     );
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', expect.anything()),
     );
@@ -192,15 +192,15 @@ describe('DoorDesk', () => {
     await screen.findByRole('option', { name: 'Panel' });
     const picker = screen.getByLabelText('Oturum');
     expect(picker).toHaveValue('');
-    expect(screen.getByText(/şu an süren tek bir oturum yok/)).toBeInTheDocument();
+    expect(screen.getByText(/Şu an süren oturum yok/)).toBeInTheDocument();
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
 
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Girişin yazılacağı oturumu seçin');
+    expect(screen.getByRole('alert')).toHaveTextContent('Giriş oturumunu seç');
 
     await user.selectOptions(picker, 's2');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s2', {
         personId: undefined,
@@ -220,7 +220,7 @@ describe('DoorDesk', () => {
     expect(field).toHaveAttribute('placeholder', 'Ad, e-posta ya da bilet kodu');
     await user.type(field, 'Ada Lovelace');
     expect(field.checkValidity()).toBe(true);
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
         personId: undefined,
@@ -232,8 +232,8 @@ describe('DoorDesk', () => {
   it('requires a person or email before attempting check-in', async () => {
     const user = userEvent.setup();
     render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Check-in' })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Girişi yaz' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Kişi veya e-posta girin');
   });
@@ -271,7 +271,7 @@ describe('DoorDesk', () => {
   it('opens no form for an event that is not among the person’s doors', async () => {
     render(<DoorDesk eventId="e9" />);
     expect(await screen.findByText('Bu etkinlik için kapı yetkisi yok')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Check-in' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Girişi yaz' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Etkinliğe dön' })).toHaveAttribute(
       'href',
       '/events/e9',
@@ -298,7 +298,7 @@ describe('DoorDesk', () => {
     const dialog = screen.getByRole('dialog', { name: 'Katılımcı bul' });
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
 
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
@@ -339,7 +339,7 @@ describe('DoorDesk', () => {
     );
     expect(screen.getByLabelText('Ad, e-posta ya da bilet kodu')).toHaveValue('');
     expect(screen.getByLabelText('Oturum')).toHaveValue('');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     expect(ticketsApi.resolveAndCheckIn).not.toHaveBeenCalled();
   });
 
@@ -355,7 +355,7 @@ describe('DoorDesk', () => {
     await user.type(within(dialog).getByPlaceholderText('Ad, e-posta ya da bilet kodu'), 'ada');
     await user.click(await within(dialog).findByRole('button', { name: /Ada Lovelace/ }));
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Grace Hopper');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
 
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', {
@@ -382,7 +382,7 @@ describe('DoorDesk', () => {
     render(<DoorDesk eventId="e1" />);
 
     await waitFor(() =>
-      expect(screen.getByRole('status', { name: 'Canlı check-in sayısı' })).toHaveTextContent('12'),
+      expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent('12'),
     );
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
   });
@@ -414,7 +414,7 @@ describe('DoorDesk', () => {
     render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'ada@example.com');
-    await user.click(screen.getByRole('button', { name: 'Check-in' }));
+    await user.click(screen.getByRole('button', { name: 'Girişi yaz' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
 
@@ -428,7 +428,7 @@ describe('DoorDesk', () => {
     render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(screen.getByLabelText('Oturum')).toHaveValue('s1'));
     await user.type(screen.getByLabelText('Ad, e-posta ya da bilet kodu'), 'Ada');
-    const button = screen.getByRole('button', { name: 'Check-in' });
+    const button = screen.getByRole('button', { name: 'Girişi yaz' });
     await user.click(button);
 
     const alert = await screen.findByRole('alert');

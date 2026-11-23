@@ -236,7 +236,7 @@ export function ParticipantRoster({
     <BulkBar count={selected.size} onClear={() => setSelected(new Set())}>
       <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={mailChosen}>
         <Mail className="size-4" />
-        Mail
+        E-posta
       </Button>
     </BulkBar>
   ) : (
@@ -260,7 +260,7 @@ export function ParticipantRoster({
           value={sessionId}
           onChange={(change) => setSessionId(change.target.value)}
         >
-          <option value="">Giriş oturumu seçin</option>
+          <option value="">Giriş oturumu seç</option>
           {sessions.map((session) => (
             <option key={session.id} value={session.id}>
               Giriş: {doorSessionLabel(session)}
@@ -269,7 +269,7 @@ export function ParticipantRoster({
         </Select>
       ) : null}
       {onMarkAttended && sessions.length > 0 && !attendSession ? (
-        <p className="text-warning text-[13px]/5">Katıldı için oturum seçin</p>
+        <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
         {onAddParticipant ? (
@@ -280,7 +280,7 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
-        <ActionButton icon={Mail} label="Mail" showLabel onClick={mailChosen} />
+        <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
       </div>
     </div>
   );

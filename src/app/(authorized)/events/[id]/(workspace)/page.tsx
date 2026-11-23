@@ -130,7 +130,7 @@ export default function EventOverviewPage() {
       ) : null}
       {event.formAlias || event.formUrl ? (
         <p className="text-subtle-foreground text-[13px]/5">
-          Misafir başvurusu (hesabı olmayanlar):{' '}
+          Misafir başvurusu:{' '}
           <a
             className="text-skylab-300 hover:text-foreground"
             href={event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}

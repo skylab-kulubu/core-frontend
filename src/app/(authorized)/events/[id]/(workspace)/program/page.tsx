@@ -535,7 +535,7 @@ export default function EventProgramPage() {
                 checked={feedbackAutoSend}
                 onChange={setFeedbackAutoSend}
                 label="Oturum bitince gönder"
-                hint="Bitişten 2 saat sonra oturumun yoklamasına posta gider; cevaplamayanlara 3 gün sonra bir hatırlatma."
+                hint="Bitişten 2 saat sonra katılanlara e-postayla gider."
               />
             </div>
           ) : null}
@@ -596,7 +596,7 @@ export default function EventProgramPage() {
             alias={feedbackSession.feedbackFormAlias}
             count={feedbackCount}
             canSend={canMutate}
-            description="Oturumun yoklamasına kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; oturum bitince yeniden gitmez."
+            description="Katılanlara kişiye özel bağlantıyla bir kez gider."
             send={() => sessionsApi.sendFeedback(feedbackSession.id)}
           />
         ) : null}
@@ -645,7 +645,7 @@ export default function EventProgramPage() {
                 setCheckInSession(null);
                 await reload();
               } catch (err) {
-                setDeskError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
+                setDeskError(coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN));
               }
             })}
           >

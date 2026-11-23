@@ -12,8 +12,8 @@ import { useNotify } from '@/lib/ui/use-notify';
 type SessionStyle = 'all' | 'self';
 
 const STYLE_HINT: Record<SessionStyle, string> = {
-  all: 'Skyforms’ta matris sorusu: satırlar oturumlar, sütunlar 1–5 ve “Katılmadım”.',
-  self: 'Skyforms’ta “Hangi oturumlara katıldın?” çoklu seçim sorusu: seçenekler oturumlar. Her oturumun sorusu o seçime bağlı gösterilir.',
+  all: 'Tek tablo: her oturum için 1–5 ve “Katılmadım”.',
+  self: 'Önce “Hangi oturumlara katıldın?”, sonra yalnız seçilen oturumlar sorulur.',
 };
 
 /**

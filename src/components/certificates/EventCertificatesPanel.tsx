@@ -379,9 +379,7 @@ export function EventCertificatesPanel({
           ) : null}
           {canIssue ? (
             <div className="space-y-3">
-              <p className="text-secondary-foreground text-sm font-semibold">
-                Manuel sertifika ver
-              </p>
+              <p className="text-secondary-foreground text-sm font-semibold">Elle sertifika ver</p>
               <label className="block space-y-1.5">
                 <FieldLabel>Katılımcı</FieldLabel>
                 <Select value={ticketId} onChange={(event) => setTicketId(event.target.value)}>

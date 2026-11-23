@@ -131,9 +131,7 @@ function EventsPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="Etkinlikler"
-        description={
-          ownerFilter ? `Sahip ekip: ${ownerFilter}` : 'Liste veya takvim. Yeni etkinlik ekle.'
-        }
+        description={ownerFilter ? `Sahip ekip: ${ownerFilter}` : undefined}
         actions={
           <div className="flex items-center gap-2">
             <FilterPills
@@ -208,9 +206,6 @@ function EventsPageContent() {
                     }),
             })}
             emptyIcon={Inbox}
-            emptyDescription={
-              canCreate ? 'Yeni etkinlik ekle veya filtreyi temizle.' : 'Bu dilimde etkinlik yok.'
-            }
             emptyAction={
               canCreate && !query && statusFilter === 'all' ? (
                 <SaveButton type="button" onClick={openNewEvent}>

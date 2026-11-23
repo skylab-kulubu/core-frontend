@@ -46,7 +46,7 @@ export function EventFeedbackPanel({ event, canSend }: { event: CoreEvent; canSe
       alias={event.feedbackFormAlias}
       count={count}
       canSend={canSend}
-      description="Yoklaması alınanlara kişiye özel bağlantıyla posta gider. Form bir kez gönderilir; etkinlik bitince yeniden gitmez."
+      description="Katılanlara kişiye özel bağlantıyla bir kez gider."
       send={() => eventsApi.sendFeedback(event.id)}
     />
   );

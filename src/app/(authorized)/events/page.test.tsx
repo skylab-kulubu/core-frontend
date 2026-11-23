@@ -220,7 +220,7 @@ describe('Etkinlikler listesi', () => {
     expect(identityApi.getUser).toHaveBeenCalledWith('p2');
     expect(identityApi.getUser).not.toHaveBeenCalledWith('p1');
     const box = within(dialog).getByRole('checkbox', {
-      name: 'Taslakta yazılan 3 kişiye "biletin hazır" postası gönder',
+      name: 'Taslakta eklenen 3 kişiye bilet e-postası gönder',
     });
     expect(box).toBeChecked();
     expect(box).toHaveAccessibleDescription('Ali Kaya, Ece Su ve 1 kişi daha');
@@ -243,7 +243,7 @@ describe('Etkinlikler listesi', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği yayınla' });
     expect(
       within(dialog).getByRole('checkbox', {
-        name: 'Taslakta yazılan kişilere "biletin hazır" postası gönder',
+        name: 'Taslakta eklenen kişilere bilet e-postası gönder',
       }),
     ).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Yayınla' }));

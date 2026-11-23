@@ -462,7 +462,7 @@ export function EventWorkspace({
             coverImageId: saved.coverImageId ?? nextForm.coverImageId,
           });
           clearEventDraft(sessionStorage, window.location.href);
-          setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
+          setHandoffNote('Form bağlandı.');
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
           setEditInUse(formInUseOf(err));
@@ -587,7 +587,7 @@ export function EventWorkspace({
   useChromeCrumbName(`/events/${id}`, event?.name);
 
   if (error && !event) {
-    return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
+    return <StateCard title={error} tone="danger" />;
   }
   if (!event) return <PageSkeleton variant="workspace" />;
 
@@ -685,7 +685,7 @@ export function EventWorkspace({
         },
       );
     } catch (err) {
-      setError(coreProblemMessage(err, 'Skymail listesi yenilenemedi'));
+      setError(coreProblemMessage(err, 'E-posta listesi hazırlanamadı'));
     } finally {
       setMailing(false);
     }
@@ -790,7 +790,7 @@ export function EventWorkspace({
               {can.canTickets ? (
                 <ActionButton
                   icon={Mail}
-                  label="Etkinlik katılımcılarına mail"
+                  label="Katılımcılara e-posta"
                   disabled={mailing}
                   onClick={() => void mailApplicants()}
                 />
@@ -833,7 +833,7 @@ export function EventWorkspace({
                       href={closeFormHref}
                       className="text-skylab-300 text-[13px]/5 hover:underline"
                     >
-                      SkyForms&apos;ta formu kapat
+                      Formu kapat
                     </a>
                   ) : null}
                 </div>

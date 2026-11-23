@@ -89,9 +89,7 @@ export function GuestDoorQr({ sessionId }: { sessionId: string }) {
             </p>
           ) : null}
           {src ? (
-            <p className="text-secondary-foreground text-sm">
-              Misafirler bu QR’ı telefon kamerasıyla okutur; QR kısa sürede kendiliğinden yenilenir.
-            </p>
+            <p className="text-secondary-foreground text-sm">QR kendiliğinden yenilenir.</p>
           ) : null}
         </div>
       ) : null}

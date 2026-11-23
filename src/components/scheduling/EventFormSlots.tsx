@@ -217,15 +217,12 @@ export function EventFormSlots({
             {slot.key === APPLY_SLOT_KEY ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
-                <p className="text-subtle-foreground text-[13px]/5">
-                  Giriş yapmış kişiler hesaplarıyla kaydolur. Bu link hesabı olmayanlar veya hesap
-                  açmak istemeyenler içindir.
-                </p>
+                <p className="text-subtle-foreground text-[13px]/5">Hesabı olmayanlar için.</p>
               </div>
             ) : isFeedbackSlotKey(slot.key) ? (
               <div className="space-y-1">
                 <FieldLabel>{slot.label}</FieldLabel>
-                <p className="text-subtle-foreground text-[13px]/5">Cevapları kayıt yazmaz.</p>
+                <p className="text-subtle-foreground text-[13px]/5">Yanıtlar kayıt açmaz.</p>
               </div>
             ) : (
               <Field
@@ -247,14 +244,14 @@ export function EventFormSlots({
               name={`form-mode-${slot.key}`}
               value="external"
               checked={slot.mode === 'external'}
-              label="Harici URL"
+              label="Başka adres"
               onPick={() => patchSlot(slot.key, { mode: 'external' })}
             />
             <ModeRadio
               name={`form-mode-${slot.key}`}
               value="skyforms"
               checked={slot.mode === 'skyforms'}
-              label="Skyforms’ta oluştur"
+              label="Yeni form"
               onPick={() => patchSlot(slot.key, { mode: 'skyforms' })}
             />
           </div>
@@ -266,9 +263,7 @@ export function EventFormSlots({
                   onClick={() => onLeaveToSkyforms?.()}
                   className="border-skylab-400/40 bg-skylab-500/10 text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
                 >
-                  {skyformsFormId(slot.url, origin)
-                    ? 'Daha önceki taslağa git'
-                    : 'Skyforms’ta oluştur'}
+                  {skyformsFormId(slot.url, origin) ? 'Taslağa git' : 'Form oluştur'}
                 </a>
               ) : null}
               {skyformsFormId(slot.url, origin) ? (
@@ -276,17 +271,9 @@ export function EventFormSlots({
                   checked={gates[slot.key] === 'open'}
                   onChange={(open) => void toggleGate(slot, open)}
                   label={gates[slot.key] === 'open' ? 'Form açık' : 'Form kapalı'}
-                  hint={
-                    gates[slot.key] === 'loading'
-                      ? 'Skyforms durumu okunuyor…'
-                      : 'Kapalıyken yanıt kabul etmez. Durum Skyforms’taki yayın alanıdır.'
-                  }
+                  hint={gates[slot.key] === 'loading' ? 'Okunuyor…' : 'Kapalı form yanıt almaz.'}
                 />
               ) : null}
-              <p className="text-subtle-foreground text-[13px]/5">
-                Skyforms’ta kaydet, sonra etkinliğe dön. Form adresi bu alana yazılır; kısa link
-                skyl.app’den basılır. Yeni taslak açık gelir.
-              </p>
             </div>
           ) : null}
           <label className="block space-y-1">
@@ -294,7 +281,7 @@ export function EventFormSlots({
             <Field
               type="url"
               value={slot.url}
-              placeholder={slot.mode === 'skyforms' ? 'Skyforms form URL' : 'https://'}
+              placeholder={slot.mode === 'skyforms' ? 'Form adresi' : 'https://'}
               onChange={(e) => patchSlot(slot.key, { url: e.target.value })}
               onBlur={() => {
                 if (slot.url.trim() && !slot.alias.trim() && !slot.urlId) {
@@ -420,7 +407,7 @@ function FormInUseNotice({
           onClick={() => onLeaveToSkyforms?.()}
           className="border-skylab-400/40 bg-skylab-500/10 text-skylab-300 hover:border-skylab-300/60 hover:bg-skylab-400/20 inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium"
         >
-          Skyforms’ta bu formdan yeni form aç
+          Bu formdan yeni form aç
         </a>
       ) : null}
     </div>

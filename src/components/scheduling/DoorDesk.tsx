@@ -46,7 +46,7 @@ type RecentCheckIn = {
 const doorSchema = z
   .object({
     eventId: z.string().min(1, 'Etkinlik seçin'),
-    sessionId: z.string().min(1, 'Girişin yazılacağı oturumu seçin'),
+    sessionId: z.string().min(1, 'Giriş oturumunu seç'),
     personId: z.string(),
     email: z.string().trim(),
   })
@@ -185,7 +185,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   // Never blocks: says why nothing is chosen, or that the chosen session is not running now.
   const sessionNote =
     !sessionId && sessions.length > 0
-      ? 'Girişin yazılacağı oturumu seçin: şu an süren tek bir oturum yok.'
+      ? 'Şu an süren oturum yok; giriş oturumunu seç.'
       : doorSessionTiming(selectedSession);
 
   // Back to the event on top: the door is reached from it, and left for it
@@ -220,7 +220,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   if (error && events.length === 0) {
     return shell(
       <div role="alert">
-        <StateCard title={error} description="Bağlantıyı kontrol edip tekrar deneyin." />
+        <StateCard title={error} description="Bağlantını denetleyip tekrar dene." />
       </div>,
     );
   }
@@ -278,7 +278,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             resetField('email');
           } catch (err) {
             setSuccessLine(null);
-            setCheckInError(coreProblemMessage(err, 'Check-in yapılamadı', ALREADY_CHECKED_IN));
+            setCheckInError(coreProblemMessage(err, 'Giriş yazılamadı', ALREADY_CHECKED_IN));
           }
         })}
       >
@@ -341,14 +341,16 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             </span>
           ) : null}
         </label>
-        <SaveButton disabled={isSubmitting}>{isSubmitting ? 'Yazılıyor…' : 'Check-in'}</SaveButton>
+        <SaveButton disabled={isSubmitting}>
+          {isSubmitting ? 'Yazılıyor…' : 'Girişi yaz'}
+        </SaveButton>
         {checkInError ? (
           <p role="alert" className="text-destructive text-sm">
             {checkInError}
           </p>
         ) : null}
         {/* Under the button, in view on a phone; always mounted so each line is read out */}
-        <div role="status" aria-label="Check-in sonucu" className="flex items-center gap-2">
+        <div role="status" aria-label="Giriş sonucu" className="flex items-center gap-2">
           {successLine ? (
             <>
               <StatusChip kind="checked-in" />
@@ -358,13 +360,9 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         </div>
       </form>
       <GuestDoorQr sessionId={sessionId} />
-      <p
-        role="status"
-        aria-label="Canlı check-in sayısı"
-        className="text-secondary-foreground text-sm"
-      >
+      <p role="status" aria-label="Giren sayısı" className="text-secondary-foreground text-sm">
         {sessionId
-          ? `${selectedSession?.title ?? 'Bu oturum'} · canlı toplam: ${activityTotal}`
+          ? `${selectedSession?.title ?? 'Bu oturum'} · giren: ${activityTotal}`
           : 'Oturum seçilmedi'}
       </p>
       <ListToolbar
@@ -385,7 +383,6 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             query,
           }),
         })}
-        emptyDescription="Başarılı kayıtlar burada birikir."
         emptyIcon={CheckCircle2}
       >
         {recent

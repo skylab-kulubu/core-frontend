@@ -88,7 +88,7 @@ const KINDS: Record<EventMediaKind, KindInfo> = {
 function problemMessage(error: unknown): string {
   if (error instanceof UploadError) return error.message;
   if (error instanceof ProblemError) return uploadErrorMessage(error.code, error.fields);
-  return 'İşlem tamamlanamadı. Lütfen yeniden dene.';
+  return 'İşlem tamamlanamadı. Tekrar dene.';
 }
 
 /**
@@ -321,7 +321,7 @@ function MediaList({
         <>
           {unavailable ? (
             <Notice tone="info" title={`${info.title} şu an yüklenemiyor`}>
-              Bu ortamda henüz açık değil. Açıldığında buradan yükleyebileceksin.
+              Bu ortamda henüz açık değil.
             </Notice>
           ) : null}
           {waiting.length ? (

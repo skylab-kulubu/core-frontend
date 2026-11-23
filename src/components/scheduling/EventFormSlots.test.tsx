@@ -142,9 +142,7 @@ describe('EventFormSlots form in use (409 form_in_use)', () => {
       screen.getByRole('link', { name: 'Gecekodu 2025 (yeni sekmede açılır)' }),
     ).toHaveAttribute('href', '/events/e9');
     const href = new URL(
-      screen
-        .getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' })
-        .getAttribute('href') ?? '',
+      screen.getByRole('link', { name: 'Bu formdan yeni form aç' }).getAttribute('href') ?? '',
     );
     expect(href.pathname).toBe('/admin/forms/new-form');
     expect(href.searchParams.get('fromForm')).toBe(formId);
@@ -162,9 +160,7 @@ describe('EventFormSlots form in use (409 form_in_use)', () => {
       />,
     );
     expect(screen.getByText('Bu form başka bir yerde kullanılıyor.')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Bu formdan yeni form aç' })).toBeInTheDocument();
   });
 
   it('says nothing on a slot with another form, and offers no Skyforms copy of an outside form', () => {
@@ -189,8 +185,6 @@ describe('EventFormSlots form in use (409 form_in_use)', () => {
       />,
     );
     expect(screen.getByText(/Bu form şu etkinlikte kullanılıyor:/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: 'Skyforms’ta bu formdan yeni form aç' }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Bu formdan yeni form aç' })).not.toBeInTheDocument();
   });
 });
