@@ -349,8 +349,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         setTotal((count) => Math.max(0, count - 1));
         void refresh();
       } catch (err) {
-        if (shownSession.current !== session) return;
-        setOutcome({ kind: 'refused', text: coreProblemMessage(err, 'Geri alınamadı') });
+        if (shownSession.current === session) {
+          setOutcome({ kind: 'refused', text: coreProblemMessage(err, 'Geri alınamadı') });
+        }
+        // The hook says it on a toast when the desk is already gone
+        throw err;
       }
     });
   }

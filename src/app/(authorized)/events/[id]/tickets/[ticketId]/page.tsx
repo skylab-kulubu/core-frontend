@@ -198,6 +198,8 @@ export default function TicketDetailPage({
           await reloadTicket();
         } catch (err) {
           setActionError(coreProblemMessage(err, 'Geri alınamadı'));
+          // The hook says it on a toast when the page is already gone
+          throw err;
         }
       },
     );
