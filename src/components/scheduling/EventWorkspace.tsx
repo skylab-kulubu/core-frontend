@@ -11,45 +11,24 @@ import {
 } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  IconButton,
-  MenuItem,
-  Notice,
-} from '@skylab-kulubu/skylcn-ui';
-import {
-  Ban,
-  Copy,
-  DoorClosed,
-  DoorOpen,
-  FileEdit,
-  Mail,
-  MoreHorizontal,
-  Pencil,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react';
+import { Button, MenuItem, Notice } from '@skylab-kulubu/skylcn-ui';
+import { Ban, Copy, DoorClosed, DoorOpen, FileEdit, RotateCcw, Trash2 } from 'lucide-react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
-import { ActionButton } from '@/components/chrome/ActionButton';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
-import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
-import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
+import { EventShell } from '@/components/scheduling/overview/EventShell';
 import {
   eventStatusActions,
   useEventStatusActions,
   useEventStatusRights,
 } from '@/components/scheduling/use-event-status-actions';
 import { useAuth } from '@/context/AuthContext';
+import { certificatesApi, type CertificateEventSummary } from '@/lib/api/certificates';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -87,12 +66,7 @@ import {
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
-import {
-  eventDisplayStatus,
-  eventFormIssue,
-  eventListSubtitle,
-  eventStatusOf,
-} from '@/lib/events-view';
+import { eventDisplayStatus, eventFormIssue, eventStatusOf } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { linkSessionFeedbackForm, sessionIdOfFeedbackSlot } from '@/lib/session-feedback';
@@ -241,6 +215,8 @@ export type EventWorkspaceValue = EventPermissions & {
   ticketsFailed: boolean;
   /** The competitors could not be read. */
   competitorsFailed: boolean;
+  /** The event's certificate figures for its overview; null until read, or when not readable. */
+  certificateSummary: CertificateSummaryRead;
   setError: (error: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
@@ -248,6 +224,18 @@ export type EventWorkspaceValue = EventPermissions & {
   mailApplicants: (ticketIds?: string[]) => Promise<void>;
   editor: EventEditorState;
 };
+
+/** The certificate figures, and whether reading them failed. */
+export type CertificateSummaryRead = { summary: CertificateEventSummary | null; failed: boolean };
+
+const NO_SUMMARY: CertificateSummaryRead = { summary: null, failed: false };
+
+function readCertificateSummary(eventId: string): Promise<CertificateSummaryRead> {
+  return certificatesApi.summary(eventId).then(
+    (summary) => ({ summary, failed: false }),
+    () => ({ summary: null, failed: true }),
+  );
+}
 
 /** A read's rows, and whether it was read (false: it failed and the rows are empty). */
 type Settled<T> = { rows: T[]; ok: boolean };
@@ -329,6 +317,7 @@ export function EventWorkspace({
   // Lists core did not answer: their tabs say so with a retry, not an empty list
   const [ticketsFailed, setTicketsFailed] = useState(false);
   const [competitorsFailed, setCompetitorsFailed] = useState(false);
+  const [certificateSummary, setCertificateSummary] = useState<CertificateSummaryRead>(NO_SUMMARY);
   const [optionsFailed, setOptionsFailed] = useState({ teams: false, seasons: false });
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -390,6 +379,8 @@ export function EventWorkspace({
     // Awaited once the event is read: its failure then fails the load, as before
     programRead.catch(() => undefined);
     const competitorsRead = settled(competitorsApi.listByEvent(id));
+    // YK and ADMIN read every event's certificates: their figures start with the event
+    const summaryFirst = privileged ? readCertificateSummary(id) : null;
     const optionsRead: OptionReads = {
       teams: settled(teamsApi.list()),
       seasons: privileged ? settled(seasonsApi.list()) : null,
@@ -433,6 +424,15 @@ export function EventWorkspace({
               })
           : [],
       );
+      // Anyone else once the event names its team, beside the tickets; not awaited by the load
+      void (
+        summaryFirst ??
+        teamAllows(
+          ev.ownerTeam,
+          'certificate.read',
+          canUseCertificateWorkspace(groups, roles, ev.ownerTeam),
+        ).then((allowed) => (allowed ? readCertificateSummary(id) : NO_SUMMARY))
+      ).then(setCertificateSummary);
       const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       resetEditor(nextForm);
@@ -705,6 +705,7 @@ export function EventWorkspace({
     setError,
     ticketsFailed,
     competitorsFailed,
+    certificateSummary,
     reload: load,
     mailApplicants,
     editor: {
@@ -738,139 +739,108 @@ export function EventWorkspace({
   // Publishing from the edit page would publish the saved event, not what is typed
   const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
 
+  const pages = {
+    participants: can.canTickets,
+    competition: showsCompetitionTab(can.canCompetitors, competitors.length),
+    door: can.canDesk,
+    certificates: can.canCertificates,
+    content: can.canMutate || Boolean(event.videos?.length || event.files?.length),
+    edit: can.canMutate,
+    counts: {
+      participants: can.canTickets && ticketsLoaded ? tickets.length : undefined,
+      program: sessions.length || undefined,
+      competition: competitors.length || undefined,
+      content: (event.files?.length ?? 0) + (event.videos?.length ?? 0) || undefined,
+    },
+  };
+
   return (
     <EventWorkspaceContext.Provider value={workspace}>
-      <div className="space-y-6">
-        <PageHeader
-          cover={
-            event.coverImageUrl ? (
-              <img src={publicMediaUrl(event.coverImageUrl)} alt="" />
-            ) : undefined
-          }
-          title={event.name}
-          description={eventListSubtitle(event)}
-          meta={
-            <>
-              <StatusChip kind={status} />
-              {event.active && event.registrationOpen === false ? (
-                <StatusChip kind="neutral" label="Başvuru kapalı" />
-              ) : null}
-              {can.canTickets ? (
-                <StatusChip kind="neutral" label={`${tickets.length} başvuru`} />
-              ) : null}
-            </>
-          }
-          actions={
-            <>
-              {rights.canUpdate && offers.publish ? (
-                <SaveButton
-                  type="button"
-                  disabled={unsavedEdit}
-                  title={unsavedEdit ? 'Önce kaydet' : undefined}
-                  onClick={() =>
-                    void statusActions.publish(
-                      event,
-                      can.canTickets && ticketsLoaded ? tickets : undefined,
-                      personById,
-                    )
-                  }
-                >
-                  Yayınla
-                </SaveButton>
-              ) : null}
-              {can.canMutate && !onEditPage ? (
-                <ActionButton
-                  icon={Pencil}
-                  label="Düzenle"
-                  showLabel
-                  iconOnlyOnPhone
-                  href={eventEditHref(event.id)}
-                />
-              ) : null}
-              {can.canTickets ? (
-                <ActionButton
-                  icon={Mail}
-                  label="Katılımcılara e-posta"
-                  disabled={mailing}
-                  onClick={() => void mailApplicants()}
-                />
-              ) : null}
-              {menuItems.length ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <IconButton icon={MoreHorizontal} variant="ghost" label="Diğer eylemler" />
-                    }
-                  />
-                  <DropdownMenuContent align="end">{menuItems}</DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
-            </>
-          }
-        />
-        {status === 'cancelled' ? (
-          <Notice
-            tone="danger"
-            title={
-              cancelledOn(event.cancelledAt)
-                ? `${cancelledOn(event.cancelledAt)} tarihinde iptal edildi.`
-                : 'İptal edildi.'
-            }
-            action={
-              rights.canUpdate || closeFormHref ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {rights.canUpdate ? (
-                    <Button
-                      className={BUTTON_TEXT}
-                      size="sm"
-                      onClick={() => statusActions.askUncancel(event)}
-                    >
-                      İptali geri al
-                    </Button>
-                  ) : null}
-                  {closeFormHref ? (
-                    <a
-                      href={closeFormHref}
-                      className="text-skylab-300 text-[13px]/5 hover:underline"
-                    >
-                      Formu kapat
-                    </a>
-                  ) : null}
-                </div>
-              ) : undefined
-            }
-          >
-            {event.cancelReason || undefined}
-          </Notice>
-        ) : null}
-        {copySkipped.length ? (
-          <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
-            {copySkippedLines(copySkipped).map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-          </Notice>
-        ) : null}
-        {onEditPage ? null : (
-          <EventWorkspaceNav
-            eventId={event.id}
-            active={eventTabFromPath(pathname ?? '') ?? 'overview'}
-            canSeeParticipants={can.canTickets}
-            canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
-            canUseDoor={can.canDesk}
-            canSeeCertificates={can.canCertificates}
-            canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
-          />
-        )}
-        {error ? (
-          <Notice tone="danger" onDismiss={() => setError(null)}>
-            {error}
-          </Notice>
-        ) : null}
-        {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
+      <EventShell
+        event={event}
+        coverSrc={event.coverImageUrl ? publicMediaUrl(event.coverImageUrl) : undefined}
+        active={onEditPage ? null : (eventTabFromPath(pathname ?? '') ?? 'overview')}
+        pages={pages}
+        registrations={can.canTickets ? tickets.length : undefined}
+        publish={
+          rights.canUpdate && offers.publish ? (
+            <SaveButton
+              type="button"
+              size="sm"
+              disabled={unsavedEdit}
+              title={unsavedEdit ? 'Önce kaydet' : undefined}
+              onClick={() =>
+                void statusActions.publish(
+                  event,
+                  can.canTickets && ticketsLoaded ? tickets : undefined,
+                  personById,
+                )
+              }
+            >
+              Yayınla
+            </SaveButton>
+          ) : null
+        }
+        onMail={can.canTickets ? () => void mailApplicants() : undefined}
+        mailing={mailing}
+        menuItems={menuItems}
+        notices={
+          <>
+            {status === 'cancelled' ? (
+              <Notice
+                tone="danger"
+                title={
+                  cancelledOn(event.cancelledAt)
+                    ? `${cancelledOn(event.cancelledAt)} tarihinde iptal edildi.`
+                    : 'İptal edildi.'
+                }
+                action={
+                  rights.canUpdate || closeFormHref ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {rights.canUpdate ? (
+                        <Button
+                          className={BUTTON_TEXT}
+                          size="sm"
+                          onClick={() => statusActions.askUncancel(event)}
+                        >
+                          İptali geri al
+                        </Button>
+                      ) : null}
+                      {closeFormHref ? (
+                        <a
+                          href={closeFormHref}
+                          className="text-skylab-300 text-[13px]/5 hover:underline"
+                        >
+                          Formu kapat
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : undefined
+                }
+              >
+                {event.cancelReason || undefined}
+              </Notice>
+            ) : null}
+            {copySkipped.length ? (
+              <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
+                {copySkippedLines(copySkipped).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </Notice>
+            ) : null}
+            {error ? (
+              <Notice tone="danger" onDismiss={() => setError(null)}>
+                {error}
+              </Notice>
+            ) : null}
+            {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
+          </>
+        }
+      >
         {children}
-        {statusActions.dialog}
-        {copy.dialog}
-      </div>
+      </EventShell>
+      {statusActions.dialog}
+      {copy.dialog}
     </EventWorkspaceContext.Provider>
   );
 }
