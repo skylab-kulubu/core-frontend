@@ -35,6 +35,7 @@ export function TicketDetailView({
   event,
   sessions,
   groups = GROUPS,
+  headings = true,
 }: {
   ticket: Ticket;
   people: Map<string, Person>;
@@ -42,6 +43,8 @@ export function TicketDetailView({
   sessions?: TicketDetailContext['sessions'];
   /** The groups to show, in order; all four by default. */
   groups?: readonly TicketDetailGroup[];
+  /** Off inside a card that already names the group. */
+  headings?: boolean;
 }) {
   const fields = ticketDetailFields(ticket, people, event, { sessions }).filter(
     (field) => !(OPTIONAL.has(field.label) && field.value === '—'),
@@ -53,7 +56,7 @@ export function TicketDetailView({
         if (!rows.length) return null;
         return (
           <section key={group} aria-label={group} className="space-y-2">
-            <h3 className="text-foreground text-sm font-semibold">{group}</h3>
+            {headings ? <h3 className="text-foreground text-sm font-semibold">{group}</h3> : null}
             <dl className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
               {rows.map((field, index) => (
                 <div key={`${field.label}-${index}`} className="contents">

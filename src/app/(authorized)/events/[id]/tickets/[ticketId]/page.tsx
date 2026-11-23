@@ -323,7 +323,17 @@ export default function TicketDetailPage({
                 people={personById}
                 event={event}
                 sessions={sessions.map((session) => ({ id: session.id, title: session.title }))}
-                groups={['Formdaki diğer cevaplar', 'Kişi']}
+                groups={['Formdaki diğer cevaplar']}
+                headings={false}
+              />
+            </ObjectCard>
+            <ObjectCard title="Kişi">
+              <TicketDetailView
+                ticket={ticket}
+                people={personById}
+                event={event}
+                groups={['Kişi']}
+                headings={false}
               />
             </ObjectCard>
           </div>

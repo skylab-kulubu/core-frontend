@@ -444,7 +444,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
                 inputMode="search"
                 autoComplete="off"
                 enterKeyHint="go"
-                placeholder="Ad, e-posta ya da bilet kodu"
+                placeholder="Ad, e-posta, bilet kodu"
                 value={query}
                 onChange={(change) => setQuery(change.target.value)}
                 disabled={!sessionId}
