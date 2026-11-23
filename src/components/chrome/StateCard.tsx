@@ -3,6 +3,7 @@
 import { StateCard as Card } from '@skylab-kulubu/skylcn-ui';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
 /** A loading, empty or error state; skylcn-ui's StateCard with the prop names the pages use. */
 export function StateCard({
@@ -21,7 +22,14 @@ export function StateCard({
   children?: ReactNode;
 }) {
   return (
-    <Card title={title} description={description} icon={Icon} loading={isLoading} tone={tone}>
+    <Card
+      title={title}
+      // 13px: skylcn-ui's state card writes its line at 12px
+      description={description ? <span className={TEXT_SECONDARY}>{description}</span> : undefined}
+      icon={Icon}
+      loading={isLoading}
+      tone={tone}
+    >
       {children}
     </Card>
   );

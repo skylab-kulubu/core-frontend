@@ -89,7 +89,7 @@ export default function EventParticipantsPage() {
     const key = crypto.randomUUID();
     confirm({
       title: `${doorTicketName(ticket, personById)}: bağlantı yenilensin mi?`,
-      description: 'Eski bağlantı ve QR çalışmaz; yenisi postayla gider.',
+      description: 'Eski bağlantı ve QR çalışmaz; yenisi e-postayla gider.',
       actionLabel: 'Bağlantıyı yenile',
       failure: (err) => ticketSendProblem(err, 'Bağlantı yenilenemedi'),
       onConfirm: async () => {

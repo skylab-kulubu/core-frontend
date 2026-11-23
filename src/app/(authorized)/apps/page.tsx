@@ -11,6 +11,7 @@ import { useCapabilities } from '@/lib/capabilities-context';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { listStatus } from '@/lib/list-status';
 import { useAppCan } from '@/lib/use-app-can';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 /** Uygulamalar: Entra's Enterprise apps list (core /v1/apps). */
 export default function AppsPage() {
@@ -29,15 +30,12 @@ export default function AppsPage() {
       .finally(() => setLoading(false));
   }, [canRead]);
 
-  if (capabilities.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
+  if (capabilities.status === 'loading') return <PageSkeleton />;
   if (!canRead) return <StateCard title="Uygulama atamaları açık değil" />;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Uygulamalar"
-        description="Hangi ekip, alt ekip ya da kişinin hangi uygulamaya gireceği."
-      />
+      <PageHeader title="Uygulamalar" />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}

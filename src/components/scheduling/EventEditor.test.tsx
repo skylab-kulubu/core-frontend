@@ -49,7 +49,7 @@ describe('EventEditor door staff', () => {
     expect(identityApi.getUser).toHaveBeenCalledWith('u-staff');
 
     await user.click(screen.getByRole('button', { name: 'Kişi ekle' }));
-    expect(screen.getByText('En az 2 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 2 karakter yaz')).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'A');
     expect(identityApi.listUsers).not.toHaveBeenCalled();
 
@@ -98,7 +98,7 @@ describe('EventEditor feedback form', () => {
       'aria-checked',
       'true',
     );
-    expect(screen.getByText('Cevapları kayıt yazmaz.')).toBeInTheDocument();
+    expect(screen.getByText('Yanıtlar kayıt açmaz.')).toBeInTheDocument();
     // The feedback form is fixed: one "Form ekle", for the Form slots alone
     expect(screen.getAllByText('Form ekle')).toHaveLength(1);
 
@@ -109,11 +109,11 @@ describe('EventEditor feedback form', () => {
       expect.objectContaining({ feedbackMode: 'event_with_sessions' }),
     );
 
-    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Skyforms’ta oluştur' });
+    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Yeni form' });
     await user.click(feedbackSkyforms!);
     // Skyforms brings the new form back to the feedback field
     const links = screen
-      .getAllByRole('link', { name: 'Skyforms’ta oluştur' })
+      .getAllByRole('link', { name: 'Form oluştur' })
       .map((row) => new URL(row.getAttribute('href') ?? ''))
       .map((url) => new URL(url.searchParams.get('returnTo') ?? '').searchParams.get('formSlot'));
     expect(links).toContain('feedback');

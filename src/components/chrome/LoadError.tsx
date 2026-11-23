@@ -2,6 +2,7 @@
 
 import { Button, Notice } from '@skylab-kulubu/skylcn-ui';
 import { useState } from 'react';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
  * Something that should be listed could not be read: said where the list
@@ -26,6 +27,7 @@ export function LoadError({
       action={
         onRetry ? (
           <Button
+            className={BUTTON_TEXT}
             size="sm"
             pending={retrying}
             onClick={async () => {

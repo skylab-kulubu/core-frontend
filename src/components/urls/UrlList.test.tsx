@@ -137,7 +137,7 @@ describe('UrlList', () => {
     const form = within(rowOf('basvuru'));
     const event = within(rowOf('gecekodu'));
     expect(form.getByRole('button', { name: 'Düzenle' })).toBeDisabled();
-    expect(form.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+    expect(form.getByText('Formda yönetiliyor')).toBeInTheDocument();
     expect(event.getByRole('button', { name: 'Düzenle' })).toBeDisabled();
     expect(event.getByText('Etkinlikte yönetiliyor')).toBeInTheDocument();
   });
@@ -184,7 +184,7 @@ describe('UrlList', () => {
       />,
     );
     expect(screen.getByText('Form')).toBeInTheDocument();
-    expect(screen.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+    expect(screen.getByText('Formda yönetiliyor')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument();
   });
@@ -200,6 +200,38 @@ describe('UrlList', () => {
         {...handlers}
       />,
     );
-    expect(screen.getByText('Eşleşen kısa URL yok.')).toBeInTheDocument();
+    expect(screen.getByText('Eşleşen kısa link yok')).toBeInTheDocument();
+  });
+});
+
+describe('UrlList on a phone', () => {
+  it('puts the row actions in one menu that does what the buttons do', async () => {
+    const user = userEvent.setup();
+    render(
+      <UrlList title="Linklerim" items={[row]} loading={false} failed={false} {...handlers} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'https://skyl.app/hack: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'QR' }));
+    expect(handlers.onQr).toHaveBeenCalledWith(row);
+  });
+
+  it('keeps a managed link closed to editing in the menu too', async () => {
+    const user = userEvent.setup();
+    render(
+      <UrlList title="Tümü" items={[eventRow]} loading={false} failed={false} {...handlers} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'https://skyl.app/gecekodu: eylemler' }));
+    const edit = await screen.findByRole('menuitem', { name: /^Düzenle/ });
+    expect(edit).toHaveAttribute('aria-disabled', 'true');
+    // The phone has no hover: the menu says why
+    expect(edit).toHaveTextContent(/yönetiliyor/);
+  });
+});
+
+describe('UrlList kind and note on a phone', () => {
+  it('leads the line under the link with the kind and the note', () => {
+    render(<UrlList title="Tümü" items={[formRow]} loading={false} failed={false} {...handlers} />);
+    const phoneMeta = within(rowOf('basvuru')).getByText(/Form · Formda yönetiliyor ·/);
+    expect(phoneMeta).toHaveClass('sm:hidden');
   });
 });

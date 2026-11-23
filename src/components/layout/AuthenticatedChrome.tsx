@@ -1,6 +1,11 @@
 'use client';
 
-import { AppShell, AppShellActions, Breadcrumbs } from '@skylab-kulubu/skylcn-ui';
+import {
+  AppShell,
+  AppShellActions,
+  Breadcrumbs,
+  ControlSizeProvider,
+} from '@skylab-kulubu/skylcn-ui';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { NewEventProvider } from '@/components/scheduling/NewEventProvider';
@@ -9,10 +14,11 @@ import { CapabilitiesProvider } from '@/lib/capabilities-context';
 import { chromeCrumbs, chromeDocumentTitle } from '@/lib/chrome-breadcrumbs';
 import { isFocusPath } from '@/lib/event-workspace';
 import type { UserDto } from '@/types/api';
-import { AdminSearch } from './AdminSearch';
+import { AdminSearch, SearchTrigger } from './AdminSearch';
 import { AdminSidebar } from './AdminSidebar';
 import { ChromeCrumbNamesProvider, useChromeCrumbNames } from './chrome-crumb-names';
-import { EnvironmentStrip } from './EnvironmentStrip';
+import { EnvironmentBadge, EnvironmentStrip } from './EnvironmentStrip';
+import { UserMenu } from './UserMenu';
 import { useNavigationContext } from './use-navigation-context';
 
 type AuthenticatedChromeProps = Readonly<{
@@ -22,6 +28,26 @@ type AuthenticatedChromeProps = Readonly<{
 
 function ChromeTrail({ pathname }: { pathname: string }) {
   return <Breadcrumbs items={chromeCrumbs(pathname, useChromeCrumbNames())} />;
+}
+
+/**
+ * The top bar's row, as in the Azure portal and Entra: the trail on the left and, from md,
+ * the search box in the middle. The account sits after it (AppShellActions). On phones the
+ * row is the trail alone; the search is a magnifier beside the account.
+ *
+ * skylcn-ui's AppShell header takes one node; a centred search slot belongs there (Kaan).
+ */
+function TopBar({ pathname }: { pathname: string }) {
+  return (
+    <div className="grid min-w-0 items-center gap-3 md:grid-cols-[minmax(0,1fr)_minmax(14rem,26rem)_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <ChromeTrail pathname={pathname} />
+      </div>
+      <div className="hidden md:block">
+        <SearchTrigger />
+      </div>
+    </div>
+  );
 }
 
 /** Names the browser tab after the page, its record's name once the page has read it. */
@@ -54,27 +80,43 @@ export function AuthenticatedChrome({ children, sidebarUser }: AuthenticatedChro
 function SignedInChrome({ children, current }: { children: React.ReactNode; current: UserDto }) {
   const pathname = usePathname() || '/dashboard';
   const navigationContext = useNavigationContext(current);
+  // Inputs and selects at skylcn-ui's lg size: 14px text, the panel's body size
+  const page = <ControlSizeProvider size="lg">{children}</ControlSizeProvider>;
 
   return (
     <NewEventProvider>
       <ChromeCrumbNamesProvider>
         <DocumentTitle pathname={pathname} />
-        <EnvironmentStrip />
         {isFocusPath(pathname) ? (
           // A task done start to finish (the door): no sidebar, the page leads back itself
-          children
+          <>
+            <EnvironmentStrip />
+            {page}
+          </>
         ) : (
-          <AppShell
-            // Keeps the collapsed choice people made before the move to skylcn-ui
-            storageKey="skylab.admin.sidebar-collapsed"
-            sidebar={<AdminSidebar user={current} navigationContext={navigationContext} />}
-            header={<ChromeTrail pathname={pathname} />}
-          >
-            <AppShellActions>
-              <AdminSearch user={current} navigationContext={navigationContext} />
-            </AppShellActions>
-            {children}
-          </AppShell>
+          <AdminSearch user={current} navigationContext={navigationContext}>
+            <EnvironmentStrip withLabel={false} />
+            <AppShell
+              // Keeps the collapsed choice people made before the move to skylcn-ui
+              storageKey="skylab.admin.sidebar-collapsed"
+              sidebar={<AdminSidebar user={current} navigationContext={navigationContext} />}
+              header={<TopBar pathname={pathname} />}
+            >
+              <AppShellActions
+                phone={
+                  <>
+                    <SearchTrigger variant="icon" />
+                    <EnvironmentBadge />
+                    <UserMenu user={current} editSites={navigationContext.editSites} />
+                  </>
+                }
+              >
+                <EnvironmentBadge />
+                <UserMenu user={current} editSites={navigationContext.editSites} />
+              </AppShellActions>
+              {page}
+            </AppShell>
+          </AdminSearch>
         )}
       </ChromeCrumbNamesProvider>
     </NewEventProvider>

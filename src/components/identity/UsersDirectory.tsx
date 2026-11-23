@@ -27,6 +27,7 @@ import { paginateRows } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import { monthChange, teamGroups } from '@/lib/user-directory';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /** One row of the directory: a person found, a team member or a recent joiner. */
 type DirectoryRow = Person & { teams?: string[]; registeredAt?: string };
@@ -180,7 +181,7 @@ export function UsersDirectory({
               value={trend.current}
               hint={<TrendBadge value={trend.change} />}
             >
-              <span className="text-2xs text-subtle-foreground">
+              <span className="text-subtle-foreground text-[13px]/5">
                 Son 12 ay: <span className="tabular-nums">{trend.year}</span>
               </span>
             </Tile>
@@ -225,7 +226,7 @@ export function UsersDirectory({
             ))}
           </Select>
         </div>
-        <h2 className="text-muted-foreground text-xs font-medium">{listTitle}</h2>
+        <h2 className="text-muted-foreground text-[13px]/5 font-medium">{listTitle}</h2>
         {/* A new panel for each state: a panel that turns from loading to ready can
             keep its loader on screen (skylcn-ui Swap), so none ever turns */}
         {waiting ? (
@@ -251,7 +252,7 @@ export function UsersDirectory({
         )}
         {source === 'search' && !loading && rows.length === 0 ? (
           <div className="flex justify-center">
-            <Button size="sm" variant="outline" onClick={onClearSearch}>
+            <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={onClearSearch}>
               <X className="size-4" />
               Aramayı temizle
             </Button>
@@ -259,7 +260,7 @@ export function UsersDirectory({
         ) : null}
         {rows.length ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-2xs text-subtle-foreground tabular-nums">{rows.length} kişi</p>
+            <p className="text-subtle-foreground text-xs tabular-nums">{rows.length} kişi</p>
             <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
           </div>
         ) : null}
@@ -281,7 +282,7 @@ function Tile({
 }) {
   return (
     <div className="bg-card border-border-subtle flex flex-col gap-1.5 rounded-lg border p-3 sm:p-4">
-      <span className="text-2xs text-subtle-foreground font-medium">{label}</span>
+      <span className="text-subtle-foreground text-[13px]/5 font-medium">{label}</span>
       <span className="flex items-center gap-2">
         <span className="text-foreground-strong text-2xl leading-none font-semibold tabular-nums">
           {value}
@@ -312,23 +313,21 @@ function PersonCardRow({ person }: { person: DirectoryRow }) {
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="text-foreground-strong block truncate text-sm font-medium">{name}</span>
         {second ? (
-          <span className="text-2xs text-subtle-foreground block truncate">{second}</span>
+          <span className="text-subtle-foreground block truncate text-[13px]/5">{second}</span>
         ) : null}
         {person.teams && person.teams.length ? (
           <span className="flex flex-wrap items-center gap-1">
             {person.teams.map((team) => (
-              <Badge key={team} tone="neutral">
+              <Badge key={team} tone="neutral" className="text-xs">
                 {team}
               </Badge>
             ))}
             {person.registeredAt ? (
-              <span className="text-3xs text-subtle-foreground">
-                {fromNow(person.registeredAt)}
-              </span>
+              <span className="text-subtle-foreground text-xs">{fromNow(person.registeredAt)}</span>
             ) : null}
           </span>
         ) : third ? (
-          <span className="text-3xs text-muted-foreground block truncate">{third}</span>
+          <span className="text-muted-foreground block truncate text-[13px]/5">{third}</span>
         ) : null}
       </span>
       {person.skyNumber ? <StatusChip kind="member" label={person.skyNumber} /> : null}

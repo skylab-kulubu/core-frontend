@@ -47,7 +47,7 @@ describe('Event Katılımcılar tab', () => {
 
     await renderParticipants();
     await user.click(await screen.findByRole('checkbox', { name: 'Ada Lovelace seç' }));
-    await user.click(screen.getByRole('button', { name: 'Mail' }));
+    await user.click(screen.getByRole('button', { name: 'E-posta' }));
 
     await waitFor(() => expect(eventsApi.syncMailList).toHaveBeenCalledWith('e1', ['t-guest']));
     expect(open).toHaveBeenCalledWith(
@@ -111,7 +111,7 @@ describe('Event Katılımcılar tab', () => {
 
     await waitFor(() => expect(ticketsApi.checkIn).toHaveBeenCalledWith('t-guest', 's1'));
     expect(await screen.findByText(/^Ada Lovelace · Açılış · /)).toBeInTheDocument();
-    expect(screen.queryByRole('status', { name: 'Check-in sonucu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Giriş sonucu' })).not.toBeInTheDocument();
   });
 
   it('says the person is already in when core refuses a second row check-in', async () => {
@@ -197,7 +197,7 @@ describe('Event Katılımcılar tab', () => {
         name: 'Ada Lovelace: bağlantı yenilensin mi?',
       });
       expect(
-        within(dialog).getByText('Eski bağlantı ve QR çalışmaz; yenisi postayla gider.'),
+        within(dialog).getByText('Eski bağlantı ve QR çalışmaz; yenisi e-postayla gider.'),
       ).toBeInTheDocument();
       expect(ticketsApi.renewLink).not.toHaveBeenCalled();
 

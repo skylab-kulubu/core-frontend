@@ -109,7 +109,7 @@ export default function EditCompetitorPage({
             <SaveButton>Kaydet</SaveButton>
             <button
               type="button"
-              className="text-2xs border-border text-destructive h-8 rounded-md border px-3 font-medium"
+              className="border-border text-destructive h-8 rounded-md border px-3 text-[13px] font-medium"
               onClick={() => {
                 // core deletes a competitor of any event but reinstates only in an active one
                 const undoable = event?.active === true;

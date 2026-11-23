@@ -41,7 +41,6 @@ export default function EventCompetitionPage() {
           rowCount: competitors.length,
           emptyMessage: 'Yarışmacı yok',
         })}
-        emptyDescription="Puan ve kazananı burada işaretle."
       >
         {competitors.map((row) => {
           const person = personById.get(row.userId);

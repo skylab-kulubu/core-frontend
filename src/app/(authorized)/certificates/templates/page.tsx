@@ -37,7 +37,6 @@ export default function CertificateTemplatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sertifika şablonları"
-        description="Canva, Figma veya yüklenen bir tasarımın üstündeki dinamik alanları yönet."
         actions={
           canCreate ? (
             <ActionButton
@@ -62,7 +61,6 @@ export default function CertificateTemplatesPage() {
           emptyMessage: 'Şablon yok',
         })}
         emptyIcon={Award}
-        emptyDescription="İlk şablonu oluşturup ekip veya etkinlik varsayılanı yap."
       >
         {templates.map((template) => (
           <ListItem

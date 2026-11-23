@@ -103,7 +103,7 @@ export function newsProblemMessage(error: unknown, fallback: string): string {
     if (error.fields.reason === 'archived') {
       return 'Bu duyuru bu arada başka biri tarafından silindi.';
     }
-    return 'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Son hâlini görmek için sayfayı yenile, sonra tekrar dene.';
+    return 'Bu duyuru sen açtıktan sonra başka biri tarafından değiştirildi. Sayfayı yenileyip tekrar dene.';
   }
   return coreProblemMessage(error, fallback);
 }

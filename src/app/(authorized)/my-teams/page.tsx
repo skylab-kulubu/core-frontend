@@ -2,10 +2,10 @@
 
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { StateCard } from '@/components/chrome/StateCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { listStatus } from '@/lib/list-status';
 import { flattenManagedGroups, useManagedGroups } from '@/lib/managed-groups';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 /**
  * Ekiplerim: the Teams the reader leads and the Teams below them (core's
@@ -14,12 +14,12 @@ import { flattenManagedGroups, useManagedGroups } from '@/lib/managed-groups';
  */
 export default function MyTeamsPage() {
   const managed = useManagedGroups();
-  if (managed.status === 'loading') return <StateCard title="Yükleniyor…" isLoading />;
+  if (managed.status === 'loading') return <PageSkeleton />;
   const rows = managed.status === 'ready' ? flattenManagedGroups(managed.groups) : [];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Ekiplerim" description="Lideri olduğun ekipler ve altlarındaki ekipler." />
+      <PageHeader title="Ekiplerim" />
       {managed.status === 'failed' ? (
         <p role="alert" className="text-destructive text-sm">
           Ekipler yüklenemedi

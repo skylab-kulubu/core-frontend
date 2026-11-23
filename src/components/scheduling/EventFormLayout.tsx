@@ -3,6 +3,7 @@
 import { Button, cn } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState, type FormEventHandler, type ReactNode } from 'react';
 import { EVENT_EDITOR_SECTIONS, type EventEditorSectionId } from './EventEditor';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 type EventFormLayoutProps = {
   onSubmit: FormEventHandler<HTMLFormElement>;
@@ -102,10 +103,16 @@ export function EventFormLayout({
             >
               {dirty ? 'Kaydedilmemiş değişiklik var' : ''}
             </span>
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
+            <Button
+              className={BUTTON_TEXT}
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={saving}
+            >
               Vazgeç
             </Button>
-            <Button type="submit" variant="primary" pending={saving}>
+            <Button className={BUTTON_TEXT} type="submit" variant="primary" pending={saving}>
               {submitLabel}
             </Button>
           </div>

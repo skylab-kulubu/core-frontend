@@ -83,6 +83,16 @@ describe('AdminSearch', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('finds Kısa link by its old name, url', async () => {
+    const keyboard = userEvent.setup();
+    renderSearch();
+    await keyboard.keyboard('{Meta>}k{/Meta}');
+    const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
+    await keyboard.type(search, 'url');
+    await keyboard.click(await screen.findByRole('option', { name: /Kısa link/ }));
+    expect(push).toHaveBeenCalledWith('/urls');
+  });
+
   it('does not steal Ctrl+K from a form field', async () => {
     const keyboard = userEvent.setup();
     render(
@@ -101,7 +111,7 @@ describe('AdminSearch', () => {
   it('closes with Escape', async () => {
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     expect(
       await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' }),
     ).toBeInTheDocument();
@@ -114,7 +124,7 @@ describe('AdminSearch', () => {
   it('offers only the door to door staff', async () => {
     const keyboard = userEvent.setup();
     renderSearch({ ...user, groups: ['/UYELER/ARGE/WEBLAB'] }, { hasDoorAssignment: true });
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     expect(await screen.findByRole('option', { name: /Kapı/ })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Kullanıcılar/ })).not.toBeInTheDocument();
   });
@@ -122,7 +132,7 @@ describe('AdminSearch', () => {
   it('announces the highlighted destination through combobox semantics', async () => {
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     const options = screen.getAllByRole('option');
     expect(search).toHaveAttribute('aria-activedescendant', options[0].id);
@@ -149,7 +159,7 @@ describe('AdminSearch', () => {
   it('offers the running and next events before anything is typed', async () => {
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const events = await screen.findByRole('group', { name: 'Etkinlikler' });
     const names = within(events)
       .getAllByRole('option')
@@ -164,7 +174,7 @@ describe('AdminSearch', () => {
     ]);
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     await keyboard.type(search, 'k');
     await act(async () => undefined);
@@ -179,7 +189,7 @@ describe('AdminSearch', () => {
   it('finds groups for the Privileged', async () => {
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     await keyboard.type(search, 'gecekodu');
     const groups = await screen.findByRole('group', { name: 'Gruplar' });
@@ -189,7 +199,7 @@ describe('AdminSearch', () => {
   it('searches no records the person cannot open', async () => {
     const keyboard = userEvent.setup();
     renderSearch({ ...user, groups: ['/UYELER/ARGE/WEBLAB'] }, { hasDoorAssignment: true });
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     await keyboard.type(search, 'kut');
     await act(async () => {
@@ -204,7 +214,7 @@ describe('AdminSearch', () => {
     mockNewEvent.canCreate = true;
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     const search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     await keyboard.type(search, 'yeni etk');
     await keyboard.keyboard('{Enter}');
@@ -214,7 +224,7 @@ describe('AdminSearch', () => {
   it('offers no new event to whoever cannot create one (DK)', async () => {
     const keyboard = userEvent.setup();
     renderSearch({ ...user, groups: ['/UYELER/DK'] });
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     expect(screen.queryByRole('option', { name: /Yeni etkinlik/ })).not.toBeInTheDocument();
   });
@@ -225,14 +235,14 @@ describe('AdminSearch', () => {
     ]);
     const keyboard = userEvent.setup();
     renderSearch();
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     let search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     await keyboard.type(search, 'kut');
     await keyboard.click(await screen.findByRole('option', { name: /Kutay Yılmaz/ }));
     expect(push).toHaveBeenCalledWith('/users/u-kutay');
     expect(identityApi.listUsers).toHaveBeenCalledTimes(1);
 
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     search = await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     expect(search).toHaveValue('');
     await keyboard.type(search, 'kut');
@@ -244,7 +254,7 @@ describe('AdminSearch', () => {
   it('offers the door only to whoever has a door to staff (not DK)', async () => {
     const keyboard = userEvent.setup();
     renderSearch({ ...user, groups: ['/UYELER/DK'] });
-    await keyboard.click(screen.getByRole('button', { name: 'Hızlı git' }));
+    await keyboard.click(screen.getByRole('button', { name: 'Ara' }));
     await screen.findByRole('combobox', { name: 'Sayfa, etkinlik ya da kişi ara' });
     expect(screen.queryByRole('option', { name: /^Kapı/ })).not.toBeInTheDocument();
   });

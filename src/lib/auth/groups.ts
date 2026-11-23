@@ -21,6 +21,11 @@ export function isPrivileged(groups: readonly string[]): boolean {
   return groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK|DK)(\/|$)/.test(g));
 }
 
+/** In ADMIN or YK (not DK): the people who run every team. */
+export function isAdminOrYk(groups: readonly string[]): boolean {
+  return groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK)(\/|$)/.test(g));
+}
+
 /**
  * A Team's own Group, as core's TeamOf reads it: at least
  * `/UYELER/<area>/<team>`, under no Privileged root, no Leader group on the way.

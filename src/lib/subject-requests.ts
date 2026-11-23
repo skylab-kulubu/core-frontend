@@ -68,6 +68,15 @@ function dayNumber(date: string): number {
   return Date.UTC(y, m - 1, d) / 86_400_000;
 }
 
+/** KVKK md. 13: the data controller answers within 30 days of the request. */
+export const ANSWER_DAYS = 30;
+
+/** The last day to answer a request received on `receivedOn` (YYYY-MM-DD). */
+export function answerDueOn(receivedOn: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(receivedOn)) return '';
+  return new Date((dayNumber(receivedOn) + ANSWER_DAYS) * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Days from today to the due date: 0 is the last day, below 0 is late. */
 export function daysLeft(dueOn: string, today: string): number {
   return Math.round(dayNumber(dueOn) - dayNumber(today));

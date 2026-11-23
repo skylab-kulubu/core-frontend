@@ -5,7 +5,6 @@ import { Link2 } from 'lucide-react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StateCard } from '@/components/chrome/StateCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -20,6 +19,7 @@ import { useCapabilities } from '@/lib/capabilities-context';
 import { useTeamCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 export default function CertificateDefaultsPage() {
   const { user } = useAuth();
@@ -109,13 +109,13 @@ export default function CertificateDefaultsPage() {
     }
   }
 
-  if (loading) return <StateCard title="Varsayılanlar yükleniyor…" isLoading />;
+  if (loading) return <PageSkeleton variant="detail" />;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Sertifika varsayılanları"
-        description="Çözüm sırası: etkinliğe özel şablon → sahip ekip varsayılanı → SKY LAB varsayılanı."
+        description="Sıra: etkinliğe özel şablon → ekip varsayılanı → SKY LAB varsayılanı"
       />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
@@ -197,7 +197,7 @@ export default function CertificateDefaultsPage() {
           <button
             type="button"
             disabled={saving}
-            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-xs disabled:opacity-50"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-[13px] disabled:opacity-50"
             onClick={() =>
               confirm({
                 title: `${team} varsayılanı kaldırılsın mı?`,
@@ -213,10 +213,6 @@ export default function CertificateDefaultsPage() {
         ) : null}
         {confirmDialog}
       </div>
-      <StateCard
-        title="Etkinliğe özel seçim etkinlik detayında yapılır"
-        description="Etkinlikteki Sertifikalar sekmesi geçerli şablonun nereden geldiğini açıkça gösterir ve yalnızca o etkinlik için geçersiz kılmana izin verir."
-      />
     </div>
   );
 }
