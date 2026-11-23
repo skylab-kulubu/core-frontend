@@ -38,6 +38,27 @@ beforeEach(() => {
   (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: ADMIN_CAN });
 });
 
+// The card's Hesap ve güvenlik section reads the Keycloak account on its own (core docs/user-accounts.md):
+// a read that answers keeps its load error (an alert) out of the card's other sections.
+jest.mock('@/lib/api/user-account', () => ({
+  ...jest.requireActual('@/lib/api/user-account'),
+  userAccountApi: {
+    get: jest.fn().mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      status: 'active',
+      enabled: true,
+      ytuVerified: false,
+      requiredActions: [],
+      credentials: [],
+      identityProviders: [],
+      sessions: [],
+      lockout: { locked: false, failures: 0 },
+      logins: null,
+      can: { manage: false, reason: 'forbidden' },
+    }),
+  },
+}));
+
 jest.mock('@/lib/api/identity', () => ({
   identityApi: {
     getUser: jest.fn(),
