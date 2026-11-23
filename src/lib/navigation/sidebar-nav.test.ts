@@ -115,7 +115,7 @@ describe('buildSidebarNavigation', () => {
     expect(hrefs({ mapRegionsVisible: true })).toContain('/map-regions');
   });
 
-  it('gives one teams item: Ekipler to whoever sees every team, Ekiplerim to a Leader', () => {
+  it('gives one teams item: Ekipler to ADMIN and YK, Ekiplerim to a Leader (DK too)', () => {
     const yk = filterSidebarNavForUser(person(['/UYELER/YK']), { managedTeamsVisible: true });
     expect(yk.map((link) => link.href)).toContain('/teams');
     expect(yk.map((link) => link.href)).not.toContain('/my-teams');
@@ -124,6 +124,12 @@ describe('buildSidebarNavigation', () => {
         (link) => link.href,
       );
     expect(leader({})).not.toContain('/my-teams');
+    // DK sees Ekipler too, but a DK member who leads a team keeps their own item
+    const dkLeader = filterSidebarNavForUser(
+      person(['/DK', '/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']),
+      { managedTeamsVisible: true },
+    ).map((link) => link.href);
+    expect(dkLeader).toContain('/my-teams');
     expect(leader({ managedTeamsVisible: true })).toContain('/my-teams');
   });
 

@@ -3,6 +3,7 @@ import {
   canUseCertificates,
   canUseUrls,
   canWriteEvent,
+  isAdminOrYk,
   isLeader,
   isPrivileged,
 } from '@/lib/auth/groups';
@@ -85,12 +86,14 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     section: 'people',
     visibleWhen: ({ privileged }) => privileged,
   },
-  // One teams item: whoever sees every team (Ekipler) is not offered the ones they lead apart
+  // One teams item: ADMIN and YK run every team from Ekipler and are not offered the ones they
+  // lead apart; a DK member who leads a team keeps Ekiplerim
   {
     href: '/my-teams',
     label: 'Ekiplerim',
     section: 'people',
-    visibleWhen: ({ privileged, context }) => !privileged && context.managedTeamsVisible === true,
+    visibleWhen: ({ groups, context }) =>
+      !isAdminOrYk(groups) && context.managedTeamsVisible === true,
   },
   {
     href: '/subject-requests',
