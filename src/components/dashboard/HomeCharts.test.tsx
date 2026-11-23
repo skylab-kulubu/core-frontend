@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import HomeCharts from '@/components/dashboard/HomeCharts';
+import HomeCharts, { figureGrid } from '@/components/dashboard/HomeCharts';
 import type { DashboardHome, DashboardSummary } from '@/lib/api/dashboard';
 
 // The chart library draws nothing in jsdom; a stand-in names each chart and its series
@@ -127,4 +127,14 @@ it('gives a Member the club: the season and the club’s Events, no figures', ()
   expect(screen.getByRole('figure', { name: 'Ekiplere göre etkinlik' })).toBeInTheDocument();
   expect(screen.getAllByText(/2026-2027/).length).toBeGreaterThan(0);
   expect(screen.queryByText('GitHub')).not.toBeInTheDocument();
+});
+
+describe('figureGrid', () => {
+  it('lets the figures fill their row whatever their number', () => {
+    expect(figureGrid(3)).toContain('md:grid-cols-3');
+    expect(figureGrid(3)).not.toContain('xl:grid-cols-4');
+    expect(figureGrid(4)).toContain('xl:grid-cols-4');
+    expect(figureGrid(2)).toContain('md:grid-cols-2');
+    expect(figureGrid(1)).toContain('md:grid-cols-1');
+  });
 });
