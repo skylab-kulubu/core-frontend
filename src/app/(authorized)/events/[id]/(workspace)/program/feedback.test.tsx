@@ -55,13 +55,20 @@ const FORM = 'https://forms.yildizskylab.com/55555555-5555-4555-8555-55555555555
 const LEADER = ['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER'];
 const renderProgram = () => renderEventTab(<EventProgramPage />, '/events/e1/program');
 
+/** Opens the session's "⋯" menu and presses one of its items. */
+async function sessionAction(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const menus = await screen.findAllByRole('button', { name: /: eylemler$/ });
+  await user.click(menus[menus.length - 1]);
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 function inMode(feedbackMode: string, session: Record<string, unknown> = {}) {
   (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, feedbackMode });
   (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([{ ...workspaceSession, ...session }]);
 }
 
 async function openSessionEditor(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: 'Oturumu düzenle' }));
+  await sessionAction(user, 'Oturumu düzenle');
   return screen.findByRole('dialog', { name: 'Oturumu düzenle' });
 }
 
@@ -179,7 +186,7 @@ describe('Program: a Session feedback form (per_session)', () => {
     (sessionsApi.sendFeedback as jest.Mock).mockResolvedValue({ sent: true, recipients: 4 });
     await renderProgram();
 
-    await user.click(await screen.findByRole('button', { name: 'Geri bildirim' }));
+    await sessionAction(user, 'Geri bildirim');
     const drawer = await screen.findByRole('dialog', { name: 'Açılış · Geri bildirim' });
     expect(within(drawer).getByLabelText('QR acilis')).toBeInTheDocument();
     expect(await within(drawer).findByText('Gönderilen 4 · Cevaplayan 1')).toBeInTheDocument();
