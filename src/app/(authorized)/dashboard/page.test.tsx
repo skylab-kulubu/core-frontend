@@ -1,12 +1,18 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import DashboardPage from '@/app/(authorized)/dashboard/page';
 import { useAuth } from '@/context/AuthContext';
 import { dashboardApi, type DashboardSummary } from '@/lib/api/dashboard';
 import { ProblemError } from '@/lib/api/core';
+import { ticketsApi } from '@/lib/api/tickets';
 
 jest.mock('@/context/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('@/lib/api/dashboard', () => ({ dashboardApi: { summary: jest.fn() } }));
+jest.mock('@/lib/api/tickets', () => ({ ticketsApi: { listDoorEvents: jest.fn() } }));
+const mockReplace = jest.fn();
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: jest.fn(), replace: mockReplace }),
+}));
 // The charts load on their own (next/dynamic); here a stand-in that shows what it was given
 jest.mock('next/dynamic', () => () => {
   function ChartsStandIn(props: { summary: { ownerTeams: string[] }; privileged: boolean }) {
@@ -44,6 +50,7 @@ function signIn(groups: string[]) {
 }
 
 beforeEach(() => {
+  (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([]);
   jest.useFakeTimers({
     now: new Date('2026-11-22T12:00:00Z'),
     doNotFake: ['setTimeout', 'queueMicrotask', 'nextTick'],
@@ -150,7 +157,58 @@ it('says when nothing waits on the reader', async () => {
     },
   } satisfies DashboardSummary);
   render(<DashboardPage />);
+  // One line in place of the card; the week takes the row
   expect(await screen.findByText('Bekleyen iş yok')).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: /^Yapılacaklar/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /^Bu hafta/ })).toBeInTheDocument();
+});
+
+it('sends door staff, whom the menu shows no Özet, to their doors', async () => {
+  signIn(['/UYELER/ARGE/WEBLAB']);
+  (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([{ id: 'e1', name: 'Hackathon' }]);
+  (dashboardApi.summary as jest.Mock).mockResolvedValue({
+    ...base,
+    home: {
+      ...charts,
+      todo: null,
+      week: { from: '', to: '', events: [], sessions: [] },
+      compare: null,
+    },
+  } satisfies DashboardSummary);
+  render(<DashboardPage />);
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/qr'));
+});
+
+it('keeps a Member with no door on the page, and asks nothing of a reader with Özet', async () => {
+  signIn(['/UYELER/ARGE/WEBLAB']);
+  (dashboardApi.summary as jest.Mock).mockResolvedValue({
+    ...base,
+    home: {
+      ...charts,
+      todo: null,
+      week: { from: '', to: '', events: [], sessions: [] },
+      compare: null,
+    },
+  } satisfies DashboardSummary);
+  render(<DashboardPage />);
+  expect(await screen.findByText('Bu hafta etkinlik yok')).toBeInTheDocument();
+  expect(mockReplace).not.toHaveBeenCalled();
+});
+
+it('does not read the doors of a reader whose menu has Özet', async () => {
+  signIn(['/YK']);
+  (dashboardApi.summary as jest.Mock).mockResolvedValue({
+    ...base,
+    home: {
+      ...charts,
+      todo: null,
+      week: { from: '', to: '', events: [], sessions: [] },
+      compare: null,
+    },
+  } satisfies DashboardSummary);
+  render(<DashboardPage />);
+  await screen.findByText('Bu hafta etkinlik yok');
+  expect(ticketsApi.listDoorEvents).not.toHaveBeenCalled();
 });
 
 it('shows core’s problem when the summary cannot be read', async () => {

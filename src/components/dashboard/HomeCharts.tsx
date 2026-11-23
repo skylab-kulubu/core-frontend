@@ -30,6 +30,24 @@ const PREVIOUS = 'var(--muted-foreground)';
 const fmt = (n: number) => n.toLocaleString('tr-TR');
 
 /**
+ * The figures fill their row whatever their number: three take thirds, four quarters. On a
+ * phone (two columns) an odd last one takes the whole row.
+ */
+export function figureGrid(count: number): string {
+  const wide =
+    count <= 1
+      ? 'md:grid-cols-1'
+      : count === 2
+        ? 'md:grid-cols-2'
+        : count === 3
+          ? 'md:grid-cols-3'
+          : count === 4
+            ? 'md:grid-cols-2 xl:grid-cols-4'
+            : 'md:grid-cols-3';
+  return `grid grid-cols-2 gap-3 ${wide} [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1`.trim();
+}
+
+/**
  * The graphic summary under the strip: figures against the 30 days before,
  * then the charts. Loaded on its own (next/dynamic) so the strip shows first.
  */
@@ -73,10 +91,7 @@ export default function HomeCharts({
   return (
     <div className="flex min-w-0 flex-col gap-6">
       {figures.length ? (
-        <section
-          aria-label="Son 30 gün"
-          className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4"
-        >
+        <section aria-label="Son 30 gün" className={figureGrid(figures.length)}>
           {figures.map((kpi) => (
             <StatCard
               key={kpi.key}

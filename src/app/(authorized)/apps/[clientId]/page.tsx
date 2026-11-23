@@ -1,25 +1,22 @@
 'use client';
 
-import { Tab, Tabs, TabsList, TabsPanel } from '@skylab-kulubu/skylcn-ui';
-import { Lock, Plus, X } from 'lucide-react';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { CopyButton, DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { Lock, Plus, RefreshCw, X } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { Drawer } from '@/components/chrome/Drawer';
-import { Field } from '@/components/chrome/Field';
-import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
-import { ListPanel } from '@/components/chrome/ListPanel';
-import { SectionHeading } from '@/components/chrome/PanelChart';
-import { SaveButton } from '@/components/chrome/SaveButton';
-import { StateCard } from '@/components/chrome/StateCard';
-import { StatusChip } from '@/components/chrome/StatusChip';
-import { Switch } from '@/components/chrome/Switch';
+import { SummaryStrip } from '@/components/chrome/ListPage';
+import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import {
-  MEMBER_CANDIDATE_HINT,
-  MEMBER_CANDIDATE_MIN,
-  usePickerSearch,
-} from '@/components/identity/use-person-search';
+  ObjectCard,
+  ObjectEssentials,
+  ObjectPage,
+  ObjectPageHeader,
+} from '@/components/chrome/object-page/ObjectPage';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
+import { EmptyState, Forbidden } from '@/components/chrome/PageState';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import {
@@ -27,37 +24,56 @@ import {
   type AppAssignment,
   type AppAssignments,
   type AppAuditEntry,
-  type AppTarget,
-  type AppTargetType,
 } from '@/lib/api/apps';
 import {
-  PERSON_ASSIGNMENT_HINT,
-  assignmentSubtitle,
   auditActionText,
   auditSubtitle,
-  initialRoles,
+  formatInstant,
+  inheritText,
   removalText,
-  targetSubtitle,
 } from '@/lib/app-assignments';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { coreProblemMessage } from '@/lib/core-problems';
-import { listStatus } from '@/lib/list-status';
+import { matchesQuery } from '@/lib/list-query';
 import { rolePlacementMessage } from '@/lib/role-placement';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useConfirm } from '@/lib/ui/use-confirm';
+import { useListParams } from '@/lib/ui/use-list-params';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCan } from '@/lib/use-app-can';
-import { PageSkeleton } from '@/components/chrome/PageSkeleton';
+import { AddAssignmentDrawer } from '../_parts/AddAssignmentDrawer';
+import {
+  accessLabel,
+  appHref,
+  appSection,
+  assignedBy,
+  assignmentCount,
+  assignmentView,
+  assignmentWhere,
+  type AppSection,
+} from '../_parts/app-view';
 
-type PageTab = 'assignments' | 'audit';
+const SECTION_LABELS: Record<AppSection, string> = {
+  genel: 'Genel bakış',
+  atamalar: 'Atamalar',
+  denetim: 'Denetim kaydı',
+};
+
+const RECENT = 3;
+
+const rowId = (row: AppAssignment) => `${row.type}:${row.id}:${row.role}`;
 
 /**
- * An app's "Kullanıcılar ve gruplar" (Entra's Enterprise app → Users and
- * groups) and its audit tab. core decides every change; the code's rows
- * (Privileged roots, /ROLLER, service accounts) are shown locked.
+ * An app (Entra's Enterprise app): Genel bakış, Atamalar (users and groups) and
+ * Denetim kaydı. core decides every change; the code's rows (Privileged roots,
+ * /ROLLER, service accounts) are shown locked with the reason written out.
  */
-export default function AppAssignmentsPage() {
+export default function AppPage() {
   const params = useParams<{ clientId: string }>();
   const clientId = decodeURIComponent(params.clientId);
+  const search = useSearchParams();
+  const section = appSection(search?.get('bolum') ?? null);
+  const router = useRouter();
   const capabilities = useCapabilities();
   const can = useAppCan(false);
   const canRead = can('apps.read');
@@ -65,38 +81,16 @@ export default function AppAssignmentsPage() {
   const canAudit = can('audit.read');
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const [list, setList] = useListParams({ view: 'all' });
+  const view = assignmentView(list.view);
 
   const [data, setData] = useState<AppAssignments | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<PageTab>('assignments');
-  const [peopleOnly, setPeopleOnly] = useState(false);
   const [audit, setAudit] = useState<AppAuditEntry[] | null>(null);
   const [auditFailed, setAuditFailed] = useState(false);
+  const [adding, setAdding] = useState(false);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [targetType, setTargetType] = useState<AppTargetType>('group');
-  const [query, setQuery] = useState('');
-  const [target, setTarget] = useState<AppTarget | null>(null);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-
-  const searching = addOpen && !target;
-  const groupSearch = usePickerSearch(
-    searching && targetType === 'group',
-    query,
-    (q) => appsApi.targets(clientId, 'group', q),
-    0,
-  );
-  const userSearch = usePickerSearch(
-    searching && targetType === 'user',
-    query,
-    (q) => appsApi.targets(clientId, 'user', q),
-    MEMBER_CANDIDATE_MIN,
-  );
-  const search = targetType === 'group' ? groupSearch : userSearch;
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setData(await appsApi.assignments(clientId));
       setError(null);
@@ -104,14 +98,15 @@ export default function AppAssignmentsPage() {
       setError(coreProblemMessage(err, 'Atamalar yüklenemedi'));
     }
     setAudit(null);
-  }
+  }, [clientId]);
 
   useEffect(() => {
     if (canRead) void load();
-  }, [canRead, clientId]);
+  }, [canRead, load]);
 
+  // The latest changes show on the overview too, so the record is read once the app is
   useEffect(() => {
-    if (tab !== 'audit' || audit !== null || !canAudit) return;
+    if (!canAudit || !data || audit !== null || auditFailed) return;
     appsApi
       .audit(clientId)
       .then((rows) => {
@@ -119,58 +114,36 @@ export default function AppAssignmentsPage() {
         setAuditFailed(false);
       })
       .catch(() => setAuditFailed(true));
-  }, [tab, audit, canAudit, clientId]);
+  }, [canAudit, data, audit, auditFailed, clientId]);
 
   useChromeCrumbName(`/apps/${clientId}`, data?.app.name);
 
   if (capabilities.status === 'loading') return <PageSkeleton variant="detail" />;
-  if (!canRead) return <StateCard title="Uygulama atamaları açık değil" />;
-  if (error && !data) return <StateCard title={error} tone="danger" />;
+  if (!canRead) return <Forbidden pageTitle="Uygulama" />;
+  if (error && !data) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Uygulama" />
+        <EmptyState kind="failed" title={error} onRetry={() => void load()} />
+      </div>
+    );
+  }
   if (!data) return <PageSkeleton variant="detail" />;
 
   const app = data.app;
-  const rows = data.assignments.filter((row) => !peopleOnly || row.type === 'user');
-
-  function openAdd() {
-    setTargetType('group');
-    setQuery('');
-    setTarget(null);
-    setRoles([]);
-    setAddError(null);
-    setAddOpen(true);
-  }
-
-  function pick(next: AppTarget) {
-    setTarget(next);
-    setRoles(initialRoles(app.suggestedRoles, next));
-    setAddError(null);
-  }
-
-  /** Assigns each chosen role in turn; the ones core refuses are said in the drawer. */
-  async function assign() {
-    if (!target || roles.length === 0 || saving) return;
-    setSaving(true);
-    setAddError(null);
-    const failures: string[] = [];
-    let done = 0;
-    for (const role of roles) {
-      try {
-        await appsApi.assign(clientId, {
-          type: target.type,
-          id: target.id,
-          role,
-        });
-        done += 1;
-      } catch (err) {
-        failures.push(`${role}: ${coreProblemMessage(err, 'Atanamadı')}`);
-      }
-    }
-    setSaving(false);
-    if (done > 0) notify.success(done === 1 ? 'Atandı' : `${done} rol atandı`);
-    if (failures.length > 0) setAddError(failures.join(' '));
-    else setAddOpen(false);
-    await load();
-  }
+  const rows = data.assignments;
+  const codeRows = rows.filter((row) => row.area === 'code').length;
+  const groups = rows.filter((row) => row.type === 'group').length;
+  const people = rows.length - groups;
+  const searched = rows.filter((row) =>
+    matchesQuery(list.q, row.name, row.path, row.email, row.role),
+  );
+  const shown = searched.filter((row) => view === 'all' || row.type === view);
+  const showSection = (next: AppSection, change: { view?: string } = {}) => {
+    const href = appHref(app.clientId, next);
+    const viewPart = change.view && change.view !== 'all' ? `view=${change.view}` : '';
+    router.push(viewPart ? `${href}${href.includes('?') ? '&' : '?'}${viewPart}` : href);
+  };
 
   function remove(row: AppAssignment) {
     confirm({
@@ -186,210 +159,324 @@ export default function AppAssignmentsPage() {
     });
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title={app.name}
-        description={app.clientId}
-        meta={
-          <span className="text-subtle-foreground text-[13px]/5">
-            Atama gerekli: {app.assignmentRequired ? 'Evet' : 'Hayır'}
+  const columns: DataListColumn<AppAssignment>[] = [
+    {
+      id: 'name',
+      width: 'minmax(0,1fr)',
+      header: 'Ad',
+      cell: (row) => (
+        <DataListTitle
+          title={row.name || row.path || row.id}
+          subtitle={
+            <span className={`block min-w-0 break-words ${TEXT_SECONDARY}`}>
+              {row.area === 'code'
+                ? rolePlacementMessage(row.reason)
+                : [assignmentWhere(row), inheritText(row)].filter(Boolean).join(' · ') || '—'}
+            </span>
+          }
+        />
+      ),
+    },
+    {
+      id: 'type',
+      width: '4.5rem',
+      from: 'sm',
+      header: 'Tür',
+      cell: (row) => (
+        <span className="text-secondary-foreground text-[13px]/5">
+          {row.type === 'group' ? 'Grup' : 'Kişi'}
+        </span>
+      ),
+    },
+    {
+      id: 'role',
+      width: '7.5rem',
+      from: 'sm',
+      header: 'Rol',
+      cell: (row) => (
+        <code className="text-secondary-foreground truncate font-mono text-xs">{row.role}</code>
+      ),
+    },
+    {
+      id: 'members',
+      width: '4rem',
+      from: 'md',
+      align: 'end',
+      header: 'Kişi',
+      cell: (row) => (
+        <span className="text-secondary-foreground text-sm tabular-nums">{row.members}</span>
+      ),
+    },
+    ...(data.auditVisible
+      ? [
+          {
+            id: 'by',
+            width: '10rem',
+            from: 'xl' as const,
+            header: 'Atayan',
+            cell: (row: AppAssignment) => {
+              const by = assignedBy(row);
+              return by ? (
+                <span className="min-w-0">
+                  <span className="text-foreground block truncate text-[13px]/5">{by.name}</span>
+                  <span className="text-subtle-foreground block truncate text-xs">{by.when}</span>
+                </span>
+              ) : (
+                <span className="text-subtle-foreground text-[13px]/5">Kayıt yok</span>
+              );
+            },
+          },
+        ]
+      : []),
+    {
+      id: 'actions',
+      width: { base: 'auto', sm: '7.5rem' },
+      align: 'end',
+      label: 'Eylemler',
+      interactive: true,
+      cell: (row) =>
+        row.area === 'code' ? (
+          <span className="inline-flex items-center gap-1">
+            <Lock aria-hidden className="text-subtle-foreground size-3.5" />
+            <StatusChip kind="neutral" label="Kodda tanımlı" />
           </span>
-        }
-      />
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
-      <Tabs value={tab} onValueChange={(value) => setTab(value as PageTab)}>
-        <TabsList>
-          <Tab value="assignments">Kullanıcılar ve gruplar</Tab>
-          {canAudit ? <Tab value="audit">Denetim</Tab> : null}
-        </TabsList>
-        <TabsPanel value="assignments" className="space-y-3 pt-3">
-          <SectionHeading
-            title="Atamalar"
-            meta={`${app.groups} grup · ${app.users} kişi`}
-            actions={
-              canAssign ? (
-                <ActionButton icon={Plus} variant="primary" label="Ekle" onClick={openAdd} />
-              ) : null
-            }
+        ) : canAssign ? (
+          <ActionButton icon={X} label="Kaldır" onClick={() => remove(row)} />
+        ) : null,
+    },
+  ];
+
+  const recent = (audit ?? []).slice(0, RECENT);
+
+  return (
+    <ObjectPage
+      header={
+        <ObjectPageHeader
+          eyebrow="Uygulama"
+          title={app.name}
+          section={section !== 'genel' ? SECTION_LABELS[section] : undefined}
+          badges={<StatusChip kind="neutral" label={accessLabel(app)} />}
+          meta={assignmentCount(app)}
+        />
+      }
+      commands={
+        <CommandBar label="Uygulama komutları">
+          {canAssign ? (
+            <Command primary icon={Plus} label="Ekle" onClick={() => setAdding(true)} />
+          ) : null}
+          <Command icon={RefreshCw} label="Yenile" onClick={() => void load()} />
+        </CommandBar>
+      }
+      notices={
+        error ? (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        ) : null
+      }
+      menu={{
+        label: 'Uygulama',
+        sections: [
+          {
+            items: [
+              { href: appHref(app.clientId), label: SECTION_LABELS.genel },
+              {
+                href: appHref(app.clientId, 'atamalar'),
+                label: SECTION_LABELS.atamalar,
+                badge: rows.length,
+              },
+              ...(canAudit
+                ? [{ href: appHref(app.clientId, 'denetim'), label: SECTION_LABELS.denetim }]
+                : []),
+            ],
+          },
+        ],
+        activeHref: appHref(app.clientId, section),
+      }}
+    >
+      {section === 'atamalar' ? (
+        <section aria-label="Atamalar" className="flex flex-col gap-3">
+          <ListToolbar
+            query={list.q}
+            onQuery={(q) => setList({ q })}
+            commitDelay={250}
+            placeholder="Ad, yol ya da rol"
+            searchLabel="Atama ara"
+            viewsLabel="Atama türü"
+            views={[
+              { value: 'all', label: 'Hepsi', count: searched.length },
+              {
+                value: 'group',
+                label: 'Gruplar',
+                count: searched.filter((row) => row.type === 'group').length,
+              },
+              {
+                value: 'user',
+                label: 'Yalnız kişiler',
+                count: searched.filter((row) => row.type === 'user').length,
+              },
+            ]}
+            view={view}
+            onView={(next) => setList({ view: next })}
           />
-          {/* The panel is full width: a row this wide would part the label from its switch */}
-          <div className="max-w-3xl">
-            <Switch
-              checked={peopleOnly}
-              onChange={setPeopleOnly}
-              label="Yalnız kişiler"
-              hint="Doğrudan kişiye yapılan atamalar"
+          {shown.length ? (
+            <DataList
+              columns={columns}
+              rows={shown}
+              getRowId={rowId}
+              rowLabel={(row) => row.name || row.path || row.id}
             />
-          </div>
-          <ListPanel
-            status={listStatus({
-              loading: false,
-              failed: false,
-              rowCount: rows.length,
-              emptyMessage: peopleOnly ? 'Kişiye atama yok' : 'Atama yok',
-            })}
-          >
-            {rows.map((row) => (
-              <ListItem
-                key={`${row.type}:${row.id}:${row.role}`}
-                title={row.name || row.path || row.id}
-                subtitle={assignmentSubtitle(row, data.auditVisible)}
-                trailing={
-                  row.area === 'code' ? (
-                    <span
-                      className="inline-flex items-center gap-1"
-                      title={rolePlacementMessage(row.reason)}
-                    >
-                      <Lock aria-hidden className="size-3.5" />
-                      <StatusChip kind="neutral" label="Kodda tanımlı" />
-                    </span>
-                  ) : canAssign ? (
-                    <ActionButton icon={X} label="Kaldır" onClick={() => remove(row)} />
-                  ) : null
-                }
-              />
-            ))}
-          </ListPanel>
-        </TabsPanel>
-        {canAudit ? (
-          <TabsPanel value="audit" className="space-y-3 pt-3">
-            <SectionHeading title="Son değişiklikler" meta="Son 100 kayıt" />
-            <ListPanel
-              status={listStatus({
-                loading: audit === null && !auditFailed,
-                failed: auditFailed,
-                rowCount: audit?.length ?? 0,
-                emptyMessage: 'Kayıt yok',
-              })}
-            >
-              {(audit ?? []).map((entry) => (
-                <ListItem
-                  key={entry.id}
-                  title={`${entry.actor.name || 'Bilinmeyen kişi'} · ${auditActionText(entry)}`}
-                  subtitle={auditSubtitle(entry)}
-                />
-              ))}
-            </ListPanel>
-          </TabsPanel>
-        ) : null}
-      </Tabs>
-      {confirmDialog}
-      <Drawer
-        open={addOpen}
-        onClose={() => {
-          if (!saving) setAddOpen(false);
-        }}
-        title="Ekle"
-      >
-        <Tabs
-          value={targetType}
-          onValueChange={(value) => {
-            setTargetType(value as AppTargetType);
-            setQuery('');
-            setTarget(null);
-          }}
-        >
-          <TabsList>
-            <Tab value="group">Grup</Tab>
-            <Tab value="user">Kişi</Tab>
-          </TabsList>
-        </Tabs>
-        {targetType === 'user' ? (
-          <p className="text-subtle-foreground text-[13px]/5">{PERSON_ASSIGNMENT_HINT}</p>
-        ) : null}
-        {target ? (
-          <div className="space-y-3">
-            <ListItem
-              title={target.name || target.path || target.id}
-              subtitle={targetSubtitle(target)}
-              trailing={
-                <ActionButton
-                  icon={X}
-                  label="Seçimi kaldır"
-                  disabled={saving}
-                  onClick={() => setTarget(null)}
-                />
+          ) : list.q.trim() || view !== 'all' ? (
+            <EmptyState kind="no-results" onClear={() => setList({ q: '', view: 'all' })} />
+          ) : (
+            <EmptyState
+              kind="first-use"
+              title="Atama yok"
+              action={
+                canAssign ? (
+                  <ActionButton
+                    icon={Plus}
+                    variant="primary"
+                    label="Ekle"
+                    onClick={() => setAdding(true)}
+                  />
+                ) : undefined
               }
             />
-            <fieldset className="space-y-2">
-              <legend>
-                <FieldLabel>Rol</FieldLabel>
-              </legend>
-              {app.roles.map((role) => {
-                const held = target.assignedRoles.includes(role);
-                return (
-                  <label key={role} className="flex items-center gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      disabled={saving || held}
-                      checked={held || roles.includes(role)}
-                      onChange={(event) =>
-                        setRoles((current) =>
-                          event.target.checked
-                            ? [...current, role]
-                            : current.filter((row) => row !== role),
-                        )
-                      }
+          )}
+        </section>
+      ) : section === 'denetim' && canAudit ? (
+        <section aria-label="Denetim kaydı" className="flex flex-col gap-3">
+          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Son 100 kayıt</p>
+          {auditFailed ? (
+            <EmptyState
+              kind="failed"
+              title="Kayıt yüklenemedi"
+              onRetry={() => setAuditFailed(false)}
+            />
+          ) : audit && !audit.length ? (
+            <EmptyState kind="first-use" title="Kayıt yok" />
+          ) : (
+            <DataList
+              columns={[
+                {
+                  id: 'what',
+                  width: 'minmax(0,1fr)',
+                  header: 'Değişiklik',
+                  cell: (entry: AppAuditEntry) => (
+                    <DataListTitle
+                      title={`${entry.actor.name || 'Bilinmeyen kişi'} · ${auditActionText(entry)}`}
+                      subtitle={<span className={TEXT_SECONDARY}>{auditSubtitle(entry)}</span>}
                     />
-                    <span>{held ? `${role} (atanmış)` : role}</span>
-                  </label>
-                );
-              })}
-            </fieldset>
-            {addError ? (
-              <p role="alert" className="text-destructive text-sm">
-                {addError}
-              </p>
-            ) : null}
-            <SaveButton
-              type="button"
-              disabled={saving || roles.length === 0}
-              onClick={() => void assign()}
-            >
-              {saving ? 'Atanıyor…' : 'Ata'}
-            </SaveButton>
-          </div>
-        ) : (
-          <>
-            <Field
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                targetType === 'group' ? 'Ekip, alt ekip ya da yol' : 'Ad veya tam e-posta'
-              }
-              aria-label={targetType === 'group' ? 'Grup ara' : 'Kişi ara'}
+                  ),
+                },
+                {
+                  id: 'outcome',
+                  width: { base: 'auto', sm: '8rem' },
+                  align: 'end',
+                  label: 'Sonuç',
+                  cell: (entry: AppAuditEntry) =>
+                    entry.outcome === 'ok' ? null : (
+                      <StatusChip
+                        kind={entry.outcome === 'pending' ? 'pending' : 'cancelled'}
+                        label={entry.outcome === 'pending' ? 'Bekliyor' : 'Olmadı'}
+                      />
+                    ),
+                },
+              ]}
+              rows={audit ?? []}
+              getRowId={(entry) => entry.id}
+              loading={audit === null}
+              skeletonRows={4}
             />
-            <ListPanel
-              status={listStatus({
-                loading: search.loading,
-                failed: search.failed,
-                rowCount: search.people.length,
-                emptyMessage:
-                  targetType === 'user' && !search.ready
-                    ? MEMBER_CANDIDATE_HINT
-                    : targetType === 'group'
-                      ? 'Grup yok'
-                      : 'Kullanıcı yok',
-              })}
-            >
-              {search.people.map((option) => (
-                <ListItem
-                  key={option.id}
-                  title={option.name || option.path || option.id}
-                  subtitle={targetSubtitle(option)}
-                  onSelect={() => pick(option)}
-                />
-              ))}
-            </ListPanel>
-          </>
-        )}
-      </Drawer>
-    </div>
+          )}
+        </section>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <SummaryStrip
+            label="Atama sayıları"
+            items={[
+              {
+                key: 'group',
+                label: 'Grup ataması',
+                value: groups,
+                onSelect: () => showSection('atamalar', { view: 'group' }),
+              },
+              {
+                key: 'user',
+                label: 'Kişi ataması',
+                value: people,
+                onSelect: () => showSection('atamalar', { view: 'user' }),
+              },
+              {
+                key: 'code',
+                label: 'Kodda tanımlı',
+                value: codeRows,
+                onSelect: () => showSection('atamalar'),
+              },
+            ]}
+          />
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+            <ObjectEssentials
+              items={[
+                {
+                  label: 'Uygulama kimliği',
+                  value: (
+                    <span className="inline-flex min-w-0 items-center gap-1">
+                      <code className="truncate font-mono text-[13px]">{app.clientId}</code>
+                      <CopyButton
+                        value={app.clientId}
+                        label="Kimliği kopyala"
+                        variant="ghost"
+                        size="icon-sm"
+                      />
+                    </span>
+                  ),
+                },
+                { label: 'Erişim', value: accessLabel(app) },
+                { label: 'Roller', value: app.roles.length ? app.roles.join(', ') : '—' },
+                { label: 'Atama', value: assignmentCount(app) },
+              ]}
+            />
+            {canAudit ? (
+              <ObjectCard
+                title="Son değişiklikler"
+                href={appHref(app.clientId, 'denetim')}
+                linkLabel="Tümü"
+                linkName="Denetim kaydının tümü"
+              >
+                {recent.length ? (
+                  <ul className="divide-border-subtle -my-1 divide-y">
+                    {recent.map((entry) => (
+                      <li key={entry.id} className="py-2">
+                        <p className="text-foreground truncate text-sm">
+                          {entry.actor.name || 'Bilinmeyen kişi'} · {auditActionText(entry)}
+                        </p>
+                        <p className={`text-subtle-foreground truncate ${TEXT_SECONDARY}`}>
+                          {[entry.name || entry.path, entry.role, formatInstant(entry.occurredAt)]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : audit === null && !auditFailed ? null : (
+                  <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+                    {auditFailed ? 'Kayıt yüklenemedi' : 'Kayıt yok'}
+                  </p>
+                )}
+              </ObjectCard>
+            ) : null}
+          </div>
+        </div>
+      )}
+      <AddAssignmentDrawer
+        app={app}
+        open={adding}
+        onClose={() => setAdding(false)}
+        onAssigned={load}
+      />
+      {confirmDialog}
+    </ObjectPage>
   );
 }
