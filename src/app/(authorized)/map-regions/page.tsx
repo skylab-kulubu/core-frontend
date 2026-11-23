@@ -112,7 +112,9 @@ function rowLine(region: MapRegion): ReactNode {
 export default function MapRegionsPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // A failed retry belongs to its region: said in that region's panel, or above the list once
+  // the panel is closed (on a phone the panel covers the list)
+  const [retryError, setRetryError] = useState<{ id: string; text: string } | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const notify = useNotify();
   const [params, setParams] = useListParams({ view: 'all' });
@@ -186,11 +188,12 @@ export default function MapRegionsPage() {
 
   async function retry(region: MapRegion) {
     if (!region.id) return;
-    setError(null);
+    const id = region.id;
+    setRetryError(null);
     try {
-      replace(await mapRegionsApi.retry(region.id));
+      replace(await mapRegionsApi.retry(id));
     } catch (err) {
-      setError(mapRegionProblem(err, 'Bölge yeniden istenemedi'));
+      setRetryError({ id, text: mapRegionProblem(err, 'Bölge yeniden istenemedi') });
     }
   }
 
@@ -325,9 +328,9 @@ export default function MapRegionsPage() {
         />
       }
     >
-      {error ? (
+      {retryError && !row ? (
         <p role="alert" className="text-destructive text-sm">
-          {error}
+          {retryError.text}
         </p>
       ) : null}
       {state.kind === 'failed' ? (
@@ -386,6 +389,11 @@ export default function MapRegionsPage() {
                 ]}
               />
             </ObjectCard>
+            {retryError && retryError.id === row.id ? (
+              <p role="alert" className="text-destructive text-sm">
+                {retryError.text}
+              </p>
+            ) : null}
             {manages && (row.status === 'failed' || canRetire(row)) ? (
               <CommandBar label="Bölge komutları">
                 {row.status === 'failed' ? (
