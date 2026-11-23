@@ -2,19 +2,18 @@
 
 import {
   Card,
-  DataList,
   DataListTitle,
   MenuLinkItem,
   Sparkline,
   TrendBadge,
   type DataListColumn,
 } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Plus, RefreshCw, UserRound, UsersRound } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Avatar } from '@/components/chrome/Avatar';
 import {
-  ListFooter,
   ListPage,
   RowMenu,
   SelectionBar,
@@ -59,8 +58,6 @@ import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useListParams } from '@/lib/ui/use-list-params';
 import { useNotify } from '@/lib/ui/use-notify';
-
-const PAGE_SIZE = 50;
 
 /** One row: a person of the directory, a team member or a recent joiner. */
 type Row = DirectoryPerson & { teams?: string[]; registeredAt?: string };
@@ -175,7 +172,7 @@ export function UsersDirectory({
         try {
           const page = await identityApi.userDirectory({
             page: params.page,
-            size: PAGE_SIZE,
+            size: params.size,
             q: query,
             filter: canFilter ? VIEW_FILTER[view] : '',
           });
@@ -211,7 +208,7 @@ export function UsersDirectory({
     } finally {
       if (run === latest.current) setLoading(false);
     }
-  }, [teamId, params.page, query, view, searching, canFilter]);
+  }, [teamId, params.page, params.size, query, view, searching, canFilter]);
 
   useEffect(() => {
     // The search waits a moment; the rest reads at once
@@ -232,9 +229,9 @@ export function UsersDirectory({
       ? {
           slice: shownRows,
           page: params.page,
-          totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+          totalPages: Math.max(1, Math.ceil(total / params.size)),
         }
-      : paginateRows(shownRows, params.page, PAGE_SIZE);
+      : paginateRows(shownRows, params.page, params.size);
   const count = source === 'directory' ? total : shownRows.length;
   const selection = useRowSelection(`${params.q}|${view}|${paged.page}|${teamId}`);
   const open = panelNeighbours(paged.slice, params.panel, (row) => row.id);
@@ -536,16 +533,13 @@ export function UsersDirectory({
           </Select>
         </ListToolbar>
       }
-      footer={
-        <ListFooter
-          total={count}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          pageSize={count > PAGE_SIZE ? PAGE_SIZE : undefined}
-          noun="kişi"
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: count,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {listTitle ? (
         <h2 className={`text-muted-foreground font-medium ${TEXT_SECONDARY}`}>{listTitle}</h2>

@@ -31,6 +31,7 @@ jest.mock('@/lib/ui/use-list-params', () => {
         view,
         sort: '',
         page: 1,
+        size: 25,
         panel: null as string | null,
       });
       return [
@@ -38,7 +39,7 @@ jest.mock('@/lib/ui/use-list-params', () => {
         (change: Record<string, unknown>) =>
           setState((now) => ({
             ...now,
-            ...('q' in change || 'view' in change ? { page: 1 } : {}),
+            ...('q' in change || 'view' in change || 'size' in change ? { page: 1 } : {}),
             ...change,
           })),
       ];
@@ -107,7 +108,7 @@ describe('UsersDirectory with core’s directory', () => {
     expect(screen.getByText('Alan Turing')).toBeInTheDocument();
     expect(identityApi.userDirectory).toHaveBeenCalledWith({
       page: 1,
-      size: 50,
+      size: 25,
       q: '',
       filter: '',
     });
@@ -125,7 +126,7 @@ describe('UsersDirectory with core’s directory', () => {
     await waitFor(() =>
       expect(identityApi.userDirectory).toHaveBeenLastCalledWith({
         page: 1,
-        size: 50,
+        size: 25,
         q: '',
         filter: 'no_school_email',
       }),

@@ -1,11 +1,12 @@
 'use client';
 
-import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionButton } from '@/components/chrome/ActionButton';
-import { ListFooter, ListPage } from '@/components/chrome/ListPage';
+import { ListPage } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { EmptyState } from '@/components/chrome/PageState';
@@ -22,7 +23,6 @@ import { NewSeasonDrawer } from './_parts/NewSeasonDrawer';
 import { SeasonBar } from './_parts/SeasonBar';
 import { seasonHref, seasonProgress, seasonRange } from './_parts/season-view';
 
-const PAGE_SIZE = 50;
 type View = 'all' | 'active' | 'passive';
 
 /** Sezonlar: the club's terms; a row opens the season's own page. */
@@ -82,7 +82,7 @@ export default function SeasonsPage() {
   const rows = searched.filter(
     (season) => view === 'all' || (view === 'active' ? season.active : !season.active),
   );
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const filtered = Boolean(params.q.trim()) || view !== 'all';
 
   const columns: DataListColumn<Season>[] = [
@@ -181,15 +181,13 @@ export default function SeasonsPage() {
           onView={(next) => setParams({ view: next })}
         />
       }
-      footer={
-        <ListFooter
-          total={rows.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          noun="sezon"
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {!loading && (failed || rows.length === 0) ? (
         empty

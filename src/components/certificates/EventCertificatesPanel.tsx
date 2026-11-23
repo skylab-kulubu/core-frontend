@@ -1,12 +1,7 @@
 'use client';
 
-import {
-  DataList,
-  DataListTitle,
-  MenuItem,
-  Skeleton,
-  type DataListColumn,
-} from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, MenuItem, Skeleton, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Ban,

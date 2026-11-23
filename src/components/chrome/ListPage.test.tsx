@@ -3,9 +3,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MenuItem } from '@skylab-kulubu/skylcn-ui';
+import { DataList as CompactList } from '@/components/chrome/DataList';
 import {
   ListFooter,
   ListPage,
+  ListPager,
   RowMenu,
   SelectionBar,
   SummaryStrip,
@@ -168,5 +170,101 @@ describe('row selection and the list view', () => {
     rerender(<Picked view="featured" />);
     expect(screen.getByText('0 seçili')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Ayşe seç' })).not.toBeChecked();
+  });
+});
+
+describe('ListPager', () => {
+  it('counts the rows shown and pages with previous, next and the numbers', async () => {
+    const onPage = jest.fn();
+    const user = userEvent.setup();
+    render(<ListPager total={187} page={2} pageSize={25} onPage={onPage} />);
+    expect(screen.getByText('26–50 / 187')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /sonraki|next/i }));
+    expect(onPage).toHaveBeenLastCalledWith(3);
+    await user.click(screen.getByRole('button', { name: /önceki|previous/i }));
+    expect(onPage).toHaveBeenLastCalledWith(1);
+    await user.click(screen.getByRole('button', { name: /\b8$/ }));
+    expect(onPage).toHaveBeenLastCalledWith(8);
+  });
+
+  it('offers 25, 50 and 100 a page under the list, not above it', async () => {
+    const onPageSize = jest.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ListPager total={187} page={1} pageSize={25} onPage={jest.fn()} onPageSize={onPageSize} />,
+    );
+    const size = screen.getByRole('combobox', { name: 'Sayfadaki satır' });
+    expect([...size.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      '25',
+      '50',
+      '100',
+    ]);
+    await user.selectOptions(size, '100');
+    expect(onPageSize).toHaveBeenCalledWith(100);
+    rerender(
+      <ListPager
+        total={187}
+        page={1}
+        pageSize={25}
+        onPage={jest.fn()}
+        onPageSize={onPageSize}
+        placement="top"
+      />,
+    );
+    expect(screen.queryByRole('combobox', { name: 'Sayfadaki satır' })).toBeNull();
+    expect(screen.getByText('1–25 / 187')).toBeInTheDocument();
+  });
+
+  it('shows only the count for a list on one page, nothing for an empty one', () => {
+    const { container, rerender } = render(
+      <ListPager total={12} page={1} pageSize={25} onPage={jest.fn()} onPageSize={jest.fn()} />,
+    );
+    expect(screen.getByText('1–12 / 12')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    rerender(<ListPager total={0} page={1} pageSize={25} onPage={jest.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('draws the paging above the list beside the toolbar and under it', () => {
+    render(
+      <ListPage
+        title="Kullanıcılar"
+        toolbar={<div>araç</div>}
+        paging={{ total: 60, page: 1, pageSize: 25, onPage: jest.fn(), onPageSize: jest.fn() }}
+      >
+        <div>liste</div>
+      </ListPage>,
+    );
+    expect(screen.getAllByText('1–25 / 60')).toHaveLength(2);
+    expect(screen.getByRole('navigation', { name: 'Sayfalama, liste üstü' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Sayfalama' })).toBeInTheDocument();
+  });
+});
+
+describe('DataList density', () => {
+  const rows = [{ id: '1', name: 'Ada' }];
+  const columns = [
+    { id: 'name', width: 'minmax(0,1fr)', header: 'Ad', cell: (row: { name: string }) => row.name },
+  ];
+
+  it('draws compact rows unless a list asks for room', () => {
+    const { container, rerender } = render(
+      <CompactList columns={columns} rows={rows} getRowId={(row) => row.id} />,
+    );
+    const list = container.querySelector('[data-slot="data-list"]')!;
+    expect(list).toHaveAttribute('data-density', 'compact');
+    expect(list.className).toContain('[&_[data-slot=data-list-row]]:py-1');
+    rerender(
+      <CompactList
+        columns={columns}
+        rows={rows}
+        getRowId={(row) => row.id}
+        density="comfortable"
+      />,
+    );
+    expect(container.querySelector('[data-slot="data-list"]')!.className).not.toContain(
+      'data-list-row]]:py-1',
+    );
   });
 });

@@ -4,17 +4,17 @@ import { useNewEvent } from '@/components/scheduling/NewEventProvider';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  DataList,
   DataListTitle,
   FilterPills as Pills,
   Sparkline,
   cn,
   type DataListColumn,
 } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { ImageIcon, Plus, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
-import { ListFooter, ListPage, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { EmptyState } from '@/components/chrome/PageState';
@@ -55,8 +55,6 @@ import { useAuth } from '@/context/AuthContext';
 import { formHandoffFromSearch } from '@/lib/event-forms';
 import { useListParams } from '@/lib/ui/use-list-params';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
-
-const PAGE_SIZE = 50;
 
 const COLUMNS: readonly ColumnChoice[] = [
   { id: 'event', label: 'Etkinlik', fixed: true },
@@ -190,7 +188,7 @@ function EventsPageContent() {
       ),
     [searched, statusFilter, sort, stats],
   );
-  const paged = paginateRows(filtered, params.page, PAGE_SIZE);
+  const paged = paginateRows(filtered, params.page, params.size);
   // The panel steps through the rows shown: the page in the list, the month's Events in the calendar
   const open = panelNeighbours(calendar ? filtered : paged.slice, params.panel, (ev) => ev.id);
   const openEvent = open.row ?? (params.panel ? events.find((ev) => ev.id === params.panel) : null);
@@ -520,16 +518,16 @@ function EventsPageContent() {
           {viewSwitch}
         </ListToolbar>
       }
-      footer={
-        calendar ? undefined : (
-          <ListFooter
-            total={filtered.length}
-            page={paged.page}
-            totalPages={paged.totalPages}
-            pageSize={PAGE_SIZE}
-            onPage={(page) => setParams({ page })}
-          />
-        )
+      paging={
+        calendar
+          ? undefined
+          : {
+              total: filtered.length,
+              page: paged.page,
+              pageSize: params.size,
+              onPage: (page) => setParams({ page }),
+              onPageSize: (size) => setParams({ size }),
+            }
       }
     >
       {actionError ? (

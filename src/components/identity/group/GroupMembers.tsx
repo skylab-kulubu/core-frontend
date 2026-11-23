@@ -1,12 +1,12 @@
 'use client';
 
 import {
-  DataList,
   DataListTitle,
   MenuItem,
   MenuLinkItem,
   type DataListColumn,
 } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { UserMinus, UserPlus, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar } from '@/components/chrome/Avatar';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
 import {
-  ListFooter,
+  ListPager,
   RowMenu,
   SelectionBar,
   selectionColumn,
@@ -59,8 +59,6 @@ import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useListParams } from '@/lib/ui/use-list-params';
 import { useNotify } from '@/lib/ui/use-notify';
-
-const PAGE_SIZE = 50;
 
 /** core refused some of the confirmed adds; the message says who and why. */
 class MembersRefused extends Error {}
@@ -220,7 +218,7 @@ export function GroupMembers() {
           : roleOf(m) === 'member',
     );
   const rows = inView(view).filter((m) => matchesQuery(params.q, m.firstName, m.lastName, m.email));
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const selection = useRowSelection(`${params.q}|${view}|${paged.page}`);
   const leaderRows = sorted.filter((m) => roleOf(m) !== 'member').length;
 
@@ -548,6 +546,13 @@ export function GroupMembers() {
   ];
 
   const filtered = Boolean(params.q.trim()) || view !== 'all';
+  const paging = {
+    total: rows.length,
+    page: paged.page,
+    pageSize: params.size,
+    onPage: (page: number) => setParams({ page }),
+    onPageSize: (size: number) => setParams({ size }),
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -560,36 +565,41 @@ export function GroupMembers() {
           <Command primary icon={UserPlus} label="Üye ekle" onClick={openPicker} />
         </CommandBar>
       ) : null}
-      <ListToolbar
-        query={params.q}
-        onQuery={(q) => setParams({ q })}
-        commitDelay={250}
-        placeholder="Ad veya e-posta"
-        searchLabel="Üye ara"
-        views={
-          leaderRows > 0
-            ? [
-                { value: 'all', label: 'Hepsi', count: sorted.length },
-                { value: 'leaders', label: 'Liderler', count: leaderRows },
-                { value: 'members', label: 'Üyeler', count: sorted.length - leaderRows },
-              ]
-            : undefined
-        }
-        view={view}
-        onView={(next) => setParams({ view: next })}
-        columns={
-          <ColumnPicker
-            columns={COLUMNS.filter(
-              (column) =>
-                (column.id !== 'term' || hasTerms) &&
-                (column.id !== 'added' || hasAdded) &&
-                (column.id !== 'from' || hasSources),
-            )}
-            isShown={columns.isShown}
-            onToggle={columns.toggle}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <ListToolbar
+            query={params.q}
+            onQuery={(q) => setParams({ q })}
+            commitDelay={250}
+            placeholder="Ad veya e-posta"
+            searchLabel="Üye ara"
+            views={
+              leaderRows > 0
+                ? [
+                    { value: 'all', label: 'Hepsi', count: sorted.length },
+                    { value: 'leaders', label: 'Liderler', count: leaderRows },
+                    { value: 'members', label: 'Üyeler', count: sorted.length - leaderRows },
+                  ]
+                : undefined
+            }
+            view={view}
+            onView={(next) => setParams({ view: next })}
+            columns={
+              <ColumnPicker
+                columns={COLUMNS.filter(
+                  (column) =>
+                    (column.id !== 'term' || hasTerms) &&
+                    (column.id !== 'added' || hasAdded) &&
+                    (column.id !== 'from' || hasSources),
+                )}
+                isShown={columns.isShown}
+                onToggle={columns.toggle}
+              />
+            }
           />
-        }
-      />
+        </div>
+        <ListPager {...paging} placement="top" />
+      </div>
       {rows.length === 0 ? (
         filtered ? (
           <EmptyState kind="no-results" onClear={() => setParams({ q: '', view: 'all' })} />
@@ -605,14 +615,7 @@ export function GroupMembers() {
           rowLabel={personName}
         />
       )}
-      <ListFooter
-        total={rows.length}
-        page={paged.page}
-        totalPages={paged.totalPages}
-        pageSize={rows.length > PAGE_SIZE ? PAGE_SIZE : undefined}
-        noun="kişi"
-        onPage={(page) => setParams({ page })}
-      />
+      <ListPager {...paging} />
       {confirmDialog}
       <PickerDrawer
         open={memberOpen}

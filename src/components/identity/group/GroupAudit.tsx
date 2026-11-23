@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { Button, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState, Forbidden } from '@/components/chrome/PageState';
 import { StatusChip } from '@/components/chrome/StatusChip';

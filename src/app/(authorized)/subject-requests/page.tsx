@@ -11,7 +11,8 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { Pagination } from '@/components/chrome/Pagination';
+import { ListPager } from '@/components/chrome/ListPage';
+import { DEFAULT_PAGE_SIZE } from '@/lib/ui/page-sizes';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -129,6 +130,7 @@ export default function SubjectRequestsPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('open');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   // The version the drawer was opened on: core refuses the save if someone changed it since
@@ -156,7 +158,7 @@ export default function SubjectRequestsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, filter]);
+  }, [query, filter, pageSize]);
 
   const filtered = useMemo(
     () =>
@@ -168,7 +170,7 @@ export default function SubjectRequestsPage() {
       }),
     [requests, query, filter],
   );
-  const paged = paginateRows(filtered, page);
+  const paged = paginateRows(filtered, page, pageSize);
 
   if (capabilities.status === 'loading') return <PageSkeleton />;
   if (!canManage) return <Forbidden pageTitle="KVKK başvuruları" />;
@@ -269,7 +271,13 @@ export default function SubjectRequestsPage() {
           );
         })}
       </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
+      <ListPager
+        total={filtered.length}
+        page={paged.page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={setPageSize}
+      />
       <Drawer
         open={open}
         onClose={() => setOpen(false)}

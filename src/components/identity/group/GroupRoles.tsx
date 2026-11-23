@@ -1,6 +1,7 @@
 'use client';
 
-import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';

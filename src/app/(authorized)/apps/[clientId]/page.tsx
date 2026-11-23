@@ -1,6 +1,7 @@
 'use client';
 
-import { CopyButton, DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { CopyButton, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Lock, Plus, RefreshCw, X } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';

@@ -3,12 +3,12 @@
 import {
   BarList,
   Button,
-  DataList,
   FilterPills,
   MenuItem,
   cn,
   type DataListColumn,
 } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Ban, History, Pencil, Plus, RefreshCw, Trophy, UserPlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';

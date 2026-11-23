@@ -1,6 +1,7 @@
 'use client';
 
-import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { CalendarDays, ChevronDown, ChevronRight, Plus, RefreshCw, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
