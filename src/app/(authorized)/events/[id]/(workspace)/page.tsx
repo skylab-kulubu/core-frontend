@@ -1,12 +1,11 @@
 'use client';
 
-import { buttonVariants } from '@skylab-kulubu/skylcn-ui';
+import { buttonVariants, cn } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState } from 'react';
 import { saveClass } from '@/components/chrome/SaveButton';
 import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
 import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList';
-import { EventOverviewA, EventOverviewB } from '@/components/scheduling/overview/EventOverview';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -16,7 +15,6 @@ import { previousFormHref, previousForms, previousSessionForms } from '@/lib/eve
 import { APPLY_SLOT_KEY, formsAdminOrigin } from '@/lib/event-forms';
 import { publicMediaUrl } from '@/lib/event-media';
 import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
-import { useDesignVariant } from '@/lib/ui/design-variant';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
@@ -81,7 +79,7 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
           className={
             form.slotKey === APPLY_SLOT_KEY
               ? saveClass
-              : `${buttonVariants({ variant: 'outline', size: 'sm' })} ${BUTTON_TEXT}`
+              : cn(buttonVariants({ variant: 'outline', size: 'sm' }), BUTTON_TEXT)
           }
         >
           {form.slotKey === APPLY_SLOT_KEY
@@ -96,18 +94,12 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
 /** Genel bakış tab: the event's cover, description, guest form link and feedback form. */
 export default function EventOverviewPage() {
   const { event, sessions, canMutate } = useEventWorkspace();
-  const variant = useDesignVariant();
-  const previous =
-    canMutate && event.copiedFromEventId ? (
-      <PreviousForms event={event} sessions={sessions} />
-    ) : null;
-  // A direction on trial (?tasarim=a|b) draws the whole overview; without it the page is as before
-  if (variant === 'a') return <EventOverviewA previous={previous} />;
-  if (variant === 'b') return <EventOverviewB previous={previous} />;
 
   return (
     <div className="space-y-6">
-      {previous}
+      {canMutate && event.copiedFromEventId ? (
+        <PreviousForms event={event} sessions={sessions} />
+      ) : null}
       {event.coverImageUrl ? (
         <EventCoverImage src={publicMediaUrl(event.coverImageUrl)} className="max-w-3xl" />
       ) : null}

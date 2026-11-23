@@ -152,4 +152,12 @@ describe('searchPages', () => {
       ['/dashboard', '/urls'],
     );
   });
+
+  it('finds Kısa link by its old name, url', () => {
+    const urls = searchPages(person(['/UYELER/ARGE/WEBLAB'], ['url:access'])).find(
+      (page) => page.href === '/urls',
+    );
+    expect(urls?.label).toBe('Kısa link');
+    expect(urls?.keywords).toMatch(/\burl\b/);
+  });
 });

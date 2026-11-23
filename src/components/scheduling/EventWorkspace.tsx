@@ -44,7 +44,6 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventWorkspaceNav } from '@/components/scheduling/EventWorkspaceNav';
-import { EventShellA, EventShellB } from '@/components/scheduling/overview/EventShell';
 import {
   eventStatusActions,
   useEventStatusActions,
@@ -106,7 +105,6 @@ import {
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
-import { useDesignVariant } from '@/lib/ui/design-variant';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 export const eventEditSchema = z
@@ -587,8 +585,6 @@ export function EventWorkspace({
 
   const personById = useMemo(() => new Map(people.map((person) => [person.id, person])), [people]);
   useChromeCrumbName(`/events/${id}`, event?.name);
-  // A design direction on trial (?tasarim=a|b) draws the header and the page menu its own way
-  const variant = useDesignVariant();
 
   if (error && !event) {
     return <StateCard title={error} tone="danger" />;
@@ -742,130 +738,6 @@ export function EventWorkspace({
   // Publishing from the edit page would publish the saved event, not what is typed
   const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
 
-  const publishButton =
-    rights.canUpdate && offers.publish ? (
-      <SaveButton
-        type="button"
-        disabled={unsavedEdit}
-        title={unsavedEdit ? 'Önce kaydet' : undefined}
-        onClick={() =>
-          void statusActions.publish(
-            event,
-            can.canTickets && ticketsLoaded ? tickets : undefined,
-            personById,
-          )
-        }
-      >
-        Yayınla
-      </SaveButton>
-    ) : null;
-  const cancelNotices = (
-    <>
-      {status === 'cancelled' ? (
-        <Notice
-          tone="danger"
-          title={
-            cancelledOn(event.cancelledAt)
-              ? `${cancelledOn(event.cancelledAt)} tarihinde iptal edildi.`
-              : 'İptal edildi.'
-          }
-          action={
-            rights.canUpdate || closeFormHref ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {rights.canUpdate ? (
-                  <Button
-                    className={BUTTON_TEXT}
-                    size="sm"
-                    onClick={() => statusActions.askUncancel(event)}
-                  >
-                    İptali geri al
-                  </Button>
-                ) : null}
-                {closeFormHref ? (
-                  <a href={closeFormHref} className="text-skylab-300 text-[13px]/5 hover:underline">
-                    Formu kapat
-                  </a>
-                ) : null}
-              </div>
-            ) : undefined
-          }
-        >
-          {event.cancelReason || undefined}
-        </Notice>
-      ) : null}
-      {copySkipped.length ? (
-        <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
-          {copySkippedLines(copySkipped).map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </Notice>
-      ) : null}
-    </>
-  );
-  const errorNotices = (
-    <>
-      {error ? (
-        <Notice tone="danger" onDismiss={() => setError(null)}>
-          {error}
-        </Notice>
-      ) : null}
-      {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
-    </>
-  );
-  const pageFlags = {
-    participants: can.canTickets,
-    competition: showsCompetitionTab(can.canCompetitors, competitors.length),
-    door: can.canDesk,
-    certificates: can.canCertificates,
-    content: can.canMutate || Boolean(event.videos?.length || event.files?.length),
-  };
-
-  if (variant && !onEditPage) {
-    const Shell = variant === 'a' ? EventShellA : EventShellB;
-    return (
-      <EventWorkspaceContext.Provider value={workspace}>
-        <Shell
-          variant={variant}
-          event={event}
-          coverSrc={event.coverImageUrl ? publicMediaUrl(event.coverImageUrl) : undefined}
-          active={eventTabFromPath(pathname ?? '') ?? 'overview'}
-          pages={{
-            ...pageFlags,
-            edit: can.canMutate,
-            counts: {
-              participants: can.canTickets && ticketsLoaded ? tickets.length : undefined,
-              program: sessions.length,
-              competition: competitors.length || undefined,
-              content: (event.files?.length ?? 0) + (event.videos?.length ?? 0) || undefined,
-            },
-          }}
-          publish={publishButton}
-          onMail={can.canTickets ? () => void mailApplicants() : undefined}
-          mailing={mailing}
-          menuItems={menuItems}
-          figures={
-            can.canTickets && ticketsLoaded
-              ? {
-                  registered: tickets.length,
-                  entered: tickets.filter((ticket) => (ticket.checkIns?.length ?? 0) > 0).length,
-                }
-              : undefined
-          }
-          notices={
-            <>
-              {cancelNotices}
-              {errorNotices}
-            </>
-          }
-        >
-          {children}
-        </Shell>
-        {statusActions.dialog}
-        {copy.dialog}
-      </EventWorkspaceContext.Provider>
-    );
-  }
-
   return (
     <EventWorkspaceContext.Provider value={workspace}>
       <div className="space-y-6">
@@ -890,7 +762,22 @@ export function EventWorkspace({
           }
           actions={
             <>
-              {publishButton}
+              {rights.canUpdate && offers.publish ? (
+                <SaveButton
+                  type="button"
+                  disabled={unsavedEdit}
+                  title={unsavedEdit ? 'Önce kaydet' : undefined}
+                  onClick={() =>
+                    void statusActions.publish(
+                      event,
+                      can.canTickets && ticketsLoaded ? tickets : undefined,
+                      personById,
+                    )
+                  }
+                >
+                  Yayınla
+                </SaveButton>
+              ) : null}
               {can.canMutate && !onEditPage ? (
                 <ActionButton
                   icon={Pencil}
@@ -921,19 +808,65 @@ export function EventWorkspace({
             </>
           }
         />
-        {cancelNotices}
+        {status === 'cancelled' ? (
+          <Notice
+            tone="danger"
+            title={
+              cancelledOn(event.cancelledAt)
+                ? `${cancelledOn(event.cancelledAt)} tarihinde iptal edildi.`
+                : 'İptal edildi.'
+            }
+            action={
+              rights.canUpdate || closeFormHref ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {rights.canUpdate ? (
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="sm"
+                      onClick={() => statusActions.askUncancel(event)}
+                    >
+                      İptali geri al
+                    </Button>
+                  ) : null}
+                  {closeFormHref ? (
+                    <a
+                      href={closeFormHref}
+                      className="text-skylab-300 text-[13px]/5 hover:underline"
+                    >
+                      Formu kapat
+                    </a>
+                  ) : null}
+                </div>
+              ) : undefined
+            }
+          >
+            {event.cancelReason || undefined}
+          </Notice>
+        ) : null}
+        {copySkipped.length ? (
+          <Notice tone="warning" onDismiss={() => setCopySkipped([])}>
+            {copySkippedLines(copySkipped).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </Notice>
+        ) : null}
         {onEditPage ? null : (
           <EventWorkspaceNav
             eventId={event.id}
             active={eventTabFromPath(pathname ?? '') ?? 'overview'}
-            canSeeParticipants={pageFlags.participants}
-            canSeeCompetitors={pageFlags.competition}
-            canUseDoor={pageFlags.door}
-            canSeeCertificates={pageFlags.certificates}
-            canSeeFiles={pageFlags.content}
+            canSeeParticipants={can.canTickets}
+            canSeeCompetitors={showsCompetitionTab(can.canCompetitors, competitors.length)}
+            canUseDoor={can.canDesk}
+            canSeeCertificates={can.canCertificates}
+            canSeeFiles={can.canMutate || Boolean(event.videos?.length || event.files?.length)}
           />
         )}
-        {errorNotices}
+        {error ? (
+          <Notice tone="danger" onDismiss={() => setError(null)}>
+            {error}
+          </Notice>
+        ) : null}
+        {handoffNote ? <p className="text-skylab-300 text-sm">{handoffNote}</p> : null}
         {children}
         {statusActions.dialog}
         {copy.dialog}

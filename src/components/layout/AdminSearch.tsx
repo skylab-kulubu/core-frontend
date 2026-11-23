@@ -166,7 +166,7 @@ export function AdminSearch({
         label: page.label,
         group: 'Sayfalar',
         icon: navIcon(page.href),
-        keywords: page.section,
+        keywords: [page.section, page.keywords].filter(Boolean).join(' ') || undefined,
         href: page.href,
       })),
       ...records.map((record) => ({

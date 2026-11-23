@@ -221,9 +221,17 @@ describe('UrlList on a phone', () => {
       <UrlList title="Tümü" items={[eventRow]} loading={false} failed={false} {...handlers} />,
     );
     await user.click(screen.getByRole('button', { name: 'https://skyl.app/gecekodu: eylemler' }));
-    expect(await screen.findByRole('menuitem', { name: 'Düzenle' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    const edit = await screen.findByRole('menuitem', { name: /^Düzenle/ });
+    expect(edit).toHaveAttribute('aria-disabled', 'true');
+    // The phone has no hover: the menu says why
+    expect(edit).toHaveTextContent(/yönetiliyor/);
+  });
+});
+
+describe('UrlList kind and note on a phone', () => {
+  it('leads the line under the link with the kind and the note', () => {
+    render(<UrlList title="Tümü" items={[formRow]} loading={false} failed={false} {...handlers} />);
+    const phoneMeta = within(rowOf('basvuru')).getByText(/Form · Formda yönetiliyor ·/);
+    expect(phoneMeta).toHaveClass('sm:hidden');
   });
 });
