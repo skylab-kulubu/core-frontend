@@ -8,10 +8,7 @@ export default function CertificateTemplatePage({ params }: { params: Promise<{ 
   const { id } = use(params);
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Sertifika şablonu"
-        description="Taslak değişiklikleri eski sertifikaları etkilemez; yayınlanan her sürüm sabitlenir."
-      />
+      <PageHeader title="Sertifika şablonu" />
       <CertificateTemplateEditor templateId={id} />
     </div>
   );

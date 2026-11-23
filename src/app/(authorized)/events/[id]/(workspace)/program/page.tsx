@@ -56,7 +56,7 @@ const daySchema = z.object({
 });
 
 const sessionSchema = z.object({
-  eventDayId: z.string().min(1, 'Gün seçin'),
+  eventDayId: z.string().min(1, 'Gün seç'),
   title: z.string().trim().min(1, 'Başlık zorunlu'),
   speakerName: z.string().trim().min(1, 'Konuşmacı zorunlu'),
   speakerLinkedin: z.string().trim(),

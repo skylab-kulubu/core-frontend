@@ -137,7 +137,7 @@ describe('UrlList', () => {
     const form = within(rowOf('basvuru'));
     const event = within(rowOf('gecekodu'));
     expect(form.getByRole('button', { name: 'Düzenle' })).toBeDisabled();
-    expect(form.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+    expect(form.getByText('Formda yönetiliyor')).toBeInTheDocument();
     expect(event.getByRole('button', { name: 'Düzenle' })).toBeDisabled();
     expect(event.getByText('Etkinlikte yönetiliyor')).toBeInTheDocument();
   });
@@ -184,7 +184,7 @@ describe('UrlList', () => {
       />,
     );
     expect(screen.getByText('Form')).toBeInTheDocument();
-    expect(screen.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+    expect(screen.getByText('Formda yönetiliyor')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Düzenle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sil' })).not.toBeInTheDocument();
   });

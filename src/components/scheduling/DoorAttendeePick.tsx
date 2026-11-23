@@ -94,7 +94,7 @@ export function DoorAttendeePick({
           title: attendee.name,
           subtitle: attendee.email,
         }))}
-        emptyMessage={query.trim().length < 2 ? 'En az 2 karakter yazın' : 'Katılımcı yok'}
+        emptyMessage={query.trim().length < 2 ? 'En az 2 karakter yaz' : 'Katılımcı yok'}
         onPick={(id) => {
           const attendee = attendees.find((row) => optionID(row) === id);
           if (!attendee) return;

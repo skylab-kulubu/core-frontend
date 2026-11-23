@@ -69,7 +69,6 @@ export default function AnnouncementsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Duyurular"
-        description="Site duyuruları. Yayınlamak YK ve kurul içindir."
         actions={
           <ActionButton
             href="/announcements/new"

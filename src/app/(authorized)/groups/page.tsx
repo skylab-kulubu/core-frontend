@@ -65,7 +65,6 @@ export default function GroupsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Gruplar"
-        description="Ekipler, kurullar ve üye ağacı. Site görünürlüğü grup kartında."
         actions={
           canWrite ? (
             <ActionButton

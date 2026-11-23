@@ -49,7 +49,7 @@ describe('EventEditor door staff', () => {
     expect(identityApi.getUser).toHaveBeenCalledWith('u-staff');
 
     await user.click(screen.getByRole('button', { name: 'Kişi ekle' }));
-    expect(screen.getByText('En az 2 karakter yazın')).toBeInTheDocument();
+    expect(screen.getByText('En az 2 karakter yaz')).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Ad, e-posta'), 'A');
     expect(identityApi.listUsers).not.toHaveBeenCalled();
 

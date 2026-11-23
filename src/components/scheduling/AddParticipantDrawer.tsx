@@ -14,7 +14,7 @@ import { ticketsApi, type GuestApplyBody, type Ticket } from '@/lib/api/tickets'
 import { useNotify } from '@/lib/ui/use-notify';
 
 const memberSchema = z.object({
-  personId: z.string().trim().min(1, 'Kişi seçin'),
+  personId: z.string().trim().min(1, 'Kişi seç'),
 });
 
 const guestSchema = z.object({

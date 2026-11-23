@@ -45,7 +45,7 @@ type RecentCheckIn = {
 
 const doorSchema = z
   .object({
-    eventId: z.string().min(1, 'Etkinlik seçin'),
+    eventId: z.string().min(1, 'Etkinlik seç'),
     sessionId: z.string().min(1, 'Giriş oturumunu seç'),
     personId: z.string(),
     email: z.string().trim(),
@@ -297,7 +297,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
                     errors.sessionId || sessionNote ? 'door-session-note' : undefined
                   }
                 >
-                  <option value="">Oturum seçin</option>
+                  <option value="">Oturum seç</option>
                   {sessions.map((session) => (
                     <option key={session.id} value={session.id}>
                       {doorSessionLabel(session)}

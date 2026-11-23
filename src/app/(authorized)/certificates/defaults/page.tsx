@@ -115,7 +115,7 @@ export default function CertificateDefaultsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sertifika varsayılanları"
-        description="Çözüm sırası: etkinliğe özel şablon → sahip ekip varsayılanı → SKY LAB varsayılanı."
+        description="Sıra: etkinliğe özel şablon → ekip varsayılanı → SKY LAB varsayılanı"
       />
       {error ? (
         <p role="alert" className="text-destructive text-sm">
@@ -213,10 +213,6 @@ export default function CertificateDefaultsPage() {
         ) : null}
         {confirmDialog}
       </div>
-      <StateCard
-        title="Etkinliğe özel seçim etkinlik detayında yapılır"
-        description="Etkinlikteki Sertifikalar sekmesi geçerli şablonun nereden geldiğini açıkça gösterir ve yalnızca o etkinlik için geçersiz kılmana izin verir."
-      />
     </div>
   );
 }

@@ -105,7 +105,7 @@ export function MapRegionDrawer({ open, onClose, onRequested, taken = [] }: MapR
             const box = parsed.box;
             confirm({
               title: `"${name.trim()}" büyük bir bölge. İstensin mi?`,
-              description: 'Çıkarım uzun sürer ve core’un belleğini zorlayabilir.',
+              description: 'Hazırlanması uzun sürer.',
               actionLabel: 'Yine de iste',
               destructive: false,
               closesDrawer: true,
@@ -152,7 +152,7 @@ export function MapRegionDrawer({ open, onClose, onRequested, taken = [] }: MapR
         </div>
         {large ? (
           <p role="status" className="text-warning text-[13px]/5">
-            Büyük bölge: çıkarım core’un belleğini zorlayabilir; boyutu core sınırlar.
+            Büyük bölge: hazırlanması uzun sürer.
           </p>
         ) : null}
         {error ? (

@@ -103,7 +103,7 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
   },
   {
     href: '/urls',
-    label: 'Kısa URL',
+    label: 'Kısa link',
     section: 'content',
     visibleWhen: ({ groups, roles }) => canUseUrls(groups, roles),
   },

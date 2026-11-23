@@ -89,9 +89,6 @@ function LoginContent() {
     return (
       <LoginShell>
         <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Çıkış yapıldı</h1>
-        <p className="text-muted-foreground mb-4 text-sm">
-          Tekrar girmek için aşağıdaki düğmeye bas.
-        </p>
         <SaveButton type="button" onClick={() => void handleLogin()}>
           Giriş yap
         </SaveButton>

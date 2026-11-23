@@ -626,7 +626,7 @@ export default function GroupDetailPage() {
               <Link href="/apps" className="underline">
                 Uygulamalar
               </Link>{' '}
-              sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
+              sayfasından atanır; yönetici rolleri buradan değişmez.
             </p>
           ) : canWrite && placement ? (
             <p className="text-subtle-foreground text-[13px]/5">
@@ -679,9 +679,6 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <SectionHeading title="Ekstra öznitelikler" />
-        <p className="text-subtle-foreground text-[13px]/5">
-          Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
-        </p>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -804,9 +801,6 @@ export default function GroupDetailPage() {
               />
             }
           />
-          <p className="text-subtle-foreground text-sm">
-            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
-          </p>
         </section>
       ) : null}
       {confirmDialog}

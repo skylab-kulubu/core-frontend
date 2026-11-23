@@ -177,7 +177,7 @@ export default function SubjectRequestsPage() {
     <div className="space-y-6">
       <PageHeader
         title="KVKK başvuruları"
-        description="İlgili kişi başvuruları (KVKK md. 11). Cevap süresi başvurudan itibaren 30 gün."
+        description="KVKK md. 11 · cevap süresi 30 gün"
         actions={
           <ActionButton
             icon={Plus}

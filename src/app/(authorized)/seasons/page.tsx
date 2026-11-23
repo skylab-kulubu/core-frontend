@@ -95,7 +95,6 @@ export default function SeasonsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Sezonlar"
-        description="Dönemleri yönet, etkinliği bir sezona bağla."
         actions={
           canWrite ? (
             <ActionButton

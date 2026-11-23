@@ -129,7 +129,7 @@ describe('PUT /api/handoff-targets/[clientId]', () => {
   });
 
   it.each([
-    [403, 'Bu işlem için realm süper yöneticisi olmalısın.'],
+    [403, 'Bu işlem için ADMIN grubunda olmalısın.'],
     [404, 'Bu istemci bulunamadı.'],
   ])('relays a %i problem from Keycloak', async (status, detail) => {
     signedIn({ auth_token: accessToken() });

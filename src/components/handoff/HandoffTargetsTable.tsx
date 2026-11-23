@@ -242,7 +242,7 @@ export function HandoffTargetsTable({
       status={listStatus({
         loading,
         rowCount: targets.length,
-        emptyMessage: "Keycloak'ta istemci yok.",
+        emptyMessage: 'Hesap sisteminde bu uygulama yok.',
       })}
     >
       <div className="overflow-x-auto">

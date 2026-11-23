@@ -31,7 +31,7 @@ describe('buildSidebarNavigation', () => {
       'Özet',
       'Etkinlikler',
       ['Kişiler', ['Kullanıcılar', 'Gruplar', 'Ekipler', 'KVKK başvuruları']],
-      ['İçerik', ['Duyurular', 'Kısa URL']],
+      ['İçerik', ['Duyurular', 'Kısa link']],
       [
         'Ayarlar',
         [
@@ -100,7 +100,7 @@ describe('buildSidebarNavigation', () => {
   it('gives a url-only member Özet and Kısa URL', () => {
     expect(shape(person(['/UYELER/ARGE/WEBLAB'], ['url:access']))).toEqual([
       'Özet',
-      ['İçerik', ['Kısa URL']],
+      ['İçerik', ['Kısa link']],
     ]);
   });
 
