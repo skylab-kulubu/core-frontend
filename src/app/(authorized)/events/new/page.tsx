@@ -15,7 +15,6 @@ import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';
 import { useEventCreate } from '@/lib/use-event-create';
 import { LoadError } from '@/components/chrome/LoadError';
-import { StateCard } from '@/components/chrome/StateCard';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { useNotify } from '@/lib/ui/use-notify';
 import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
@@ -30,6 +29,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { eventFormChanged } from '@/lib/event-draft';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 function NewEventPageContent() {
   const router = useRouter();
@@ -130,7 +130,7 @@ function NewEventPageContent() {
     setReady(true);
   }, [searchParams, privileged, capabilitiesReady]);
 
-  if (!capabilitiesReady) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!capabilitiesReady) return <PageSkeleton variant="detail" />;
   if (!canCreate) {
     return (
       <p className="text-destructive text-sm">

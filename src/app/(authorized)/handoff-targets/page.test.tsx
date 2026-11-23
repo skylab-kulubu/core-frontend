@@ -83,7 +83,7 @@ describe("SkyApp'ten geçiş page", () => {
 
     render(<HandoffTargetsPage />);
 
-    expect(await screen.findByText('Erişimin yok')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
@@ -301,7 +301,7 @@ describe("SkyApp'ten geçiş page", () => {
     await user.click(within(forms).getByRole('switch'));
     await user.click(within(forms).getByRole('button', { name: 'Kaydet' }));
 
-    expect(await screen.findByText('Erişimin yok')).toBeInTheDocument();
+    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

@@ -5,7 +5,6 @@ import { Link2 } from 'lucide-react';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
-import { StateCard } from '@/components/chrome/StateCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -20,6 +19,7 @@ import { useCapabilities } from '@/lib/capabilities-context';
 import { useTeamCan } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 export default function CertificateDefaultsPage() {
   const { user } = useAuth();
@@ -109,7 +109,7 @@ export default function CertificateDefaultsPage() {
     }
   }
 
-  if (loading) return <StateCard title="Varsayılanlar yükleniyor…" isLoading />;
+  if (loading) return <PageSkeleton variant="detail" />;
 
   return (
     <div className="space-y-6">

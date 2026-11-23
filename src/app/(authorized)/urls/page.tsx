@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ShieldAlert } from 'lucide-react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { useDirtySince } from '@/lib/ui/use-unsaved-changes';
 import { Field } from '@/components/chrome/Field';
@@ -11,7 +10,6 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { HorizontalBars } from '@/components/chrome/PanelChart';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { StateCard } from '@/components/chrome/StateCard';
 import { AliasHint } from '@/components/urls/AliasHint';
 import { UrlList } from '@/components/urls/UrlList';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -46,6 +44,7 @@ import { useAppCanSince } from '@/lib/use-app-can';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAliasHint } from '@/lib/ui/use-alias-hint';
+import { Forbidden } from '@/components/chrome/PageState';
 
 /** core's bare 409 on a short link's create or save: the alias is in use. */
 const ALIAS_TAKEN = { 409: 'Bu kısa ad alınmış; başka bir ad seç.' };
@@ -165,12 +164,7 @@ export default function UrlsPage() {
   }
 
   if (!allowed) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Kısa link" />
-        <StateCard title="Kısa link yetkin yok" Icon={ShieldAlert} tone="warning" />
-      </div>
-    );
+    return <Forbidden pageTitle="Kısa link" />;
   }
 
   return (

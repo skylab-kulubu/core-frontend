@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CircleAlert, Plus, RotateCcw, ShieldAlert, X } from 'lucide-react';
+import { CircleAlert, Plus, RotateCcw, X } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
@@ -25,6 +25,7 @@ import {
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useAppCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
+import { Forbidden } from '@/components/chrome/PageState';
 
 /** How often the list is read again while a region is being prepared. */
 export const REGION_POLL_MS = 5000;
@@ -143,12 +144,7 @@ export default function MapRegionsPage() {
   }
 
   if (state.kind === 'forbidden') {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Harita bölgeleri" />
-        <StateCard title="Bu sayfa ADMIN ve YK’ya açık" Icon={ShieldAlert} tone="warning" />
-      </div>
-    );
+    return <Forbidden pageTitle="Harita bölgeleri" />;
   }
 
   return (
