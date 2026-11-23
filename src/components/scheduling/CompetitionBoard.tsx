@@ -390,7 +390,10 @@ export function CompetitionBoard({ eventId, canManage }: { eventId: string; canM
       const wanted = readOpen();
       setOpenId((current) => {
         const keep = current ?? wanted;
-        return rows.some((row) => row.id === keep) ? keep : (rows[rows.length - 1]?.id ?? null);
+        if (rows.some((row) => row.id === keep)) return keep;
+        // The one being played first, then one taking entrants, then the oldest
+        const by = (status: Competition['status']) => rows.find((row) => row.status === status);
+        return (by('running') ?? by('open') ?? rows[0])?.id ?? null;
       });
     } catch (err) {
       setFailed(coreProblemMessage(err, 'Yarışmalar yüklenemedi'));
