@@ -27,12 +27,25 @@ type DrawerProps = {
    * drawer closes and drops it. The drawer's own Vazgeç still closes at once.
    */
   dirty?: boolean;
+  /** Buttons or links at the end of the title row, such as "Tam sayfa". */
+  actions?: ReactNode;
+  /** Classes for the panel, such as a wider one for a list's row. */
+  className?: string;
 };
 
 /** A side panel from the right with a title; skylcn-ui's Drawer, swiped or Esc to close. */
 const FIELD = 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
-export function Drawer({ open, onClose, title, children, finalFocus, dirty }: DrawerProps) {
+export function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  finalFocus,
+  dirty,
+  actions,
+  className,
+}: DrawerProps) {
   const body = useRef<HTMLDivElement>(null);
   const [confirm, confirmDialog] = useConfirm();
   function requestClose() {
@@ -52,11 +65,13 @@ export function Drawer({ open, onClose, title, children, finalFocus, dirty }: Dr
     <Panel open={open} onOpenChange={(next) => (next ? undefined : requestClose())}>
       {/* A panel with a form starts in its first field, as before */}
       <DrawerContent
+        className={className}
         initialFocus={() => body.current?.querySelector<HTMLElement>(FIELD) ?? true}
         finalFocus={finalFocus ? () => finalFocus() ?? true : undefined}
       >
-        <DrawerHeader>
-          <DrawerTitle>{title}</DrawerTitle>
+        <DrawerHeader className={actions ? 'flex-row items-center gap-2' : undefined}>
+          <DrawerTitle className={actions ? 'flex-1' : undefined}>{title}</DrawerTitle>
+          {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
         </DrawerHeader>
         <DrawerBody ref={body} className="flex flex-col gap-3">
           {children}
