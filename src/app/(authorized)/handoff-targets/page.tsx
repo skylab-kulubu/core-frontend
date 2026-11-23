@@ -1,14 +1,10 @@
 'use client';
 
-import {
-  DataList,
-  DataListTitle,
-  DescriptionList,
-  type DataListColumn,
-} from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, DescriptionList, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
@@ -26,7 +22,6 @@ import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useListParams } from '@/lib/ui/use-list-params';
 
-const PAGE_SIZE = 50;
 type View = 'all' | 'on' | 'off';
 
 function enabledFirst(targets: HandoffTarget[]): HandoffTarget[] {
@@ -99,7 +94,7 @@ export default function HandoffTargetsPage() {
 
   const on = searched.filter((target) => target.enabled === true);
   const rows = view === 'on' ? on : view === 'off' ? searched.filter((t) => !t.enabled) : searched;
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const open = panelNeighbours(paged.slice, params.panel, (target) => target.clientId);
   const filtered = Boolean(params.q.trim()) || view !== 'all';
 
@@ -195,15 +190,13 @@ export default function HandoffTargetsPage() {
           onView={(next) => setParams({ view: next })}
         />
       }
-      footer={
-        <ListFooter
-          total={rows.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          noun="site"
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {state.kind === 'failed' ? (
         <EmptyState kind="failed" title={state.detail} onRetry={() => void load()} />

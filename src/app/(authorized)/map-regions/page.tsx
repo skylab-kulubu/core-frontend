@@ -1,14 +1,10 @@
 'use client';
 
-import {
-  DataList,
-  DataListTitle,
-  DescriptionList,
-  type DataListColumn,
-} from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, DescriptionList, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
@@ -37,8 +33,6 @@ import { useNotify } from '@/lib/ui/use-notify';
 
 /** How often the list is read again while a region is being prepared. */
 export const REGION_POLL_MS = 5000;
-
-const PAGE_SIZE = 50;
 
 type LoadState =
   | { kind: 'loading' }
@@ -165,7 +159,7 @@ export default function MapRegionsPage() {
   const count = (which: Exclude<View, 'all'>) =>
     searched.filter((region) => viewOf(region) === which).length;
   const rows = view === 'all' ? searched : searched.filter((region) => viewOf(region) === view);
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const open = panelNeighbours(paged.slice, params.panel, regionId);
   const filtered = Boolean(params.q.trim()) || view !== 'all';
   const live = regions.filter((region) => region.status !== 'retired');
@@ -318,15 +312,13 @@ export default function MapRegionsPage() {
           onView={(next) => setParams({ view: next })}
         />
       }
-      footer={
-        <ListFooter
-          total={rows.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          noun="bölge"
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {retryError && !row ? (
         <p role="alert" className="text-destructive text-sm">

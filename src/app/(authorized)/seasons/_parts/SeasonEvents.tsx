@@ -1,6 +1,7 @@
 'use client';
 
-import { DataList, DataListTitle, MenuItem, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, MenuItem, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Unlink } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { RowMenu } from '@/components/chrome/ListPage';

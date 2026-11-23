@@ -11,7 +11,8 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { FilterPills, ListToolbar } from '@/components/chrome/ListToolbar';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { Pagination } from '@/components/chrome/Pagination';
+import { ListPager } from '@/components/chrome/ListPage';
+import { useListParams } from '@/lib/ui/use-list-params';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -126,9 +127,12 @@ export default function SubjectRequestsPage() {
   const [requests, setRequests] = useState<SubjectRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('open');
-  const [page, setPage] = useState(1);
+  // The search, the status, the page and its size live in the address, as on every list
+  const [params, setParams] = useListParams({ view: 'open' });
+  const query = params.q;
+  const filter: Filter = (['open', 'concluded', 'all'] as const).includes(params.view as Filter)
+    ? (params.view as Filter)
+    : 'open';
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   // The version the drawer was opened on: core refuses the save if someone changed it since
@@ -154,10 +158,6 @@ export default function SubjectRequestsPage() {
     if (canManage) void load();
   }, [canManage]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [query, filter]);
-
   const filtered = useMemo(
     () =>
       requests.filter((request) => {
@@ -168,7 +168,7 @@ export default function SubjectRequestsPage() {
       }),
     [requests, query, filter],
   );
-  const paged = paginateRows(filtered, page);
+  const paged = paginateRows(filtered, params.page, params.size);
 
   if (capabilities.status === 'loading') return <PageSkeleton />;
   if (!canManage) return <Forbidden pageTitle="KVKK başvuruları" />;
@@ -202,14 +202,15 @@ export default function SubjectRequestsPage() {
       ) : null}
       <ListToolbar
         query={query}
-        onQuery={setQuery}
+        onQuery={(q) => setParams({ q })}
+        commitDelay={250}
         placeholder="Ad ya da iletişim"
         searchLabel="Başvuru ara"
       >
         <FilterPills
           ariaLabel="Başvuru durumu"
           value={filter}
-          onChange={setFilter}
+          onChange={(view) => setParams({ view })}
           options={[
             { value: 'open', label: 'Açık' },
             { value: 'concluded', label: 'Sonuçlanan' },
@@ -269,7 +270,13 @@ export default function SubjectRequestsPage() {
           );
         })}
       </ListPanel>
-      <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
+      <ListPager
+        total={filtered.length}
+        page={paged.page}
+        pageSize={params.size}
+        onPage={(page) => setParams({ page })}
+        onPageSize={(size) => setParams({ size })}
+      />
       <Drawer
         open={open}
         onClose={() => setOpen(false)}

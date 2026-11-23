@@ -1,16 +1,11 @@
 'use client';
 
-import {
-  CopyButton,
-  DataList,
-  DataListTitle,
-  MenuItem,
-  type DataListColumn,
-} from '@skylab-kulubu/skylcn-ui';
+import { CopyButton, DataListTitle, MenuItem, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { Pencil, Plus, QrCode, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
-import { ListFooter, ListPage, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard, ObjectEssentials } from '@/components/chrome/object-page/ObjectPage';
@@ -56,8 +51,6 @@ import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useListParams } from '@/lib/ui/use-list-params';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useAppCanSince } from '@/lib/use-app-can';
-
-const PAGE_SIZE = 50;
 
 /** core's bare 409 on a short link's create or save: the alias is in use. */
 const ALIAS_TAKEN = { 409: 'Bu kısa ad alınmış; başka bir ad seç.' };
@@ -141,7 +134,7 @@ export default function UrlsPage() {
     [inView, view, params.q],
   );
   const sorted = useMemo(() => sortLinks(searched, sort), [searched, sort]);
-  const paged = paginateRows(sorted, params.page, PAGE_SIZE);
+  const paged = paginateRows(sorted, params.page, params.size);
   const open = panelNeighbours(paged.slice, params.panel, (row) => row.id);
   // A link opened from an address that is not on this page still opens
   const openRow = open.row ?? rows.find((row) => row.id === params.panel) ?? null;
@@ -456,15 +449,13 @@ export default function UrlsPage() {
           }
         />
       }
-      footer={
-        <ListFooter
-          total={sorted.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          pageSize={PAGE_SIZE}
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: sorted.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {!loading && (failed || sorted.length === 0) ? (
         empty

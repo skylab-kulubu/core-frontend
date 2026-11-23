@@ -13,6 +13,8 @@ import {
 import { MoreHorizontal, X } from 'lucide-react';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Pagination } from '@/components/chrome/Pagination';
+import { Select } from '@/components/chrome/Select';
+import { PAGE_SIZES } from '@/lib/ui/page-sizes';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
@@ -51,6 +53,7 @@ export function ListPage({
   summary,
   toolbar,
   footer,
+  paging,
   children,
   className,
 }: {
@@ -66,8 +69,14 @@ export function ListPage({
   summary?: ReactNode;
   /** The ListToolbar. */
   toolbar?: ReactNode;
-  /** The ListFooter: the count and the pages. */
+  /** The ListFooter: the count and the pages. Left out when `paging` is given. */
   footer?: ReactNode;
+  /**
+   * The list's pages: drawn above it, at the end of the toolbar's row, and under it
+   * with the page size (25 / 50 / 100). Keep `page` and `pageSize` in the address
+   * (useListParams' `page` and `size`).
+   */
+  paging?: ListPaging;
   children: ReactNode;
   className?: string;
 }) {
@@ -79,9 +88,16 @@ export function ListPage({
       </div>
       {summary}
       <section className="flex flex-col gap-3">
-        {toolbar}
+        {paging ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="min-w-0 flex-1">{toolbar}</div>
+            <ListPager {...paging} placement="top" />
+          </div>
+        ) : (
+          toolbar
+        )}
         {children}
-        {footer}
+        {paging ? <ListPager {...paging} /> : footer}
       </section>
     </div>
   );
@@ -155,6 +171,80 @@ export function SummaryStrip({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** A list's pages: how many rows there are, the page shown and the page size. */
+export type ListPaging = {
+  /** Every row the list holds (core's total for a list it pages). */
+  total: number;
+  page: number;
+  pageSize: number;
+  onPage: (page: number) => void;
+  /** Offers 25 / 50 / 100 under the list. */
+  onPageSize?: (size: number) => void;
+};
+
+/**
+ * The paging bar (Entra's): "1–25 / 187", then the previous and next buttons and
+ * the page numbers. Above a list (`top`) it sits at the end of the toolbar's row;
+ * under it, it adds the page size. A list on one page shows only its count.
+ */
+export function ListPager({
+  total,
+  page,
+  pageSize,
+  onPage,
+  onPageSize,
+  placement = 'bottom',
+}: ListPaging & { placement?: 'top' | 'bottom' }) {
+  if (!total) return null;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(Math.max(1, page), totalPages);
+  const from = (current - 1) * pageSize + 1;
+  const to = Math.min(current * pageSize, total);
+  const sizes = onPageSize && total > PAGE_SIZES[0];
+  return (
+    <div
+      data-slot="list-pager"
+      data-placement={placement}
+      className={cn(
+        'flex flex-wrap items-center gap-x-3 gap-y-2',
+        placement === 'bottom' ? 'justify-between' : 'ms-auto justify-end',
+      )}
+    >
+      <p className="text-subtle-foreground text-xs whitespace-nowrap tabular-nums">
+        {`${from}–${to} / ${total}`}
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        {totalPages > 1 ? (
+          <Pagination
+            current={current}
+            totalPages={totalPages}
+            onPageChange={onPage}
+            label={placement === 'top' ? 'Sayfalama, liste üstü' : 'Sayfalama'}
+          />
+        ) : null}
+        {sizes && placement === 'bottom' ? (
+          <label className={cn('text-subtle-foreground flex items-center gap-2', TEXT_SECONDARY)}>
+            Sayfada
+            <Select
+              aria-label="Sayfadaki satır"
+              size="sm"
+              className="w-20"
+              value={String(pageSize)}
+              onChange={(change) => onPageSize(Number(change.target.value))}
+            >
+              {PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+      </div>
     </div>
   );
 }

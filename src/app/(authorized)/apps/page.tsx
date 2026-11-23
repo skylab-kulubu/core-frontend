@@ -1,9 +1,10 @@
 'use client';
 
-import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
@@ -19,7 +20,6 @@ import { useAppCan } from '@/lib/use-app-can';
 import { AppMark } from './_parts/AppMark';
 import { accessLabel, assignmentCount } from './_parts/app-view';
 
-const PAGE_SIZE = 50;
 type View = 'all' | 'assigned' | 'open';
 
 /** Uygulamalar: Entra's Enterprise apps list (core /v1/apps); a row opens the app. */
@@ -63,7 +63,7 @@ export default function AppsPage() {
       : view === 'open'
         ? searched.filter((app) => !app.assignmentRequired)
         : searched;
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const filtered = Boolean(params.q.trim()) || view !== 'all';
 
   const columns: DataListColumn<AppSummary>[] = [
@@ -162,15 +162,13 @@ export default function AppsPage() {
           onView={(next) => setParams({ view: next })}
         />
       }
-      footer={
-        <ListFooter
-          total={rows.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          noun="uygulama"
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {!loading && (failed || rows.length === 0) ? (
         failed ? (
