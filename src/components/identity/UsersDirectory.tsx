@@ -328,7 +328,7 @@ export function UsersDirectory({
           <DataListTitle
             title={personName(row)}
             subtitle={
-              <span className={`${TEXT_SECONDARY} break-all`}>
+              <span className={`${TEXT_SECONDARY} block truncate`}>
                 {row.email || row.teams?.join(' · ') || ''}
               </span>
             }
@@ -343,7 +343,7 @@ export function UsersDirectory({
       header: 'Okul e-postası',
       cell: (row) =>
         row.schoolEmail ? (
-          <span className={`text-secondary-foreground ${TEXT_SECONDARY} break-all`}>
+          <span className={`text-secondary-foreground ${TEXT_SECONDARY} block truncate`}>
             {row.schoolEmail}
           </span>
         ) : source === 'recent' ? null : (

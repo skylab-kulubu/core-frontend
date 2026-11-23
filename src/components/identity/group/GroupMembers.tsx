@@ -444,7 +444,7 @@ export function GroupMembers() {
           <Avatar name={personName(m)} email={m.email} src={profilePictureSrc(m)} size="sm" />
           <DataListTitle
             title={personName(m)}
-            subtitle={<span className={`${TEXT_SECONDARY} break-all`}>{m.email}</span>}
+            subtitle={<span className={`${TEXT_SECONDARY} block truncate`}>{m.email}</span>}
           />
         </span>
       ),
@@ -475,7 +475,7 @@ export function GroupMembers() {
             from: 'lg' as const,
             header: 'Nereden',
             cell: (m: Person) => (
-              <span className={`text-secondary-foreground ${TEXT_SECONDARY} break-all`}>
+              <span className={`text-secondary-foreground ${TEXT_SECONDARY} block truncate`}>
                 {memberSourceLabel(group.path, m.sourceGroupPath) ?? 'Doğrudan'}
               </span>
             ),

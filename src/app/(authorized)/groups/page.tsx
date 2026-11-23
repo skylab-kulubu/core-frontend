@@ -172,10 +172,13 @@ export default function GroupsPage() {
           >
             <DataListTitle
               title={groupTitle(group)}
+              // In the tree the code shows only when a display name hides it
               subtitle={
-                <span className={`${TEXT_SECONDARY} break-all`}>
-                  {tree ? group.name : group.path}
-                </span>
+                !tree || groupTitle(group) !== group.name ? (
+                  <span className={`${TEXT_SECONDARY} break-all`}>
+                    {tree ? group.name : group.path}
+                  </span>
+                ) : undefined
               }
             />
           </button>
