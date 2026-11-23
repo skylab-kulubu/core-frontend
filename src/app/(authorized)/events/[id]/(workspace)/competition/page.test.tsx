@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import EventCompetitionPage from '@/app/(authorized)/events/[id]/(workspace)/competition/page';
 import { competitorsApi } from '@/lib/api/competitors';
@@ -22,6 +23,10 @@ jest.mock(
   '@/lib/api/competitors',
   () => jest.requireActual('@/test/event-workspace').competitorsModule,
 );
+jest.mock('@/lib/api/competitions', () => ({
+  ...jest.requireActual('@/lib/api/competitions'),
+  competitionsApi: { listByEvent: jest.fn().mockResolvedValue([]), leaderboard: jest.fn() },
+}));
 jest.mock('@/lib/api/teams', () => jest.requireActual('@/test/event-workspace').teamsModule);
 jest.mock('@/lib/api/seasons', () => jest.requireActual('@/test/event-workspace').seasonsModule);
 jest.mock('@/lib/scheduling/save-event', () =>
@@ -67,6 +72,9 @@ describe('Event Yarışma tab', () => {
     });
 
     await renderEventTab(<EventCompetitionPage />, '/events/e1/competition');
+    // The old records sit under the competitions, folded
+    expect(await screen.findByText('Henüz yarışma yok')).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Göster' }));
 
     expect(await screen.findByRole('link', { name: /Bo K/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Ada L/ })).toBeInTheDocument();
