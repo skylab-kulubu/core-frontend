@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowDown,
   ArrowUp,
+  ChevronRight,
   Copy,
   ExternalLink,
   Eye,
@@ -21,6 +22,7 @@ import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { Select } from '@/components/chrome/Select';
 import { SaveButton } from '@/components/chrome/SaveButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import {
   certificatesApi,
@@ -40,32 +42,12 @@ import {
 import { useAnyTeamCan, useTeamCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-
-const ELEMENT_LABELS: Record<CertificateElementKind, string> = {
-  staticText: 'Sabit metin',
-  recipientName: 'Katılımcı adı',
-  eventName: 'Etkinlik adı',
-  eventDates: 'Etkinlik tarihi',
-  issueDate: 'Verilme tarihi',
-  ownerTeam: 'Sahip ekip',
-  serial: 'Sertifika kodu',
-  verificationQr: 'Doğrulama QR',
-  image: 'Görsel',
-  shape: 'Şekil',
-};
-
-const SAMPLE: Record<CertificateElementKind, string> = {
-  staticText: 'Metin',
-  recipientName: 'Ada Lovelace',
-  eventName: 'SKY LAB Etkinliği',
-  eventDates: '19.09.2026',
-  issueDate: '21.09.2026',
-  ownerTeam: 'SKY LAB',
-  serial: 'A1B2C3D4E5F6',
-  verificationQr: '',
-  image: '',
-  shape: '',
-};
+import {
+  ELEMENT_LABELS,
+  FONT_GROUPS,
+  SAMPLE,
+  certificateFontStack,
+} from '@/lib/certificate-layout';
 
 const PAGE_PRESETS = {
   a4Landscape: { label: 'A4 yatay', width: 1123, height: 794, orientation: 'landscape' },
@@ -74,52 +56,14 @@ const PAGE_PRESETS = {
   letterPortrait: { label: 'US Letter dikey', width: 816, height: 1056, orientation: 'portrait' },
 } as const;
 
+const SOURCE_LABELS: Record<CertificateTemplateDraft['sourceKind'], string> = {
+  upload: 'Dosya yükleme',
+  canva: 'Canva',
+  figma: 'Figma',
+  sky: 'SKY LAB editörü',
+};
+
 const BACKGROUND_FILE_TYPES = 'image/png,image/jpeg,image/webp,image/svg+xml,application/pdf,.pdf';
-
-const FONT_GROUPS = [
-  {
-    label: 'Sans serif',
-    fonts: [
-      ['Arial', "'Liberation Sans', Arial, sans-serif"],
-      ['Helvetica', "'Liberation Sans', Helvetica, sans-serif"],
-      ['Carlito', "Carlito, 'Liberation Sans', sans-serif"],
-      ['Noto Sans', "'Noto Sans', 'DejaVu Sans', sans-serif"],
-      ['Noto Sans Display', "'Noto Sans Display', 'Noto Sans', sans-serif"],
-      ['DejaVu Sans', "'DejaVu Sans', 'Liberation Sans', sans-serif"],
-      ['DejaVu Sans Condensed', "'DejaVu Sans Condensed', 'DejaVu Sans', sans-serif"],
-      ['Liberation Sans', "'Liberation Sans', Arial, sans-serif"],
-    ],
-  },
-  {
-    label: 'Serif',
-    fonts: [
-      ['Georgia', "'Liberation Serif', Georgia, serif"],
-      ['Times New Roman', "'Liberation Serif', 'Times New Roman', serif"],
-      ['Caladea', "Caladea, 'Liberation Serif', serif"],
-      ['Noto Serif', "'Noto Serif', 'DejaVu Serif', serif"],
-      ['Noto Serif Display', "'Noto Serif Display', 'Noto Serif', serif"],
-      ['DejaVu Serif', "'DejaVu Serif', 'Liberation Serif', serif"],
-      ['DejaVu Serif Condensed', "'DejaVu Serif Condensed', 'DejaVu Serif', serif"],
-      ['Liberation Serif', "'Liberation Serif', 'Times New Roman', serif"],
-    ],
-  },
-  {
-    label: 'Monospace',
-    fonts: [
-      ['Courier New', "'Liberation Mono', 'Courier New', monospace"],
-      ['DejaVu Sans Mono', "'DejaVu Sans Mono', 'Liberation Mono', monospace"],
-      ['Liberation Mono', "'Liberation Mono', 'Courier New', monospace"],
-    ],
-  },
-] as const;
-
-function certificateFontStack(font?: string) {
-  for (const group of FONT_GROUPS) {
-    const match = group.fonts.find(([name]) => name === font);
-    if (match) return match[1];
-  }
-  return "'Liberation Sans', Arial, sans-serif";
-}
 
 function currentPreset(layout: CertificateLayout) {
   return (
@@ -561,87 +505,99 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     updateElement(drag.id, { x: Math.round(x), y: Math.round(y) });
   }
 
-  if (loading) return <StateCard title="Şablon yükleniyor…" isLoading />;
+  if (loading) return <PageSkeleton variant="workspace" />;
   if (error && templateId && !savedId) return <StateCard title={error} tone="danger" />;
 
   return (
     <div className="space-y-5">
       {!canEdit ? (
-        <p className="border-warning/30 bg-warning/5 text-warning rounded-md border p-3 text-[13px]/5">
-          Bu şablon salt okunur. Önizleyebilirsin; yeni sürüm yayınlamak için şablon yönetim yetkisi
-          gerekir.
+        <p className="border-warning/30 bg-warning/5 text-warning rounded-md border px-3 py-2 text-[13px]/5">
+          Bu şablon salt okunur.
         </p>
       ) : null}
-      <div className="border-border bg-sidebar/40 grid gap-3 rounded-xl border p-4 lg:grid-cols-4">
-        <label className="space-y-1.5 lg:col-span-2">
-          <FieldLabel>Şablon adı</FieldLabel>
-          <Field
-            disabled={!canEdit}
-            value={draft.name}
-            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+      <details
+        open={!templateId}
+        className="border-border bg-sidebar/40 group rounded-xl border [&_summary::-webkit-details-marker]:hidden"
+      >
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 select-none">
+          <ChevronRight
+            className="text-subtle-foreground size-4 transition-transform group-open:rotate-90"
+            aria-hidden
           />
-        </label>
-        <label className="space-y-1.5">
-          <FieldLabel>Sahip ekip</FieldLabel>
-          <Field
-            disabled={!canEdit}
-            value={draft.ownerTeam}
-            placeholder="Boşsa kulüp geneli"
-            onChange={(event) =>
-              setDraft({ ...draft, ownerTeam: event.target.value.toUpperCase() })
-            }
-          />
-        </label>
-        <label className="space-y-1.5">
-          <FieldLabel>Tasarım kaynağı</FieldLabel>
-          <Select
-            disabled={!canEdit}
-            value={draft.sourceKind}
-            onChange={(event) =>
-              setDraft({
-                ...draft,
-                sourceKind: event.target.value as CertificateTemplateDraft['sourceKind'],
-              })
-            }
-          >
-            <option value="upload">Dosya yükleme</option>
-            <option value="canva">Canva</option>
-            <option value="figma">Figma</option>
-            <option value="sky">SKY LAB editörü</option>
-          </Select>
-        </label>
-        <label className="space-y-1.5">
-          <FieldLabel>Sayfa ölçüsü</FieldLabel>
-          <Select
-            disabled={!canEdit}
-            value={currentPreset(draft.layout)}
-            onChange={(event) => resizeLayout(event.target.value as keyof typeof PAGE_PRESETS)}
-          >
-            {Object.entries(PAGE_PRESETS).map(([key, preset]) => (
-              <option key={key} value={key}>
-                {preset.label}
-              </option>
-            ))}
-            {currentPreset(draft.layout) === 'custom' ? <option value="custom">Özel</option> : null}
-          </Select>
-        </label>
-        {externalSource ? (
-          <div className="border-skylab-400/15 bg-skylab-500/5 space-y-4 rounded-lg border p-4 lg:col-span-4">
-            <div>
-              <p className="text-foreground text-sm font-semibold">{sourceName} tasarımını bağla</p>
-              <p className="text-muted-foreground mt-1 text-[13px]/5 leading-5">
-                {sourceName} bağlantısı tasarımı otomatik olarak içe aktarmaz. Bağlantı, özgün
-                tasarımı daha sonra tekrar açabilmen için saklanır. Sertifikada görünmesi için
-                tasarımı dışa aktarıp aşağıdan yüklemelisin.
-              </p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-muted-foreground text-[13px]/5 font-medium">
-                  1 · Düzenleme bağlantısı
-                </p>
-                <label className="block space-y-1.5">
+          <span className="text-foreground text-sm font-semibold">Şablon bilgileri</span>
+          <span className="text-subtle-foreground min-w-0 truncate text-[13px]/5">
+            {[draft.ownerTeam || 'Kulüp geneli', SOURCE_LABELS[draft.sourceKind]].join(' · ')}
+          </span>
+        </summary>
+        <div className="grid gap-3 px-4 pb-4 lg:grid-cols-4">
+          <label className="space-y-1.5 lg:col-span-2">
+            <FieldLabel>Şablon adı</FieldLabel>
+            <Field
+              disabled={!canEdit}
+              value={draft.name}
+              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <FieldLabel>Sahip ekip</FieldLabel>
+            <Field
+              disabled={!canEdit}
+              value={draft.ownerTeam}
+              placeholder="Boşsa kulüp geneli"
+              onChange={(event) =>
+                setDraft({ ...draft, ownerTeam: event.target.value.toUpperCase() })
+              }
+            />
+          </label>
+          <label className="space-y-1.5">
+            <FieldLabel>Tasarım kaynağı</FieldLabel>
+            <Select
+              disabled={!canEdit}
+              value={draft.sourceKind}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  sourceKind: event.target.value as CertificateTemplateDraft['sourceKind'],
+                })
+              }
+            >
+              <option value="upload">Dosya yükleme</option>
+              <option value="canva">Canva</option>
+              <option value="figma">Figma</option>
+              <option value="sky">SKY LAB editörü</option>
+            </Select>
+          </label>
+          <label className="space-y-1.5">
+            <FieldLabel>Sayfa ölçüsü</FieldLabel>
+            <Select
+              disabled={!canEdit}
+              value={currentPreset(draft.layout)}
+              onChange={(event) => resizeLayout(event.target.value as keyof typeof PAGE_PRESETS)}
+            >
+              {Object.entries(PAGE_PRESETS).map(([key, preset]) => (
+                <option key={key} value={key}>
+                  {preset.label}
+                </option>
+              ))}
+              {currentPreset(draft.layout) === 'custom' ? (
+                <option value="custom">Özel</option>
+              ) : null}
+            </Select>
+          </label>
+          {externalSource ? (
+            <div className="border-border bg-muted space-y-3 rounded-lg border p-3 lg:col-span-4">
+              <ol
+                aria-label={`${sourceName} adımları`}
+                className="text-secondary-foreground flex flex-wrap gap-x-4 gap-y-1 text-[13px]/5"
+              >
+                <li>1 · Bağlantıyı ekle</li>
+                <li>2 · {sourceName}&apos;dan PNG, JPG, SVG ya da PDF indir</li>
+                <li className={backgroundUrl ? 'text-success' : undefined}>
+                  3 · Dosyayı yükle{backgroundUrl ? ' ✓' : ''}
+                </li>
+              </ol>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="block min-w-64 flex-1 space-y-1.5">
                   <FieldLabel>Kaynak bağlantısı</FieldLabel>
                   <Field
                     disabled={!canEdit}
@@ -653,36 +609,16 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 </label>
                 {draft.sourceEditUrl ? (
                   <a
-                    className="text-skylab-300 hover:text-foreground inline-flex items-center gap-1.5 text-[13px]/5"
+                    className="text-skylab-300 hover:text-foreground inline-flex h-8 items-center gap-1.5 text-[13px]/5"
                     href={draft.sourceEditUrl}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" /> {sourceName}&apos;da düzenle
+                    <ExternalLink className="h-3.5 w-3.5" /> {sourceName}&apos;da aç
                   </a>
-                ) : (
-                  <p className="text-subtle-foreground text-[13px]/5">
-                    İsteğe bağlı; paylaşılabilir düzenleme bağlantısını yapıştır.
-                  </p>
-                )}
-              </div>
-
-              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-muted-foreground text-[13px]/5 font-medium">
-                  2 · Tasarımı dışa aktar
-                </p>
-                <p className="text-secondary-foreground text-[13px]/5 leading-5">
-                  {sourceName}&apos;da PNG, JPG, SVG veya tek sayfalık PDF olarak indir. Katılımcı
-                  adı, etkinlik adı ve QR için tasarımda boş alan bırak.
-                </p>
-              </div>
-
-              <div className="border-border bg-muted space-y-2 rounded-lg border p-3">
-                <p className="text-muted-foreground text-[13px]/5 font-medium">
-                  3 · Export dosyasını yükle
-                </p>
+                ) : null}
                 <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-[13px]">
-                  <ImagePlus className="h-4 w-4" /> {sourceName} exportunu yükle
+                  <ImagePlus className="h-4 w-4" /> {sourceName} dosyasını yükle
                   <input
                     className="sr-only"
                     type="file"
@@ -691,60 +627,46 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                     onChange={(event) => void uploadBackground(event.target.files?.[0])}
                   />
                 </label>
-                <p
-                  className={`text-[13px]/5 ${backgroundUrl ? 'text-success' : 'text-subtle-foreground'}`}
-                >
-                  {backgroundUrl
-                    ? backgroundIsPDF
-                      ? 'PDF arka planı hazır; final dosyada vektörel olarak korunacak.'
-                      : 'Arka plan hazır; aşağıdaki tuvalde görüntüleniyor.'
-                    : 'Henüz bir export dosyası yüklenmedi.'}
-                </p>
-                {backgroundIsPDF ? (
-                  <p className="text-subtle-foreground text-[13px]/5 leading-4">
-                    PDF&apos;in kendi öğeleri kilitli tabandır; SKY LAB metinleri, görselleri ve QR
-                    katmanları ayrı ayrı düzenlenir.
-                  </p>
-                ) : null}
               </div>
+              <details className="text-subtle-foreground text-[13px]/5">
+                <summary className="cursor-pointer select-none">Kaynak kimliği</summary>
+                <label className="mt-2 block max-w-md space-y-1.5">
+                  <FieldLabel>Kaynak kimliği</FieldLabel>
+                  <Field
+                    disabled={!canEdit}
+                    value={draft.sourceRef}
+                    placeholder="Canva tasarım kimliği ya da Figma düğümü"
+                    onChange={(event) => setDraft({ ...draft, sourceRef: event.target.value })}
+                  />
+                </label>
+              </details>
             </div>
-
-            <details className="text-subtle-foreground text-[13px]/5">
-              <summary className="cursor-pointer select-none">Gelişmiş kaynak bilgileri</summary>
-              <label className="mt-2 block max-w-md space-y-1.5">
-                <FieldLabel>Kaynak kimliği</FieldLabel>
-                <Field
-                  disabled={!canEdit}
-                  value={draft.sourceRef}
-                  placeholder="İsteğe bağlı Canva design id veya Figma node"
-                  onChange={(event) => setDraft({ ...draft, sourceRef: event.target.value })}
+          ) : (
+            <div className="border-border bg-muted flex flex-wrap items-center gap-3 rounded-lg border p-3 lg:col-span-4">
+              <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-[13px]">
+                <ImagePlus className="h-4 w-4" /> Arka plan görseli yükle
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept={BACKGROUND_FILE_TYPES}
+                  disabled={busy || !canEdit}
+                  onChange={(event) => void uploadBackground(event.target.files?.[0])}
                 />
               </label>
-            </details>
-          </div>
-        ) : (
-          <div className="border-border bg-muted flex flex-wrap items-center gap-3 rounded-lg border p-3 lg:col-span-4">
-            <label className="border-border text-secondary-foreground hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-3 text-[13px]">
-              <ImagePlus className="h-4 w-4" /> Arka plan görseli yükle
-              <input
-                className="sr-only"
-                type="file"
-                accept={BACKGROUND_FILE_TYPES}
-                disabled={busy || !canEdit}
-                onChange={(event) => void uploadBackground(event.target.files?.[0])}
-              />
-            </label>
-            <span className="text-subtle-foreground text-[13px]/5">
-              PNG/JPG/SVG veya tek sayfalık PDF yükleyebilir ya da boş tuvalle devam edebilirsin.
-            </span>
-          </div>
-        )}
-      </div>
+              <span className="text-subtle-foreground text-[13px]/5">PNG, JPG, SVG ya da PDF</span>
+            </div>
+          )}
+        </div>
+      </details>
 
-      <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)_260px]">
+      <p className="border-border bg-muted text-secondary-foreground rounded-md border px-3 py-2 text-[13px]/5 lg:hidden">
+        Bu ekran geniş ekranda düzenlenir.
+      </p>
+
+      <div className="grid gap-5 lg:grid-cols-[200px_minmax(0,1fr)_240px] xl:grid-cols-[220px_minmax(0,1fr)_260px]">
         <aside
           aria-label="Katman ekle"
-          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+          className="border-border bg-sidebar/40 hidden space-y-3 rounded-xl border p-3 lg:block"
         >
           <p className="text-secondary-foreground text-[13px]/5 font-semibold">Katman ekle</p>
           {(Object.keys(ELEMENT_LABELS) as CertificateElementKind[]).map((kind) => (
@@ -758,21 +680,25 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               <Plus className="h-3.5 w-3.5" /> {ELEMENT_LABELS[kind]}
             </button>
           ))}
-          <div className="border-border border-t pt-3">
-            <p className="text-secondary-foreground mb-2 text-[13px]/5 font-semibold">Katmanlar</p>
-            <div className="space-y-1">
-              {draft.layout.elements.map((element) => (
-                <button
-                  key={element.id}
-                  type="button"
-                  onClick={() => setSelectedId(element.id)}
-                  className={`w-full truncate rounded-md px-2 py-1.5 text-left text-[13px]/5 ${selectedId === element.id ? 'bg-skylab-500/15 text-skylab-300' : 'text-subtle-foreground hover:bg-accent'}`}
-                >
-                  {ELEMENT_LABELS[element.kind]} {element.locked ? '· kilitli' : ''}
-                </button>
-              ))}
+          {draft.layout.elements.length ? (
+            <div className="border-border border-t pt-3">
+              <p className="text-secondary-foreground mb-2 text-[13px]/5 font-semibold">
+                Katmanlar
+              </p>
+              <div className="space-y-1">
+                {draft.layout.elements.map((element) => (
+                  <button
+                    key={element.id}
+                    type="button"
+                    onClick={() => setSelectedId(element.id)}
+                    className={`w-full truncate rounded-md px-2 py-1.5 text-left text-[13px]/5 ${selectedId === element.id ? 'bg-skylab-500/15 text-skylab-300' : 'text-subtle-foreground hover:bg-accent'}`}
+                  >
+                    {ELEMENT_LABELS[element.kind]} {element.locked ? '· kilitli' : ''}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
         </aside>
 
         <section className="border-border bg-sidebar/60 min-w-0 overflow-auto rounded-xl border p-4">
@@ -845,15 +771,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               );
             })}
           </div>
-          <p className="text-subtle-foreground mt-3 text-center text-[13px]/5">
-            Katmanı seçip sürükle. Kesin ölçüler sağ panelden değişir. PDF seçilen sayfa ölçüsünde
-            üretilir.
-          </p>
         </section>
 
         <aside
           aria-label="Özellikler"
-          className="border-border bg-sidebar/40 space-y-3 rounded-xl border p-3"
+          className="border-border bg-sidebar/40 hidden space-y-3 rounded-xl border p-3 lg:block"
         >
           <p className="text-secondary-foreground text-[13px]/5 font-semibold">Özellikler</p>
           {selected ? (
@@ -1196,15 +1118,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   <Trash2 className="h-4 w-4" /> Katmanı sil
                 </button>
               ) : (
-                <p className="text-subtle-foreground text-[13px]/5">
-                  Bu alan geçerli sertifika için zorunludur.
-                </p>
+                <p className="text-subtle-foreground text-[13px]/5">Zorunlu katman</p>
               )}
             </>
           ) : (
-            <p className="text-subtle-foreground text-[13px]/5 leading-relaxed">
-              Düzenlemek için bir katman seç.
-            </p>
+            <p className="text-subtle-foreground text-[13px]/5">Katman seçilmedi</p>
           )}
           <label className="border-border block space-y-1 border-t pt-3">
             <FieldLabel>Arka plan rengi</FieldLabel>
@@ -1237,14 +1155,14 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           onClick={() => void preview()}
         />
         {canEdit ? (
-          <>
+          <span className="hidden gap-2 lg:flex">
             <SaveButton type="button" disabled={busy} onClick={() => void save()}>
               <Save className="h-4 w-4" /> Taslağı kaydet
             </SaveButton>
             <SaveButton type="button" disabled={busy} onClick={() => void publish()}>
               <Send className="h-4 w-4" /> Kaydet ve yayınla
             </SaveButton>
-          </>
+          </span>
         ) : null}
       </div>
     </div>

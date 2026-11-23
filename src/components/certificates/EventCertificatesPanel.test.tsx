@@ -18,6 +18,7 @@ jest.mock('@/lib/api/certificates', () => ({
     finalize: jest.fn(),
     revoke: jest.fn(),
     reissue: jest.fn(),
+    issue: jest.fn(),
   },
 }));
 
@@ -177,7 +178,7 @@ describe('EventCertificatesPanel failed batches', () => {
     renderPanel();
     expect(await screen.findByText('SKY LAB')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Başarısız üretim işleri okunamadı');
-    expect(screen.getByText('Başarısız')).toBeInTheDocument();
+    expect(screen.getByText('Sırada · Başarısız')).toBeInTheDocument();
   });
 
   it('shows why a retry failed', async () => {
@@ -229,6 +230,12 @@ describe('EventCertificatesPanel failed batches', () => {
   });
 });
 
+/** Opens Ada's row menu and picks the item: revoke and reissue live there now. */
+async function choose(user: ReturnType<typeof userEvent.setup>, item: string) {
+  await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 describe('EventCertificatesPanel issued certificates', () => {
   const issued = {
     id: 'c1',
@@ -272,7 +279,7 @@ describe('EventCertificatesPanel issued certificates', () => {
     api.listIssued.mockResolvedValue([issued]);
     api.revoke.mockResolvedValue(undefined);
     renderIssued();
-    await user.click(await screen.findByRole('button', { name: 'İptal et' }));
+    await choose(user, 'İptal et');
     const confirm = await screen.findByRole('alertdialog', {
       name: 'Ada Lovelace sertifikası iptal edilsin mi?',
     });
@@ -291,7 +298,7 @@ describe('EventCertificatesPanel issued certificates', () => {
       new ProblemError(403, 'Forbidden', { detail: 'missing role certificate:revoke' }),
     );
     renderIssued();
-    await user.click(await screen.findByRole('button', { name: 'İptal et' }));
+    await choose(user, 'İptal et');
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Sertifikayı iptal et' }));
     // Inside the dialog, which stays open, in Turkish
@@ -308,10 +315,10 @@ describe('EventCertificatesPanel issued certificates', () => {
       .mockRejectedValueOnce(new ProblemError(403, 'Forbidden'))
       .mockResolvedValueOnce(undefined);
     renderIssued();
-    await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
+    await choose(user, 'Yeniden ver');
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu işlem için yetkin yok.');
 
-    await user.click(screen.getByRole('button', { name: 'Yeniden ver' }));
+    await choose(user, 'Yeniden ver');
     expect(
       await screen.findByText('Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı'),
     ).toBeInTheDocument();
@@ -323,9 +330,62 @@ describe('EventCertificatesPanel issued certificates', () => {
     api.listIssued.mockResolvedValue([{ ...issued, revokedAt: '2026-10-11T10:00:00Z' }]);
     api.reissue.mockResolvedValue(undefined);
     renderIssued();
-    await user.click(await screen.findByRole('button', { name: 'Yeniden ver' }));
+    await choose(user, 'Yeniden ver');
     expect(
       await screen.findByText('Ada Lovelace sertifikası yeniden üretim kuyruğuna alındı'),
     ).toBeInTheDocument();
+  });
+
+  it('finds a certificate by name or code and narrows to the revoked', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([
+      issued,
+      {
+        ...issued,
+        id: 'c2',
+        serial: 'SKY-0002',
+        recipientName: 'Grace Hopper',
+        revokedAt: '2026-10-11T10:00:00Z',
+      },
+    ]);
+    renderIssued();
+    expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^İptal/ }));
+    expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+  });
+
+  it('issues by hand from a searchable list of who has none yet', async () => {
+    const user = userEvent.setup();
+    api.listIssued.mockResolvedValue([issued]);
+    api.issue.mockResolvedValue(undefined);
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        finalizeOpen
+        tickets={
+          [
+            { id: 't1', guestFirstName: 'Ada', guestLastName: 'Lovelace' },
+            {
+              id: 't2',
+              guestFirstName: 'Grace',
+              guestLastName: 'Hopper',
+              guestEmail: 'g@example.com',
+            },
+          ] as never
+        }
+        canIssue
+        canBind={false}
+        canRevoke
+        canReadIssued
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Elle ver' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Elle sertifika ver' });
+    expect(within(drawer).queryByText('Ada Lovelace')).not.toBeInTheDocument();
+    await user.click(within(drawer).getByRole('button', { name: /Grace Hopper/ }));
+    await waitFor(() => expect(api.issue).toHaveBeenCalledWith('e1', 't2'));
   });
 });

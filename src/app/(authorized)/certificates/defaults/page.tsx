@@ -1,25 +1,43 @@
 'use client';
 
+import { DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { Link2, Pencil, Unlink } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link2 } from 'lucide-react';
-import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { TemplateThumb } from '@/components/certificates/TemplateThumb';
+import {
+  shownLayout,
+  useTemplateBackgrounds,
+} from '@/components/certificates/use-template-backgrounds';
+import { ListPage } from '@/components/chrome/ListPage';
+import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
+import { EmptyState } from '@/components/chrome/PageState';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
-import { Select } from '@/components/chrome/Select';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { SidePanel } from '@/components/chrome/SidePanel';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { useAuth } from '@/context/AuthContext';
 import {
   certificatesApi,
   type CertificateTemplate,
   type CertificateTemplateBinding,
 } from '@/lib/api/certificates';
-import { coreProblemMessage } from '@/lib/core-problems';
 import { teamsApi } from '@/lib/api/teams';
 import { isPrivileged, ownerLevels } from '@/lib/auth/groups';
 import { useCapabilities } from '@/lib/capabilities-context';
-import { useTeamCan } from '@/lib/use-app-can';
+import { CLUB_SCOPE_KEY, defaultRows, type DefaultRow } from '@/lib/certificate-defaults';
+import { coreProblemMessage } from '@/lib/core-problems';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
-import { PageSkeleton } from '@/components/chrome/PageSkeleton';
+import { useTeamCan } from '@/lib/use-app-can';
+
+const DAY = new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeZone: 'Europe/Istanbul' });
+
+function changedOn(raw?: string): string {
+  if (!raw) return '—';
+  const at = new Date(raw);
+  return Number.isNaN(at.getTime()) ? '—' : DAY.format(at);
+}
 
 export default function CertificateDefaultsPage() {
   const { user } = useAuth();
@@ -38,12 +56,12 @@ export default function CertificateDefaultsPage() {
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [bindings, setBindings] = useState<CertificateTemplateBinding[]>([]);
   const [teamNames, setTeamNames] = useState<string[]>([]);
-  const [scope, setScope] = useState<'club' | 'ownerTeam'>('ownerTeam');
-  const [team, setTeam] = useState('');
-  const [templateId, setTemplateId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState<string>();
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [choice, setChoice] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string>();
+  const [saveError, setSaveError] = useState<string>();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
 
@@ -55,7 +73,7 @@ export default function CertificateDefaultsPage() {
         setBindings(bindingRows);
         setTeamNames(teamRows.map((item) => item.team));
       })
-      .catch((cause) => setError(coreProblemMessage(cause, 'Varsayılanlar yüklenemedi')))
+      .catch((cause) => setFailed(coreProblemMessage(cause, 'Varsayılanlar yüklenemedi')))
       .finally(() => setLoading(false));
   }, []);
   const teams = useMemo(
@@ -69,150 +87,256 @@ export default function CertificateDefaultsPage() {
       ),
     [teamNames, privileged, groups, coreTeams],
   );
-  // The first team until one is picked; a pick stays while the list grows
-  useEffect(() => {
-    if (!teams.includes(team)) setTeam(teams[0] ?? '');
-  }, [teams, team]);
-
-  const availableTemplates = useMemo(
-    () =>
-      templates.filter(
-        (template) =>
-          template.ownerTeam === '' || (scope === 'ownerTeam' && template.ownerTeam === team),
-      ),
-    [scope, team, templates],
+  const rows = useMemo(
+    () => defaultRows(teams, bindings, privileged),
+    [teams, bindings, privileged],
   );
-  const bindingKey = scope === 'club' ? 'SKY_LAB' : team;
-  // core's certificateTemplate.assign for the chosen scope: a DK member sees the
-  // defaults and changes none
-  const canAssign = teamCan(scope === 'club' ? '' : team, 'certificateTemplate.assign');
-  const currentBinding = bindings.find(
-    (binding) => binding.scope === scope && binding.scopeKey === bindingKey,
+  const byId = useMemo(() => new Map(templates.map((row) => [row.id, row])), [templates]);
+  const backgrounds = useTemplateBackgrounds(templates.map(shownLayout));
+  const open = rows.find((row) => row.key === openKey) ?? null;
+  const clubTemplate = byId.get(
+    rows.find((row) => row.scope === 'club')?.binding?.templateId ?? '',
   );
 
-  useEffect(() => {
-    setTemplateId(currentBinding?.templateId ?? '');
-  }, [currentBinding?.templateId, scope, team]);
+  /** core's certificateTemplate.assign for the row: a DK member sees the defaults and changes none. */
+  function canAssign(row: DefaultRow) {
+    return teamCan(row.scope === 'club' ? '' : row.key, 'certificateTemplate.assign');
+  }
 
-  /** For the confirm dialog: a refusal throws and is said there. */
-  async function clearTeamDefault() {
+  function choices(row: DefaultRow) {
+    return templates.filter(
+      (template) =>
+        template.ownerTeam === '' || (row.scope === 'ownerTeam' && template.ownerTeam === row.key),
+    );
+  }
+
+  function openRow(row: DefaultRow) {
+    setOpenKey(row.key);
+    setChoice(row.binding?.templateId ?? '');
+    setSaveError(undefined);
+  }
+
+  async function save(row: DefaultRow) {
     setSaving(true);
-    setError(undefined);
+    setSaveError(undefined);
     try {
-      await certificatesApi.clearBinding('ownerTeam', team);
-      setBindings((current) =>
-        current.filter((binding) => !(binding.scope === 'ownerTeam' && binding.scopeKey === team)),
+      const updated = await certificatesApi.setBinding({
+        scope: row.scope,
+        scopeKey: row.scope === 'club' ? CLUB_SCOPE_KEY : row.key,
+        templateId: choice,
+      });
+      setBindings((current) => [
+        ...current.filter(
+          (binding) => !(binding.scope === updated.scope && binding.scopeKey === updated.scopeKey),
+        ),
+        updated,
+      ]);
+      notify.success(
+        row.scope === 'club'
+          ? 'SKY LAB varsayılanı güncellendi'
+          : `${row.key} varsayılanı güncellendi`,
       );
-      notify.success(`${team} varsayılanı kaldırıldı; SKY LAB varsayılanı geçerli.`);
+      setOpenKey(null);
+    } catch (cause) {
+      setSaveError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) return <PageSkeleton variant="detail" />;
+  function askClear(team: string) {
+    confirm({
+      title: `${team} varsayılanı kaldırılsın mı?`,
+      description: `${team} etkinlikleri, kendine özel şablonu olmayanlarda SKY LAB varsayılanını kullanır.`,
+      actionLabel: 'Varsayılanı kaldır',
+      onConfirm: async () => {
+        await certificatesApi.clearBinding('ownerTeam', team);
+        setBindings((current) =>
+          current.filter(
+            (binding) => !(binding.scope === 'ownerTeam' && binding.scopeKey === team),
+          ),
+        );
+        setOpenKey(null);
+        notify.success(`${team} varsayılanı kaldırıldı; SKY LAB varsayılanı geçerli.`);
+      },
+      failure: 'Varsayılan kaldırılamadı',
+    });
+  }
+
+  if (loading) return <PageSkeleton variant="list" />;
+
+  const columns: DataListColumn<DefaultRow>[] = [
+    {
+      id: 'scope',
+      width: 'minmax(0,12rem)',
+      header: 'Kapsam',
+      cell: (row) => (
+        <DataListTitle
+          title={row.label}
+          subtitle={
+            <span className={TEXT_SECONDARY}>{row.scope === 'club' ? 'Kulüp' : 'Ekip'}</span>
+          }
+        />
+      ),
+    },
+    {
+      id: 'template',
+      width: 'minmax(0,1fr)',
+      header: 'Şablon',
+      cell: (row) => {
+        const template = byId.get(row.binding?.templateId ?? '');
+        if (!template) {
+          return (
+            <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              {row.scope === 'club'
+                ? 'Seçilmedi'
+                : `Kulüp varsayılanı${clubTemplate ? `: ${clubTemplate.name}` : ''}`}
+            </span>
+          );
+        }
+        const layout = shownLayout(template);
+        return (
+          <span className="flex min-w-0 items-center gap-3">
+            <TemplateThumb
+              layout={layout}
+              background={layout.backgroundMediaId ? backgrounds[layout.backgroundMediaId] : null}
+              className="w-16 shrink-0"
+            />
+            <span className="min-w-0">
+              <span className="text-foreground block truncate text-sm">{template.name}</span>
+              <span className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+                v{template.publishedVersion?.version}
+              </span>
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      id: 'changed',
+      width: '9rem',
+      from: 'md',
+      header: 'Son değişiklik',
+      cell: (row) => (
+        <span className="text-secondary-foreground text-[13px]/5">
+          {changedOn(row.binding?.updatedAt)}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      width: '6.5rem',
+      label: 'Eylemler',
+      interactive: true,
+      align: 'end',
+      cell: (row) =>
+        canAssign(row) ? (
+          <Command icon={Pencil} label="Değiştir" onClick={() => openRow(row)} />
+        ) : null,
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Sertifika varsayılanları"
-        description="Sıra: etkinliğe özel şablon → ekip varsayılanı → SKY LAB varsayılanı"
-      />
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
-      <div className="border-border bg-sidebar/40 max-w-2xl space-y-4 rounded-xl border p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-1.5">
-            <FieldLabel>Kapsam</FieldLabel>
-            <Select
-              value={scope}
-              onChange={(event) => setScope(event.target.value as typeof scope)}
-            >
-              <option value="ownerTeam">Sahip ekip</option>
-              {privileged ? <option value="club">SKY LAB geneli</option> : null}
-            </Select>
-          </label>
-          {scope === 'ownerTeam' ? (
-            <label className="space-y-1.5">
-              <FieldLabel>Ekip</FieldLabel>
-              <Select value={team} onChange={(event) => setTeam(event.target.value)}>
-                {teams.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          ) : null}
-        </div>
-        <label className="block space-y-1.5">
-          <FieldLabel>Yayınlanmış şablon</FieldLabel>
-          <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
-            <option value="">Şablon seç</option>
-            {availableTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name} · v{template.publishedVersion?.version}
-              </option>
-            ))}
-          </Select>
-        </label>
-        {canAssign ? (
-          <SaveButton
-            type="button"
-            disabled={saving || !templateId || (scope === 'ownerTeam' && !team)}
-            onClick={async () => {
-              setSaving(true);
-              setError(undefined);
-              try {
-                const updated = await certificatesApi.setBinding({
-                  scope,
-                  scopeKey: bindingKey,
-                  templateId,
-                });
-                setBindings((current) => [
-                  ...current.filter(
-                    (binding) =>
-                      !(binding.scope === updated.scope && binding.scopeKey === updated.scopeKey),
-                  ),
-                  updated,
-                ]);
-                notify.success(
-                  scope === 'club'
-                    ? 'SKY LAB varsayılanı güncellendi'
-                    : `${team} varsayılanı güncellendi`,
-                );
-              } catch (cause) {
-                setError(coreProblemMessage(cause, 'Varsayılan güncellenemedi'));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <Link2 className="h-4 w-4" /> Varsayılan yap
-          </SaveButton>
+    <ListPage
+      title="Sertifika varsayılanları"
+      badge={
+        <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+          Sıra: etkinlik → ekip → kulüp
+        </span>
+      }
+    >
+      {failed ? (
+        <EmptyState kind="failed" title={failed} onRetry={() => window.location.reload()} />
+      ) : (
+        <DataList
+          columns={columns}
+          rows={rows}
+          getRowId={(row) => row.key}
+          rowLabel={(row) => row.label}
+        />
+      )}
+      {confirmDialog}
+      <SidePanel
+        open={Boolean(open)}
+        title={open ? `${open.label} varsayılanı` : ''}
+        onClose={() => setOpenKey(null)}
+        dirty={Boolean(open) && choice !== (open?.binding?.templateId ?? '')}
+      >
+        {open ? (
+          <>
+            <fieldset className="space-y-2">
+              <legend className="text-secondary-foreground mb-2 text-[13px]/5 font-medium">
+                Yayınlanmış şablon
+              </legend>
+              {choices(open).length ? (
+                choices(open).map((template) => {
+                  const layout = shownLayout(template);
+                  return (
+                    <label
+                      key={template.id}
+                      className="border-border-subtle has-[:checked]:border-skylab-600/60 has-[:checked]:ring-skylab-600/25 flex cursor-pointer items-center gap-3 rounded-md border p-2 has-[:checked]:ring-2"
+                    >
+                      <input
+                        type="radio"
+                        name="default-template"
+                        value={template.id}
+                        checked={choice === template.id}
+                        onChange={() => setChoice(template.id)}
+                        className="accent-skylab-400"
+                      />
+                      <TemplateThumb
+                        layout={layout}
+                        background={
+                          layout.backgroundMediaId ? backgrounds[layout.backgroundMediaId] : null
+                        }
+                        className="w-20 shrink-0"
+                      />
+                      <span className="min-w-0">
+                        <span className="text-foreground block truncate text-sm">
+                          {template.name}
+                        </span>
+                        <span className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+                          {template.ownerTeam || 'Kulüp geneli'} · v
+                          {template.publishedVersion?.version}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              ) : (
+                <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Yayınlanmış şablon yok</p>
+              )}
+            </fieldset>
+            {saveError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {saveError}
+              </p>
+            ) : null}
+            <CommandBar label="Varsayılan komutları">
+              <SaveButton
+                type="button"
+                disabled={saving || !choice || choice === open.binding?.templateId}
+                onClick={() => void save(open)}
+              >
+                <Link2 className="size-4" aria-hidden /> Varsayılan yap
+              </SaveButton>
+              {open.scope === 'ownerTeam' && open.binding ? (
+                <Command
+                  icon={Unlink}
+                  label="Kulüp varsayılanını kullan"
+                  onClick={() => askClear(open.key)}
+                />
+              ) : null}
+            </CommandBar>
+            {open.binding ? (
+              <StatusChip
+                kind="neutral"
+                label={`Şu an: ${byId.get(open.binding.templateId)?.name ?? '—'}`}
+              />
+            ) : null}
+          </>
         ) : null}
-        {canAssign && scope === 'ownerTeam' && currentBinding ? (
-          <button
-            type="button"
-            disabled={saving}
-            className="border-destructive/30 text-destructive hover:bg-destructive/10 h-8 rounded-md border px-3 text-[13px] disabled:opacity-50"
-            onClick={() =>
-              confirm({
-                title: `${team} varsayılanı kaldırılsın mı?`,
-                description: `${team} etkinlikleri, kendine özel şablonu olmayanlarda SKY LAB varsayılanını kullanır.`,
-                actionLabel: 'Varsayılanı kaldır',
-                onConfirm: () => clearTeamDefault(),
-                failure: 'Varsayılan kaldırılamadı',
-              })
-            }
-          >
-            Ekip varsayılanını kaldır
-          </button>
-        ) : null}
-        {confirmDialog}
-      </div>
-    </div>
+      </SidePanel>
+    </ListPage>
   );
 }
