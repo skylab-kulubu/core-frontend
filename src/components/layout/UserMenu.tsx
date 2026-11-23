@@ -2,6 +2,8 @@
 
 import {
   Avatar,
+  avatarTone,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
@@ -16,13 +18,35 @@ import {
   useTheme,
   type ThemePreference,
 } from '@skylab-kulubu/skylcn-ui';
-import { Globe, LogOut, Palette, PenLine, UserRound } from 'lucide-react';
+import { ChevronDown, Globe, LogOut, Palette, PenLine, UserRound } from 'lucide-react';
 import { performClientLogout } from '@/lib/auth/client-logout';
 import { clubRoleLabel, displayPersonName } from '@/lib/chrome-role';
 import { accountCenterUrl } from '@/lib/club-switcher';
 import type { SidebarNavLink } from '@/lib/navigation/sidebar-nav';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import type { UserDto } from '@/types/api';
+
+/*
+ * The account button, the same in every SKY LAB product's top bar (Microsoft 365 / Google
+ * style, 2026-11-23): a 32 px avatar (photo or initials on a coloured ground); on desktop the
+ * name beside it (cut at about 16 characters) and a chevron, in a thin-bordered pill 36 px high;
+ * on phones the avatar alone in a 36 px touch target. Hover, open and focus are drawn.
+ * skymail-frontend's UserMenu carries the same classes; skylcn-ui's AccountMenu should too (Kaan).
+ */
+const ACCOUNT_BUTTON =
+  'group text-foreground hover:bg-accent data-popup-open:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background flex size-9 shrink-0 items-center justify-center rounded-full border border-transparent outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 md:w-auto md:justify-start md:gap-2 md:border-border md:bg-muted/40 md:pr-2.5 md:pl-px md:hover:border-border-strong md:data-popup-open:border-border-strong';
+
+/** Stronger than the lists' faint tint, so the button reads at a glance; same hue per person. */
+const AVATAR_TONES = [
+  'border-chart-1/60 bg-chart-1/45',
+  'border-chart-2/60 bg-chart-2/45',
+  'border-chart-3/60 bg-chart-3/45',
+  'border-chart-4/60 bg-chart-4/45',
+  'border-chart-5/60 bg-chart-5/45',
+  'border-chart-6/60 bg-chart-6/45',
+  'border-chart-7/60 bg-chart-7/45',
+  'border-chart-8/60 bg-chart-8/45',
+];
 
 /**
  * The signed-in person at the top right of every page, as in Entra and Microsoft 365:
@@ -44,12 +68,19 @@ export function UserMenu({
   const { theme, setTheme } = useTheme();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Hesap: ${name}`}
-        title={name}
-        className="hover:bg-accent data-popup-open:bg-accent focus-visible:ring-ring grid size-8 shrink-0 place-items-center rounded-full outline-hidden focus-visible:ring-2"
-      >
-        <Avatar name={name} email={user.email} src={profilePictureSrc(user)} size="sm" />
+      <DropdownMenuTrigger aria-label={`Hesap: ${name}`} title={name} className={ACCOUNT_BUTTON}>
+        <Avatar
+          name={name}
+          email={user.email}
+          src={profilePictureSrc(user)}
+          size="sm"
+          className={cn('text-2xs size-8', AVATAR_TONES[avatarTone(name, user.email)])}
+        />
+        <span className="hidden max-w-[16ch] truncate text-sm font-medium md:inline">{name}</span>
+        <ChevronDown
+          aria-hidden
+          className="text-muted-foreground hidden size-3.5 shrink-0 transition-transform group-data-popup-open:rotate-180 md:block"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-64">
         <div className="flex items-center gap-3 px-2 py-2">
