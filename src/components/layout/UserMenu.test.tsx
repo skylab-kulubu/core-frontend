@@ -30,6 +30,23 @@ async function openMenu(editSites?: Array<{ href: string; label: string }>) {
 describe('UserMenu', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it('draws the account button as in Entra: the name, a chevron, the avatar last', () => {
+    render(<UserMenu user={user} />);
+    const button = screen.getByRole('button', { name: 'Hesap: Deniz Aydın' });
+    expect(button).toHaveTextContent('Deniz AydınDA');
+    expect(button.lastElementChild).toHaveAttribute('data-slot', 'avatar');
+    expect(button).toHaveClass('size-9', 'rounded-full', 'md:border-border');
+    expect(button.querySelector('[data-slot="avatar"]')).toHaveClass('size-8');
+    expect(button.querySelector('svg.lucide-chevron-down')).toBeInTheDocument();
+    // The name is for desktop; phones show the avatar alone
+    expect(screen.getByText('Deniz Aydın')).toHaveClass(
+      'hidden',
+      'md:inline',
+      'max-w-[16ch]',
+      'truncate',
+    );
+  });
+
   it('names the person, their e-mail and role at the top of the menu', async () => {
     await openMenu();
     const menu = await screen.findByRole('menu');

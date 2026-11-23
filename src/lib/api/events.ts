@@ -1,3 +1,4 @@
+import type { EventStat } from './dashboard';
 import type { EventFile, EventVideo } from './uploads';
 import { coreFetch } from './core';
 
@@ -186,6 +187,13 @@ export type EventPatch = {
   cancelReason?: string | null;
 };
 
+/** GET /v1/dashboard/event-stats: one row per covered Event, undated ones last. */
+export type EventStatsAnswer = {
+  generatedAt: string;
+  timeZone: 'Europe/Istanbul';
+  eventStats: EventStat[];
+};
+
 export const eventsApi = {
   /**
    * The current Events, or with `lifecycle` the archived (`inactive`) ones
@@ -202,6 +210,12 @@ export const eventsApi = {
   },
   get: (id: string, init?: RequestInit) =>
     coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`, init),
+  /**
+   * The figures of every Event whose applicants the caller may read, past and
+   * undated ones too (core-backend docs/dashboard-summary.md, Event stats):
+   * the list's registrations, entries and 14-day trend in one request.
+   */
+  stats: () => coreFetch<EventStatsAnswer>('/v1/dashboard/event-stats'),
   /**
    * The places of earlier Events: a team's (drafts too) for who creates
    * Events in it, or without `ownerTeam` the club's for event:manage; 403

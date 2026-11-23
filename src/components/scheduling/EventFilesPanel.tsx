@@ -129,10 +129,10 @@ export function EventFilesPanel({
     <div id="files" className="scroll-mt-24 space-y-6">
       <SectionHeading
         title="Dosyalar ve videolar"
-        meta={`${videos.length} video · ${files.length} dosya`}
+        meta={`${files.length} dosya · ${videos.length} video`}
       />
-      <MediaList kind="videos" items={videos} event={event} canEdit={canEdit} onEvent={onEvent} />
       <MediaList kind="files" items={files} event={event} canEdit={canEdit} onEvent={onEvent} />
+      <MediaList kind="videos" items={videos} event={event} canEdit={canEdit} onEvent={onEvent} />
     </div>
   );
 }
@@ -329,12 +329,15 @@ function MediaList({
               {waiting.join(', ')}: aynı dosyayı yeniden seçersen kaldığı yerden devam eder.
             </Notice>
           ) : null}
+          {/* One row, not a large box: an empty event reads as two short lines (K8) */}
           <Dropzone
             onFiles={upload}
             accept={info.accept}
             multiple
             disabled={unavailable}
             hint={info.hint}
+            variant="compact"
+            aria-label={`${info.title}: yükle`}
           />
           {uploads.length ? (
             <ul className="space-y-2" aria-label={`${info.title} yüklemeleri`}>

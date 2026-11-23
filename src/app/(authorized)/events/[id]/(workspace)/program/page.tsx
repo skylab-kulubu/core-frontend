@@ -2,14 +2,17 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, MessageSquare, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import { Button, MenuItem, MenuLinkItem, cn } from '@skylab-kulubu/skylcn-ui';
+import { CheckCircle2, DoorOpen, MessageSquare, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Drawer } from '@/components/chrome/Drawer';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
-import { ListItem } from '@/components/chrome/ListItem';
+import { RowMenu } from '@/components/chrome/ListPage';
+import { StatusChip } from '@/components/chrome/StatusChip';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { SectionHeading } from '@/components/chrome/PanelChart';
 import { QrPreview } from '@/components/chrome/QrPreview';
@@ -39,7 +42,10 @@ import { urlsApi } from '@/lib/api/urls';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
 import { attachFormAliases, type EventFormSlot } from '@/lib/event-forms';
+import { checkInsBySession, sessionClock, sessionNowAndNext } from '@/lib/event-overview';
+import { eventDoorHref } from '@/lib/event-workspace';
 import { listStatus } from '@/lib/list-status';
+import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import {
   closeSessionFeedbackReminders,
   sessionFeedbackFields,
@@ -89,8 +95,19 @@ const emptySession = (eventDayId = ''): SessionDraft => ({
 
 /** Program tab: the event's days and their sessions, with check-in and session QR per session. */
 export default function EventProgramPage() {
-  const { event, days, sessions, error, setError, reload, canMutate, canDesk } =
-    useEventWorkspace();
+  const {
+    event,
+    days,
+    sessions,
+    tickets,
+    ticketsFailed,
+    error,
+    setError,
+    reload,
+    canMutate,
+    canDesk,
+    canTickets,
+  } = useEventWorkspace();
   const [dayOpen, setDayOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -144,6 +161,7 @@ export default function EventProgramPage() {
   }
   const deskQuery = deskForm.watch('email');
 
+  // A day reads as a timeline: by start time, the stored order for sessions without one
   const sessionsByDay = useMemo(() => {
     const map = new Map<string, EventSession[]>();
     for (const session of sessions) {
@@ -151,8 +169,43 @@ export default function EventProgramPage() {
       list.push(session);
       map.set(session.eventDayId, list);
     }
+    const at = (session: EventSession) =>
+      session.startTime ? Date.parse(session.startTime) : Number.POSITIVE_INFINITY;
+    for (const list of map.values()) {
+      list.sort((a, b) => at(a) - at(b) || a.orderIndex - b.orderIndex);
+    }
     return map;
   }, [sessions]);
+  const nowAndNext = useMemo(() => sessionNowAndNext(sessions), [sessions]);
+  // How many came in to each session, from the registrations the reader may see
+  const entries = useMemo(
+    () =>
+      canTickets && !ticketsFailed && tickets.length
+        ? checkInsBySession(tickets)
+        : new Map<string, number>(),
+    [canTickets, ticketsFailed, tickets],
+  );
+
+  function editSession(session: EventSession) {
+    setSessionError(null);
+    setSessionInUse(null);
+    setEditingSessionId(session.id);
+    setFeedbackSlot(sessionFeedbackSlot(session));
+    setFeedbackAutoSend(session.feedbackAutoSend ?? true);
+    sessionForm.reset({
+      eventDayId: session.eventDayId,
+      title: session.title,
+      speakerName: session.speakerName,
+      speakerLinkedin: session.speakerLinkedin ?? '',
+      description: session.description ?? '',
+      startTime: toDatetimeLocal(session.startTime),
+      endTime: toDatetimeLocal(session.endTime),
+      orderIndex: session.orderIndex,
+      sessionType: session.sessionType,
+    });
+    sessionDeleted.current = false;
+    setSessionOpen(true);
+  }
 
   return (
     <div className="space-y-6">
@@ -248,76 +301,116 @@ export default function EventProgramPage() {
                 ) : null}
               </div>
               <div className="border-border-subtle border-t">
-                <ListPanel
-                  framed={false}
-                  status={listStatus({
-                    loading: false,
-                    failed: Boolean(error),
-                    rowCount: (sessionsByDay.get(day.id) ?? []).length,
-                    emptyMessage: 'Oturum yok',
-                  })}
-                >
-                  {(sessionsByDay.get(day.id) ?? []).map((session) => (
-                    <ListItem
-                      key={session.id}
-                      title={session.title}
-                      subtitle={`${session.speakerName} · ${sessionTypeLabel(session.sessionType)}`}
-                      trailing={
-                        <div className="flex items-center gap-1">
-                          {canDesk ? (
-                            <ActionButton
-                              icon={CheckCircle2}
-                              label="Katıldı"
-                              onClick={() => {
-                                setDeskError(null);
-                                deskForm.reset();
-                                setCheckInSession(session);
-                              }}
-                            />
-                          ) : null}
-                          <ActionButton
-                            icon={QrCode}
-                            label="Oturum QR"
-                            onClick={() => setQrSession(session)}
-                          />
-                          {perSession && session.feedbackFormUrl ? (
-                            <ActionButton
-                              icon={MessageSquare}
-                              label="Geri bildirim"
-                              onClick={() => openFeedback(session)}
-                            />
-                          ) : null}
-                          {canMutate ? (
-                            <ActionButton
-                              icon={Pencil}
-                              label="Oturumu düzenle"
-                              onClick={() => {
-                                setSessionError(null);
-                                setSessionInUse(null);
-                                setEditingSessionId(session.id);
-                                setFeedbackSlot(sessionFeedbackSlot(session));
-                                setFeedbackAutoSend(session.feedbackAutoSend ?? true);
-                                sessionForm.reset({
-                                  eventDayId: session.eventDayId,
-                                  title: session.title,
-                                  speakerName: session.speakerName,
-                                  speakerLinkedin: session.speakerLinkedin ?? '',
-                                  description: session.description ?? '',
-                                  startTime: toDatetimeLocal(session.startTime),
-                                  endTime: toDatetimeLocal(session.endTime),
-                                  orderIndex: session.orderIndex,
-                                  sessionType: session.sessionType,
-                                });
-                                sessionDeleted.current = false;
-                                setSessionOpen(true);
-                              }}
-                            />
-                          ) : null}
-                        </div>
-                      }
-                    />
-                  ))}
-                </ListPanel>
+                {(sessionsByDay.get(day.id) ?? []).length === 0 ? (
+                  <p className={`text-subtle-foreground px-3 py-3 ${TEXT_SECONDARY}`}>
+                    {error ? 'Oturumlar yüklenemedi' : 'Oturum yok'}
+                  </p>
+                ) : (
+                  <ol
+                    className="divide-border-subtle divide-y"
+                    aria-label={`${day.name} oturumları`}
+                  >
+                    {(sessionsByDay.get(day.id) ?? []).map((session) => {
+                      const state =
+                        session.id === nowAndNext.current?.id
+                          ? 'now'
+                          : session.id === nowAndNext.next?.id
+                            ? 'next'
+                            : null;
+                      const entered = entries.get(session.id);
+                      return (
+                        <li
+                          key={session.id}
+                          className={cn(
+                            'flex items-start gap-3 px-3 py-3 sm:items-center',
+                            state === 'now' &&
+                              'bg-success/10 shadow-success shadow-[inset_3px_0_0]',
+                            session.cancelled && 'opacity-60',
+                          )}
+                        >
+                          <span className="text-foreground w-[5.5rem] shrink-0 pt-0.5 text-sm font-medium tabular-nums sm:pt-0">
+                            {sessionClock(session) || '—'}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  'text-foreground text-sm font-medium',
+                                  session.cancelled && 'line-through',
+                                )}
+                              >
+                                {session.title}
+                              </span>
+                              {state === 'now' ? <StatusChip kind="live" label="Şimdi" /> : null}
+                              {state === 'next' ? (
+                                <StatusChip kind="upcoming" label="Sıradaki" />
+                              ) : null}
+                            </span>
+                            <span
+                              className={`text-subtle-foreground block truncate ${TEXT_SECONDARY}`}
+                            >
+                              {[
+                                session.speakerName,
+                                sessionTypeLabel(session.sessionType),
+                                entered !== undefined ? `${entered} giriş` : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1">
+                            {canDesk && !session.cancelled ? (
+                              <Button
+                                variant={state === 'now' ? 'primary' : 'ghost'}
+                                size="sm"
+                                className={`${BUTTON_TEXT} hidden sm:inline-flex`}
+                                render={<Link href={eventDoorHref(event.id)} />}
+                              >
+                                <DoorOpen aria-hidden />
+                                Kapıyı aç
+                              </Button>
+                            ) : null}
+                            <RowMenu rowName={session.title}>
+                              {canDesk && !session.cancelled ? (
+                                <MenuLinkItem icon={DoorOpen} href={eventDoorHref(event.id)}>
+                                  Kapıyı aç
+                                </MenuLinkItem>
+                              ) : null}
+                              {canDesk ? (
+                                <MenuItem
+                                  icon={CheckCircle2}
+                                  onClick={() => {
+                                    setDeskError(null);
+                                    deskForm.reset();
+                                    setCheckInSession(session);
+                                  }}
+                                >
+                                  Katıldı
+                                </MenuItem>
+                              ) : null}
+                              <MenuItem icon={QrCode} onClick={() => setQrSession(session)}>
+                                Oturum QR
+                              </MenuItem>
+                              {perSession && session.feedbackFormUrl ? (
+                                <MenuItem
+                                  icon={MessageSquare}
+                                  onClick={() => openFeedback(session)}
+                                >
+                                  Geri bildirim
+                                </MenuItem>
+                              ) : null}
+                              {canMutate ? (
+                                <MenuItem icon={Pencil} onClick={() => editSession(session)}>
+                                  Oturumu düzenle
+                                </MenuItem>
+                              ) : null}
+                            </RowMenu>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
               </div>
             </div>
           ))
