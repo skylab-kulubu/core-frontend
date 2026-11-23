@@ -53,3 +53,47 @@ describe('identity member add calls', () => {
     ]);
   });
 });
+
+describe('identity Team structure calls (ekip yetki devri 11)', () => {
+  const realFetch = global.fetch;
+  afterAll(() => {
+    global.fetch = realFetch;
+  });
+
+  it('sends each Sub-team and Leader write to core’s route', async () => {
+    const calls: { method: string; path: string; body?: unknown }[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      calls.push({
+        method: init?.method ?? 'GET',
+        path: `${url.pathname}${url.search}`,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return Response.json({});
+    }) as typeof fetch;
+    await identityApi.createSubTeam('g1', { code: 'FE', displayNameTr: 'Ön yüz' });
+    await identityApi.changeTeamCode('g2', 'UI');
+    await identityApi.teamLeaders('g2');
+    await identityApi.addTeamLeader('g2', 'u-ada', 'KOORDINATORLER');
+    await identityApi.removeTeamLeader('g2', 'u-ada');
+    await identityApi.movePreview('g2', 'g 3');
+    await identityApi.moveTeam('g2', 'g3');
+    expect(calls).toEqual([
+      {
+        method: 'POST',
+        path: '/v1/groups/g1/children',
+        body: { code: 'FE', displayNameTr: 'Ön yüz' },
+      },
+      { method: 'PUT', path: '/v1/groups/g2/code', body: { code: 'UI' } },
+      { method: 'GET', path: '/v1/groups/g2/leaders' },
+      {
+        method: 'POST',
+        path: '/v1/groups/g2/leaders',
+        body: { userId: 'u-ada', kind: 'KOORDINATORLER' },
+      },
+      { method: 'DELETE', path: '/v1/groups/g2/leaders/u-ada' },
+      { method: 'GET', path: '/v1/groups/g2/move-preview?parentId=g%203' },
+      { method: 'POST', path: '/v1/groups/g2/move', body: { parentId: 'g3' } },
+    ]);
+  });
+});

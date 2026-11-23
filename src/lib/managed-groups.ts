@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { identityApi, type ManagedGroup } from '@/lib/api/identity';
 import { useCapabilities } from '@/lib/capabilities-context';
 
@@ -33,13 +33,21 @@ export type ManagedGroupsState =
  * capabilities name a managed Team (team delegation on, the reader a Leader);
  * otherwise none. A failed capabilities read tries the tree too: core answers
  * `[]` to someone who leads nothing.
+ *
+ * `privileged` reads it for a Privileged reader too (core's `group.read`):
+ * core answers them every Team, with their decisions on each, whether team
+ * delegation is on or off. `reload` reads it again after a change, keeping
+ * the tree on screen meanwhile.
  */
-export function useManagedGroups(): ManagedGroupsState {
+export function useManagedGroups({ privileged = false }: { privileged?: boolean } = {}) {
   const capabilities = useCapabilities();
   const leads =
+    privileged ||
     capabilities.status === 'failed' ||
     (capabilities.status === 'ready' && (capabilities.data.managedTeams?.length ?? 0) > 0);
   const [state, setState] = useState<ManagedGroupsState>({ status: 'loading' });
+  const [round, setRound] = useState(0);
+  const shownRound = useRef(round);
 
   useEffect(() => {
     if (capabilities.status === 'loading') return;
@@ -47,6 +55,9 @@ export function useManagedGroups(): ManagedGroupsState {
       setState({ status: 'ready', groups: [] });
       return;
     }
+    // A first read, or one for a reader who now reads more, shows as loading; a reload keeps the tree
+    if (shownRound.current === round) setState({ status: 'loading' });
+    shownRound.current = round;
     let cancelled = false;
     identityApi
       .managedGroups()
@@ -59,7 +70,8 @@ export function useManagedGroups(): ManagedGroupsState {
     return () => {
       cancelled = true;
     };
-  }, [capabilities.status, leads]);
+  }, [capabilities.status, leads, round]);
 
-  return state;
+  const reload = useCallback(() => setRound((n) => n + 1), []);
+  return { ...state, reload } as ManagedGroupsState & { reload: () => void };
 }
