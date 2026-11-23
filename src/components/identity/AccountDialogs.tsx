@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { CheckboxRow } from '@/components/scheduling/use-event-status-actions';
+import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import type { PasswordResult } from '@/lib/api/user-account';
 import { coreProblemMessage } from '@/lib/core-problems';
 
@@ -122,7 +123,7 @@ export function TemporaryPasswordDialog({
                 </div>
               ) : null}
               {!result.sessionsClosed ? (
-                <p className="text-warning text-xs">Açık oturumlar kapatılamadı.</p>
+                <p className={`text-warning ${TEXT_SECONDARY}`}>Açık oturumlar kapatılamadı.</p>
               ) : null}
               {askClose ? (
                 <p role="alert" className="text-warning text-sm">
@@ -133,15 +134,21 @@ export function TemporaryPasswordDialog({
             <DialogFooter className="mt-4">
               {askClose ? (
                 <>
-                  <Button type="button" onClick={() => setAskClose(false)}>
+                  <Button className={BUTTON_TEXT} type="button" onClick={() => setAskClose(false)}>
                     Geri dön
                   </Button>
-                  <DialogClose render={<Button type="button" variant="primary" />}>
+                  <DialogClose
+                    render={<Button className={BUTTON_TEXT} type="button" variant="primary" />}
+                  >
                     Yine de kapat
                   </DialogClose>
                 </>
               ) : (
-                <DialogClose render={<Button type="button" variant="primary" />}>Kapat</DialogClose>
+                <DialogClose
+                  render={<Button className={BUTTON_TEXT} type="button" variant="primary" />}
+                >
+                  Kapat
+                </DialogClose>
               )}
             </DialogFooter>
           </>
@@ -201,10 +208,12 @@ export function TemporaryPasswordDialog({
               ) : null}
             </DialogBody>
             <DialogFooter className="mt-4">
-              <DialogClose render={<Button type="button" disabled={pending} />}>
+              <DialogClose
+                render={<Button className={BUTTON_TEXT} type="button" disabled={pending} />}
+              >
                 {messages.cancel}
               </DialogClose>
-              <Button type="submit" variant="primary" pending={pending}>
+              <Button className={BUTTON_TEXT} type="submit" variant="primary" pending={pending}>
                 Parolayı belirle
               </Button>
             </DialogFooter>
@@ -310,10 +319,12 @@ export function EmailChangeDialog({
             <CheckboxRow label="Onaylı say" defaultChecked={false} onChange={setVerified} />
           </DialogBody>
           <DialogFooter className="mt-4">
-            <DialogClose render={<Button type="button" disabled={pending} />}>
+            <DialogClose
+              render={<Button className={BUTTON_TEXT} type="button" disabled={pending} />}
+            >
               {messages.cancel}
             </DialogClose>
-            <Button type="submit" variant="primary" pending={pending}>
+            <Button className={BUTTON_TEXT} type="submit" variant="primary" pending={pending}>
               Kaydet
             </Button>
           </DialogFooter>

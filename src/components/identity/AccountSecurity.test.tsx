@@ -273,3 +273,20 @@ it('keeps password managers out of the typed password', async () => {
   expect(field).toHaveAttribute('data-1p-ignore');
   expect(field).toHaveAttribute('data-lpignore', 'true');
 });
+
+it('leaves Birincil yap free for a primary from before the two e-mails', async () => {
+  const user = userEvent.setup();
+  const legacy = account({
+    email: {
+      primary: 'eski@example.com',
+      primaryVerified: true,
+      primaryKind: 'none',
+      personalVerified: false,
+    },
+  });
+  render(<AccountSecurity account={legacy} personName="Ada" onChanged={jest.fn()} />);
+  await user.click(screen.getByRole('button', { name: /Değiştir/ }));
+  const box = await screen.findByRole('checkbox', { name: 'Birincil yap' });
+  expect(box).not.toBeChecked();
+  expect(box).not.toHaveAttribute('aria-disabled', 'true');
+});

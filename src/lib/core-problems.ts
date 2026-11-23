@@ -120,7 +120,7 @@ const CODE_MESSAGES: Record<string, string> = {
   unknown_required_action: 'Bu eylem seçilemez.',
   credential_not_found: 'Kimlik bilgisi bulunamadı; sayfayı yenile.',
   provider_not_found: 'Bağlantı bulunamadı; sayfayı yenile.',
-  mail_not_sent: 'Posta gönderilemedi. Biraz sonra tekrar dene.',
+  mail_not_sent: 'E-posta gönderilemedi. Biraz sonra tekrar dene.',
   name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',
   account_invalid: 'Hesap bilgisi kabul edilmedi.',
   // Group name refusals (core teamcode)

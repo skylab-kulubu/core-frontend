@@ -4,6 +4,7 @@ import { Badge, Button, Notice } from '@skylab-kulubu/skylcn-ui';
 import { KeyRound, Mail, Pencil, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CardSection } from '@/components/identity/UserCardView';
+import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { accountCenterUrl } from '@/lib/club-switcher';
 import {
   REQUIRED_ACTIONS,
@@ -30,7 +31,7 @@ import { EmailChangeDialog, TemporaryPasswordDialog } from './AccountDialogs';
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-border-subtle space-y-2 border-t pt-3 first:border-t-0 first:pt-0">
-      <h3 className="text-2xs text-subtle-foreground font-medium">{title}</h3>
+      <h3 className={`text-subtle-foreground font-medium ${TEXT_SECONDARY}`}>{title}</h3>
       {children}
     </section>
   );
@@ -191,7 +192,7 @@ export function AccountSecurity({
       }
     >
       {reason ? (
-        <p className="text-muted-foreground text-xs">
+        <p className={`text-muted-foreground ${TEXT_SECONDARY}`}>
           {reason}{' '}
           {account.can.reason === 'own_account' ? (
             <a href={accountCenterUrl()} className="text-skylab-300 hover:underline">
@@ -211,7 +212,7 @@ export function AccountSecurity({
             <Button
               size="xs"
               variant="outline"
-              className="mt-2"
+              className={`mt-2 ${BUTTON_TEXT}`}
               onClick={() =>
                 void run(() => userAccountApi.clearLockout(id), 'Kilit açıldı', 'Kilit açılamadı')
               }
@@ -228,7 +229,7 @@ export function AccountSecurity({
               label="Durum"
               actions={
                 manage ? (
-                  <Button size="xs" variant="outline" onClick={askEnabled}>
+                  <Button className={BUTTON_TEXT} size="xs" variant="outline" onClick={askEnabled}>
                     {account.enabled ? 'Devre dışı bırak' : 'Etkinleştir'}
                   </Button>
                 ) : null
@@ -252,6 +253,7 @@ export function AccountSecurity({
                     {email?.primary && !email.primaryVerified ? (
                       <>
                         <Button
+                          className={BUTTON_TEXT}
                           size="xs"
                           variant="outline"
                           onClick={() =>
@@ -267,22 +269,28 @@ export function AccountSecurity({
                           Onaylı işaretle
                         </Button>
                         <Button
+                          className={BUTTON_TEXT}
                           size="xs"
                           variant="ghost"
                           onClick={() =>
                             void run(
                               () => userAccountApi.sendVerificationMail(id),
-                              'Doğrulama postası gönderildi',
-                              'Posta gönderilemedi',
+                              'Doğrulama e-postası gönderildi',
+                              'E-posta gönderilemedi',
                             )
                           }
                         >
                           <Mail className="size-3.5" />
-                          Doğrulama postası
+                          Doğrulama e-postası
                         </Button>
                       </>
                     ) : null}
-                    <Button size="xs" variant="outline" onClick={() => setEmailOpen(true)}>
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setEmailOpen(true)}
+                    >
                       <Pencil className="size-3.5" />
                       Değiştir
                     </Button>
@@ -304,6 +312,7 @@ export function AccountSecurity({
               actions={
                 manage && email?.school && email.primaryKind !== 'school' ? (
                   <Button
+                    className={BUTTON_TEXT}
                     size="xs"
                     variant="ghost"
                     onClick={() =>
@@ -340,6 +349,7 @@ export function AccountSecurity({
                       // The Birincil row offers it for an unproven personal primary; here also
                       // for a personal primary a verification link proved (Keycloak's flag, no stamp)
                       <Button
+                        className={BUTTON_TEXT}
                         size="xs"
                         variant="outline"
                         onClick={() =>
@@ -357,6 +367,7 @@ export function AccountSecurity({
                     ) : null}
                     {email.personalVerified && email.primaryKind !== 'personal' ? (
                       <Button
+                        className={BUTTON_TEXT}
                         size="xs"
                         variant="ghost"
                         onClick={() =>
@@ -394,23 +405,29 @@ export function AccountSecurity({
                 manage ? (
                   <>
                     <Button
+                      className={BUTTON_TEXT}
                       size="xs"
                       variant="ghost"
                       onClick={() =>
                         ask(
-                          'Parola sıfırlama postası gönderilsin mi?',
+                          'Parola sıfırlama e-postası gönderilsin mi?',
                           'Gönder',
                           () => userAccountApi.sendPasswordMail(id),
-                          'Sıfırlama postası gönderildi',
-                          'Posta gönderilemedi',
+                          'Sıfırlama e-postası gönderildi',
+                          'E-posta gönderilemedi',
                           { description: email?.primary ? `Alıcı: ${email.primary}` : undefined },
                         )
                       }
                     >
                       <Mail className="size-3.5" />
-                      Sıfırlama postası
+                      Sıfırlama e-postası
                     </Button>
-                    <Button size="xs" variant="outline" onClick={() => setPasswordOpen(true)}>
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setPasswordOpen(true)}
+                    >
                       <KeyRound className="size-3.5" />
                       Geçici parola
                     </Button>
@@ -444,6 +461,7 @@ export function AccountSecurity({
                 ))}
                 <div className="flex gap-2 pt-1">
                   <Button
+                    className={BUTTON_TEXT}
                     size="xs"
                     variant="primary"
                     pending={savingActions}
@@ -452,6 +470,7 @@ export function AccountSecurity({
                     Kaydet
                   </Button>
                   <Button
+                    className={BUTTON_TEXT}
                     size="xs"
                     variant="ghost"
                     disabled={savingActions}
@@ -466,7 +485,12 @@ export function AccountSecurity({
                 label="Gerekli eylemler"
                 actions={
                   manage ? (
-                    <Button size="xs" variant="ghost" onClick={startActions}>
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="xs"
+                      variant="ghost"
+                      onClick={startActions}
+                    >
                       <Pencil className="size-3.5" />
                       Düzenle
                     </Button>
@@ -495,6 +519,7 @@ export function AccountSecurity({
                       actions={
                         manage ? (
                           <Button
+                            className={BUTTON_TEXT}
                             size="xs"
                             variant="ghost"
                             onClick={() =>
@@ -538,6 +563,7 @@ export function AccountSecurity({
                   actions={
                     manage ? (
                       <Button
+                        className={BUTTON_TEXT}
                         size="xs"
                         variant="ghost"
                         onClick={() =>
@@ -629,7 +655,7 @@ export function AccountSecurity({
             onOpenChange={setEmailOpen}
             current={email?.primary}
             // The personal address is the primary (or there is none): the new one becomes it
-            primaryForced={!email?.primary || email.primaryKind !== 'school'}
+            primaryForced={!email?.primary || email.primaryKind === 'personal'}
             onSave={async (change) => {
               await userAccountApi.changeEmail(id, change);
               notify.success('E-posta değişti');

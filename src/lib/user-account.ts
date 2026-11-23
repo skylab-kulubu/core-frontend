@@ -49,7 +49,7 @@ const CLIENTS: Record<string, string> = {
   'sky-app': 'SkyApp',
   skyapp: 'SkyApp',
   place: 'YıldızPlace',
-  'security-admin-console': 'Keycloak konsolu',
+  'security-admin-console': 'Yönetim konsolu',
   account: 'Hesap',
   'account-console': 'Hesap',
 };
