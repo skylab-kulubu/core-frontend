@@ -16,6 +16,7 @@ import { newsApi, type NewsItem } from '@/lib/api/cms';
 import { publicMediaUrl } from '@/lib/event-media';
 import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { useListParams } from '@/lib/ui/use-list-params';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
 const PAGE_SIZE = 50;
 type View = 'all' | 'featured';
@@ -95,7 +96,12 @@ export default function AnnouncementsPage() {
         <DataListTitle
           leading={<Cover src={item.data?.heroImage} />}
           title={item.data?.title || item.slug}
-          subtitle={item.data?.summary || undefined}
+          // 13px: skylcn-ui's DataListTitle writes its line at 10px
+          subtitle={
+            item.data?.summary ? (
+              <span className={TEXT_SECONDARY}>{item.data.summary}</span>
+            ) : undefined
+          }
         />
       ),
     },
