@@ -1,4 +1,5 @@
 import {
+  answerDueOn,
   daysLeft,
   deadlineBadge,
   describeFields,
@@ -53,5 +54,13 @@ describe('subject request deadlines', () => {
     expect(describeFields(['status', 'answeredOn', 'unknown'])).toBe(
       'durum, cevap tarihi, unknown',
     );
+  });
+});
+
+describe('answer due date', () => {
+  it('is 30 days after the request, across months and years', () => {
+    expect(answerDueOn('2026-10-27')).toBe('2026-11-26');
+    expect(answerDueOn('2026-12-15')).toBe('2027-01-14');
+    expect(answerDueOn('')).toBe('');
   });
 });

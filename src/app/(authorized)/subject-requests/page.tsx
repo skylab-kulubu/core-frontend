@@ -35,6 +35,7 @@ import {
   STATUS_LABELS,
   TYPE_LABELS,
   TYPE_ORDER,
+  answerDueOn,
   deadlineBadge,
   describeFields,
   formatDay,
@@ -309,6 +310,11 @@ export default function SubjectRequestsPage() {
             onChange={(receivedOn) => setForm({ ...form, receivedOn })}
             required
           />
+          {answerDueOn(form.receivedOn) ? (
+            <p className="text-subtle-foreground text-[13px]/5">
+              Cevap için son gün {formatDay(answerDueOn(form.receivedOn))} (30 gün)
+            </p>
+          ) : null}
           <label className="block space-y-1">
             <FieldLabel>Kanal</FieldLabel>
             <Select
