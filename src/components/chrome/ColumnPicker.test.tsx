@@ -40,3 +40,21 @@ describe('ColumnPicker', () => {
     expect(await screen.findByText('name,author,tags')).toBeInTheDocument();
   });
 });
+
+function InlinePicker() {
+  // Built on each draw, as a page with a conditional column would
+  const columns: ColumnChoice[] = [
+    { id: 'name', label: 'Ad', fixed: true },
+    { id: 'author', label: 'Yazar' },
+  ];
+  const choice = useColumnChoice('test.inline', columns);
+  return <p>{choice.isShown('author') ? 'yazar açık' : 'yazar kapalı'}</p>;
+}
+
+describe('useColumnChoice', () => {
+  it('settles with a column list built on each draw and a saved choice', async () => {
+    window.localStorage.setItem('test.inline', JSON.stringify(['name']));
+    render(<InlinePicker />);
+    expect(await screen.findByText('yazar kapalı')).toBeInTheDocument();
+  });
+});

@@ -25,23 +25,40 @@ export type ColumnChoice = {
  * `storageKey` (a per-person convenience, as Entra's "Columns"; no saved views).
  */
 export function useColumnChoice(storageKey: string, columns: readonly ColumnChoice[]) {
+  // Keyed by the columns' ids and flags, not the array: a page may build it on each draw
+  const shape = columns
+    .map((column) => `${column.id}${column.fixed ? '!' : ''}${column.hidden ? '?' : ''}`)
+    .join(',');
+  const parsed = useMemo(
+    () =>
+      shape
+        ? shape.split(',').map((part) => ({
+            id: part.replace(/[!?]+$/, ''),
+            fixed: /!\??$/.test(part),
+            hidden: part.endsWith('?'),
+          }))
+        : [],
+    [shape],
+  );
   const defaults = useMemo(
-    () => columns.filter((column) => column.fixed || !column.hidden).map((column) => column.id),
-    [columns],
+    () => parsed.filter((column) => column.fixed || !column.hidden).map((column) => column.id),
+    [parsed],
   );
   const [shown, setShown] = useState<string[]>(defaults);
   useEffect(() => {
+    let next = defaults;
     try {
       const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? 'null') as unknown;
       if (Array.isArray(saved)) {
-        const known = new Set(columns.map((column) => column.id));
-        const fixed = columns.filter((column) => column.fixed).map((column) => column.id);
-        setShown([...new Set([...fixed, ...saved.filter((id) => known.has(id))])]);
+        const known = new Set(parsed.map((column) => column.id));
+        const fixed = parsed.filter((column) => column.fixed).map((column) => column.id);
+        next = [...new Set([...fixed, ...saved.filter((id) => known.has(id))])];
       }
     } catch {
       // Storage can be unavailable or hold something else; the defaults stay
     }
-  }, [storageKey, columns]);
+    setShown(next);
+  }, [storageKey, parsed, defaults]);
   const toggle = useCallback(
     (id: string) => {
       setShown((current) => {

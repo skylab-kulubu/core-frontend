@@ -88,8 +88,8 @@ const ROWS: Row[] = [
   { id: 'b', name: 'Bora' },
 ];
 
-function Picked() {
-  const selection = useRowSelection();
+function Picked({ view = 'all' }: { view?: string }) {
+  const selection = useRowSelection(view);
   return (
     <>
       <p>{selection.count} seçili</p>
@@ -116,6 +116,10 @@ describe('row selection', () => {
     render(<Picked />);
     await pointer.click(screen.getByRole('checkbox', { name: 'Ayşe seç' }));
     expect(screen.getByText('1 seçili')).toBeInTheDocument();
+    expect(
+      (screen.getByRole('checkbox', { name: 'Sayfadakilerin hepsini seç' }) as HTMLInputElement)
+        .indeterminate,
+    ).toBe(true);
     await pointer.click(screen.getByRole('checkbox', { name: 'Sayfadakilerin hepsini seç' }));
     expect(screen.getByText('2 seçili')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Sayfadakilerin hepsini seç' })).toBeChecked();
@@ -145,12 +149,24 @@ describe('SelectionBar and RowMenu', () => {
     const pointer = userEvent.setup();
     const share = jest.fn();
     render(
-      <RowMenu name="Bahar şenliği: eylemler">
+      <RowMenu rowName="Bahar şenliği">
         <MenuItem onClick={share}>Paylaş</MenuItem>
       </RowMenu>,
     );
     await pointer.click(screen.getByRole('button', { name: 'Bahar şenliği: eylemler' }));
     await pointer.click(await screen.findByRole('menuitem', { name: 'Paylaş' }));
     expect(share).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('row selection and the list view', () => {
+  it('drops the choice when the search, view or page changes', async () => {
+    const pointer = userEvent.setup();
+    const { rerender } = render(<Picked view="all" />);
+    await pointer.click(screen.getByRole('checkbox', { name: 'Ayşe seç' }));
+    expect(screen.getByText('1 seçili')).toBeInTheDocument();
+    rerender(<Picked view="featured" />);
+    expect(screen.getByText('0 seçili')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Ayşe seç' })).not.toBeChecked();
   });
 });

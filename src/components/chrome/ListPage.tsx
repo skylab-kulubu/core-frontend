@@ -200,9 +200,18 @@ export function ClearFiltersButton({ onClear }: { onClear: () => void }) {
   );
 }
 
-/** Chosen rows of a list, by id, for the bulk bar. */
-export function useRowSelection() {
+/**
+ * Chosen rows of a list, by id, for the bulk bar. `resetKey` is the list's view (search,
+ * view chip, page): when it changes the choice is dropped, so a bulk command never reaches
+ * rows the reader no longer sees. Pass, for example, `${params.q}|${params.view}|${params.page}`.
+ */
+export function useRowSelection(resetKey = '') {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [lastKey, setLastKey] = useState(resetKey);
+  if (lastKey !== resetKey) {
+    setLastKey(resetKey);
+    if (selected.size) setSelected(new Set());
+  }
   const toggle = useCallback((id: string) => {
     setSelected((current) => {
       const next = new Set(current);
@@ -245,6 +254,7 @@ export function selectionColumn<T>({
   nameOf: (row: T) => string;
 }): DataListColumn<T> {
   const all = pageIds.length > 0 && pageIds.every((id) => selection.selected.has(id));
+  const some = !all && pageIds.some((id) => selection.selected.has(id));
   return {
     id: 'select',
     width: '1.75rem',
@@ -256,6 +266,10 @@ export function selectionColumn<T>({
         className={CHECKBOX}
         aria-label="Sayfadakilerin hepsini seç"
         checked={all}
+        // Some of the page chosen: neither ticked nor empty
+        ref={(box) => {
+          if (box) box.indeterminate = some;
+        }}
         onChange={() => selection.toggleAll(pageIds)}
       />
     ),
@@ -293,9 +307,10 @@ export function SelectionBar({
 
 /**
  * A row's less used actions behind "⋯" (MenuItem / MenuLinkItem children), so a row
- * keeps at most one written action of its own. `name` reads "<row>: eylemler".
+ * keeps at most one written action of its own. The button reads "<rowName>: eylemler".
  */
-export function RowMenu({ name, children }: { name: string; children: ReactNode }) {
+export function RowMenu({ rowName, children }: { rowName: string; children: ReactNode }) {
+  const name = `${rowName}: eylemler`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
