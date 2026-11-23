@@ -36,6 +36,7 @@ import { lookupPeople } from '@/lib/people-lookup';
 import { formatClock, hasCheckIn } from '@/lib/roster-insights';
 import { teamDecision } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
+import { useDeferredUndo } from '@/lib/ui/use-deferred-undo';
 import { useNotify } from '@/lib/ui/use-notify';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import {
@@ -68,6 +69,7 @@ export default function TicketDetailPage({
   const capabilities = useCapabilities();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  const deferred = useDeferredUndo();
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
@@ -182,19 +184,23 @@ export default function TicketDetailPage({
     }
   }
 
-  async function undo(sessionId: string, checkInId: string) {
-    if (!ticket || busy) return;
-    setBusy(true);
+  // Like the door desk: the entry goes after a few seconds with Vazgeç, not at the first press
+  function undo(sessionId: string, checkInId: string) {
+    if (!ticket) return;
     setActionError(null);
-    try {
-      await ticketsApi.undoCheckIn(sessionId, checkInId);
-      notify.success('Giriş geri alındı');
-      await reloadTicket();
-    } catch (err) {
-      setActionError(coreProblemMessage(err, 'Geri alınamadı'));
-    } finally {
-      setBusy(false);
-    }
+    deferred.schedule(
+      checkInId,
+      `${titles.get(sessionId) ?? 'Oturum'}: giriş geri alınıyor`,
+      async () => {
+        try {
+          await ticketsApi.undoCheckIn(sessionId, checkInId);
+          notify.success('Giriş geri alındı');
+          await reloadTicket();
+        } catch (err) {
+          setActionError(coreProblemMessage(err, 'Geri alınamadı'));
+        }
+      },
+    );
   }
 
   function askResend() {
@@ -352,13 +358,22 @@ export default function TicketDetailPage({
                           {formatClock(entry.createdAt)}
                         </span>
                       </span>
-                      {canDesk ? (
+                      {canDesk && deferred.pending.has(entry.id) ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`${titles.get(entry.sessionId) ?? 'Oturum'}: geri almaktan vazgeç`}
+                          onClick={() => deferred.cancel(entry.id)}
+                        >
+                          Vazgeç
+                        </Button>
+                      ) : canDesk ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={busy}
                           aria-label={`${titles.get(entry.sessionId) ?? 'Oturum'}: girişi geri al`}
-                          onClick={() => void undo(entry.sessionId, entry.id)}
+                          onClick={() => undo(entry.sessionId, entry.id)}
                         >
                           <Undo2 aria-hidden />
                           Geri al

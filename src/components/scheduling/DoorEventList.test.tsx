@@ -78,4 +78,22 @@ describe('DoorEventList', () => {
     expect(within(later).getByRole('link', { name: /SkySec/ })).toBeInTheDocument();
     expect(eventDaysApi.listByEvent).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps an event that is over out of Sıradaki, under Geçmiş', async () => {
+    const day = 24 * 3600_000;
+    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+    (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([
+      { ...door('e1', 'SkyDays'), startDate: iso(-10 * day), endDate: iso(-9 * day) },
+      { ...door('e2', 'SkySec'), startDate: iso(5 * day) },
+    ]);
+    render(<DoorEventList />);
+    const later = await screen.findByRole('region', { name: 'Sıradaki' });
+    expect(within(later).getByRole('link', { name: /SkySec/ })).toBeInTheDocument();
+    expect(within(later).queryByRole('link', { name: /SkyDays/ })).not.toBeInTheDocument();
+    const past = screen.getByRole('region', { name: 'Geçmiş' });
+    expect(within(past).getByRole('link', { name: /SkyDays/ })).toHaveAttribute(
+      'href',
+      '/events/e1/door',
+    );
+  });
 });

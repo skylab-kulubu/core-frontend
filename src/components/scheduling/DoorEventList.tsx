@@ -41,6 +41,12 @@ export function runsNow(event: Pick<DoorEvent, 'startDate' | 'endDate'>, now = n
   return end === null || end > now.getTime();
 }
 
+/** Whether the event is over, by core's end rule; an undated one never is. */
+export function hasEnded(event: Pick<DoorEvent, 'startDate' | 'endDate'>, now = new Date()) {
+  const end = eventEndsAt(event);
+  return end !== null && end <= now.getTime();
+}
+
 /** A running door: the session on now and how many came in. */
 type Live = { session: EventSession | null; next: EventSession | null; entered: number | null };
 
@@ -145,8 +151,29 @@ export function DoorEventList() {
 
   const now = events.filter((event) => runsNow(event));
   const later = events
-    .filter((event) => !runsNow(event))
+    .filter((event) => !runsNow(event) && !hasEnded(event))
     .sort((a, b) => (a.startDate ?? '9').localeCompare(b.startDate ?? '9'));
+  // Over, but still the person's door (a late entry): last, the latest first
+  const past = events
+    .filter((event) => !runsNow(event) && hasEnded(event))
+    .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+
+  const doorRow = (event: DoorEvent) => (
+    <li key={event.id}>
+      <Link
+        href={eventDoorHref(event.id)}
+        className="hover:bg-accent flex min-h-12 items-center gap-3 px-3 py-2.5"
+      >
+        <DoorOpen className="text-subtle-foreground size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="text-foreground block truncate text-sm font-medium">{event.name}</span>
+          <span className={cn('text-subtle-foreground block truncate', TEXT_SECONDARY)}>
+            {when(event)}
+          </span>
+        </span>
+      </Link>
+    </li>
+  );
 
   return (
     <div className="space-y-6">
@@ -168,24 +195,15 @@ export function DoorEventList() {
         <section aria-label="Sıradaki" className="space-y-2">
           <SectionHeading title="Sıradaki" />
           <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
-            {later.map((event) => (
-              <li key={event.id}>
-                <Link
-                  href={eventDoorHref(event.id)}
-                  className="hover:bg-accent flex min-h-12 items-center gap-3 px-3 py-2.5"
-                >
-                  <DoorOpen className="text-subtle-foreground size-4 shrink-0" aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="text-foreground block truncate text-sm font-medium">
-                      {event.name}
-                    </span>
-                    <span className={cn('text-subtle-foreground block truncate', TEXT_SECONDARY)}>
-                      {when(event)}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
+            {later.map(doorRow)}
+          </ul>
+        </section>
+      ) : null}
+      {past.length ? (
+        <section aria-label="Geçmiş" className="space-y-2">
+          <SectionHeading title="Geçmiş" />
+          <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
+            {past.map(doorRow)}
           </ul>
         </section>
       ) : null}

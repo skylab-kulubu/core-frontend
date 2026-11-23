@@ -7,6 +7,8 @@ export type CheckIn = {
   sessionId: string;
   eventDayId: string;
   createdAt: string;
+  /** The holder's name, where core sends it (the camera scan does not yet). */
+  personName?: string;
 };
 
 export type DoorEvent = {

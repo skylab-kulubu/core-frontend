@@ -6,6 +6,7 @@ import { DoorDesk } from '@/components/scheduling/DoorDesk';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
+import { UNDO_GRACE_MS } from '@/lib/ui/use-deferred-undo';
 
 const mockAuthUser = {
   id: 'op',
@@ -65,7 +66,45 @@ const session = {
   sessionType: 'KEYNOTE',
 };
 
+/** Lets the few seconds of Vazgeç run out, then goes back to real time. */
+async function waitOutUndo() {
+  await act(async () => {
+    jest.advanceTimersByTime(UNDO_GRACE_MS);
+  });
+  jest.useRealTimers();
+}
+
+/** A camera that reads `codes` one after another, then nothing, through BarcodeDetector. */
+function fakeCamera(codes: string[]) {
+  const queue = [...codes];
+  class FakeDetector {
+    async detect() {
+      const next = queue.shift();
+      return next ? [{ rawValue: next }] : [];
+    }
+  }
+  const track = { stop: jest.fn() };
+  (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector = FakeDetector;
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [track] }) },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+    configurable: true,
+    value: () => Promise.resolve(),
+  });
+  return {
+    track,
+    remove() {
+      delete (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    },
+  };
+}
+
 describe('DoorDesk', () => {
+  afterEach(() => jest.useRealTimers());
+
   beforeEach(() => {
     jest.clearAllMocks();
     (eventsApi.list as jest.Mock).mockResolvedValue([event]);
@@ -146,8 +185,7 @@ describe('DoorDesk', () => {
     );
   });
 
-  it('takes an entry back from the result band and from the last entries', async () => {
-    const user = userEvent.setup();
+  it('takes an entry back after a few seconds with Vazgeç, from the band and the last entries', async () => {
     (ticketsApi.undoCheckIn as jest.Mock).mockResolvedValue(undefined);
     (ticketsApi.doorActivity as jest.Mock).mockResolvedValue({
       total: 5,
@@ -163,27 +201,127 @@ describe('DoorDesk', () => {
     });
     render(<DoorDesk eventId="e1" />);
     await ready();
-    await user.click(await screen.findByRole('button', { name: 'Grace Hopper: girişi geri al' }));
-    expect(ticketsApi.undoCheckIn).toHaveBeenCalledWith('s1', 'ci-1');
+    const row = await screen.findByRole('button', { name: 'Grace Hopper: girişi geri al' });
+    jest.useFakeTimers();
+    let user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(row);
+    // Not at the first press: the row waits with Vazgeç, and a toast says so
+    expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+    expect(screen.getByText('Grace Hopper: giriş geri alınıyor')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Grace Hopper: geri almaktan vazgeç' }),
+    ).toBeInTheDocument();
+    await waitOutUndo();
+    await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenCalledWith('s1', 'ci-1'));
     expect(await screen.findByText('Geri alındı')).toBeInTheDocument();
 
+    user = userEvent.setup();
     await user.type(box(), 'ada{Enter}');
     const result = await screen.findByRole('status', { name: 'Giriş sonucu' });
     await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     await user.click(within(result).getByRole('button', { name: 'Geri al' }));
-    expect(ticketsApi.undoCheckIn).toHaveBeenLastCalledWith('s1', 'ci-new');
+    expect(
+      within(result).getByRole('button', { name: 'Geri almaktan vazgeç' }),
+    ).toBeInTheDocument();
+    await waitOutUndo();
+    await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenLastCalledWith('s1', 'ci-new'));
+  });
+
+  it('keeps the entry when Vazgeç is pressed in the few seconds', async () => {
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    let user = userEvent.setup();
+    await user.type(box(), 'ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(within(result).getByRole('button', { name: 'Geri al' }));
+    await user.click(within(result).getByRole('button', { name: 'Geri almaktan vazgeç' }));
+    await waitOutUndo();
+    expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+    expect(result).toHaveTextContent('Girdi');
+    expect(within(result).getByRole('button', { name: 'Geri al' })).toBeInTheDocument();
   });
 
   it('says so when core cannot take the entry back', async () => {
-    const user = userEvent.setup();
+    let user = userEvent.setup();
     (ticketsApi.undoCheckIn as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found'));
     render(<DoorDesk eventId="e1" />);
     await ready();
     await user.type(box(), 'ada{Enter}');
     const result = screen.getByRole('status', { name: 'Giriş sonucu' });
     await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+    jest.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     await user.click(within(result).getByRole('button', { name: 'Geri al' }));
+    await waitOutUndo();
     await waitFor(() => expect(result).toHaveTextContent('Girmedi'));
+  });
+
+  it('writes what the camera reads and keeps the camera open for the next code', async () => {
+    const camera = fakeCamera(['TOKEN-1', 'TOKEN-2']);
+    (ticketsApi.scanCheckIn as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'ci-scan-1',
+        ticketId: 't1',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        createdAt: new Date(2026, 8, 19, 9, 6, 0).toISOString(),
+      })
+      .mockResolvedValueOnce({
+        id: 'ci-scan-2',
+        ticketId: 't2',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        createdAt: new Date(2026, 8, 19, 9, 7, 0).toISOString(),
+      });
+    // core's list of entries names the holder the scan answer leaves out
+    (ticketsApi.doorActivity as jest.Mock).mockImplementation(async () => {
+      const calls = (ticketsApi.scanCheckIn as jest.Mock).mock.calls.length;
+      const items = [
+        { id: 'ci-scan-1', name: 'Ada Lovelace' },
+        { id: 'ci-scan-2', name: 'Grace Hopper' },
+      ]
+        .slice(0, calls)
+        .reverse()
+        .map((row) => ({
+          id: row.id,
+          sessionId: 's1',
+          eventDayId: 'd1',
+          personName: row.name,
+          createdAt: '2026-09-19T06:06:00.000Z',
+        }));
+      return { total: items.length, items };
+    });
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      await waitFor(() => expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-1'));
+      const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+      await waitFor(() => expect(result).toHaveTextContent('Ada Lovelace'));
+      // The camera did not close after the first code: the next one is read too
+      await waitFor(() => expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-2'), {
+        timeout: 2000,
+      });
+      await waitFor(() => expect(result).toHaveTextContent('Grace Hopper'));
+      expect(screen.getByRole('region', { name: 'Kamerayla tara' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Kamerayı kapat' })).toBeInTheDocument();
+      expect(camera.track.stop).not.toHaveBeenCalled();
+      expect(ticketsApi.scanCheckIn).toHaveBeenCalledTimes(2);
+    } finally {
+      camera.remove();
+    }
+  });
+
+  it('names the search box by its label alone, the button standing outside it', async () => {
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    expect(screen.getByRole('searchbox')).toHaveAccessibleName('Kişi ya da bilet');
   });
 
   it('shows the running session as selected and writes to that same session', async () => {

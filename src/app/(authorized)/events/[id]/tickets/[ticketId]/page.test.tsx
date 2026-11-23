@@ -5,6 +5,7 @@ import TicketDetailPage from '@/app/(authorized)/events/[id]/tickets/[ticketId]/
 import { identityApi } from '@/lib/api/identity';
 import { ticketsApi } from '@/lib/api/tickets';
 import { eventDaysApi } from '@/lib/api/eventDays';
+import { UNDO_GRACE_MS } from '@/lib/ui/use-deferred-undo';
 
 const mockAuth = { user: { id: 'yk', groups: ['/UYELER/YK'], roles: [] }, loading: false };
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
@@ -127,9 +128,23 @@ describe('Ticket detail page', () => {
       ],
     });
     (ticketsApi.undoCheckIn as jest.Mock).mockResolvedValue(undefined);
-    const user = userEvent.setup();
     await renderTicket();
-    await user.click(await screen.findByRole('button', { name: 'Açılış: girişi geri al' }));
+    const undo = await screen.findByRole('button', { name: 'Açılış: girişi geri al' });
+    jest.useFakeTimers();
+    try {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await user.click(undo);
+      // Not at the first press: Vazgeç stands in its place for a few seconds
+      expect(ticketsApi.undoCheckIn).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('button', { name: 'Açılış: geri almaktan vazgeç' }),
+      ).toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(UNDO_GRACE_MS);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
     await waitFor(() => expect(ticketsApi.undoCheckIn).toHaveBeenCalledWith('s1', 'c1'));
   });
 });

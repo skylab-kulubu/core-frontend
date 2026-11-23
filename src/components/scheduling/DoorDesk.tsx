@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, buttonVariants, cn, TaskPage } from '@skylab-kulubu/skylcn-ui';
 import {
   ArrowLeft,
@@ -36,6 +36,7 @@ import {
 import { eventTabHref } from '@/lib/event-workspace';
 import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useDeferredUndo } from '@/lib/ui/use-deferred-undo';
 
 type Entry = { id: string; name: string; createdAt: string };
 
@@ -48,6 +49,8 @@ type Outcome =
 
 const RECENT = 10;
 const SUGGESTIONS = 6;
+/** What the band says for a code the camera read until core's list names its holder. */
+const SCANNED = 'Bilet okundu';
 
 const clock = new Intl.DateTimeFormat('tr-TR', {
   hour: '2-digit',
@@ -72,12 +75,15 @@ function refusal(err: unknown, fallback: string): Outcome {
 
 function OutcomeBand({
   outcome,
-  undoing,
+  waiting,
   onUndo,
+  onKeep,
 }: {
   outcome: Outcome | null;
-  undoing: boolean;
+  /** The entries taken back but still waiting for Vazgeç. */
+  waiting: ReadonlySet<string>;
   onUndo: (entry: Entry) => void;
+  onKeep: (entry: Entry) => void;
 }) {
   // Always mounted, so each new line is read out
   return (
@@ -124,16 +130,27 @@ function OutcomeBand({
             </p>
           </div>
           {outcome.kind === 'in' ? (
-            <Button
-              variant="outline"
-              size="lg"
-              className={BUTTON_TEXT}
-              disabled={undoing}
-              onClick={() => onUndo(outcome.entry)}
-            >
-              <Undo2 aria-hidden />
-              Geri al
-            </Button>
+            waiting.has(outcome.entry.id) ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className={BUTTON_TEXT}
+                aria-label="Geri almaktan vazgeç"
+                onClick={() => onKeep(outcome.entry)}
+              >
+                Vazgeç
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="lg"
+                className={BUTTON_TEXT}
+                onClick={() => onUndo(outcome.entry)}
+              >
+                <Undo2 aria-hidden />
+                Geri al
+              </Button>
+            )
           ) : null}
         </div>
       ) : null}
@@ -159,10 +176,15 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   const [suggestions, setSuggestions] = useState<DoorAttendee[]>([]);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
-  const [undoing, setUndoing] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  // The camera stays open between codes; a code read while the last one is being written waits
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const scanBusy = useRef(false);
   const [guestQr, setGuestQr] = useState(false);
   const [camera, setCamera] = useState(false);
+  const deferred = useDeferredUndo();
+  // The session the desk shows now, for answers that arrive after it was changed
+  const shownSession = useRef(sessionId);
+  shownSession.current = sessionId;
 
   useEffect(() => setCamera(canScanWithCamera()), []);
 
@@ -203,19 +225,20 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   const event = events.find((row) => row.id === eventId);
   useChromeCrumbName(`/events/${eventId}`, event?.name);
 
-  const refresh = useCallback(async () => {
-    if (!sessionId) return;
+  const refresh = useCallback(async (): Promise<Entry[]> => {
+    if (!sessionId) return [];
     try {
       const activity = await ticketsApi.doorActivity(sessionId);
+      const rows = activity.items
+        .slice(0, RECENT)
+        .map((item) => ({ id: item.id, name: item.personName, createdAt: item.createdAt }));
       setTotal(activity.total);
       setActivityError(null);
-      setRecent(
-        activity.items
-          .slice(0, RECENT)
-          .map((item) => ({ id: item.id, name: item.personName, createdAt: item.createdAt })),
-      );
+      setRecent(rows);
+      return rows;
     } catch (err) {
       setActivityError(coreProblemMessage(err, 'Son girişler yüklenemedi'));
+      return [];
     }
   }, [sessionId]);
 
@@ -283,33 +306,53 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   }
 
   async function scanned(token: string) {
-    if (!sessionId || scanning) return;
-    setScanning(true);
+    // One code at a time; the scanner itself does not read the same code again for a while
+    if (!sessionId || scanBusy.current) return;
+    scanBusy.current = true;
     try {
       const created = await ticketsApi.scanCheckIn(sessionId, token);
-      admitted({ id: created.id, name: 'Bilet okundu', createdAt: created.createdAt });
-      void refresh();
+      // The scan answers with the entry, not the name: core's list of entries names the holder
+      admitted({
+        id: created.id,
+        name: created.personName || SCANNED,
+        createdAt: created.createdAt,
+      });
+      const rows = await refresh();
+      const found = rows.find((row) => row.id === created.id);
+      if (found?.name) {
+        setOutcome((shown) =>
+          shown?.kind === 'in' && shown.entry.id === created.id
+            ? { kind: 'in', entry: { ...shown.entry, name: found.name } }
+            : shown,
+        );
+      }
     } catch (err) {
       setOutcome(refusal(err, 'Kod okunamadı'));
     } finally {
-      setScanning(false);
+      scanBusy.current = false;
     }
   }
 
-  async function undo(entry: Entry) {
-    if (!sessionId || undoing) return;
-    setUndoing(true);
-    try {
-      await ticketsApi.undoCheckIn(sessionId, entry.id);
-      setOutcome({ kind: 'undone', name: entry.name });
-      setRecent((rows) => rows.filter((row) => row.id !== entry.id));
-      setTotal((count) => Math.max(0, count - 1));
-      void refresh();
-    } catch (err) {
-      setOutcome({ kind: 'refused', text: coreProblemMessage(err, 'Geri alınamadı') });
-    } finally {
-      setUndoing(false);
-    }
+  /**
+   * Takes an entry back after a few seconds with Vazgeç on a toast and in place: the desk
+   * cannot write the same entry again from the list, so the wait is the way back.
+   */
+  function undo(entry: Entry) {
+    const session = sessionId;
+    if (!session) return;
+    deferred.schedule(entry.id, `${entry.name}: giriş geri alınıyor`, async () => {
+      try {
+        await ticketsApi.undoCheckIn(session, entry.id);
+        if (shownSession.current !== session) return;
+        setOutcome({ kind: 'undone', name: entry.name });
+        setRecent((rows) => rows.filter((row) => row.id !== entry.id));
+        setTotal((count) => Math.max(0, count - 1));
+        void refresh();
+      } catch (err) {
+        if (shownSession.current !== session) return;
+        setOutcome({ kind: 'refused', text: coreProblemMessage(err, 'Geri alınamadı') });
+      }
+    });
   }
 
   function submit(form: FormEvent) {
@@ -430,8 +473,10 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       {guestQr ? <GuestDoorQr sessionId={sessionId} open /> : null}
 
       <form className="space-y-2" noValidate onSubmit={submit} role="search">
-        <label className="block space-y-1">
-          <FieldLabel>Kişi ya da bilet</FieldLabel>
+        <div className="space-y-1">
+          <label htmlFor="door-query" className="block">
+            <FieldLabel>Kişi ya da bilet</FieldLabel>
+          </label>
           <div className="flex gap-2">
             <div className="relative min-w-0 flex-1">
               <Search
@@ -462,26 +507,31 @@ export function DoorDesk({ eventId }: { eventId: string }) {
               {busy ? 'Yazılıyor…' : 'Girişi yaz'}
             </Button>
           </div>
-        </label>
-        {camera && !scanning ? (
+        </div>
+        {camera && !cameraOpen ? (
           <Button
             type="button"
             variant="outline"
             size="lg"
             className={cn(BUTTON_TEXT, 'w-full')}
             disabled={!sessionId}
-            onClick={() => setScanning(true)}
+            onClick={() => setCameraOpen(true)}
           >
             <ScanLine aria-hidden />
             Kamerayla tara
           </Button>
         ) : null}
       </form>
-      {scanning && sessionId ? (
-        <DoorScanner onScan={(value) => void scanned(value)} onClose={() => setScanning(false)} />
+      {cameraOpen && sessionId ? (
+        <DoorScanner onScan={(value) => void scanned(value)} onClose={() => setCameraOpen(false)} />
       ) : null}
 
-      <OutcomeBand outcome={outcome} undoing={undoing} onUndo={(entry) => void undo(entry)} />
+      <OutcomeBand
+        outcome={outcome}
+        waiting={deferred.pending}
+        onUndo={undo}
+        onKeep={(entry) => deferred.cancel(entry.id)}
+      />
 
       {suggestions.length ? (
         <ul
@@ -529,28 +579,48 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         ) : null}
         {recent.length ? (
           <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
-            {recent.map((row) => (
-              <li key={row.id} className="flex min-h-12 items-center gap-3 px-3 py-2">
-                <CheckCircle2 className="text-success size-4 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1">
-                  <span className="text-foreground block truncate text-sm">{row.name}</span>
-                  <span className={cn('text-subtle-foreground block', TEXT_SECONDARY)}>
-                    {formatApplicantWhen(row.createdAt)}
-                  </span>
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={BUTTON_TEXT}
-                  disabled={undoing}
-                  aria-label={`${row.name}: girişi geri al`}
-                  onClick={() => void undo(row)}
+            {recent.map((row) => {
+              const leaving = deferred.pending.has(row.id);
+              return (
+                <li
+                  key={row.id}
+                  className={cn(
+                    'flex min-h-12 items-center gap-3 px-3 py-2',
+                    leaving && 'opacity-60',
+                  )}
                 >
-                  <Undo2 aria-hidden />
-                  Geri al
-                </Button>
-              </li>
-            ))}
+                  <CheckCircle2 className="text-success size-4 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block truncate text-sm">{row.name}</span>
+                    <span className={cn('text-subtle-foreground block', TEXT_SECONDARY)}>
+                      {leaving ? 'Geri alınıyor…' : formatApplicantWhen(row.createdAt)}
+                    </span>
+                  </span>
+                  {leaving ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={BUTTON_TEXT}
+                      aria-label={`${row.name}: geri almaktan vazgeç`}
+                      onClick={() => deferred.cancel(row.id)}
+                    >
+                      Vazgeç
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={BUTTON_TEXT}
+                      aria-label={`${row.name}: girişi geri al`}
+                      onClick={() => undo(row)}
+                    >
+                      <Undo2 aria-hidden />
+                      Geri al
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className={cn('text-subtle-foreground', TEXT_SECONDARY)}>
