@@ -9,11 +9,11 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import { CheckCircle2, Circle, Clock, FileText, MapPin, QrCode, Trophy, Video } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { QrPreview } from '@/components/chrome/QrPreview';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { certificatesApi, type CertificateEventSummary } from '@/lib/api/certificates';
+import type { CertificateEventSummary } from '@/lib/api/certificates';
 import type { CoreEvent } from '@/lib/api/events';
 import type { Person } from '@/lib/api/identity';
 import type { EventSession } from '@/lib/api/sessions';
@@ -151,10 +151,13 @@ export function SessionNowNext({
   sessions,
   tickets,
   ended,
+  showEntries,
 }: {
   sessions: readonly EventSession[];
   tickets: readonly Ticket[];
   ended: boolean;
+  /** Writes how many entered the running session; only for a reader who sees the registrations. */
+  showEntries: boolean;
 }) {
   const { current, next } = sessionNowAndNext(sessions);
   const entered = checkInsBySession(tickets);
@@ -193,7 +196,10 @@ export function SessionNowNext({
           </p>
           <p className="text-foreground text-sm font-medium">{session.title}</p>
           <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-            {[session.speakerName, live ? `${entered.get(session.id) ?? 0} giriş` : '']
+            {[
+              session.speakerName,
+              live && showEntries ? `${entered.get(session.id) ?? 0} giriş` : '',
+            ]
               .filter(Boolean)
               .join(' · ') || ' '}
           </p>
@@ -366,28 +372,6 @@ export function LocationBlock({ event }: { event: CoreEvent }) {
       </figcaption>
     </figure>
   );
-}
-
-/** The certificate state of the event, read once: who may get one and how many went out. */
-export function useCertificateSummary(eventId: string, enabled: boolean) {
-  const [summary, setSummary] = useState<CertificateEventSummary | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    certificatesApi
-      .summary(eventId)
-      .then((row) => {
-        if (!cancelled) setSummary(row);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, enabled]);
-  return { summary, failed };
 }
 
 /** Certificates in figures: the rule, who qualifies, how many were given. */

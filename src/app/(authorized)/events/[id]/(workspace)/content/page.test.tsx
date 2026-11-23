@@ -38,7 +38,7 @@ jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
 
-describe('Event İçerik tab', () => {
+describe('Event Dosyalar page', () => {
   beforeEach(primeEventWorkspace);
 
   it('says there is nothing to show to a reader who cannot add files to an empty event', async () => {
@@ -48,7 +48,7 @@ describe('Event İçerik tab', () => {
     ]);
     await renderEventTab(<EventContentPage />, '/events/e1/content');
     expect(await screen.findByText('Bu etkinlikte dosya ya da video yok')).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'İçerik' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Dosyalar/ })).not.toBeInTheDocument();
   });
 
   it('says a file was removed from the event', async () => {

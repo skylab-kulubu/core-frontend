@@ -35,17 +35,21 @@ describe('eventReadiness', () => {
         coverImageUrl: undefined,
         description: '  ',
         formUrl: undefined,
-        capacity: 0,
-        attendanceRule: 'none',
       },
       0,
     );
     expect(items.filter((item) => item.done).map((item) => item.key)).toEqual(['date', 'place']);
     expect(items.find((item) => item.key === 'form')?.href).toBe('/events/e1/edit#basvuru');
     expect(items.find((item) => item.key === 'program')?.href).toBe('/events/e1/program');
-    expect(items.find((item) => item.key === 'certificate')?.href).toBe(
-      '/events/e1/edit#sertifika',
-    );
+    // No limit on places and no certificate are choices, not gaps
+    expect(items.map((item) => item.key)).toEqual([
+      'date',
+      'place',
+      'cover',
+      'description',
+      'form',
+      'program',
+    ]);
   });
 
   it('is all done for a filled event', () => {
@@ -57,8 +61,6 @@ describe('eventReadiness', () => {
         coverImageUrl: 'covers/a.png',
         description: 'Gece boyu kod',
         formUrl: 'https://forms.example.test/x',
-        capacity: 40,
-        attendanceRule: 'once',
       },
       3,
     );
@@ -149,7 +151,10 @@ it('names the certificate rule as the edit page does', () => {
   expect(certificateRuleLabel({ attendanceRule: 'none' })).toBe('Yok');
   expect(certificateRuleLabel({ attendanceRule: 'once' })).toBe('En az bir oturum');
   expect(certificateRuleLabel({ attendanceRule: 'ratio', attendanceRatio: 0.5 })).toBe(
-    "Oturumların %50'i",
+    "Oturumların %50'si",
+  );
+  expect(certificateRuleLabel({ attendanceRule: 'ratio', attendanceRatio: 0.75 })).toBe(
+    "Oturumların %75'i",
   );
 });
 

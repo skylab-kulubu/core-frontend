@@ -4,10 +4,12 @@ import type { Ticket } from '@/lib/api/tickets';
 import { publicShortUrl } from '@/lib/api/urls';
 import { eventEditHref, eventTabHref } from '@/lib/event-workspace';
 import { hasCheckIn } from '@/lib/roster-insights';
+import { percentWithEnding } from '@/lib/text/turkish-number';
 
 /** One thing an event needs before people can come: done or still to do, with where to do it. */
 export type ReadinessItem = {
-  key: 'date' | 'place' | 'cover' | 'description' | 'form' | 'program' | 'capacity' | 'certificate';
+  /** 'date', 'place', 'cover', 'description', 'form', 'program', or a to-do's own key. */
+  key: string;
   label: string;
   done: boolean;
   href: string;
@@ -15,20 +17,13 @@ export type ReadinessItem = {
 
 /**
  * What the event has and lacks, in the order an organizer fills them: date and
- * place, cover and description, the application form, a programme, a
- * capacity and the certificate rule.
+ * place, cover and description, the application form and a programme. No limit
+ * on places and no certificate are choices, not gaps: the essentials show them.
  */
 export function eventReadiness(
   event: Pick<
     CoreEvent,
-    | 'id'
-    | 'startDate'
-    | 'location'
-    | 'coverImageUrl'
-    | 'description'
-    | 'formUrl'
-    | 'capacity'
-    | 'attendanceRule'
+    'id' | 'startDate' | 'location' | 'coverImageUrl' | 'description' | 'formUrl'
   >,
   sessionCount: number,
 ): ReadinessItem[] {
@@ -49,13 +44,6 @@ export function eventReadiness(
       label: 'Program',
       done: sessionCount > 0,
       href: eventTabHref(event.id, 'program'),
-    },
-    { key: 'capacity', label: 'Kapasite', done: event.capacity > 0, href: edit('bilet') },
-    {
-      key: 'certificate',
-      label: 'Sertifika kuralı',
-      done: Boolean(event.attendanceRule && event.attendanceRule !== 'none'),
-      href: edit('sertifika'),
     },
   ];
 }
@@ -181,7 +169,7 @@ export function certificateRuleLabel(
   if (event.attendanceRule === 'once') return 'En az bir oturum';
   if (event.attendanceRule === 'ratio') {
     const ratio = event.attendanceRatio ?? 0.75;
-    return `Oturumların %${Math.round(ratio * 100)}'i`;
+    return `Oturumların ${percentWithEnding(ratio * 100)}`;
   }
   return 'Yok';
 }
