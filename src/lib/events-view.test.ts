@@ -2,6 +2,9 @@ import {
   attendanceFinalizeOpen,
   eventEndsAt,
   eventFormIssue,
+  eventGapLine,
+  eventGaps,
+  sortEvents,
   countEventsByStatus,
   eventDisplayStatus,
   eventListSubtitle,
@@ -10,6 +13,7 @@ import {
   eventsOnDateKey,
   filterEventsByStatus,
   formatEventWhen,
+  formatEventWhenShort,
   sortEventsForList,
   undatedEvents,
 } from './events-view';
@@ -211,5 +215,74 @@ describe('month occupancy', () => {
     expect(undatedEvents([{ id: 'x', name: 'Taslak' }, artlab]).map((row) => row.id)).toEqual([
       'x',
     ]);
+  });
+});
+
+describe('eventGaps', () => {
+  const now = new Date('2026-11-23T12:00:00+03:00');
+  const base = { status: 'draft', location: 'YTÜ', startDate: '2026-12-01T10:00:00+03:00' };
+
+  it('names what a draft lacks in the order it is filled in', () => {
+    expect(eventGaps({ ...base, location: '', startDate: undefined }, now)).toEqual([
+      'date',
+      'place',
+      'cover',
+      'form',
+    ]);
+    expect(eventGapLine(['date', 'place', 'cover', 'form'])).toBe('Tarih, yer +2 eksik');
+    expect(eventGapLine(['cover'])).toBe('Kapak eksik');
+  });
+
+  it('counts an extra form as a form', () => {
+    expect(
+      eventGaps(
+        { ...base, coverImageUrl: 'c.png', extraFormUrls: [{ label: 'x', url: 'y' }] },
+        now,
+      ),
+    ).toEqual([]);
+  });
+
+  it('warns about nothing once the Event is over or cancelled', () => {
+    expect(
+      eventGaps({ ...base, status: 'published', startDate: '2026-11-01T10:00:00+03:00' }, now),
+    ).toEqual([]);
+    expect(eventGaps({ ...base, status: 'cancelled' }, now)).toEqual([]);
+  });
+});
+
+describe('sortEvents', () => {
+  const rows = [
+    { id: 'a', name: 'Bilgi', startDate: '2026-10-01T10:00:00+03:00' },
+    { id: 'b', name: 'Ağ', startDate: '2026-12-01T10:00:00+03:00' },
+    { id: 'c', name: 'Çay' },
+  ];
+  it('sorts by newest start with the undated last, by name, by registrations', () => {
+    expect(sortEvents(rows, 'newest').map((r) => r.id)).toEqual(['b', 'a', 'c']);
+    expect(sortEvents(rows, 'name').map((r) => r.id)).toEqual(['b', 'a', 'c']);
+    const counts: Record<string, number> = { a: 3, b: 1, c: 9 };
+    expect(sortEvents(rows, 'registrations', (r) => counts[r.id]).map((r) => r.id)).toEqual([
+      'c',
+      'a',
+      'b',
+    ]);
+  });
+});
+
+describe('formatEventWhenShort', () => {
+  it('writes a span within a month, across months and on one day short', () => {
+    expect(
+      formatEventWhenShort({
+        startDate: '2026-11-22T09:00:00+03:00',
+        endDate: '2026-11-23T18:00:00+03:00',
+      }),
+    ).toBe('22–23 Kas 2026');
+    expect(
+      formatEventWhenShort({
+        startDate: '2026-11-30T09:00:00+03:00',
+        endDate: '2026-12-02T18:00:00+03:00',
+      }),
+    ).toBe('30 Kas – 2 Ara 2026');
+    expect(formatEventWhenShort({ startDate: '2026-12-03T18:00:00+03:00' })).toBe('3 Ara 2026');
+    expect(formatEventWhenShort({})).toBe('');
   });
 });
