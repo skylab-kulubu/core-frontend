@@ -28,6 +28,8 @@ type UserCardViewProps = {
   actions?: ReactNode;
   /** More subjects, each a CardSection, after Yetkiler. */
   sections?: ReactNode;
+  /** Subjects as wide as the page, each a CardSection, after the cards. */
+  wideSections?: ReactNode;
 };
 
 /** One subject of the person card: a titled card with its own actions. */
@@ -275,6 +277,7 @@ export function UserCardView(props: UserCardViewProps) {
     onLogout,
     actions,
     sections,
+    wideSections,
     profileError,
   } = props;
   const [editing, setEditing] = useState(false);
@@ -360,6 +363,7 @@ export function UserCardView(props: UserCardViewProps) {
           {sections}
         </div>
       </div>
+      {wideSections}
     </div>
   );
 }
