@@ -1,10 +1,11 @@
 'use client';
 
-import { Badge, DataList, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { Badge, DataListTitle, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import { DataList } from '@/components/chrome/DataList';
 import { ImageIcon, PenLine, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
-import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPage, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { EmptyState, Forbidden } from '@/components/chrome/PageState';
@@ -19,7 +20,6 @@ import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { useListParams } from '@/lib/ui/use-list-params';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
-const PAGE_SIZE = 50;
 type View = 'all' | 'featured';
 
 const COLUMNS: readonly ColumnChoice[] = [
@@ -96,7 +96,7 @@ export default function AnnouncementsPage() {
   );
   const featuredCount = searched.filter((item) => item.data?.featured).length;
   const rows = view === 'featured' ? searched.filter((item) => item.data?.featured) : searched;
-  const paged = paginateRows(rows, params.page, PAGE_SIZE);
+  const paged = paginateRows(rows, params.page, params.size);
   const filtered = Boolean(params.q.trim()) || view !== 'all';
 
   if (!privileged) return <Forbidden pageTitle="Duyurular" />;
@@ -247,15 +247,13 @@ export default function AnnouncementsPage() {
           }
         />
       }
-      footer={
-        <ListFooter
-          total={rows.length}
-          page={paged.page}
-          totalPages={paged.totalPages}
-          pageSize={PAGE_SIZE}
-          onPage={(page) => setParams({ page })}
-        />
-      }
+      paging={{
+        total: rows.length,
+        page: paged.page,
+        pageSize: params.size,
+        onPage: (page) => setParams({ page }),
+        onPageSize: (size) => setParams({ size }),
+      }}
     >
       {pending ? (
         <div className="border-border-subtle bg-card flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2">

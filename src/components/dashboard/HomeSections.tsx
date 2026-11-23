@@ -1,11 +1,13 @@
 'use client';
 
-import { Card, StatusDot } from '@skylab-kulubu/skylcn-ui';
+import { Card, Skeleton, StatusDot } from '@skylab-kulubu/skylcn-ui';
+import { CircleCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useId, useState, type ReactNode } from 'react';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { upcomingRows, type TodoRow, type WeekDay } from '@/lib/dashboard/home';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
 /** A compact titled card of the strip above the charts. */
 function StripCard({
@@ -38,6 +40,30 @@ function StripCard({
   );
 }
 
+/** Two quiet lines where a card's rows will come. */
+function RowsSkeleton() {
+  return (
+    <div className="space-y-2 px-4 pb-4" aria-hidden>
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  );
+}
+
+/** Nothing waits on the reader: one line in place of the card. */
+export function TodoLine() {
+  return (
+    <p
+      className={`border-border-subtle bg-card text-secondary-foreground flex items-center gap-2 rounded-lg border px-4 py-2.5 ${TEXT_SECONDARY}`}
+    >
+      <CircleCheck className="text-success size-4 shrink-0" aria-hidden />
+      <span className="text-foreground font-medium">Yapılacaklar</span>
+      <span aria-hidden>·</span>
+      Bekleyen iş yok
+    </p>
+  );
+}
+
 const DOT: Record<TodoRow['tone'], { tone: 'danger' | 'warning' | 'neutral'; label: string }> = {
   danger: { tone: 'danger', label: 'Acil' },
   warning: { tone: 'warning', label: 'Eksik' },
@@ -66,10 +92,10 @@ export function TodoCard({ rows, loading }: { rows: TodoRow[]; loading: boolean 
         ) : null
       }
     >
-      {loading || rows.length === 0 ? (
-        <p className="text-muted-foreground px-4 pb-4 text-sm">
-          {loading ? 'Yükleniyor…' : 'Bekleyen iş yok'}
-        </p>
+      {loading ? (
+        <RowsSkeleton />
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground px-4 pb-4 text-sm">Bekleyen iş yok</p>
       ) : (
         <ListPanel status={{ kind: 'ready' }}>
           {shown.map((row) => (
@@ -118,10 +144,10 @@ export function WeekCard({
         ) : null
       }
     >
-      {loading || rows.length === 0 ? (
-        <p className="text-muted-foreground px-4 pb-4 text-sm">
-          {loading ? 'Yükleniyor…' : 'Bu hafta etkinlik yok'}
-        </p>
+      {loading ? (
+        <RowsSkeleton />
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground px-4 pb-4 text-sm">Bu hafta etkinlik yok</p>
       ) : (
         <ListPanel status={{ kind: 'ready' }}>
           {rows.slice(0, WEEK_LIMIT).map((row) => (

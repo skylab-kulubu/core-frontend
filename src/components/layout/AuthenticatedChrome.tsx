@@ -19,6 +19,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { ChromeCrumbNamesProvider, useChromeCrumbNames } from './chrome-crumb-names';
 import { EnvironmentBadge, EnvironmentStrip } from './EnvironmentStrip';
 import { UserMenu } from './UserMenu';
+import { ExpiredTermsBanner } from './ExpiredTermsBanner';
 import { useNavigationContext } from './use-navigation-context';
 
 type AuthenticatedChromeProps = Readonly<{
@@ -26,8 +27,22 @@ type AuthenticatedChromeProps = Readonly<{
   sidebarUser: UserDto;
 }>;
 
+/**
+ * How a two-step trail gives way when the row is narrow: the section stays whole and the
+ * record's name is cut ("Sezonlar > 2026-2027 …"). skylcn-ui keeps the last step whole and
+ * cuts the ones before it, which left "S > 2026-2027 Güz-Bahar". Longer trails keep that rule:
+ * the steps between collapse first, so the record's name stays readable.
+ */
+export const TRAIL_GIVES_WAY =
+  '[&_ol>li:first-child:nth-last-child(2)]:shrink-0 [&_ol>li:last-child:nth-child(2)]:min-w-0 [&_ol>li:last-child:nth-child(2)]:shrink';
+
 function ChromeTrail({ pathname }: { pathname: string }) {
-  return <Breadcrumbs items={chromeCrumbs(pathname, useChromeCrumbNames())} />;
+  return (
+    <Breadcrumbs
+      className={TRAIL_GIVES_WAY}
+      items={chromeCrumbs(pathname, useChromeCrumbNames())}
+    />
+  );
 }
 
 /**
@@ -81,7 +96,12 @@ function SignedInChrome({ children, current }: { children: React.ReactNode; curr
   const pathname = usePathname() || '/dashboard';
   const navigationContext = useNavigationContext(current);
   // Inputs and selects at skylcn-ui's lg size: 14px text, the panel's body size
-  const page = <ControlSizeProvider size="lg">{children}</ControlSizeProvider>;
+  const page = (
+    <ControlSizeProvider size="lg">
+      <ExpiredTermsBanner />
+      {children}
+    </ControlSizeProvider>
+  );
 
   return (
     <NewEventProvider>

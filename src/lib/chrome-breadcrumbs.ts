@@ -10,7 +10,8 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/seasons': 'Sezonlar',
   '/sessions': 'Oturumlar',
   '/teams': 'Ekipler',
-  '/my-teams': 'Ekiplerim',
+  '/my-teams': 'Ekibim',
+  '/management-memberships': 'Dönem devri',
   '/subject-requests': 'KVKK başvuruları',
   '/qr': 'Kapı',
   '/urls': 'Kısa link',
@@ -45,6 +46,11 @@ function formatSegment(part: string): string {
     content: 'Dosyalar',
     competition: 'Yarışma',
     door: 'Kapı',
+    members: 'Üyeler',
+    leaders: 'Liderler ve alt ekipler',
+    roles: 'Uygulama rolleri',
+    settings: 'Ayarlar',
+    audit: 'Denetim kaydı',
   };
   if (known[part]) return known[part];
   return part.replace(/[-_]/g, ' ').replace(/^\S/u, (ch) => ch.toLocaleUpperCase('tr-TR'));

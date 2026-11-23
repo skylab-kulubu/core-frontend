@@ -1,81 +1,103 @@
 'use client';
 
-import { useEffect, useState, Suspense, type ReactNode } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { SaveButton } from '@/components/chrome/SaveButton';
+import { Button, SkylabLoader, SkylabMark } from '@skylab-kulubu/skylcn-ui';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { accountCenterUrl } from '@/lib/club-switcher';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { loginErrorMessage } from './login-errors';
 
 const LOGIN_START = '/api/auth/login';
 
+/** The page around every state: the mark and the product's name over a card, as in the sign-in. */
 function LoginShell({ children }: { children: ReactNode }) {
   return (
-    <main className="bg-sidebar flex min-h-dvh items-center justify-center px-4">
-      <div className="border-border-subtle bg-background w-full max-w-md rounded-xl border p-6 text-center">
+    <main className="bg-background flex min-h-dvh flex-col items-center justify-center gap-6 px-4 py-10">
+      <div className="flex flex-col items-center gap-3">
+        <SkylabMark size={48} />
+        <p className="text-foreground-strong text-lg font-semibold tracking-tight">
+          SKY LAB <span className="text-muted-foreground font-normal">Yönetim</span>
+        </p>
+      </div>
+      <div className="border-border-subtle bg-card w-full max-w-sm rounded-xl border p-6 shadow-sm">
         {children}
       </div>
     </main>
   );
 }
 
+function startLogin() {
+  window.location.href = LOGIN_START;
+}
+
+/** One title, one line, then "Tekrar giriş yap" and the account center beside it. */
+function LoginState({
+  title,
+  message,
+  action,
+  onAction,
+}: {
+  title: string;
+  message?: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4 text-center">
+      <div className="space-y-1.5">
+        <h1 className="text-foreground-strong text-base font-semibold">{title}</h1>
+        {message ? (
+          <p className={`text-secondary-foreground ${TEXT_SECONDARY}`}>{message}</p>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Button variant="primary" className="w-full" onClick={onAction}>
+          {action}
+        </Button>
+        <Button variant="ghost" className="w-full" render={<a href={accountCenterUrl()} />}>
+          Hesap merkezi
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function Redirecting() {
+  return (
+    <div role="status" className="flex flex-col items-center gap-3 py-2">
+      <SkylabLoader size={40} variant="pulse" />
+      <p className={`text-secondary-foreground ${TEXT_SECONDARY}`}>Giriş sayfası açılıyor</p>
+    </div>
+  );
+}
+
 function LoginContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
-  const details = searchParams.get('details');
   const logout = searchParams.get('logout');
-  const [hasRedirected, setHasRedirected] = useState(false);
+  const started = useRef(false);
 
   useEffect(() => {
-    if (error || logout) return;
-    if (!hasRedirected) {
-      setHasRedirected(true);
-      window.location.href = LOGIN_START;
-    }
-  }, [error, logout, hasRedirected]);
+    if (error || logout || started.current) return;
+    started.current = true;
+    startLogin();
+  }, [error, logout]);
 
   if (error) {
-    const message =
-      error === 'token_exchange_failed'
-        ? 'Giriş tamamlanamadı. Tekrar dene.'
-        : error === 'no_code'
-          ? 'Yetkilendirme kodu alınamadı. Tekrar dene.'
-          : error === 'config_missing'
-            ? 'Giriş ayarı eksik. Yöneticiye yaz.'
-            : error === 'stale_authentication'
-              ? 'Panel en fazla 8 saat önceki bir girişi kabul eder. Yeniden giriş yap.'
-              : `Hata: ${error}`;
     return (
       <LoginShell>
-        <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Giriş hatası</h1>
-        <p className="text-secondary-foreground mb-4 text-sm">{message}</p>
-        {details ? (
-          <p className="border-border bg-card text-muted-foreground mb-4 rounded-md border p-3 text-left text-[13px]/5 break-all">
-            {details}
-          </p>
-        ) : null}
-        <SaveButton
-          type="button"
-          onClick={() => {
-            setHasRedirected(false);
-            window.location.href = LOGIN_START;
-          }}
-        >
-          Tekrar dene
-        </SaveButton>
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => router.push('/login')}
-            className="border-border text-muted-foreground h-8 rounded-md border px-3 text-[13px] font-medium"
-          >
-            Sayfayı yenile
-          </button>
-        </div>
+        <LoginState
+          title="Giriş yapılamadı"
+          message={loginErrorMessage(error)}
+          action="Tekrar giriş yap"
+          onAction={startLogin}
+        />
       </LoginShell>
     );
   }
 
   if (logout) {
-    const handleLogin = async () => {
+    const signInAgain = async () => {
       localStorage.removeItem('auth_token');
       sessionStorage.removeItem('auth_user');
       await fetch('/api/auth/logout', {
@@ -83,23 +105,19 @@ function LoginContent() {
         credentials: 'include',
       }).catch(() => undefined);
       await new Promise((resolve) => setTimeout(resolve, 300));
-      window.location.href = LOGIN_START;
+      startLogin();
     };
 
     return (
       <LoginShell>
-        <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Çıkış yapıldı</h1>
-        <SaveButton type="button" onClick={() => void handleLogin()}>
-          Giriş yap
-        </SaveButton>
+        <LoginState title="Çıkış yapıldı" action="Giriş yap" onAction={() => void signInAgain()} />
       </LoginShell>
     );
   }
 
   return (
     <LoginShell>
-      <h1 className="text-skylab-300 mb-3 text-xl font-semibold">Yönlendiriliyor…</h1>
-      <p className="text-subtle-foreground text-sm">Giriş sayfasına gidiyorsun.</p>
+      <Redirecting />
     </LoginShell>
   );
 }
@@ -109,7 +127,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <LoginShell>
-          <h1 className="text-skylab-300 text-xl font-semibold">Yükleniyor…</h1>
+          <Redirecting />
         </LoginShell>
       }
     >

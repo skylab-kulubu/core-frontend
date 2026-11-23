@@ -126,6 +126,56 @@ describe('GET /api/auth/callback', () => {
     expect(jar.sent('__Host-auth_token')).toBeUndefined();
   });
 
+  it("sends a refused exchange to the login page with the page's code alone, the detail to the server log", async () => {
+    global.fetch = jest.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: 'invalid_grant',
+            error_description: 'Code not valid for ali@std.yildiz.edu.tr',
+          }),
+          { status: 400 },
+        ),
+    ) as typeof fetch;
+    const jar = fakeCookieStore(SIGNING_IN);
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+
+    const response = await callback('code=code-1&state=state-1');
+
+    expect(response.headers.get('location')).toBe(
+      'https://admin.yildizskylab.com/login?error=token_exchange_failed',
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      'OAuth callback: token exchange failed:',
+      'status 400, invalid_grant',
+    );
+    const callbackLog = (console.error as jest.Mock).mock.calls
+      .filter(([first]) => String(first).startsWith('OAuth callback'))
+      .flat()
+      .join(' ');
+    expect(callbackLog).not.toMatch(/Code not valid|ali@|code-1/);
+  });
+
+  it("passes Keycloak's error on by the page's own code, and any other text as an unknown one", async () => {
+    const jar = fakeCookieStore(SIGNING_IN);
+    (cookies as jest.Mock).mockResolvedValue(jar.store);
+
+    const timedOut = await callback(
+      'error=temporarily_unavailable&error_description=authentication_expired&state=state-1',
+    );
+    expect(timedOut.headers.get('location')).toBe(
+      'https://admin.yildizskylab.com/login?error=temporarily_unavailable',
+    );
+
+    const planted = await callback(
+      'error=' + encodeURIComponent('<b>Ali Veli</b>') + '&state=state-1',
+    );
+    expect(planted.headers.get('location')).toBe(
+      'https://admin.yildizskylab.com/login?error=login_failed',
+    );
+    expect(JSON.stringify((console.error as jest.Mock).mock.calls)).not.toMatch(/Ali Veli/);
+  });
+
   it('refuses a login whose state and verifier arrive only under the legacy unprefixed names', async () => {
     const jar = fakeCookieStore({ oauth_state: 'planted', oauth_code_verifier: 'planted' });
     (cookies as jest.Mock).mockResolvedValue(jar.store);

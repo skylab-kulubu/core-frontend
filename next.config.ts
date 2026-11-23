@@ -7,8 +7,15 @@ const includePlayground = process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND === 'true';
 const nextConfig: NextConfig = {
   reactCompiler: true,
   output: 'standalone',
-  // skylcn-ui ships ESM only; this also lets next/jest transform it for the tests
-  transpilePackages: ['@skylab-kulubu/skylcn-ui'],
+  // skylcn-ui ships ESM only; this also lets next/jest transform it for the tests.
+  // Its DataTable (skylcn-ui/data-table) brings TanStack Table, ESM only too
+  transpilePackages: [
+    '@skylab-kulubu/skylcn-ui',
+    '@tanstack/react-table',
+    '@tanstack/table-core',
+    '@tanstack/react-store',
+    '@tanstack/store',
+  ],
   // The skylcn-ui playground ships as static files in public/ (see the
   // Dockerfile's playground stage); its pages are the .html files there.
   // Without NEXT_PUBLIC_INCLUDE_PLAYGROUND=true there are no such files, and

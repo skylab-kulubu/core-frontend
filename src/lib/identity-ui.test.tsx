@@ -60,7 +60,6 @@ describe('filterSidebarNavForUser', () => {
       '/events',
       '/users',
       '/groups',
-      '/teams',
       '/announcements',
       '/urls',
       '/seasons',

@@ -24,6 +24,7 @@ describe('list params in the address', () => {
       view: 'all',
       sort: '',
       page: 1,
+      size: 25,
       panel: null,
     });
   });
@@ -34,6 +35,7 @@ describe('list params in the address', () => {
       q: 'bahar',
       view: 'featured',
       page: 3,
+      size: 25,
       panel: 'n1',
     });
     expect(readListParams(new URLSearchParams('page=-2'), DEFAULTS).page).toBe(1);
@@ -45,7 +47,7 @@ describe('list params in the address', () => {
       listParamsHref(
         '/events',
         new URLSearchParams('tab=list&q=old'),
-        { q: '', view: 'all', sort: '', page: 1, panel: null },
+        { q: '', view: 'all', sort: '', page: 1, size: 25, panel: null },
         DEFAULTS,
       ),
     ).toBe('/events?tab=list');
@@ -53,7 +55,7 @@ describe('list params in the address', () => {
       listParamsHref(
         '/events',
         new URLSearchParams(''),
-        { q: 'ş ç', view: 'past', sort: 'name', page: 2, panel: 'e1' },
+        { q: 'ş ç', view: 'past', sort: 'name', page: 2, size: 25, panel: 'e1' },
         DEFAULTS,
       ),
     ).toBe('/events?q=%C5%9F+%C3%A7&view=past&sort=name&page=2&panel=e1');
@@ -105,9 +107,30 @@ describe('list params in the address', () => {
       listParamsHref(
         '/x',
         new URLSearchParams(''),
-        { q: '  ', view: 'all', sort: '', page: 1, panel: null },
+        { q: '  ', view: 'all', sort: '', page: 1, size: 25, panel: null },
         DEFAULTS,
       ),
     ).toBe('/x?q=++');
+  });
+
+  it('keeps the page size in the address, 25 by default, and goes back to page 1 on a new one', () => {
+    expect(readListParams(new URLSearchParams('size=50'), DEFAULTS).size).toBe(50);
+    expect(readListParams(new URLSearchParams('size=30'), DEFAULTS).size).toBe(25);
+    expect(
+      listParamsHref(
+        '/users',
+        new URLSearchParams(''),
+        { q: '', view: 'all', sort: '', page: 2, size: 100, panel: null },
+        DEFAULTS,
+      ),
+    ).toBe('/users?page=2&size=100');
+    expect(
+      listParamsHref(
+        '/users',
+        new URLSearchParams('size=50'),
+        { q: '', view: 'all', sort: '', page: 1, size: 25, panel: null },
+        DEFAULTS,
+      ),
+    ).toBe('/users');
   });
 });
