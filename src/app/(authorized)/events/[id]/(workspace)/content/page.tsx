@@ -4,7 +4,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { EventFilesPanel } from '@/components/scheduling/EventFilesPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 
-/** İçerik tab: the event's presentation files and videos. */
+/** Dosyalar: the event's presentation files and videos. */
 export default function EventContentPage() {
   const { event, setEvent, canMutate } = useEventWorkspace();
 

@@ -42,7 +42,7 @@ function formatSegment(part: string): string {
     delete: 'Sil',
     participants: 'Katılımcılar',
     certificates: 'Sertifikalar',
-    content: 'İçerik',
+    content: 'Dosyalar',
     competition: 'Yarışma',
     door: 'Kapı',
   };
