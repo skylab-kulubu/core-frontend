@@ -15,7 +15,6 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { Switch } from '@/components/chrome/Switch';
 import { PickerDrawer, type PickerOption } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
@@ -43,12 +42,11 @@ import {
 import { isLeaderGroupPath, isPrivileged, isTeamGroupPath } from '@/lib/auth/groups';
 import { useAuth } from '@/context/AuthContext';
 import {
-  TEAM_SETTING_ATTRS,
   competitionManagers,
   extraGroupAttrs,
   isKnownGroupAttr,
+  isRetiredGroupAttr,
   isTeamSettingAttr,
-  membersManageCompetitors,
 } from '@/lib/group-attrs';
 import { memberSubtitle } from '@/lib/group-members';
 import { matchesQuery } from '@/lib/list-query';
@@ -225,7 +223,7 @@ export default function GroupDetailPage() {
   // The Team's settings have their own switch below, not a row here
   const extraAttrs = Object.fromEntries(
     Object.entries(extraGroupAttrs(group?.attributes)).filter(
-      ([key]) => !(TEAM_SETTING_ATTRS as readonly string[]).includes(key),
+      ([key]) => !isTeamSettingAttr(key) && !isRetiredGroupAttr(key),
     ),
   );
   // A Team's settings show to whoever reads the Team; whoever manages it (its
@@ -510,25 +508,6 @@ export default function GroupDetailPage() {
                 {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
               </p>
             ) : null}
-            <Switch
-              checked={membersManageCompetitors(group.attributes)}
-              label="Üyeler yarışmacı ekleyip düzenleyebilir"
-              hint="Kapalıysa yalnız liderler."
-              disabled={!settingsWrite || savingSettings}
-              onChange={async (next) => {
-                if (!settingsWrite || savingSettings) return;
-                setSavingSettings(true);
-                setSettingsError(null);
-                try {
-                  await saveTeamSettings({ membersManageCompetitors: next });
-                  notify.success('Ayar kaydedildi');
-                } catch (err) {
-                  setSettingsError(coreProblemMessage(err, 'Ayar kaydedilemedi'));
-                } finally {
-                  setSavingSettings(false);
-                }
-              }}
-            />
             <div className="space-y-2">
               <span id="competition-managers" className="text-[13px]/5 font-medium">
                 Yarışmaları kim yönetir
@@ -729,7 +708,9 @@ export default function GroupDetailPage() {
                 setAttrError(
                   isTeamSettingAttr(attrKey.trim())
                     ? 'Bu ayar yukarıdaki Ekip ayarları bölümünde.'
-                    : 'Bu alan yukarıdaki kulüp alanlarında.',
+                    : isRetiredGroupAttr(attrKey.trim())
+                      ? 'Bu ayar kaldırıldı.'
+                      : 'Bu alan yukarıdaki kulüp alanlarında.',
                 );
                 return;
               }
