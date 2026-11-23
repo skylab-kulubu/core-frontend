@@ -1,6 +1,12 @@
 'use client';
 
-import { DataListTitle, MenuItem, Skeleton, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import {
+  DataListTitle,
+  DescriptionList,
+  MenuItem,
+  Skeleton,
+  type DataListColumn,
+} from '@skylab-kulubu/skylcn-ui';
 import { DataList } from '@/components/chrome/DataList';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -19,7 +25,8 @@ import { ListPanel } from '@/components/chrome/ListPanel';
 import { RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
-import { ObjectCard, ObjectEssentials } from '@/components/chrome/object-page/ObjectPage';
+import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
+import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
 import { EmptyState } from '@/components/chrome/PageState';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
@@ -28,14 +35,18 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { matchesQuery } from '@/lib/list-query';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import Link from 'next/link';
 import {
   certificatesApi,
   type CertificateBatch,
+  type CertificateRule,
   type CertificateEventSummary,
   type CertificateTemplate,
   type IssuedCertificate,
 } from '@/lib/api/certificates';
 import { coreProblemMessage } from '@/lib/core-problems';
+import type { EventDay } from '@/lib/api/eventDays';
+import { ruleSummaryParts } from '@/lib/certificate-rule';
 import type { Ticket } from '@/lib/api/tickets';
 import { listStatus } from '@/lib/list-status';
 import { useConfirm } from '@/lib/ui/use-confirm';
@@ -95,9 +106,19 @@ export function EventCertificatesPanel({
   canRevoke,
   canReadIssued,
   ruleHref,
+  days = [],
+  onRuleSaved,
 }: {
-  /** Where the rule is changed (the edit page's Sertifika section), for who may edit the event. */
+  /**
+   * Who may edit the event: where an older core (no rule editor) changes the
+   * rule, the edit page's Sertifika section. With core's rule editor the card
+   * opens it here instead.
+   */
   ruleHref?: string;
+  /** The event's days, to group the Sessions in the rule editor. */
+  days?: readonly EventDay[];
+  /** The rule was saved: the event and its Sessions changed. */
+  onRuleSaved?: () => void;
   eventId: string;
   ownerTeam: string;
   attendanceRule: string;
@@ -110,6 +131,9 @@ export function EventCertificatesPanel({
   canReadIssued: boolean;
 }) {
   const [summary, setSummary] = useState<CertificateEventSummary>();
+  // null: core has no rule editor (404, older core) or it could not be read
+  const [rule, setRule] = useState<CertificateRule | null>(null);
+  const [ruleOpen, setRuleOpen] = useState(false);
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [issued, setIssued] = useState<IssuedCertificate[]>([]);
   const [failed, setFailed] = useState<CertificateBatch[]>([]);
@@ -149,10 +173,12 @@ export function EventCertificatesPanel({
   async function load() {
     setLoading(true);
     try {
-      const [nextSummary, nextTemplates, nextIssued] = await Promise.all([
+      const [nextSummary, nextTemplates, nextIssued, nextRule] = await Promise.all([
         certificatesApi.summary(eventId),
         canBind ? certificatesApi.templates() : Promise.resolve([]),
         canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
+        // An older core answers 404: the card says the rule as before
+        certificatesApi.rule(eventId).catch(() => null),
       ]);
       // Only read the batches when something failed: retrying is what they are for here,
       // and a failed read keeps the rest of the tab
@@ -161,6 +187,7 @@ export function EventCertificatesPanel({
           ? await certificatesApi.listBatches(eventId).catch(() => null)
           : [];
       setSummary(nextSummary);
+      setRule(nextRule);
       setTemplates(nextTemplates);
       setIssued(nextIssued);
       setFailed(failedBatches(nextBatches ?? []));
@@ -341,12 +368,16 @@ export function EventCertificatesPanel({
   ];
 
   const pendingCount = (summary?.queuedCount ?? 0) + (summary?.failedCount ?? 0);
-  const ruleText =
-    attendanceRule === 'ratio'
+  const ruleKind = rule?.rule ?? attendanceRule;
+  const ruleText = rule
+    ? ruleSummaryParts(rule).join(' · ')
+    : attendanceRule === 'ratio'
       ? `%${Math.round((attendanceRatio ?? 0) * 100)} oturum`
       : attendanceRule === 'once'
         ? 'En az bir oturum'
-        : 'Sertifika yok';
+        : attendanceRule === 'count'
+          ? 'Oturum sayısı'
+          : 'Sertifika yok';
   const attendanceText = summary?.attendanceFinalizedAt
     ? `${when(summary.attendanceFinalizedAt)} kapatıldı`
     : !finalizeOpen
@@ -405,7 +436,7 @@ export function EventCertificatesPanel({
                 primary
                 icon={Send}
                 label="Katılımı kapat ve üret"
-                disabled={busy || attendanceRule === 'none' || !finalizeOpen}
+                disabled={busy || ruleKind === 'none' || !finalizeOpen}
                 onClick={() => askFinalize(summary.eligibleCount)}
               />
             ) : null}
@@ -424,18 +455,40 @@ export function EventCertificatesPanel({
               <Command icon={FileBadge} label="Şablonu değiştir" onClick={() => setBinding(true)} />
             ) : null}
           </CommandBar>
-          <ObjectEssentials
+          <ObjectCard
             title="Kural"
-            editHref={ruleHref}
-            editName="Kuralı değiştir"
-            items={[
-              { label: 'Şablon', value: summary.resolution.template.name },
-              { label: 'Sürüm', value: `v${summary.resolution.version.version}` },
-              { label: 'Kaynak', value: sourceLabel(summary.resolution.source, ownerTeam) },
-              { label: 'Katılım kuralı', value: ruleText },
-              { label: 'Katılım', value: attendanceText },
-            ]}
-          />
+            action={
+              rule && ruleHref ? (
+                <button
+                  type="button"
+                  aria-label="Kuralı düzenle"
+                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+                  onClick={() => setRuleOpen(true)}
+                >
+                  Düzenle
+                </button>
+              ) : ruleHref ? (
+                <Link
+                  href={ruleHref}
+                  aria-label="Kuralı değiştir"
+                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+                >
+                  Düzenle
+                </Link>
+              ) : undefined
+            }
+          >
+            <DescriptionList
+              columns={2}
+              items={[
+                { label: 'Şablon', value: summary.resolution.template.name },
+                { label: 'Sürüm', value: `v${summary.resolution.version.version}` },
+                { label: 'Kaynak', value: sourceLabel(summary.resolution.source, ownerTeam) },
+                { label: 'Katılım kuralı', value: ruleText },
+                { label: 'Katılım', value: attendanceText },
+              ]}
+            />
+          </ObjectCard>
         </>
       ) : null}
 
@@ -549,6 +602,24 @@ export function EventCertificatesPanel({
         emptyMessage={pickQuery.trim() ? 'Eşleşen katılımcı yok' : 'Sertifikasız katılımcı yok'}
         onPick={(id) => void issueTo(id)}
       />
+
+      {rule && ruleHref ? (
+        <CertificateRuleSheet
+          open={ruleOpen}
+          rule={rule}
+          eventId={eventId}
+          days={days}
+          finalized={Boolean(summary?.attendanceFinalizedAt)}
+          onClose={() => setRuleOpen(false)}
+          onSaved={(saved) => {
+            setRule(saved);
+            setRuleOpen(false);
+            done('Kural kaydedildi');
+            onRuleSaved?.();
+            void load();
+          }}
+        />
+      ) : null}
 
       {canBind ? (
         <SidePanel

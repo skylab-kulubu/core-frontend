@@ -17,6 +17,8 @@ export default function EventCertificatesPage() {
     canRevokeCertificate,
     canReadIssuedCertificates,
     canMutate,
+    days,
+    reload,
   } = useEventWorkspace();
 
   if (!canCertificates) {
@@ -36,6 +38,8 @@ export default function EventCertificatesPage() {
       canRevoke={canRevokeCertificate}
       canReadIssued={canReadIssuedCertificates}
       ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
+      days={days}
+      onRuleSaved={() => void reload()}
     />
   );
 }

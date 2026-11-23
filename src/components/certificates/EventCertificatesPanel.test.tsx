@@ -19,6 +19,9 @@ jest.mock('@/lib/api/certificates', () => ({
     revoke: jest.fn(),
     reissue: jest.fn(),
     issue: jest.fn(),
+    // An older core: no rule editor
+    rule: jest.fn(() => Promise.reject(new Error('404'))),
+    setRule: jest.fn(),
   },
 }));
 
@@ -387,5 +390,87 @@ describe('EventCertificatesPanel issued certificates', () => {
     expect(within(drawer).queryByText('Ada Lovelace')).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: /Grace Hopper/ }));
     await waitFor(() => expect(api.issue).toHaveBeenCalledWith('e1', 't2'));
+  });
+});
+
+describe('EventCertificatesPanel rule card', () => {
+  const sessions = [
+    { id: 's1', title: 'Açılış', required: true },
+    { id: 's2', title: 'Atölye 1' },
+    { id: 's3', title: 'Atölye 2' },
+    { id: 's4', title: 'Networking', counted: false, sessionType: 'NETWORKING' },
+  ].map((row) => ({
+    dayId: 'd1',
+    sessionType: 'WORKSHOP',
+    cancelled: false,
+    counted: true,
+    required: false,
+    ...row,
+  }));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue({ ...summary(0), attendanceFinalizedAt: undefined });
+    api.templates.mockResolvedValue([]);
+    api.listIssued.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+  });
+
+  function renderRule(ruleHref?: string) {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="count"
+        finalizeOpen
+        tickets={[]}
+        canIssue={false}
+        canBind={false}
+        canRevoke={false}
+        canReadIssued={false}
+        ruleHref={ruleHref}
+        days={[{ id: 'd1', eventId: 'e1', name: '1. gün' }]}
+      />,
+    );
+  }
+
+  it('says the rule as N of M with the required and uncounted Sessions', async () => {
+    api.rule.mockResolvedValueOnce({
+      rule: 'count',
+      minCount: null,
+      effectiveMin: 3,
+      countedTotal: 3,
+      sessions,
+    });
+    renderRule();
+    expect(
+      await screen.findByText('3 oturumdan en az 3 (%100) · Zorunlu: Açılış · 1 oturum sayılmıyor'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kuralı düzenle' })).not.toBeInTheDocument();
+  });
+
+  it('opens the rule editor here for who may edit the event', async () => {
+    const user = userEvent.setup();
+    api.rule.mockResolvedValueOnce({
+      rule: 'count',
+      minCount: 2,
+      effectiveMin: 2,
+      countedTotal: 3,
+      sessions,
+    });
+    renderRule('/events/e1/edit#sertifika');
+    await user.click(await screen.findByRole('button', { name: 'Kuralı düzenle' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Sertifika kuralı' });
+    expect(within(sheet).getByRole('spinbutton', { name: 'En az kaç oturum' })).toHaveValue(2);
+    expect(within(sheet).getByText('(%67)')).toBeInTheDocument();
+  });
+
+  it('keeps the link to the edit page on an older core', async () => {
+    renderRule('/events/e1/edit#sertifika');
+    expect(await screen.findByRole('link', { name: 'Kuralı değiştir' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#sertifika',
+    );
+    expect(screen.getByText('Oturum sayısı')).toBeInTheDocument();
   });
 });
