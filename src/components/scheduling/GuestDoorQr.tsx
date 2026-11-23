@@ -10,8 +10,17 @@ import { DOOR_QR_FALLBACK_REFRESH_SECONDS, doorQrFailure, svgDataUrl } from '@/l
  * The token and address in it are never logged, stored or sent anywhere else, and a QR that
  * could not be renewed disappears when it expires instead of staying on screen.
  */
-export function GuestDoorQr({ sessionId }: { sessionId: string }) {
-  const [open, setOpen] = useState(false);
+export function GuestDoorQr({
+  sessionId,
+  open: shown,
+}: {
+  sessionId: string;
+  /** Opened from outside (the door's command row): no button of its own. */
+  open?: boolean;
+}) {
+  const [own, setOpen] = useState(false);
+  const controlled = shown !== undefined;
+  const open = controlled ? shown : own;
   const [src, setSrc] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -71,16 +80,18 @@ export function GuestDoorQr({ sessionId }: { sessionId: string }) {
 
   return (
     <section aria-label="Misafir QR'ı" className="space-y-3">
-      <SaveButton type="button" disabled={!sessionId} onClick={() => setOpen((value) => !value)}>
-        {open ? 'Misafir QR’ını gizle' : 'Misafir QR’ını göster'}
-      </SaveButton>
+      {controlled ? null : (
+        <SaveButton type="button" disabled={!sessionId} onClick={() => setOpen((value) => !value)}>
+          {open ? 'Misafir QR’ını gizle' : 'Misafir QR’ını göster'}
+        </SaveButton>
+      )}
       {open ? (
         <div className="space-y-2">
           {src ? (
             <img
               src={src}
               alt="Misafir girişi için kapı QR'ı"
-              className="h-80 w-80 max-w-full rounded-md bg-white"
+              className="mx-auto aspect-square w-80 max-w-full rounded-md bg-white"
             />
           ) : null}
           {message ? (

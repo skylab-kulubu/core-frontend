@@ -143,6 +143,25 @@ export const ticketsApi = {
       method: 'POST',
       body: JSON.stringify(target),
     }),
+  /**
+   * What the door's camera read: a Ticket QR or a SkyPass code (core-backend
+   * docs/ticket-qr.md). 401 `ticket_qr_invalid`, 410 `ticket_qr_superseded`,
+   * 409 when the holder is already in.
+   */
+  scanCheckIn: (sessionId: string, token: string) =>
+    coreFetch<CheckIn>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-in/scan`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  /**
+   * Takes back an entry the door wrote by mistake (204); who may write the entry may take it
+   * back while the Event takes entries. 404 when the entry is gone or of another session.
+   */
+  undoCheckIn: (sessionId: string, checkInId: string) =>
+    coreFetch<void>(
+      `/v1/sessions/${encodeURIComponent(sessionId)}/check-ins/${encodeURIComponent(checkInId)}`,
+      { method: 'DELETE' },
+    ),
   createDoorQr: (sessionId: string) =>
     coreFetch<DoorQr>(`/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1`, {
       method: 'POST',
