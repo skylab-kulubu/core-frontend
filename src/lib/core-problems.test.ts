@@ -370,11 +370,9 @@ describe('coreProblemMessage for the role rules', () => {
     expect(coreProblemMessage(problem(403, 'direct_role_not_allowed'))).toContain(
       'Kişiye doğrudan rol verilmez',
     );
-    expect(coreProblemMessage(problem(403, 'keycloak_admin_role'))).toContain(
-      'Keycloak konsolundan',
-    );
+    expect(coreProblemMessage(problem(403, 'keycloak_admin_role'))).toContain('panelden verilmez');
     expect(coreProblemMessage(problem(403, 'keycloak_admin_group'))).toContain(
-      'üyeliği yalnız Keycloak konsolundan',
+      'üyeliği panelden değişmez',
     );
   });
 });

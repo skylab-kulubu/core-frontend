@@ -156,7 +156,7 @@ export default function UsersPage() {
                 <Field type="email" aria-invalid={Boolean(errors.email)} {...register('email')} />
               </label>
               {errors.email ? (
-                <p className="text-destructive text-xs">{errors.email.message}</p>
+                <p className="text-destructive text-[13px]/5">{errors.email.message}</p>
               ) : null}
             </div>
             {createError ? (

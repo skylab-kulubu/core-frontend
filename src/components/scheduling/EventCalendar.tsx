@@ -19,7 +19,7 @@ import { listStatus } from '@/lib/list-status';
 
 /** A day cell's chip: a draft dashed, a cancelled Event struck through (SPEC §5.1). */
 export function calendarChipClass(event: CoreEvent): string {
-  const base = 'truncate rounded px-1 py-0.5 text-[10px] leading-4';
+  const base = 'truncate rounded px-1 py-0.5 text-xs leading-4';
   const status = eventDisplayStatus(event);
   if (status === 'draft') {
     return `${base} border border-dashed border-skylab-400/50 text-skylab-300`;
@@ -91,7 +91,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
           {weekdayLabels().map((day) => (
             <span
               key={day}
-              className="text-subtle-foreground py-2 text-center text-[10px] tracking-wide uppercase"
+              className="text-subtle-foreground py-2 text-center text-xs tracking-wide uppercase"
             >
               {day}
             </span>
@@ -137,9 +137,7 @@ export function EventCalendar({ events }: { events: CoreEvent[] }) {
                   </span>
                 ))}
                 {rows.length > CHIP_MAX ? (
-                  <span className="text-subtle-foreground text-[10px]">
-                    +{rows.length - CHIP_MAX}
-                  </span>
+                  <span className="text-subtle-foreground text-xs">+{rows.length - CHIP_MAX}</span>
                 ) : null}
               </button>
             );

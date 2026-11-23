@@ -390,7 +390,7 @@ export default function GroupDetailPage() {
       <PageHeader
         title={group?.name ?? id}
         description={group?.path}
-        meta={<span className="text-2xs text-subtle-foreground">{members.length} üye</span>}
+        meta={<span className="text-subtle-foreground text-xs">{members.length} üye</span>}
       />
       {error ? <LoadError title={error} onRetry={load} /> : null}
 
@@ -506,7 +506,7 @@ export default function GroupDetailPage() {
               </p>
             ) : null}
             {settingsKnown && !settingsWrite ? (
-              <p className="text-3xs text-subtle-foreground">
+              <p className="text-subtle-foreground text-[13px]/5">
                 {managedGroups.status === 'failed' ? SETTINGS_UNKNOWN : SETTINGS_READ_ONLY}
               </p>
             ) : null}
@@ -530,7 +530,7 @@ export default function GroupDetailPage() {
               }}
             />
             <div className="space-y-2">
-              <span id="competition-managers" className="text-xs font-medium">
+              <span id="competition-managers" className="text-[13px]/5 font-medium">
                 Yarışmaları kim yönetir
               </span>
               <RadioGroup
@@ -621,15 +621,15 @@ export default function GroupDetailPage() {
             }
           />
           {rolesOnApps ? (
-            <p className="text-3xs text-subtle-foreground">
+            <p className="text-subtle-foreground text-[13px]/5">
               Uygulama rolleri{' '}
               <Link href="/apps" className="underline">
                 Uygulamalar
               </Link>{' '}
-              sayfasından atanır. Yönetici rolleri kodda tanımlı; burada yalnız görünür.
+              sayfasından atanır; yönetici rolleri buradan değişmez.
             </p>
           ) : canWrite && placement ? (
-            <p className="text-3xs text-subtle-foreground">
+            <p className="text-subtle-foreground text-[13px]/5">
               {rolePlacementMessage(placement)}
               {roles.length > 0 ? ' Bu gruptaki roller yalnız kaldırılabilir.' : ''}
             </p>
@@ -679,9 +679,6 @@ export default function GroupDetailPage() {
 
       <section className="space-y-3">
         <SectionHeading title="Ekstra öznitelikler" />
-        <p className="text-3xs text-subtle-foreground">
-          Kulüp alanları yukarıda. Buraya yalnızca ekstra bir anahtar lazımsa yaz.
-        </p>
         <ListPanel
           status={listStatus({
             loading: false,
@@ -786,6 +783,7 @@ export default function GroupDetailPage() {
               <ActionButton
                 icon={Trash2}
                 label="Grubu sil"
+                showLabel
                 onClick={() =>
                   confirm({
                     title: `${group.name} silinsin mi?`,
@@ -803,9 +801,6 @@ export default function GroupDetailPage() {
               />
             }
           />
-          <p className="text-subtle-foreground text-sm">
-            Sistem ve rol grupları korunur. Üyeler veya alt gruplar kendiliğinden silinmez.
-          </p>
         </section>
       ) : null}
       {confirmDialog}

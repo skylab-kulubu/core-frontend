@@ -86,7 +86,7 @@ describe('ParticipantRoster', () => {
   it('mails the chosen ones only', async () => {
     const props = setup();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Ada Lovelace seç' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Mail' }));
+    await userEvent.click(screen.getByRole('button', { name: 'E-posta' }));
     expect(props.onMail).toHaveBeenCalledWith([
       { ticketId: 't-guest', name: 'Ada Lovelace', email: 'ada@example.com' },
     ]);
@@ -182,9 +182,9 @@ describe('ParticipantRoster panel and gaps', () => {
       },
     ] as DoorSession[];
     setup({ sessions: past, onMarkAttended: jest.fn().mockResolvedValue(null) });
-    expect(screen.getByText('Katıldı için oturum seçin')).toBeInTheDocument();
+    expect(screen.getByText('Katıldı için oturum seç')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ada Lovelace: katıldı' })).toBeDisabled();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Giriş oturumu' }), 's2');
-    expect(screen.queryByText('Katıldı için oturum seçin')).not.toBeInTheDocument();
+    expect(screen.queryByText('Katıldı için oturum seç')).not.toBeInTheDocument();
   });
 });

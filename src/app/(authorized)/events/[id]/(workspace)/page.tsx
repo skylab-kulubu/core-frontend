@@ -1,6 +1,6 @@
 'use client';
 
-import { buttonVariants } from '@skylab-kulubu/skylcn-ui';
+import { buttonVariants, cn } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useState } from 'react';
 import { saveClass } from '@/components/chrome/SaveButton';
 import { EventCoverImage } from '@/components/scheduling/EventCoverImage';
@@ -15,6 +15,7 @@ import { previousFormHref, previousForms, previousSessionForms } from '@/lib/eve
 import { APPLY_SLOT_KEY, formsAdminOrigin } from '@/lib/event-forms';
 import { publicMediaUrl } from '@/lib/event-media';
 import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
  * A copy's "Geçen seferin formundan yeni form oluştur" (SPEC §5.4): Skyforms
@@ -78,7 +79,7 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
           className={
             form.slotKey === APPLY_SLOT_KEY
               ? saveClass
-              : buttonVariants({ variant: 'outline', size: 'sm' })
+              : cn(buttonVariants({ variant: 'outline', size: 'sm' }), BUTTON_TEXT)
           }
         >
           {form.slotKey === APPLY_SLOT_KEY
@@ -114,7 +115,7 @@ export default function EventOverviewPage() {
             width={1280}
             height={480}
           />
-          <figcaption className="text-3xs text-subtle-foreground flex flex-wrap justify-between gap-2">
+          <figcaption className="text-subtle-foreground flex flex-wrap justify-between gap-2 text-[13px]/5">
             <span>{event.locationAddress || event.location}</span>
             <a
               href={event.mapAttributionUrl || MAP_ATTRIBUTION_URL}
@@ -128,8 +129,8 @@ export default function EventOverviewPage() {
         </figure>
       ) : null}
       {event.formAlias || event.formUrl ? (
-        <p className="text-3xs text-subtle-foreground">
-          Misafir başvurusu (hesabı olmayanlar):{' '}
+        <p className="text-subtle-foreground text-[13px]/5">
+          Misafir başvurusu:{' '}
           <a
             className="text-skylab-300 hover:text-foreground"
             href={event.formAlias ? publicShortUrl(event.formAlias) : event.formUrl}

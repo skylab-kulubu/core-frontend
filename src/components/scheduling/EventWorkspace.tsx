@@ -105,6 +105,7 @@ import {
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 export const eventEditSchema = z
   .object({ event: z.custom<EventFormState>() })
@@ -461,7 +462,7 @@ export function EventWorkspace({
             coverImageId: saved.coverImageId ?? nextForm.coverImageId,
           });
           clearEventDraft(sessionStorage, window.location.href);
-          setHandoffNote('Skyforms adresi bağlandı. Kısa link kayıtta skyl.app’den basılır.');
+          setHandoffNote('Form bağlandı.');
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
           setEditInUse(formInUseOf(err));
@@ -586,7 +587,7 @@ export function EventWorkspace({
   useChromeCrumbName(`/events/${id}`, event?.name);
 
   if (error && !event) {
-    return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
+    return <StateCard title={error} tone="danger" />;
   }
   if (!event) return <PageSkeleton variant="workspace" />;
 
@@ -627,7 +628,7 @@ export function EventWorkspace({
       >
         Taslağa al
         {ticketCount ? (
-          <span className="text-subtle-foreground ml-auto pl-3 text-xs">
+          <span className="text-subtle-foreground ml-auto pl-3 text-[13px]/5">
             {ticketCount} kayıt var
           </span>
         ) : null}
@@ -684,7 +685,7 @@ export function EventWorkspace({
         },
       );
     } catch (err) {
-      setError(coreProblemMessage(err, 'Skymail listesi yenilenemedi'));
+      setError(coreProblemMessage(err, 'E-posta listesi hazırlanamadı'));
     } finally {
       setMailing(false);
     }
@@ -778,12 +779,18 @@ export function EventWorkspace({
                 </SaveButton>
               ) : null}
               {can.canMutate && !onEditPage ? (
-                <ActionButton icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} />
+                <ActionButton
+                  icon={Pencil}
+                  label="Düzenle"
+                  showLabel
+                  iconOnlyOnPhone
+                  href={eventEditHref(event.id)}
+                />
               ) : null}
               {can.canTickets ? (
                 <ActionButton
                   icon={Mail}
-                  label="Etkinlik katılımcılarına mail"
+                  label="Katılımcılara e-posta"
                   disabled={mailing}
                   onClick={() => void mailApplicants()}
                 />
@@ -813,13 +820,20 @@ export function EventWorkspace({
               rights.canUpdate || closeFormHref ? (
                 <div className="flex flex-wrap items-center gap-2">
                   {rights.canUpdate ? (
-                    <Button size="sm" onClick={() => statusActions.askUncancel(event)}>
+                    <Button
+                      className={BUTTON_TEXT}
+                      size="sm"
+                      onClick={() => statusActions.askUncancel(event)}
+                    >
                       İptali geri al
                     </Button>
                   ) : null}
                   {closeFormHref ? (
-                    <a href={closeFormHref} className="text-skylab-300 text-xs hover:underline">
-                      SkyForms&apos;ta formu kapat
+                    <a
+                      href={closeFormHref}
+                      className="text-skylab-300 text-[13px]/5 hover:underline"
+                    >
+                      Formu kapat
                     </a>
                   ) : null}
                 </div>

@@ -42,8 +42,8 @@ export default function EditAnnouncementPage() {
   if (!privileged) {
     return (
       <StateCard
-        title="Duyurular yalnızca YK ve kurul içindir."
-        description="Bu ekran yayın yetkisi ister."
+        title="Duyuru yetkin yok"
+        description="Duyuruları YK ve kurullar yönetir."
         Icon={ShieldAlert}
         tone="warning"
       />
@@ -64,6 +64,7 @@ export default function EditAnnouncementPage() {
           <ActionButton
             icon={Trash2}
             label="Sil"
+            showLabel
             onClick={() =>
               confirm({
                 title: `"${item.data?.title || item.slug}" duyurusu silinsin mi?`,

@@ -3,10 +3,10 @@ import { identityApi, type Person } from '@/lib/api/identity';
 
 /** The directory is searched, never listed whole: a picker asks once this many characters are typed. */
 export const PERSON_SEARCH_MIN = 2;
-export const PERSON_SEARCH_HINT = 'En az 2 karakter yazın';
+export const PERSON_SEARCH_HINT = 'En az 2 karakter yaz';
 /** A Group's member candidates need one more (core answers a shorter query 400). */
 export const MEMBER_CANDIDATE_MIN = 3;
-export const MEMBER_CANDIDATE_HINT = `En az ${MEMBER_CANDIDATE_MIN} karakter yazın`;
+export const MEMBER_CANDIDATE_HINT = `En az ${MEMBER_CANDIDATE_MIN} karakter yaz`;
 
 export function personSearchReady(query: string, min = PERSON_SEARCH_MIN): boolean {
   return query.trim().length >= min;

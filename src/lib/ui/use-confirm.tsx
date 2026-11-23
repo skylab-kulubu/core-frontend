@@ -15,6 +15,7 @@ import {
 } from '@skylab-kulubu/skylcn-ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { coreProblemMessage } from '@/lib/core-problems';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /** The description's closing line for a removal core can undo. */
 export const UNDO_HINT = 'Hemen ardından çıkan bildirimdeki Geri al ile geri getirebilirsin.';
@@ -190,7 +191,7 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
           {alert ? (
             <p
               role="alert"
-              className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-xs"
+              className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-[13px]/5"
             >
               {alert}
             </p>
@@ -201,11 +202,19 @@ export function useConfirm(): [(request: ConfirmRequest) => void, ReactNode] {
         ) : null}
         <DialogFooter className="mt-4">
           <DialogClose
-            render={<Button ref={cancel} disabled={locked} aria-disabled={locked || undefined} />}
+            render={
+              <Button
+                className={BUTTON_TEXT}
+                ref={cancel}
+                disabled={locked}
+                aria-disabled={locked || undefined}
+              />
+            }
           >
             {messages.cancel}
           </DialogClose>
           <Button
+            className={BUTTON_TEXT}
             variant={(request?.destructive ?? true) ? 'destructive' : 'primary'}
             pending={pending}
             onClick={() => void confirm()}

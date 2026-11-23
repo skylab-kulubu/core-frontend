@@ -52,8 +52,8 @@ export default function HandoffTargetsPage() {
       <div className="space-y-6">
         <PageHeader title="SkyApp'ten geçiş" />
         <StateCard
-          title="Bu sayfa realm süper yöneticisine açık"
-          description="SkyApp'ten hangi sitelere geçilebileceğini yalnız Keycloak realm süper yöneticisi değiştirir."
+          title="Erişimin yok"
+          description="SkyApp geçişlerini yalnız ADMIN grubu değiştirir."
           Icon={ShieldAlert}
           tone="warning"
         />
@@ -63,10 +63,7 @@ export default function HandoffTargetsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="SkyApp'ten geçiş"
-        description="SkyApp, açık bir siteyi uygulamadaki kullanıcının oturumuyla açar; kişi o sitede yeniden giriş yapmaz."
-      />
+      <PageHeader title="SkyApp'ten geçiş" />
       {state.kind === 'failed' ? (
         <StateCard
           title="Liste yüklenemedi"

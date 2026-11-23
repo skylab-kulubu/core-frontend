@@ -26,7 +26,7 @@ const LINK_KINDS: Record<LinkKind, LinkKindCopy> = {
   personal: { label: 'Kişisel', note: null, deleteWarning: null },
   form: {
     label: 'Form',
-    note: 'Forms’ta yönetiliyor',
+    note: 'Formda yönetiliyor',
     deleteWarning: 'Bu link bir formun linki; silersen form linksiz kalır.',
   },
   event: {
@@ -71,7 +71,7 @@ export function isManagedRefusal(error: unknown): boolean {
  * personal, so that case names both places.
  */
 export function managedRefusalMessage(row: KindFields): string {
-  const where = managedNote(row) ?? 'Forms’ta ya da etkinlikte yönetiliyor';
+  const where = managedNote(row) ?? 'Formda ya da etkinlikte yönetiliyor';
   return `${where}; buradan değiştirilemez.`;
 }
 

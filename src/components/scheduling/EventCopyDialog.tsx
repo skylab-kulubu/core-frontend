@@ -34,6 +34,7 @@ import {
   rememberCopySkipped,
 } from '@/lib/event-copy';
 import { useNotify } from '@/lib/ui/use-notify';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 type EventCopyDialogProps = {
   source: CoreEvent;
@@ -162,7 +163,7 @@ export function EventCopyDialog({
             {error ? (
               <p
                 role="alert"
-                className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-xs"
+                className="border-destructive/30 bg-destructive/10 text-destructive mt-3 rounded-md border px-3 py-2 text-[13px]/5"
               >
                 {error}
               </p>
@@ -175,7 +176,9 @@ export function EventCopyDialog({
             </label>
             <DatePicker label="Başlangıç" value={start} onChange={setStart} />
             {end ? (
-              <p className="text-2xs text-subtle-foreground">Bitiş: {formatDatetimeLabel(end)}</p>
+              <p className="text-subtle-foreground text-[13px]/5">
+                Bitiş: {formatDatetimeLabel(end)}
+              </p>
             ) : null}
             {targets.length > 1 || (targets.length === 1 && targets[0] !== source.ownerTeam) ? (
               <label className="block space-y-1">
@@ -206,10 +209,12 @@ export function EventCopyDialog({
             ) : null}
           </DialogBody>
           <DialogFooter className="mt-4">
-            <DialogClose render={<Button type="button" disabled={pending} />}>
+            <DialogClose
+              render={<Button className={BUTTON_TEXT} type="button" disabled={pending} />}
+            >
               {messages.cancel}
             </DialogClose>
-            <Button type="submit" variant="primary" pending={pending}>
+            <Button className={BUTTON_TEXT} type="submit" variant="primary" pending={pending}>
               Kopyala
             </Button>
           </DialogFooter>

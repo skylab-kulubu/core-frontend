@@ -20,7 +20,9 @@ export function AliasHint({
     <p
       id={id}
       aria-live="polite"
-      className={['text-3xs', hint ? TONES[hint.tone] : '', className].filter(Boolean).join(' ')}
+      className={['text-[13px]/5', hint ? TONES[hint.tone] : '', className]
+        .filter(Boolean)
+        .join(' ')}
     >
       {hint?.text}
     </p>

@@ -26,7 +26,7 @@ export default function EventCertificatesPage() {
 
   return (
     <div className="space-y-3">
-      <SectionHeading title="Sertifikalar" meta="Şablon, katılım ve üretim" />
+      <SectionHeading title="Sertifikalar" />
       <EventCertificatesPanel
         eventId={event.id}
         ownerTeam={event.ownerTeam}

@@ -352,7 +352,7 @@ export function ticketDetailFields(
     ticket('Bilet türü', ticketTypeLabel(row.ticketType)),
     ticket('Durum', status.label),
     ticket('Kaynak form', source.label, source.href),
-    ticket('Mail', row.sent === true ? 'Evet' : row.sent === false ? 'Hayır' : '—'),
+    ticket('Bilet e-postası', row.sent === true ? 'Evet' : row.sent === false ? 'Hayır' : '—'),
     ticket('Oluşturulma', formatApplicantWhen(row.createdAt, now)),
     ticket('Güncellenme', formatApplicantWhen(row.updatedAt, now)),
     ticket('Etkinlik', dash(event?.name || row.event?.name || row.eventId)),

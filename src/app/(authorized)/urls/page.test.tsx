@@ -220,7 +220,7 @@ describe('Kısa URL feedback', () => {
     (urlsApi.update as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
     render(<UrlsPage />);
     await clicker.click(await screen.findByRole('button', { name: 'Düzenle' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
+    const dialog = await screen.findByRole('dialog', { name: 'Kısa linki düzenle' });
     await clicker.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'Bu kısa ad alınmış; başka bir ad seç.',
@@ -449,7 +449,7 @@ describe('Kısa URL form and event links', () => {
       await Promise.resolve();
     });
     expect(screen.getByRole('button', { name: 'Sil' })).toBeDisabled();
-    expect(screen.getByText('Forms’ta yönetiliyor')).toBeInTheDocument();
+    expect(screen.getByText('Formda yönetiliyor')).toBeInTheDocument();
   });
 
   it('explains a managed refusal of a delete from a stale list and reloads it', async () => {
@@ -464,7 +464,7 @@ describe('Kısa URL form and event links', () => {
     await clicker.click(within(dialog).getByRole('button', { name: 'Linki sil' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
+      'Formda ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
     expect(document.body).not.toHaveTextContent('Conflict');
     await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
@@ -478,12 +478,12 @@ describe('Kısa URL form and event links', () => {
     (urlsApi.update as jest.Mock).mockRejectedValue(managed());
     render(<UrlsPage />);
     await clicker.click(await screen.findByRole('button', { name: 'Düzenle' }));
-    const drawer = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
+    const drawer = await screen.findByRole('dialog', { name: 'Kısa linki düzenle' });
     (urlsApi.listMine as jest.Mock).mockResolvedValue([eventRow]);
     await clicker.click(within(drawer).getByRole('button', { name: 'Kaydet' }));
 
     expect(await within(drawer).findByRole('alert')).toHaveTextContent(
-      'Forms’ta ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
+      'Formda ya da etkinlikte yönetiliyor; buradan değiştirilemez.',
     );
     await waitFor(() => expect(urlsApi.listMine).toHaveBeenCalledTimes(2));
   });
@@ -695,7 +695,7 @@ describe('Kısa ad availability', () => {
   async function openEditor(typist: ReturnType<typeof setup>) {
     await renderPage();
     await typist.click(screen.getByRole('button', { name: 'Düzenle' }));
-    const drawer = await screen.findByRole('dialog', { name: 'Kısa URL düzenle' });
+    const drawer = await screen.findByRole('dialog', { name: 'Kısa linki düzenle' });
     return {
       drawer,
       alias: within(drawer).getByDisplayValue('hack'),

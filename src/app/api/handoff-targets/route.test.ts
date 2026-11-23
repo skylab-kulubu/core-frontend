@@ -200,7 +200,7 @@ describe('GET /api/handoff-targets', () => {
           type: 'about:blank',
           title: 'Forbidden',
           status: 403,
-          detail: 'Bu işlem için realm süper yöneticisi olmalısın.',
+          detail: 'Bu işlem için ADMIN grubunda olmalısın.',
         },
         { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
       ),
@@ -214,7 +214,7 @@ describe('GET /api/handoff-targets', () => {
       type: 'about:blank',
       title: 'Forbidden',
       status: 403,
-      detail: 'Bu işlem için realm süper yöneticisi olmalısın.',
+      detail: 'Bu işlem için ADMIN grubunda olmalısın.',
     });
   });
 
@@ -233,7 +233,7 @@ describe('GET /api/handoff-targets', () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toMatchObject({
       status: 502,
-      detail: 'Keycloak şu an yanıt vermiyor. Biraz sonra tekrar dene.',
+      detail: 'Hesap sistemi şu an yanıt vermiyor. Biraz sonra tekrar dene.',
     });
   });
 
@@ -248,8 +248,7 @@ describe('GET /api/handoff-targets', () => {
     expect(response.status).toBe(502);
     expect(await response.json()).toMatchObject({
       status: 502,
-      detail:
-        "Keycloak'ta SkyApp geçiş yönetimi bulunamadı; sky-handoff eklentisi henüz kurulu olmayabilir.",
+      detail: 'SkyApp geçiş ayarları bulunamadı.',
     });
   });
 
@@ -262,7 +261,7 @@ describe('GET /api/handoff-targets', () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
       status: 403,
-      detail: 'Bu işlem için realm süper yöneticisi olmalısın.',
+      detail: 'Bu işlem için ADMIN grubunda olmalısın.',
     });
   });
 });

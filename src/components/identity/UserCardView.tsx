@@ -11,6 +11,7 @@ import { roleKey } from '@/lib/picker';
 import { profilePictureSrc } from '@/lib/profile-picture';
 import { groupTrail, rolesByApp } from '@/lib/user-directory';
 import { UserProfileForm } from './UserProfileForm';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 type UserCardViewProps = {
   card: UserCard;
@@ -146,9 +147,9 @@ function RoleList({
         <ul aria-label="Gruptan gelen roller" className="space-y-2">
           {inherited.map((entry) => (
             <li key={entry.app} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-muted-foreground w-24 shrink-0 text-xs">{entry.app}</span>
+              <span className="text-muted-foreground w-24 shrink-0 text-[13px]/5">{entry.app}</span>
               {entry.roles.map((role) => (
-                <Badge key={role} tone="neutral">
+                <Badge key={role} tone="neutral" className="text-xs">
                   {role}
                 </Badge>
               ))}
@@ -163,13 +164,17 @@ function RoleList({
           <ul aria-label="Doğrudan roller" className="mt-2 space-y-1.5">
             {extra.map((role) => (
               <li key={roleKey(role)} className="flex items-center gap-2">
-                <span className="text-muted-foreground w-24 shrink-0 text-xs">{role.clientId}</span>
-                <Badge tone="warning">{role.role}</Badge>
+                <span className="text-muted-foreground w-24 shrink-0 text-[13px]/5">
+                  {role.clientId}
+                </span>
+                <Badge tone="warning" className="text-xs">
+                  {role.role}
+                </Badge>
                 {onRemoveRole ? (
                   <Button
                     size="xs"
                     variant="ghost"
-                    className="ml-auto"
+                    className={`ml-auto ${BUTTON_TEXT}`}
                     onClick={() => onRemoveRole(role)}
                   >
                     <X className="size-3.5" />
@@ -200,7 +205,7 @@ function Count({
 }) {
   const body = (
     <>
-      <span className="text-2xs text-subtle-foreground font-medium">{label}</span>
+      <span className="text-subtle-foreground text-[13px]/5 font-medium">{label}</span>
       <span
         className={`text-xl leading-none font-semibold tabular-nums ${
           tone === 'warning' && value ? 'text-warning' : 'text-foreground-strong'
@@ -293,13 +298,18 @@ export function UserCardView(props: UserCardViewProps) {
         actions={
           <>
             {canEditProfile && !editing ? (
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Button
+                className={BUTTON_TEXT}
+                size="sm"
+                variant="outline"
+                onClick={() => setEditing(true)}
+              >
                 <Pencil className="size-4" />
                 Düzenle
               </Button>
             ) : null}
             {onLogout ? (
-              <Button size="sm" variant="outline" onClick={onLogout}>
+              <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={onLogout}>
                 <LogOut className="size-4" />
                 Oturumları kapat
               </Button>
@@ -317,7 +327,13 @@ export function UserCardView(props: UserCardViewProps) {
         <CardSection title="Profil" className="self-start">
           {editing && canEditProfile ? (
             <UserProfileForm card={card} onSave={save} error={profileError} className="grid gap-3">
-              <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
+              <Button
+                className={BUTTON_TEXT}
+                size="sm"
+                variant="ghost"
+                type="button"
+                onClick={() => setEditing(false)}
+              >
                 Vazgeç
               </Button>
             </UserProfileForm>
@@ -332,7 +348,7 @@ export function UserCardView(props: UserCardViewProps) {
             count={groups.length}
             actions={
               onAddGroup ? (
-                <Button size="xs" variant="outline" onClick={onAddGroup}>
+                <Button className={BUTTON_TEXT} size="xs" variant="outline" onClick={onAddGroup}>
                   <Plus className="size-3.5" />
                   Grup ekle
                 </Button>

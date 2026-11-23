@@ -28,7 +28,7 @@ function ChartPlaceholder({ height }: { height: number }) {
 
 function ChartFailed() {
   return (
-    <p role="alert" className="text-3xs text-subtle-foreground py-6 text-center">
+    <p role="alert" className="text-subtle-foreground py-6 text-center text-[13px]/5">
       Grafik yüklenemedi.
     </p>
   );
@@ -50,7 +50,7 @@ const DonutChart = dynamic(
 );
 
 function ChartTitle({ children }: { children: ReactNode }) {
-  return <span className="text-2xs text-subtle-foreground font-medium">{children}</span>;
+  return <span className="text-subtle-foreground text-[13px]/5 font-medium">{children}</span>;
 }
 
 /** A figure that is also a way into its view of the list. */
@@ -80,7 +80,7 @@ function Tile({
         active ? 'border-skylab-400/60' : 'border-border-subtle'
       }`}
     >
-      <span className="text-2xs text-subtle-foreground font-medium">{label}</span>
+      <span className="text-subtle-foreground text-[13px]/5 font-medium">{label}</span>
       <span className="flex items-baseline gap-2">
         <span
           className={`text-xl leading-none font-semibold tabular-nums sm:text-2xl ${
@@ -89,7 +89,7 @@ function Tile({
         >
           {value}
         </span>
-        {hint ? <span className="text-2xs text-muted-foreground truncate">{hint}</span> : null}
+        {hint ? <span className="text-muted-foreground truncate text-[13px]/5">{hint}</span> : null}
       </span>
       {children ? <span className="mt-auto block min-h-6">{children}</span> : null}
     </button>

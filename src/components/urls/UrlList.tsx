@@ -1,8 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { CopyButton } from '@skylab-kulubu/skylcn-ui';
-import { MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
+import {
+  CopyButton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+  MenuItem,
+} from '@skylab-kulubu/skylcn-ui';
+import { MoreHorizontal, MousePointerClick, Pencil, QrCode, Trash2 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
@@ -69,13 +76,12 @@ export function UrlList({
           failed,
           rowCount: visible.length,
           emptyMessage: emptyListCopy({
-            none: 'Henüz kısa URL yok.',
-            noneMatch: 'Eşleşen kısa URL yok.',
+            none: 'Kısa link yok',
+            noneMatch: 'Eşleşen kısa link yok',
             query,
             filtered,
           }),
         })}
-        emptyDescription="Hedef adresi kısalt."
       >
         {paged.slice.map((row) => {
           const short = publicShortUrl(row.alias);
@@ -88,43 +94,101 @@ export function UrlList({
             <ListItem
               key={row.id}
               title={short}
-              subtitle={details.filter(Boolean).join(' · ')}
+              subtitle={
+                <>
+                  {/* On a phone the kind and the note lead the line: the row's end has no room */}
+                  <span className="sm:hidden">
+                    {[linkKindLabel(kind), note].filter(Boolean).join(' · ')}
+                    {' · '}
+                  </span>
+                  {details.filter(Boolean).join(' · ')}
+                </>
+              }
               trailing={
                 <>
-                  <StatusChip kind="neutral" label={linkKindLabel(kind)} />
+                  {/* On a phone kind and note move to the line under the link */}
+                  <StatusChip
+                    kind="neutral"
+                    label={linkKindLabel(kind)}
+                    className="hidden sm:inline-flex"
+                  />
                   {note ? (
-                    <span className="text-3xs text-subtle-foreground whitespace-nowrap">
+                    <span className="text-subtle-foreground hidden text-xs whitespace-nowrap sm:inline">
                       {note}
                     </span>
                   ) : null}
                   {/* The tick shows in place; a copy is not a write, so no toast */}
                   <CopyButton value={short} label="Kopyala" variant="outline" size="icon" />
-                  <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
-                  {onHits ? (
-                    <ActionButton
-                      icon={MousePointerClick}
-                      label="Tıklamalar"
-                      onClick={() => onHits(row)}
-                    />
-                  ) : null}
-                  {canChange(row) ? (
-                    <>
+                  <span className="hidden items-center gap-1 sm:flex">
+                    <ActionButton icon={QrCode} label="QR" onClick={() => onQr(row)} />
+                    {onHits ? (
                       <ActionButton
-                        icon={Pencil}
-                        label="Düzenle"
-                        title={note ?? undefined}
-                        disabled={managed}
-                        onClick={() => onEdit(row)}
+                        icon={MousePointerClick}
+                        label="Tıklamalar"
+                        onClick={() => onHits(row)}
                       />
-                      <ActionButton
-                        icon={Trash2}
-                        label="Sil"
-                        title={managed && !canDeleteManaged ? (note ?? undefined) : undefined}
-                        disabled={managed && !canDeleteManaged}
-                        onClick={() => onDelete(row)}
+                    ) : null}
+                    {canChange(row) ? (
+                      <>
+                        <ActionButton
+                          icon={Pencil}
+                          label="Düzenle"
+                          title={note ?? undefined}
+                          disabled={managed}
+                          onClick={() => onEdit(row)}
+                        />
+                        <ActionButton
+                          icon={Trash2}
+                          label="Sil"
+                          title={managed && !canDeleteManaged ? (note ?? undefined) : undefined}
+                          disabled={managed && !canDeleteManaged}
+                          onClick={() => onDelete(row)}
+                        />
+                      </>
+                    ) : null}
+                  </span>
+                  {/* Under 640px the other actions sit in one menu, so the row does not overflow */}
+                  <span className="sm:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <IconButton
+                            icon={MoreHorizontal}
+                            variant="outline"
+                            label={`${short}: eylemler`}
+                          />
+                        }
                       />
-                    </>
-                  ) : null}
+                      <DropdownMenuContent align="end">
+                        <MenuItem icon={QrCode} onClick={() => onQr(row)}>
+                          QR
+                        </MenuItem>
+                        {onHits ? (
+                          <MenuItem icon={MousePointerClick} onClick={() => onHits(row)}>
+                            Tıklamalar
+                          </MenuItem>
+                        ) : null}
+                        {canChange(row) ? (
+                          <>
+                            <MenuItem icon={Pencil} disabled={managed} onClick={() => onEdit(row)}>
+                              <MenuReason label="Düzenle" reason={managed ? note : null} />
+                            </MenuItem>
+                            <MenuItem
+                              icon={Trash2}
+                              destructive
+                              disabled={managed && !canDeleteManaged}
+                              onClick={() => onDelete(row)}
+                            >
+                              <MenuReason
+                                label="Sil"
+                                reason={managed && !canDeleteManaged ? note : null}
+                              />
+                            </MenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </span>
                 </>
               }
             />
@@ -133,5 +197,15 @@ export function UrlList({
       </ListPanel>
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
     </section>
+  );
+}
+
+/** A menu action, and under it why it is closed: the desktop says it on hover, a phone cannot. */
+function MenuReason({ label, reason }: { label: string; reason: string | null }) {
+  return (
+    <span className="flex flex-col">
+      {label}
+      {reason ? <span className="text-subtle-foreground text-xs">{reason}</span> : null}
+    </span>
   );
 }

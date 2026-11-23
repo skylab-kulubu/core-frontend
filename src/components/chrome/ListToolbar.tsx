@@ -52,7 +52,7 @@ export function ListFooterMeta({
   items: ReadonlyArray<{ label: string; value: string | number }>;
 }) {
   return (
-    <div className="text-2xs text-subtle-foreground flex flex-wrap gap-x-4 gap-y-1">
+    <div className="text-subtle-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
       {items.map((item) => (
         <span key={item.label}>
           {item.label}{' '}

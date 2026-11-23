@@ -66,7 +66,9 @@ export function MembersSection({
             </CardHeader>
             <CardContent>
               {members.recentJoiners.length === 0 ? (
-                <p className="text-muted-foreground py-6 text-center text-xs">Henüz kimse yok</p>
+                <p className="text-muted-foreground py-6 text-center text-[13px]/5">
+                  Henüz kimse yok
+                </p>
               ) : (
                 <ul className="divide-border-subtle flex flex-col divide-y">
                   {members.recentJoiners.map((person) => {
@@ -82,13 +84,13 @@ export function MembersSection({
                             <span className="text-foreground block truncate text-sm">{name}</span>
                             <span className="mt-0.5 flex flex-wrap gap-1">
                               {person.teams.map((team) => (
-                                <Badge key={team} tone="neutral">
+                                <Badge key={team} tone="neutral" className="text-xs">
                                   {team}
                                 </Badge>
                               ))}
                             </span>
                           </span>
-                          <span className="text-2xs text-subtle-foreground shrink-0">
+                          <span className="text-subtle-foreground shrink-0 text-xs">
                             {fromNow(person.registeredAt)}
                           </span>
                         </Link>

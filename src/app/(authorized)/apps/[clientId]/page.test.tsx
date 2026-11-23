@@ -182,7 +182,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     expect(
       within(drawer).getByText('Önerilen yol grup; kişiye atama istisnadır.'),
     ).toBeInTheDocument();
-    expect(within(drawer).getByText('En az 3 karakter yazın')).toBeInTheDocument();
+    expect(within(drawer).getByText('En az 3 karakter yaz')).toBeInTheDocument();
     await user.type(within(drawer).getByRole('searchbox', { name: 'Kişi ara' }), 'ce');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));

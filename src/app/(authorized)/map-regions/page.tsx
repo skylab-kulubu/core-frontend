@@ -132,7 +132,7 @@ export default function MapRegionsPage() {
     const id = region.id;
     confirm({
       title: `"${region.name}" kaldırılsın mı?`,
-      description: 'Haritalar bu bölgeden çizilmez; dosyası kovada kalır.',
+      description: 'Haritalar bu bölgeyi artık kullanmaz.',
       actionLabel: 'Bölgeyi kaldır',
       failure: (error) => mapRegionProblem(error, 'Bölge kaldırılamadı'),
       onConfirm: async () => {
