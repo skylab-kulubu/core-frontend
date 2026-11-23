@@ -2,6 +2,7 @@
 
 import { Button, Card, cn } from '@skylab-kulubu/skylcn-ui';
 import { useId, type FormEvent, type ReactNode } from 'react';
+import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
@@ -61,7 +62,10 @@ export function SettingsPage({
   );
 }
 
-/** One subject of the settings: a short title, no paragraph under it, then its fields. */
+/**
+ * One subject of the settings: a short title, no paragraph under it, then its fields.
+ * Drawn as the object pages' ObjectCard, so an object's overview and its settings read alike.
+ */
 export function SettingsSection({
   title,
   action,
@@ -74,19 +78,12 @@ export function SettingsSection({
   children: ReactNode;
   className?: string;
 }) {
-  const id = useId();
   return (
-    <Card className={cn('flex flex-col gap-4 p-4 sm:p-5', className)}>
-      <section aria-labelledby={id} className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <h2 id={id} className="text-foreground-strong flex-1 text-sm font-semibold">
-            {title}
-          </h2>
-          {action}
-        </div>
+    <section aria-label={title} className="min-w-0">
+      <ObjectCard title={title} action={action} className={cn('gap-4 sm:p-5', className)}>
         {children}
-      </section>
-    </Card>
+      </ObjectCard>
+    </section>
   );
 }
 

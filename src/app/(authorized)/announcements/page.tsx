@@ -4,9 +4,9 @@ import { Badge, DataList, DataListTitle, type DataListColumn } from '@skylab-kul
 import { ImageIcon, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ColumnPicker, useColumnChoice, type ColumnChoice } from '@/components/chrome/ColumnPicker';
-import { CommandBar } from '@/components/chrome/CommandBar';
 import { ListFooter, ListPage, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
+import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { EmptyState, Forbidden } from '@/components/chrome/PageState';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -162,12 +162,10 @@ export default function AnnouncementsPage() {
     <ListPage
       title="Duyurular"
       commands={
-        <CommandBar
-          primary={{ key: 'new', label: 'Duyuru ekle', icon: Plus, href: '/announcements/new' }}
-          commands={[
-            { key: 'refresh', label: 'Yenile', icon: RefreshCw, onSelect: () => void load() },
-          ]}
-        />
+        <CommandBar label="Duyuru komutları">
+          <Command primary icon={Plus} label="Duyuru ekle" href="/announcements/new" />
+          <Command icon={RefreshCw} label="Yenile" onClick={() => void load()} />
+        </CommandBar>
       }
       summary={
         items.length ? (

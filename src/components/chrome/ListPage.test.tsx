@@ -2,9 +2,12 @@ import { DataList } from '@skylab-kulubu/skylcn-ui';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MenuItem } from '@skylab-kulubu/skylcn-ui';
 import {
   ListFooter,
   ListPage,
+  RowMenu,
+  SelectionBar,
   SummaryStrip,
   selectionColumn,
   useRowSelection,
@@ -118,5 +121,36 @@ describe('row selection', () => {
     expect(screen.getByRole('checkbox', { name: 'Sayfadakilerin hepsini seç' })).toBeChecked();
     await pointer.click(screen.getByRole('checkbox', { name: 'Sayfadakilerin hepsini seç' }));
     expect(screen.getByText('0 seçili')).toBeInTheDocument();
+  });
+});
+
+describe('SelectionBar and RowMenu', () => {
+  it('says how many rows are chosen and drops the choice', async () => {
+    const pointer = userEvent.setup();
+    const clear = jest.fn();
+    const mail = jest.fn();
+    render(
+      <SelectionBar count={3} onClear={clear}>
+        <button type="button" onClick={mail}>
+          E-posta
+        </button>
+      </SelectionBar>,
+    );
+    expect(screen.getByText(/3/)).toBeInTheDocument();
+    await pointer.click(screen.getByRole('button', { name: 'E-posta' }));
+    expect(mail).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a row’s other actions behind a named "⋯"', async () => {
+    const pointer = userEvent.setup();
+    const share = jest.fn();
+    render(
+      <RowMenu name="Bahar şenliği: eylemler">
+        <MenuItem onClick={share}>Paylaş</MenuItem>
+      </RowMenu>,
+    );
+    await pointer.click(screen.getByRole('button', { name: 'Bahar şenliği: eylemler' }));
+    await pointer.click(await screen.findByRole('menuitem', { name: 'Paylaş' }));
+    expect(share).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,16 @@
 'use client';
 
-import { Button, cn, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
-import { X } from 'lucide-react';
+import {
+  BulkBar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  IconButton,
+  cn,
+  type DataListColumn,
+} from '@skylab-kulubu/skylcn-ui';
+import { MoreHorizontal, X } from 'lucide-react';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Pagination } from '@/components/chrome/Pagination';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -15,7 +24,18 @@ import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
  * ```tsx
  * <ListPage
  *   title="Duyurular"
- *   commands={<CommandBar primary={{ key: 'new', label: 'Duyuru ekle', icon: Plus, href: '/announcements/new' }} />}
+ *   commands={
+ *     selection.count ? (
+ *       <SelectionBar count={selection.count} onClear={selection.clear}>
+ *         <Command icon={Mail} label="E-posta" onClick={mailChosen} />
+ *       </SelectionBar>
+ *     ) : (
+ *       <CommandBar label="Duyuru komutları">
+ *         <Command primary icon={Plus} label="Duyuru ekle" href="/announcements/new" />
+ *         <Command icon={RefreshCw} label="Yenile" onClick={reload} />
+ *       </CommandBar>
+ *     )
+ *   }
  *   summary={<SummaryStrip items={…} />}
  *   toolbar={<ListToolbar query={params.q} onQuery={(q) => setParams({ q })} commitDelay={250} … />}
  *   footer={<ListFooter total={rows.length} page={paged.page} totalPages={paged.totalPages} onPage={(page) => setParams({ page })} />}
@@ -37,7 +57,10 @@ export function ListPage({
   title: ReactNode;
   /** At most one status badge beside the title. */
   badge?: ReactNode;
-  /** The CommandBar. */
+  /**
+   * The command bar under the title: the object pages' CommandBar, Command and
+   * CommandMenu (chrome/object-page/CommandBar), or SelectionBar while rows are chosen.
+   */
   commands?: ReactNode;
   /** The SummaryStrip, when the figures help. */
   summary?: ReactNode;
@@ -246,4 +269,39 @@ export function selectionColumn<T>({
       />
     ),
   };
+}
+
+/**
+ * The command bar while rows are chosen: "3 seçili", the bulk commands (Command) and a
+ * way to drop the choice. Put it in ListPage's `commands` in place of the CommandBar.
+ */
+export function SelectionBar({
+  count,
+  onClear,
+  children,
+}: {
+  count: number;
+  onClear: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <BulkBar count={count} onClear={onClear}>
+      {children}
+    </BulkBar>
+  );
+}
+
+/**
+ * A row's less used actions behind "⋯" (MenuItem / MenuLinkItem children), so a row
+ * keeps at most one written action of its own. `name` reads "<row>: eylemler".
+ */
+export function RowMenu({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<IconButton icon={MoreHorizontal} size="icon-sm" variant="ghost" label={name} />}
+      />
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
