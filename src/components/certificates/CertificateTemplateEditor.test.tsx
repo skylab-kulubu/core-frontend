@@ -183,4 +183,48 @@ describe('CertificateTemplateEditor', () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it('places text on the canvas by its alignment, as the PDF does', async () => {
+    const draft = emptyCertificateDraft();
+    const text = (id: string, label: string, align?: 'left' | 'center' | 'right') => ({
+      id,
+      kind: 'staticText' as const,
+      text: label,
+      x: 40,
+      y: 40,
+      width: 400,
+      height: 60,
+      fontSize: 24,
+      align,
+      fit: 'shrink' as const,
+    });
+    (certificatesApi.template as jest.Mock).mockResolvedValue({
+      id: 'system-default',
+      name: 'SKY LAB Varsayılan Sertifika',
+      ownerTeam: '',
+      sourceKind: 'sky',
+      sourceRef: 'system-default',
+      sourceEditUrl: '',
+      draftLayout: {
+        ...draft.layout,
+        elements: [
+          text('l', 'Sola yaslı', 'left'),
+          text('c', 'Ortalı', 'center'),
+          text('r', 'Sağa yaslı', 'right'),
+          text('d', 'Hizasız'),
+        ],
+      },
+      system: true,
+    });
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    const box = async (label: string) => (await screen.findByText(label)).closest('button');
+    expect(await box('Sola yaslı')).toHaveClass('justify-start');
+    expect(await box('Ortalı')).toHaveClass('justify-center-safe');
+    expect(await box('Sağa yaslı')).toHaveClass('justify-end-safe');
+    expect(await box('Hizasız')).toHaveClass('justify-start');
+    for (const label of ['Sola yaslı', 'Sağa yaslı', 'Hizasız']) {
+      expect(await box(label)).not.toHaveClass('justify-center');
+    }
+  });
 });
