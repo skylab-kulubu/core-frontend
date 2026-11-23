@@ -63,7 +63,7 @@ export function LinkStats({ id }: { id: string }) {
         title={`Son ${DAYS} gün`}
         action={
           <span className={`text-secondary-foreground tabular-nums ${TEXT_SECONDARY}`}>
-            {stats.total} tıklama{scans}
+            {stats.total.toLocaleString('tr-TR')} tıklama{scans}
           </span>
         }
       >

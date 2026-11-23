@@ -314,7 +314,7 @@ export default function UrlsPage() {
             header: 'Tıklama',
             cell: (row: ShortUrl) => (
               <span className="text-secondary-foreground text-[13px]/5 tabular-nums">
-                {row.clickCount}
+                {row.clickCount.toLocaleString('tr-TR')}
               </span>
             ),
           },
@@ -401,7 +401,7 @@ export default function UrlsPage() {
               {
                 key: 'clicks',
                 label: 'Tıklama, 90 gün',
-                value: rows.reduce((sum, row) => sum + row.clickCount, 0),
+                value: rows.reduce((sum, row) => sum + row.clickCount, 0).toLocaleString('tr-TR'),
                 active: view === 'all' && sort === 'clicks',
                 onSelect: () => setParams({ view: 'all', sort: 'clicks' }),
               },
@@ -411,7 +411,7 @@ export default function UrlsPage() {
                 value: top ? <span className="text-xl">{top.alias}</span> : '—',
                 hint: top ? (
                   <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-                    {top.clickCount} tıklama
+                    {top.clickCount.toLocaleString('tr-TR')} tıklama
                   </span>
                 ) : undefined,
                 onSelect: top ? () => setParams({ view: 'all', panel: top.id }) : undefined,
