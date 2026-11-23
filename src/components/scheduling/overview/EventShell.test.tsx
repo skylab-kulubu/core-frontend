@@ -1,7 +1,8 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import EventOverviewPage from '@/app/(authorized)/events/[id]/(workspace)/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
+import { certificatesApi } from '@/lib/api/certificates';
 import { eventsApi } from '@/lib/api/events';
 import {
   primeEventWorkspace,
@@ -49,7 +50,7 @@ describe('event object page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Temel bilgiler' })).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    const commands = screen.getByRole('toolbar', { name: 'Etkinlik komutları' });
+    const commands = screen.getByRole('group', { name: 'Etkinlik komutları' });
     expect(within(commands).getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
       'href',
       '/events/e1/edit',
@@ -85,9 +86,80 @@ describe('event object page', () => {
     signInAs(LEADER);
     await renderEventTab(<EventOverviewPage />);
 
-    const commands = await screen.findByRole('toolbar', { name: 'Etkinlik komutları' });
+    const commands = await screen.findByRole('group', { name: 'Etkinlik komutları' });
     const buttons = within(commands).getAllByRole('link');
     expect(buttons[0]).toHaveAccessibleName('Kapı');
     expect(buttons[0].className).toContain('bg-skylab-500/10');
+  });
+
+  it('shows a cover that cannot be loaded as the initials', async () => {
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      coverImageUrl: 'https://cdn.example/yok.png',
+    });
+    signInAs(LEADER);
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { level: 1, name: 'GeceKodu' });
+    const header = document.querySelector('[data-slot="object-page-header"]') as HTMLElement;
+    const shown = [...header.querySelectorAll('img')].find((img) =>
+      img.classList.contains('object-contain'),
+    ) as HTMLImageElement;
+    fireEvent.error(shown);
+    await waitFor(() =>
+      expect(header.querySelector('[data-slot="object-cover-placeholder"]')).toHaveTextContent('G'),
+    );
+  });
+
+  describe('closing attendance on the overview', () => {
+    const ended = (rule: string) => ({
+      ...workspaceEvent,
+      status: 'published',
+      active: false,
+      attendanceRule: rule,
+      startDate: '2026-01-10T10:00:00+03:00',
+      endDate: '2026-01-10T12:00:00+03:00',
+    });
+    const summary = (finalizedAt?: string) => ({
+      eventId: 'e1',
+      attendanceFinalizedAt: finalizedAt,
+      eligibleCount: 3,
+      issuedCount: 3,
+      revokedCount: 0,
+      queuedCount: 0,
+      failedCount: 0,
+      resolution: {},
+    });
+
+    it('asks to close attendance after an event with a rule, until it is closed', async () => {
+      (eventsApi.get as jest.Mock).mockResolvedValue(ended('once'));
+      (certificatesApi.summary as jest.Mock).mockResolvedValue(summary());
+      signInAs(LEADER);
+      await renderEventTab(<EventOverviewPage />);
+      expect(await screen.findByRole('link', { name: /Katılımı kapat/ })).toHaveAttribute(
+        'href',
+        '/events/e1/certificates',
+      );
+    });
+
+    it('says nothing once attendance is closed and every certificate went out', async () => {
+      (eventsApi.get as jest.Mock).mockResolvedValue(ended('once'));
+      (certificatesApi.summary as jest.Mock).mockResolvedValue(summary('2026-01-11T10:00:00Z'));
+      signInAs(LEADER);
+      await renderEventTab(<EventOverviewPage />);
+      await screen.findByRole('heading', { name: 'Yapılacaklar' });
+      await waitFor(() => expect(certificatesApi.summary).toHaveBeenCalled());
+      expect(screen.queryByRole('link', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
+      expect(screen.queryByText(/sertifika verilmedi/)).not.toBeInTheDocument();
+    });
+
+    it('asks nothing of an event without a certificate rule', async () => {
+      (eventsApi.get as jest.Mock).mockResolvedValue(ended('none'));
+      (certificatesApi.summary as jest.Mock).mockResolvedValue(summary());
+      signInAs(LEADER);
+      await renderEventTab(<EventOverviewPage />);
+      await screen.findByRole('heading', { name: 'Yapılacaklar' });
+      await waitFor(() => expect(certificatesApi.summary).toHaveBeenCalled());
+      expect(screen.queryByRole('link', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
+    });
   });
 });

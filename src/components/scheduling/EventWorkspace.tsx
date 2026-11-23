@@ -28,6 +28,7 @@ import {
   useEventStatusRights,
 } from '@/components/scheduling/use-event-status-actions';
 import { useAuth } from '@/context/AuthContext';
+import { certificatesApi, type CertificateEventSummary } from '@/lib/api/certificates';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -214,6 +215,8 @@ export type EventWorkspaceValue = EventPermissions & {
   ticketsFailed: boolean;
   /** The competitors could not be read. */
   competitorsFailed: boolean;
+  /** The event's certificate figures for its overview; null until read, or when not readable. */
+  certificateSummary: CertificateSummaryRead;
   setError: (error: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
@@ -221,6 +224,18 @@ export type EventWorkspaceValue = EventPermissions & {
   mailApplicants: (ticketIds?: string[]) => Promise<void>;
   editor: EventEditorState;
 };
+
+/** The certificate figures, and whether reading them failed. */
+export type CertificateSummaryRead = { summary: CertificateEventSummary | null; failed: boolean };
+
+const NO_SUMMARY: CertificateSummaryRead = { summary: null, failed: false };
+
+function readCertificateSummary(eventId: string): Promise<CertificateSummaryRead> {
+  return certificatesApi.summary(eventId).then(
+    (summary) => ({ summary, failed: false }),
+    () => ({ summary: null, failed: true }),
+  );
+}
 
 /** A read's rows, and whether it was read (false: it failed and the rows are empty). */
 type Settled<T> = { rows: T[]; ok: boolean };
@@ -302,6 +317,7 @@ export function EventWorkspace({
   // Lists core did not answer: their tabs say so with a retry, not an empty list
   const [ticketsFailed, setTicketsFailed] = useState(false);
   const [competitorsFailed, setCompetitorsFailed] = useState(false);
+  const [certificateSummary, setCertificateSummary] = useState<CertificateSummaryRead>(NO_SUMMARY);
   const [optionsFailed, setOptionsFailed] = useState({ teams: false, seasons: false });
   const [people, setPeople] = useState<Person[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -363,6 +379,8 @@ export function EventWorkspace({
     // Awaited once the event is read: its failure then fails the load, as before
     programRead.catch(() => undefined);
     const competitorsRead = settled(competitorsApi.listByEvent(id));
+    // YK and ADMIN read every event's certificates: their figures start with the event
+    const summaryFirst = privileged ? readCertificateSummary(id) : null;
     const optionsRead: OptionReads = {
       teams: settled(teamsApi.list()),
       seasons: privileged ? settled(seasonsApi.list()) : null,
@@ -406,6 +424,15 @@ export function EventWorkspace({
               })
           : [],
       );
+      // Anyone else once the event names its team, beside the tickets; not awaited by the load
+      void (
+        summaryFirst ??
+        teamAllows(
+          ev.ownerTeam,
+          'certificate.read',
+          canUseCertificateWorkspace(groups, roles, ev.ownerTeam),
+        ).then((allowed) => (allowed ? readCertificateSummary(id) : NO_SUMMARY))
+      ).then(setCertificateSummary);
       const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       resetEditor(nextForm);
@@ -678,6 +705,7 @@ export function EventWorkspace({
     setError,
     ticketsFailed,
     competitorsFailed,
+    certificateSummary,
     reload: load,
     mailApplicants,
     editor: {

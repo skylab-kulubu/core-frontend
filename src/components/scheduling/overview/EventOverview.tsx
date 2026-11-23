@@ -24,7 +24,6 @@ import {
   SessionNowNext,
   ShareLinks,
   attendanceFigures,
-  useCertificateSummary,
 } from './OverviewParts';
 
 /** What the overview reads, worked out once. */
@@ -35,7 +34,7 @@ function useOverview() {
   const href = (tab: EventTab) => eventTabHref(event.id, tab);
   const readiness = eventReadiness(event, sessions.length);
   const missing = readiness.filter((item) => !item.done);
-  const certificate = useCertificateSummary(event.id, ws.canCertificates && status !== 'draft');
+  const certificate = ws.canCertificates ? ws.certificateSummary : { summary: null, failed: false };
   const seasonName = ws.editor.seasons.find((season) => season.id === event.seasonId)?.name;
   const figures = attendanceFigures(tickets);
   const days = registrationsByDay(tickets, new Date(), 14);
@@ -88,18 +87,26 @@ function PublishReadiness({ o }: { o: Overview }) {
 function ToDo({ o }: { o: Overview }) {
   const ended = o.status === 'ended';
   // Certificates are given once the event is over
+  const summary = o.certificate.summary;
+  const hasRule = Boolean(o.event.attendanceRule && o.event.attendanceRule !== 'none');
+  // Attendance is closed once, after the event, and only where a certificate rule asks for it
+  const finalize =
+    ended &&
+    hasRule &&
+    o.ws.canIssueCertificate &&
+    attendanceFinalizeOpen(o.event) &&
+    summary !== null &&
+    !summary.attendanceFinalizedAt;
+  // Certificates are given once the event is over
   const toGive =
-    ended && o.certificate.summary && o.event.attendanceRule && o.event.attendanceRule !== 'none'
-      ? Math.max(0, o.certificate.summary.eligibleCount - o.certificate.summary.issuedCount)
-      : 0;
-  const finalize = ended && o.ws.canIssueCertificate && attendanceFinalizeOpen(o.event);
+    ended && hasRule && summary ? Math.max(0, summary.eligibleCount - summary.issuedCount) : 0;
   const items = [
     ...o.missing,
     ...(finalize || toGive
       ? [
           {
-            key: 'certificate' as const,
-            label: toGive ? `${toGive} sertifika verilmedi` : 'Katılımı kapat',
+            key: 'certificates-todo',
+            label: finalize ? 'Katılımı kapat' : `${toGive} sertifika verilmedi`,
             done: false,
             href: o.href('certificates'),
           },
@@ -270,6 +277,7 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
             sessions={ws.sessions}
             tickets={ws.tickets}
             ended={o.status === 'ended'}
+            showEntries={ws.canTickets}
           />
           {ws.canTickets && o.status !== 'draft' ? (
             <SessionAttendance sessions={ws.sessions} tickets={ws.tickets} />

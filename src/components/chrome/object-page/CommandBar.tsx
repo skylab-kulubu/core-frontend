@@ -16,11 +16,12 @@ import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 /**
  * The row of written commands under an object page's top band (the admin centre's command bar):
  * the object's actions by name, scrolling sideways on a phone instead of hiding behind a menu.
+ * A named group, not a toolbar: each command is its own Tab stop (no arrow-key roving).
  */
 export function CommandBar({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div
-      role="toolbar"
+      role="group"
       aria-label={label}
       className="border-border-subtle scrollbar-hidden -mx-1 flex items-center gap-1 overflow-x-auto border-b px-1 pb-2"
     >
