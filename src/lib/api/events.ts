@@ -200,7 +200,8 @@ export const eventsApi = {
     const q = query.toString();
     return coreFetch<CoreEvent[]>(`/v1/events${q ? `?${q}` : ''}`);
   },
-  get: (id: string) => coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`),
+  get: (id: string, init?: RequestInit) =>
+    coreFetch<CoreEvent>(`/v1/events/${encodeURIComponent(id)}`, init),
   /**
    * The places of earlier Events: a team's (drafts too) for who creates
    * Events in it, or without `ownerTeam` the club's for event:manage; 403

@@ -90,7 +90,8 @@ describe('Event workspace layout', () => {
 
     await workspace.openTab(<EventParticipantsPage />, '/events/e1/participants');
 
-    expect(screen.getByRole('heading', { name: 'Başvuranlar' })).toBeInTheDocument();
+    // The participants tab is drawn (its roster's search), from the workspace's data
+    expect(await screen.findByRole('searchbox', { name: 'Katılımcı ara' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Katılımcılar' })).toHaveAttribute(
       'aria-selected',
       'true',

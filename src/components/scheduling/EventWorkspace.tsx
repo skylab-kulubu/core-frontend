@@ -35,6 +35,7 @@ import {
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { ActionButton } from '@/components/chrome/ActionButton';
+import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -247,6 +248,22 @@ export type EventWorkspaceValue = EventPermissions & {
   editor: EventEditorState;
 };
 
+/** A read's rows, and whether it was read (false: it failed and the rows are empty). */
+type Settled<T> = { rows: T[]; ok: boolean };
+
+function settled<T>(read: Promise<T[]>): Promise<Settled<T>> {
+  return read.then(
+    (rows) => ({ rows, ok: true }),
+    () => ({ rows: [] as T[], ok: false }),
+  );
+}
+
+/** The owner-team and season reads `load()` starts with the event, for `loadOptions`. */
+type OptionReads = {
+  teams: Promise<Settled<{ team: string }>>;
+  seasons: Promise<Settled<Season>> | null;
+};
+
 const EventWorkspaceContext = createContext<EventWorkspaceValue | null>(null);
 
 /** The open event and what its tabs share; only inside the /events/[id] layout. */
@@ -361,6 +378,21 @@ export function EventWorkspace({
   }
 
   async function load() {
+    // Reads that need nothing from the event start with it: one round instead of one each
+    const doorRead = ticketsApi.listDoorEvents().catch(() => []);
+    const programRead = eventDaysApi.listByEvent(id).then(async (dayRows) => ({
+      dayRows,
+      sessionRows: (
+        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
+      ).flat(),
+    }));
+    // Awaited once the event is read: its failure then fails the load, as before
+    programRead.catch(() => undefined);
+    const competitorsRead = settled(competitorsApi.listByEvent(id));
+    const optionsRead: OptionReads = {
+      teams: settled(teamsApi.list()),
+      seasons: privileged ? settled(seasonsApi.list()) : null,
+    };
     try {
       const ev = await eventsApi.get(id);
       const loaded = formStateFromEvent(ev);
@@ -379,7 +411,28 @@ export function EventWorkspace({
         handoff,
       );
       setEvent(ev);
-      const doorEvents = await ticketsApi.listDoorEvents().catch(() => []);
+      // Started now, read below: a reader who may not list them gets none, a refused read says so
+      let ticketsRead = false;
+      let ticketsRefused = false;
+      const ticketsReadAll = teamAllows(
+        ev.ownerTeam,
+        'ticket.read',
+        canListEventTickets(groups, ev.ownerTeam, roles),
+      ).then((allowed) =>
+        allowed
+          ? ticketsApi
+              .listByEvent(id)
+              .then((rows) => {
+                ticketsRead = true;
+                return rows;
+              })
+              .catch(() => {
+                ticketsRefused = true;
+                return [] as Ticket[];
+              })
+          : [],
+      );
+      const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
       resetEditor(nextForm);
       setError(null);
@@ -415,38 +468,15 @@ export function EventWorkspace({
           router.replace(`${editPage}${window.location.search}`);
         }
       }
-      const dayRows = await eventDaysApi.listByEvent(id);
-      const sessionRows = (
-        await Promise.all(dayRows.map((day) => eventDaysApi.listSessions(day.id)))
-      ).flat();
+      const { dayRows, sessionRows } = await programRead;
       setDays(dayRows);
       setSessions(sessionRows);
       if (sessionReturn) await linkReturnedSessionForm(ev, sessionRows, sessionReturn);
-      let competitorsRead = true;
-      const competitorRows = await competitorsApi.listByEvent(id).catch(() => {
-        competitorsRead = false;
-        return [];
-      });
+      const competitors = await competitorsRead;
+      const competitorRows = competitors.rows;
       setCompetitors(competitorRows);
-      setCompetitorsFailed(!competitorsRead);
-      let ticketsRead = false;
-      let ticketsRefused = false;
-      const ticketRows = (await teamAllows(
-        ev.ownerTeam,
-        'ticket.read',
-        canListEventTickets(groups, ev.ownerTeam, roles),
-      ))
-        ? await ticketsApi
-            .listByEvent(id)
-            .then((rows) => {
-              ticketsRead = true;
-              return rows;
-            })
-            .catch(() => {
-              ticketsRefused = true;
-              return [] as Ticket[];
-            })
-        : [];
+      setCompetitorsFailed(!competitors.ok);
+      const ticketRows = await ticketsReadAll;
       setTickets(ticketRows);
       setTicketsLoaded(ticketsRead);
       setTicketsFailed(ticketsRefused);
@@ -459,7 +489,7 @@ export function EventWorkspace({
           )
         : ticketPeople;
       setPeople([...knownPeople.values()]);
-      await loadOptions(ev);
+      await loadOptions(ev, optionsRead);
     } catch (err) {
       setError(
         coreProblemMessage(err, 'Etkinlik yüklenemedi', {
@@ -469,13 +499,16 @@ export function EventWorkspace({
     }
   }
 
-  /** The edit page's choices: owner teams and seasons; a failed read is said at its field. */
-  async function loadOptions(ev: CoreEvent) {
-    let teamsRead = true;
-    const teams = await teamsApi.list().catch(() => {
-      teamsRead = false;
-      return [];
-    });
+  /**
+   * The edit page's choices: owner teams and seasons; a failed read is said at its field. `load()`
+   * passes the reads it started with the event; "Yeniden dene" reads them again.
+   */
+  async function loadOptions(ev: CoreEvent, started?: OptionReads) {
+    const reads: OptionReads = started ?? {
+      teams: settled(teamsApi.list()),
+      seasons: privileged ? settled(seasonsApi.list()) : null,
+    };
+    const { rows: teams, ok: teamsRead } = await reads.teams;
     // core's LEADER teams (a Sub-team led from above included), always with the event's own
     await capabilitiesSettled();
     const leaderTeams = leaderTeamsOf(capabilitiesRef.current.state, groups);
@@ -487,13 +520,10 @@ export function EventWorkspace({
           : [ev.ownerTeam],
     );
     let seasonsRead = true;
-    if (privileged) {
-      setSeasons(
-        await seasonsApi.list().catch(() => {
-          seasonsRead = false;
-          return [];
-        }),
-      );
+    if (reads.seasons) {
+      const seasons = await reads.seasons;
+      seasonsRead = seasons.ok;
+      setSeasons(seasons.rows);
     }
     setOptionsFailed({ teams: privileged && !teamsRead, seasons: !seasonsRead });
   }
@@ -558,7 +588,7 @@ export function EventWorkspace({
   if (error && !event) {
     return <StateCard title={error} description="Etkinlik kartına dönemiyor." tone="danger" />;
   }
-  if (!event) return <StateCard title="Yükleniyor…" isLoading />;
+  if (!event) return <PageSkeleton variant="workspace" />;
 
   const current = event;
   // core's capabilities decide; the group rule stands in only when they cannot be read
