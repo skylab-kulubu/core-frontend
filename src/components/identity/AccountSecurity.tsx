@@ -4,6 +4,7 @@ import { Badge, Button, Notice } from '@skylab-kulubu/skylcn-ui';
 import { KeyRound, Mail, Pencil, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CardSection } from '@/components/identity/UserCardView';
+import { accountCenterUrl } from '@/lib/club-switcher';
 import {
   REQUIRED_ACTIONS,
   userAccountApi,
@@ -24,8 +25,6 @@ import {
   requiredActionLabel,
 } from '@/lib/user-account';
 import { EmailChangeDialog, TemporaryPasswordDialog } from './AccountDialogs';
-
-export const ACCOUNT_CENTER_URL = 'https://my.yildizskylab.com';
 
 /** A titled block inside the card. */
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -195,7 +194,7 @@ export function AccountSecurity({
         <p className="text-muted-foreground text-xs">
           {reason}{' '}
           {account.can.reason === 'own_account' ? (
-            <a href={ACCOUNT_CENTER_URL} className="text-skylab-300 hover:underline">
+            <a href={accountCenterUrl()} className="text-skylab-300 hover:underline">
               Hesap merkezi
             </a>
           ) : null}
@@ -334,25 +333,46 @@ export function AccountSecurity({
             <Row
               label="Kişisel"
               actions={
-                manage &&
-                email?.personal &&
-                email.personalVerified &&
-                email.primaryKind !== 'personal' ? (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() =>
-                      ask(
-                        `${email.personal} birincil olsun mu?`,
-                        'Birincil yap',
-                        () => userAccountApi.setPrimary(id, 'personal'),
-                        'Birincil adres değişti',
-                        'Birincil adres değiştirilemedi',
-                      )
-                    }
-                  >
-                    Birincil yap
-                  </Button>
+                manage && email?.personal ? (
+                  <>
+                    {!email.personalVerified &&
+                    !(email.primaryKind === 'personal' && !email.primaryVerified) ? (
+                      // The Birincil row offers it for an unproven personal primary; here also
+                      // for a personal primary a verification link proved (Keycloak's flag, no stamp)
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() =>
+                          ask(
+                            `${email.personal} onaylı sayılsın mı?`,
+                            'Onaylı işaretle',
+                            () => userAccountApi.verifyEmail(id, 'personal'),
+                            'E-posta onaylı',
+                            'Onaylanamadı',
+                          )
+                        }
+                      >
+                        Onaylı işaretle
+                      </Button>
+                    ) : null}
+                    {email.personalVerified && email.primaryKind !== 'personal' ? (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() =>
+                          ask(
+                            `${email.personal} birincil olsun mu?`,
+                            'Birincil yap',
+                            () => userAccountApi.setPrimary(id, 'personal'),
+                            'Birincil adres değişti',
+                            'Birincil adres değiştirilemedi',
+                          )
+                        }
+                      >
+                        Birincil yap
+                      </Button>
+                    ) : null}
+                  </>
                 ) : null
               }
             >
@@ -608,6 +628,8 @@ export function AccountSecurity({
             open={emailOpen}
             onOpenChange={setEmailOpen}
             current={email?.primary}
+            // The personal address is the primary (or there is none): the new one becomes it
+            primaryForced={!email?.primary || email.primaryKind !== 'school'}
             onSave={async (change) => {
               await userAccountApi.changeEmail(id, change);
               notify.success('E-posta değişti');

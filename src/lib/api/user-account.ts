@@ -70,7 +70,12 @@ export const userAccountApi = {
     coreFetch<void>(path(id, '/password-reset-mail'), { method: 'POST' }),
   changeEmail: (id: string, body: { address: string; verified: boolean; primary: boolean }) =>
     coreFetch<void>(path(id, '/email'), { method: 'PUT', body: JSON.stringify(body) }),
-  verifyEmail: (id: string) => coreFetch<void>(path(id, '/email/verify'), { method: 'POST' }),
+  /** The primary address, or the personal one with `personal`. */
+  verifyEmail: (id: string, kind?: 'personal') =>
+    coreFetch<void>(path(id, '/email/verify'), {
+      method: 'POST',
+      body: kind ? JSON.stringify({ kind }) : undefined,
+    }),
   sendVerificationMail: (id: string) =>
     coreFetch<void>(path(id, '/email/verification-mail'), { method: 'POST' }),
   setPrimary: (id: string, kind: 'school' | 'personal') =>

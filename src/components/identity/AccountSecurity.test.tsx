@@ -122,6 +122,7 @@ it('sets a temporary password and shows the one core made up once', async () => 
   expect(await screen.findByTestId('temporary-password')).toHaveTextContent('hT7k-Pq3m-Zx9r-Wd2n');
   const closes = screen.getAllByRole('button', { name: 'Kapat' });
   await userEvent.click(closes[closes.length - 1]);
+  await userEvent.click(await screen.findByRole('button', { name: 'Yine de kapat' }));
   await waitFor(() => expect(screen.queryByTestId('temporary-password')).toBeNull());
   expect(onChanged).toHaveBeenCalled();
 });
@@ -195,4 +196,80 @@ it('says only that an erased account is gone', () => {
   );
   expect(screen.getByText('Hesap silinmiş ya da siliniyor.')).toBeInTheDocument();
   expect(screen.queryByText('Kimlik bilgileri')).toBeNull();
+});
+
+it('keeps a school primary unless the new address is made primary', async () => {
+  api.changeEmail.mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  const schoolPrimary = account({
+    email: {
+      primary: 'ada@std.yildiz.edu.tr',
+      primaryVerified: true,
+      primaryKind: 'school',
+      school: 'ada@std.yildiz.edu.tr',
+      personal: 'ada@example.com',
+      personalVerified: false,
+    },
+  });
+  render(<AccountSecurity account={schoolPrimary} personName="Ada" onChanged={jest.fn()} />);
+  await user.click(screen.getByRole('button', { name: /Değiştir/ }));
+  expect(await screen.findByRole('checkbox', { name: 'Birincil yap' })).not.toBeChecked();
+  await user.type(screen.getByLabelText('Yeni adres'), 'yeni@example.com');
+  await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+  await waitFor(() =>
+    expect(api.changeEmail).toHaveBeenCalledWith('u1', {
+      address: 'yeni@example.com',
+      verified: false,
+      primary: false,
+    }),
+  );
+});
+
+it('stamps a personal address a verification link proved', async () => {
+  api.verifyEmail.mockResolvedValue(undefined);
+  const linked = account({
+    email: {
+      primary: 'ada@example.com',
+      primaryVerified: true,
+      primaryKind: 'personal',
+      personal: 'ada@example.com',
+      personalVerified: false,
+    },
+  });
+  render(<AccountSecurity account={linked} personName="Ada" onChanged={jest.fn()} />);
+  const buttons = screen.getAllByRole('button', { name: 'Onaylı işaretle' });
+  expect(buttons).toHaveLength(1);
+  await userEvent.click(buttons[0]);
+  const question = await screen.findByRole('alertdialog');
+  await userEvent.click(within(question).getByRole('button', { name: 'Onaylı işaretle' }));
+  await waitFor(() => expect(api.verifyEmail).toHaveBeenCalledWith('u1', 'personal'));
+});
+
+it('asks before closing a password nobody copied', async () => {
+  api.setPassword.mockResolvedValue({
+    generated: true,
+    password: 'hT7k-Pq3m-Zx9r-Wd2n',
+    temporary: true,
+    sessionsClosed: true,
+  });
+  render(<AccountSecurity account={account()} personName="Ada" onChanged={jest.fn()} />);
+  await userEvent.click(screen.getByRole('button', { name: /Geçici parola/ }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Parolayı belirle' }));
+  await screen.findByTestId('temporary-password');
+  const closes = screen.getAllByRole('button', { name: 'Kapat' });
+  await userEvent.click(closes[closes.length - 1]);
+  expect(await screen.findByText(/Parola kopyalanmadı/)).toBeInTheDocument();
+  expect(screen.getByTestId('temporary-password')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Yine de kapat' }));
+  await waitFor(() => expect(screen.queryByTestId('temporary-password')).toBeNull());
+});
+
+it('keeps password managers out of the typed password', async () => {
+  render(<AccountSecurity account={account()} personName="Ada" onChanged={jest.fn()} />);
+  await userEvent.click(screen.getByRole('button', { name: /Geçici parola/ }));
+  await userEvent.click(await screen.findByLabelText('Ben yazayım'));
+  const field = screen.getByLabelText('Parola');
+  expect(field).toHaveAttribute('autocomplete', 'off');
+  expect(field).toHaveAttribute('data-1p-ignore');
+  expect(field).toHaveAttribute('data-lpignore', 'true');
 });

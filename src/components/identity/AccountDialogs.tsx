@@ -2,6 +2,7 @@
 
 import {
   Button,
+  Checkbox,
   CopyButton,
   Dialog,
   DialogBody,
@@ -53,6 +54,9 @@ export function TemporaryPasswordDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PasswordResult | null>(null);
+  // A password core made up is shown once: closing before it was copied asks first
+  const [copied, setCopied] = useState(false);
+  const [askClose, setAskClose] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -61,6 +65,8 @@ export function TemporaryPasswordDialog({
       setTyped('');
       setMode('generate');
       setError(null);
+      setCopied(false);
+      setAskClose(false);
     }
   }, [open]);
 
@@ -85,6 +91,10 @@ export function TemporaryPasswordDialog({
       open={open}
       onOpenChange={(next) => {
         if (!next && pending) return;
+        if (!next && result?.password && !copied && !askClose) {
+          setAskClose(true);
+          return;
+        }
         onOpenChange(next);
       }}
     >
@@ -106,15 +116,33 @@ export function TemporaryPasswordDialog({
                   >
                     {result.password}
                   </code>
-                  <CopyButton value={result.password} size="sm" />
+                  <span onClickCapture={() => setCopied(true)}>
+                    <CopyButton value={result.password} size="sm" />
+                  </span>
                 </div>
               ) : null}
               {!result.sessionsClosed ? (
                 <p className="text-warning text-xs">Açık oturumlar kapatılamadı.</p>
               ) : null}
+              {askClose ? (
+                <p role="alert" className="text-warning text-sm">
+                  Parola kopyalanmadı. Kapatınca bir daha görünmez.
+                </p>
+              ) : null}
             </DialogBody>
             <DialogFooter className="mt-4">
-              <DialogClose render={<Button type="button" variant="primary" />}>Kapat</DialogClose>
+              {askClose ? (
+                <>
+                  <Button type="button" onClick={() => setAskClose(false)}>
+                    Geri dön
+                  </Button>
+                  <DialogClose render={<Button type="button" variant="primary" />}>
+                    Yine de kapat
+                  </DialogClose>
+                </>
+              ) : (
+                <DialogClose render={<Button type="button" variant="primary" />}>Kapat</DialogClose>
+              )}
             </DialogFooter>
           </>
         ) : (
@@ -160,7 +188,12 @@ export function TemporaryPasswordDialog({
                   <Field
                     value={typed}
                     onChange={(event) => setTyped(event.target.value)}
-                    autoComplete="new-password"
+                    // Someone else's password: no password manager offers to save or fill it here
+                    autoComplete="off"
+                    data-1p-ignore=""
+                    data-lpignore="true"
+                    data-bwignore=""
+                    data-form-type="other"
                     spellCheck={false}
                     autoFocus
                   />
@@ -187,17 +220,20 @@ export function EmailChangeDialog({
   open,
   onOpenChange,
   current,
+  primaryForced = false,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   current?: string;
+  /** The personal address is the primary (or there is none): the new address becomes it. */
+  primaryForced?: boolean;
   onSave: (change: { address: string; verified: boolean; primary: boolean }) => Promise<void>;
 }) {
   const { messages } = useSkylcn();
   const [address, setAddress] = useState('');
   const [verified, setVerified] = useState(false);
-  const [primary, setPrimary] = useState(true);
+  const [primary, setPrimary] = useState(primaryForced);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A new key per opening: the boxes start from their defaults again
@@ -207,7 +243,7 @@ export function EmailChangeDialog({
     if (open) {
       setAddress('');
       setVerified(false);
-      setPrimary(true);
+      setPrimary(primaryForced);
       setError(null);
       setRound((value) => value + 1);
     }
@@ -221,7 +257,7 @@ export function EmailChangeDialog({
     setPending(true);
     setError(null);
     try {
-      await onSave({ address: address.trim(), verified, primary });
+      await onSave({ address: address.trim(), verified, primary: primaryForced || primary });
       onOpenChange(false);
     } catch (err) {
       setError(coreProblemMessage(err, 'E-posta değiştirilemedi'));
@@ -262,7 +298,15 @@ export function EmailChangeDialog({
                 autoFocus
               />
             </label>
-            <CheckboxRow label="Birincil yap" defaultChecked onChange={setPrimary} />
+            {primaryForced ? (
+              // The person's personal address is the primary: the new one replaces it there
+              <label className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Checkbox checked disabled />
+                Birincil yap
+              </label>
+            ) : (
+              <CheckboxRow label="Birincil yap" defaultChecked={false} onChange={setPrimary} />
+            )}
             <CheckboxRow label="Onaylı say" defaultChecked={false} onChange={setVerified} />
           </DialogBody>
           <DialogFooter className="mt-4">
