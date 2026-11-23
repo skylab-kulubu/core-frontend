@@ -94,10 +94,19 @@ export function UrlList({
             <ListItem
               key={row.id}
               title={short}
-              subtitle={details.filter(Boolean).join(' · ')}
+              subtitle={
+                <>
+                  {/* On a phone the kind and the note lead the line: the row's end has no room */}
+                  <span className="sm:hidden">
+                    {[linkKindLabel(kind), note].filter(Boolean).join(' · ')}
+                    {' · '}
+                  </span>
+                  {details.filter(Boolean).join(' · ')}
+                </>
+              }
               trailing={
                 <>
-                  {/* On a phone the short link keeps the row: kind and note give way */}
+                  {/* On a phone kind and note move to the line under the link */}
                   <StatusChip
                     kind="neutral"
                     label={linkKindLabel(kind)}
@@ -162,7 +171,7 @@ export function UrlList({
                         {canChange(row) ? (
                           <>
                             <MenuItem icon={Pencil} disabled={managed} onClick={() => onEdit(row)}>
-                              Düzenle
+                              <MenuReason label="Düzenle" reason={managed ? note : null} />
                             </MenuItem>
                             <MenuItem
                               icon={Trash2}
@@ -170,7 +179,10 @@ export function UrlList({
                               disabled={managed && !canDeleteManaged}
                               onClick={() => onDelete(row)}
                             >
-                              Sil
+                              <MenuReason
+                                label="Sil"
+                                reason={managed && !canDeleteManaged ? note : null}
+                              />
                             </MenuItem>
                           </>
                         ) : null}
@@ -185,5 +197,15 @@ export function UrlList({
       </ListPanel>
       <Pagination current={paged.page} totalPages={paged.totalPages} onPageChange={setPage} />
     </section>
+  );
+}
+
+/** A menu action, and under it why it is closed: the desktop says it on hover, a phone cannot. */
+function MenuReason({ label, reason }: { label: string; reason: string | null }) {
+  return (
+    <span className="flex flex-col">
+      {label}
+      {reason ? <span className="text-subtle-foreground text-xs">{reason}</span> : null}
+    </span>
   );
 }
