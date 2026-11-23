@@ -107,6 +107,36 @@ describe('CompetitionBoard', () => {
     );
   });
 
+  it('puts the saved score back in the cell when the correction is given up', async () => {
+    const user = userEvent.setup();
+    render(<CompetitionBoard eventId="e1" canManage />);
+    const cell = await screen.findByLabelText('Ada Lovelace: puan');
+    await user.clear(cell);
+    await user.type(cell, '55{Enter}');
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Ada Lovelace: puan')).toHaveValue('50');
+    expect(api.score).not.toHaveBeenCalled();
+  });
+
+  it('writes once for Enter and then leaving the cell before the table reads again', async () => {
+    let reads = 0;
+    // The table's second read hangs: the cell still shows the typed score, not a saved one
+    api.leaderboard.mockImplementation(() => {
+      reads += 1;
+      return reads === 1 ? Promise.resolve(board) : new Promise(() => undefined);
+    });
+    const user = userEvent.setup();
+    render(<CompetitionBoard eventId="e1" canManage />);
+    const cell = await screen.findByLabelText('Grace Hopper: puan');
+    await user.type(cell, '30{Enter}');
+    await user.tab();
+    await waitFor(() => expect(api.leaderboard).toHaveBeenCalledTimes(2));
+    expect(api.score).toHaveBeenCalledTimes(1);
+    expect(api.score).toHaveBeenCalledWith('c1', { entrantId: 'n2', points: 30 });
+  });
+
   it('says another organizer changed the score meanwhile and reads the table again', async () => {
     api.score.mockRejectedValue(new ProblemError(409, 'Conflict', { code: 'score_changed' }));
     const user = userEvent.setup();

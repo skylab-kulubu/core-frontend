@@ -91,10 +91,14 @@ function ScoreCell({
 }: {
   row: LeaderboardRow;
   editable: boolean;
-  onSave: (row: LeaderboardRow, points: number) => Promise<void>;
+  /** Resolves once the write is done or given up; `revert` puts the saved score back. */
+  onSave: (row: LeaderboardRow, points: number, revert: () => void) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(row.score === null ? '' : String(row.score));
+  const saved = row.score === null ? '' : String(row.score);
+  const [draft, setDraft] = useState(saved);
   const [bad, setBad] = useState(false);
+  // Enter and then leaving the cell is one write, not two: the second waits for none
+  const saving = useRef(false);
   useEffect(() => {
     setDraft(row.score === null ? '' : String(row.score));
     setBad(false);
@@ -107,7 +111,8 @@ function ScoreCell({
     );
   }
   const commit = () => {
-    if (!draft.trim() || draft.trim() === (row.score === null ? '' : String(row.score))) {
+    if (saving.current) return;
+    if (!draft.trim() || draft.trim() === saved) {
       setBad(false);
       return;
     }
@@ -117,7 +122,10 @@ function ScoreCell({
       return;
     }
     setBad(false);
-    void onSave(row, points);
+    saving.current = true;
+    void onSave(row, points, () => setDraft(saved)).finally(() => {
+      saving.current = false;
+    });
   };
   return (
     <Field
@@ -443,7 +451,7 @@ export function CompetitionBoard({ eventId, canManage }: { eventId: string; canM
 
   const editable = canManage && current !== null && current.status !== 'cancelled';
 
-  async function save(row: LeaderboardRow, points: number) {
+  async function save(row: LeaderboardRow, points: number, revert: () => void) {
     if (!current) return;
     setRowError(null);
     const write = async (why?: string) => {
@@ -465,6 +473,11 @@ export function CompetitionBoard({ eventId, canManage }: { eventId: string; canM
       return;
     }
     reason.current = '';
+    // Settles when the question closes, either way, so the cell takes no second write meanwhile
+    let settle: () => void = () => undefined;
+    const asked = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
     confirm({
       title: `${row.displayName}: puan ${formatPoints(row.score)} → ${formatPoints(points)}`,
       description: 'Eski puan geçmişte kalır.',
@@ -486,8 +499,15 @@ export function CompetitionBoard({ eventId, canManage }: { eventId: string; canM
       onConfirm: async () => {
         if (!reason.current.trim()) throw new Error('Neden gerekli');
         await write(reason.current.trim());
+        settle();
+      },
+      // Vazgeç: the cell shows the saved score again, as the ranking does
+      onCancel: () => {
+        revert();
+        settle();
       },
     });
+    await asked;
   }
 
   async function move(to: 'open' | 'start' | 'close' | 'reopen') {
