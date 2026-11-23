@@ -15,6 +15,7 @@ import { previousFormHref, previousForms, previousSessionForms } from '@/lib/eve
 import { APPLY_SLOT_KEY, formsAdminOrigin } from '@/lib/event-forms';
 import { publicMediaUrl } from '@/lib/event-media';
 import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
  * A copy's "Geçen seferin formundan yeni form oluştur" (SPEC §5.4): Skyforms
@@ -78,7 +79,7 @@ function PreviousForms({ event, sessions }: { event: CoreEvent; sessions: EventS
           className={
             form.slotKey === APPLY_SLOT_KEY
               ? saveClass
-              : buttonVariants({ variant: 'outline', size: 'sm' })
+              : `${buttonVariants({ variant: 'outline', size: 'sm' })} ${BUTTON_TEXT}`
           }
         >
           {form.slotKey === APPLY_SLOT_KEY

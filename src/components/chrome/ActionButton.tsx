@@ -15,6 +15,8 @@ type ActionButtonProps = {
   variant?: 'ghost' | 'primary';
   /** Writes the label beside the icon; a primary action always does. */
   showLabel?: boolean;
+  /** Under 640px the written label hides and the icon stays, named for screen readers. */
+  iconOnlyOnPhone?: boolean;
   className?: string;
   title?: string;
   disabled?: boolean;
@@ -34,6 +36,7 @@ export function ActionButton({
   label,
   variant = 'ghost',
   showLabel = variant === 'primary',
+  iconOnlyOnPhone = false,
   className,
   title,
   disabled,
@@ -53,14 +56,15 @@ export function ActionButton({
       <Button
         variant={look}
         className={cn(BUTTON_TEXT, className)}
-        title={title && title !== name ? title : undefined}
+        title={title && title !== name ? title : iconOnlyOnPhone ? name : undefined}
+        aria-label={iconOnlyOnPhone ? name : undefined}
         disabled={disabled}
         onClick={onClick}
         render={render}
         ref={ref}
       >
         <Icon aria-hidden />
-        {name}
+        {iconOnlyOnPhone ? <span className="hidden sm:inline">{name}</span> : name}
       </Button>
     );
   }

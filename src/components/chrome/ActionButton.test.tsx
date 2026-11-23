@@ -26,3 +26,11 @@ describe('ActionButton', () => {
     expect(button).not.toHaveTextContent('Oturumu düzenle');
   });
 });
+
+describe('ActionButton on a phone', () => {
+  it('keeps its name when the written label hides under 640px', () => {
+    render(<ActionButton icon={Pencil} label="Düzenle" showLabel iconOnlyOnPhone href="/e/edit" />);
+    const link = screen.getByRole('link', { name: 'Düzenle' });
+    expect(link.querySelector('span.hidden.sm\\:inline')).toHaveTextContent('Düzenle');
+  });
+});

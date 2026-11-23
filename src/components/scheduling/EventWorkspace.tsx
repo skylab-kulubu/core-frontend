@@ -783,6 +783,7 @@ export function EventWorkspace({
                   icon={Pencil}
                   label="Düzenle"
                   showLabel
+                  iconOnlyOnPhone
                   href={eventEditHref(event.id)}
                 />
               ) : null}

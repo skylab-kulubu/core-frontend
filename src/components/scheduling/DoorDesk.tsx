@@ -33,6 +33,7 @@ import {
 import { eventTabHref } from '@/lib/event-workspace';
 import { emptyListCopy, matchesQuery } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 type RecentCheckIn = {
   id: string;
@@ -197,7 +198,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       brand={
         <Link
           href={eventTabHref(eventId)}
-          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), '-ml-2 max-w-full')}
+          className={cn(
+            buttonVariants({ variant: 'ghost', size: 'sm' }),
+            BUTTON_TEXT,
+            '-ml-2 max-w-full',
+          )}
         >
           <ArrowLeft aria-hidden />
           <span className="truncate">{event?.name ?? 'Etkinliğe dön'}</span>
