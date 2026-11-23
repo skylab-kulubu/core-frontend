@@ -162,8 +162,11 @@ export default function GroupsPage() {
           ) : (
             <span className="w-5 shrink-0" aria-hidden />
           )}
+          {/* The row's own button names it; this one only takes the click inside the cell */}
           <button
             type="button"
+            tabIndex={-1}
+            aria-hidden
             className="min-w-0 text-left"
             onClick={() => setParams({ panel: group.id })}
           >

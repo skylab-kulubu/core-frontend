@@ -30,7 +30,7 @@ describe('buildSidebarNavigation', () => {
     expect(shape(person(['/ADMIN']), CORE_PRIVILEGED)).toEqual([
       'Özet',
       'Etkinlikler',
-      ['Kişiler', ['Kullanıcılar', 'Gruplar', 'Ekipler', 'KVKK başvuruları']],
+      ['Kişiler', ['Kullanıcılar', 'Gruplar', 'KVKK başvuruları']],
       ['İçerik', ['Duyurular', 'Kısa link']],
       [
         'Ayarlar',
@@ -87,7 +87,7 @@ describe('buildSidebarNavigation', () => {
     ).toEqual([
       'Özet',
       'Etkinlikler',
-      ['Kişiler', ['Ekiplerim']],
+      ['Kişiler', ['Ekibim']],
       ['Ayarlar', ['Sertifika şablonları', 'Sertifika varsayılanları']],
     ]);
   });
@@ -115,22 +115,30 @@ describe('buildSidebarNavigation', () => {
     expect(hrefs({ mapRegionsVisible: true })).toContain('/map-regions');
   });
 
-  it('gives one teams item: Ekipler to ADMIN and YK, Ekiplerim to a Leader (DK too)', () => {
+  it('gives one teams item: Gruplar to ADMIN and YK, Ekibim to a Leader (DK too)', () => {
     const yk = filterSidebarNavForUser(person(['/UYELER/YK']), { managedTeamsVisible: true });
-    expect(yk.map((link) => link.href)).toContain('/teams');
+    expect(yk.map((link) => link.href)).toContain('/groups');
+    expect(yk.map((link) => link.href)).not.toContain('/teams');
     expect(yk.map((link) => link.href)).not.toContain('/my-teams');
     const leader = (context: SidebarNavigationContext) =>
       filterSidebarNavForUser(person(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']), context).map(
         (link) => link.href,
       );
     expect(leader({})).not.toContain('/my-teams');
-    // DK sees Ekipler too, but a DK member who leads a team keeps their own item
+    // DK reads Gruplar too, but a DK member who leads a team keeps their own item
     const dkLeader = filterSidebarNavForUser(
       person(['/DK', '/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']),
       { managedTeamsVisible: true },
     ).map((link) => link.href);
     expect(dkLeader).toContain('/my-teams');
     expect(leader({ managedTeamsVisible: true })).toContain('/my-teams');
+  });
+
+  it('lists Dönem devri under Kişiler once core says the person reads Groups or leads a Team', () => {
+    const hrefs = (context: SidebarNavigationContext) =>
+      filterSidebarNavForUser(person(['/UYELER/YK']), context).map((link) => link.href);
+    expect(hrefs({})).not.toContain('/management-memberships');
+    expect(hrefs({ managementTermsVisible: true })).toContain('/management-memberships');
   });
 
   it('leaves certificate issuing to the event tab: no certificate settings for an issuer', () => {

@@ -141,6 +141,19 @@ export type TeamAuditRecord = {
 
 export type TeamAuditPage = { items: TeamAuditRecord[]; next: string | null };
 
+/** A person of the directory (GET /v1/users/directory): a user read's fields and when they joined. */
+export type DirectoryPerson = Person & { status?: string; createdAt?: string };
+
+/** `new`: joined this month; `no_school_email`: no school address yet. */
+export type DirectoryFilter = '' | 'new' | 'no_school_email';
+
+export type DirectoryPage = {
+  items: DirectoryPerson[];
+  total: number;
+  page: number;
+  size: number;
+};
+
 export type UserCard = Person & {
   groups?: Group[];
   inheritedRoles?: ClientRole[];
@@ -250,6 +263,27 @@ export const identityApi = {
     if (actions?.length) query.set('action', actions.join(','));
     if (cursor) query.set('cursor', cursor);
     return coreFetch<TeamAuditPage>(`/v1/team-audit-records?${query.toString()}`);
+  },
+  /**
+   * The people, a page at a time, newest first (core's own rows): a search and a
+   * filter on top. An older core has no such route (404); the page then falls back
+   * to the latest joiners, a team and the search.
+   */
+  userDirectory: ({
+    page = 1,
+    size = 50,
+    q = '',
+    filter = '',
+  }: {
+    page?: number;
+    size?: number;
+    q?: string;
+    filter?: DirectoryFilter;
+  } = {}) => {
+    const query = new URLSearchParams({ page: String(page), size: String(size) });
+    if (q.trim()) query.set('q', q.trim());
+    if (filter) query.set('filter', filter);
+    return coreFetch<DirectoryPage>(`/v1/users/directory?${query.toString()}`);
   },
   listClientRoles: () => coreFetch<ClientRole[]>('/v1/client-roles'),
   getUser: (id: string) => coreFetch<UserCard>(`/v1/users/${id}`),

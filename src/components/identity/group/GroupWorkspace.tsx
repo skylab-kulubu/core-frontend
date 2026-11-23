@@ -292,11 +292,7 @@ export function GroupWorkspace({ children }: { children: ReactNode }) {
               />
             ) : null}
             {termsVisible && teamTerms ? (
-              <Command
-                icon={Hourglass}
-                label="Dönem devri"
-                href={`/management-memberships?q=${encodeURIComponent(group.name)}`}
-              />
+              <Command icon={Hourglass} label="Dönem devri" href="/management-memberships" />
             ) : null}
             {section !== 'settings' ? (
               <Command

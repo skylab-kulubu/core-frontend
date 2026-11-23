@@ -594,15 +594,7 @@ export function GroupMembers() {
         filtered ? (
           <EmptyState kind="no-results" onClear={() => setParams({ q: '', view: 'all' })} />
         ) : (
-          <EmptyState
-            kind="first-use"
-            title="Henüz üye yok"
-            action={
-              memberWrite ? (
-                <Command primary icon={UserPlus} label="Üye ekle" onClick={openPicker} />
-              ) : undefined
-            }
-          />
+          <EmptyState kind="first-use" title="Henüz üye yok" />
         )
       ) : (
         <DataList
