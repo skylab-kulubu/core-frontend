@@ -5,7 +5,9 @@ import {
   doorSessionLabel,
   doorSessionTiming,
   resolveDoorTicket,
+  scanRefusal,
 } from '@/lib/door-check-in';
+import { ProblemError } from '@/lib/api/core';
 import type { Ticket } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
 
@@ -226,5 +228,24 @@ describe('doorSessionTiming', () => {
     expect(doorSessionTiming(session, new Date('2026-10-13T03:01:00+03:00'))).toBe(
       'Bu oturum bitti (bitiş 12 Eki 15:00); misafir QR’ı kapandı.',
     );
+  });
+});
+
+describe('scanRefusal', () => {
+  const problem = (status: number, code?: string) =>
+    new ProblemError(status, 'x', code ? { code } : {});
+
+  it('says each refusal of core in the door’s words', () => {
+    expect(scanRefusal(problem(409))).toMatchObject({ kind: 'already', title: 'Zaten girmiş' });
+    expect(scanRefusal(problem(404))).toMatchObject({
+      kind: 'refused',
+      title: 'Bu etkinliğin bileti değil',
+    });
+    expect(scanRefusal(problem(401, 'ticket_qr_expired')).title).toBe('Biletin süresi dolmuş');
+    expect(scanRefusal(problem(401, 'ticket_qr_invalid')).title).toBe('Geçersiz bilet');
+    expect(scanRefusal(problem(410, 'ticket_qr_superseded')).title).toBe('Bilet yenilenmiş');
+    expect(scanRefusal(problem(403, 'session_closed')).title).toBe('Oturum girişe kapalı');
+    expect(scanRefusal(problem(403)).title).toBe('Yetkin yok');
+    expect(scanRefusal(new Error('boom'))).toMatchObject({ kind: 'refused', title: 'Okunamadı' });
   });
 });
