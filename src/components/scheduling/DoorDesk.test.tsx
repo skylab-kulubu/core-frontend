@@ -470,6 +470,6 @@ describe('DoorDesk', () => {
     await ready();
     await user.click(screen.getByRole('button', { name: 'Misafir QR’ı' }));
     expect(screen.getByRole('region', { name: "Misafir QR'ı" })).toBeInTheDocument();
-    expect(ticketsApi.createDoorQr).toHaveBeenCalledWith('s1');
+    expect(ticketsApi.createDoorQr).toHaveBeenCalledWith('s1', 'door');
   });
 });

@@ -224,6 +224,11 @@ describe('eventPatchFromForm (core keeps a field left out)', () => {
       { attendanceRule: 'once' },
       { attendanceRule: 'once', attendanceRatio: null },
     ],
+    [
+      'ratio for the count rule at its default threshold',
+      { attendanceRule: 'count', attendanceMinCount: null },
+      { attendanceRule: 'count', attendanceRatio: null },
+    ],
   ])('clears the %s with an explicit value', (_name, change, expected) => {
     expect(eventPatchFromForm({ ...loaded, ...change }, loaded)).toEqual(expected);
   });
@@ -393,5 +398,24 @@ describe("the Event's place (core docs/event-location.md)", () => {
       locationLng: undefined,
       locationAddress: '',
     });
+  });
+});
+
+describe('the count rule threshold', () => {
+  it('sends the threshold with the count rule alone', () => {
+    const base = formStateFromEvent({
+      ...savedEvent,
+      attendanceRule: 'count',
+      attendanceMinCount: 6,
+    });
+    expect(base.attendanceMinCount).toBe(6);
+    expect(eventPatchFromForm({ ...base, attendanceRule: 'once' }, base)).toEqual({
+      attendanceRule: 'once',
+      attendanceMinCount: null,
+    });
+    expect(eventFieldsFromForm(base).attendanceMinCount).toBe(6);
+    expect(eventBodyFromForm({ ...base, attendanceMinCount: null }).attendanceMinCount).toBe(
+      undefined,
+    );
   });
 });

@@ -135,3 +135,81 @@ describe('FEEDBACK_MODES', () => {
     ]);
   });
 });
+
+describe('EventEditor certificate rule', () => {
+  function RuleEditor({
+    initial = {},
+    onValue = () => undefined,
+    ...props
+  }: {
+    initial?: Partial<EventFormState>;
+    onValue?: (value: EventFormState) => void;
+    certificatesHref?: string;
+    legacyRules?: boolean;
+    storedRatio?: number;
+  }) {
+    const [value, setValue] = useState<EventFormState>({
+      ...emptyEventForm('GECEKODU'),
+      ...initial,
+    });
+    return (
+      <EventEditor
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onValue(next);
+        }}
+        ownerOptions={['GECEKODU']}
+        {...props}
+      />
+    );
+  }
+
+  const options = () =>
+    Array.from(
+      (screen.getByRole('combobox', { name: 'Sertifika kuralı' }) as HTMLSelectElement).options,
+    ).map((option) => option.textContent);
+
+  it('offers Yok, En az bir oturum and Oturum sayısı, no ratio', () => {
+    render(<RuleEditor />);
+    expect(options()).toEqual(['Yok', 'En az bir oturum', 'Oturum sayısı']);
+  });
+
+  it('writes the count rule at the default threshold and links to the Sertifikalar tab', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    render(
+      <RuleEditor
+        initial={{ attendanceMinCount: 6 }}
+        onValue={onValue}
+        certificatesHref="/events/e1/certificates"
+      />,
+    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sertifika kuralı' }), 'count');
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attendanceRule: 'count', attendanceMinCount: null }),
+    );
+    expect(
+      screen.getByRole('link', { name: 'Eşiği ve oturumları Sertifikalar sekmesinde seç' }),
+    ).toHaveAttribute('href', '/events/e1/certificates');
+    expect(screen.queryByText('Katılım oranı')).not.toBeInTheDocument();
+  });
+
+  it("keeps an older event's ratio as it is, without a field to change it", () => {
+    render(
+      <RuleEditor
+        initial={{ attendanceRule: 'ratio', attendanceRatio: 0.67 }}
+        storedRatio={0.67}
+        certificatesHref="/events/e1/certificates"
+      />,
+    );
+    expect(options()).toEqual(['Yok', 'En az bir oturum', 'Oturum sayısı', 'Oran (%67)']);
+    expect(screen.queryByText('Katılım oranı')).not.toBeInTheDocument();
+  });
+
+  it('keeps the ratio field on an older core', () => {
+    render(<RuleEditor initial={{ attendanceRule: 'ratio', attendanceRatio: 0.5 }} legacyRules />);
+    expect(options()).toEqual(['Yok', 'En az bir oturum', 'Oran']);
+    expect(screen.getByText('Katılım oranı')).toBeInTheDocument();
+  });
+});

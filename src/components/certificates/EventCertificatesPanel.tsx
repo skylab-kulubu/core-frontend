@@ -1,43 +1,73 @@
 'use client';
 
-import { DataListTitle, MenuItem, Skeleton, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
+import {
+  DataListTitle,
+  DescriptionList,
+  MenuItem,
+  Skeleton,
+  type DataListColumn,
+} from '@skylab-kulubu/skylcn-ui';
 import { DataList } from '@/components/chrome/DataList';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
+  Clock,
   ExternalLink,
   Eye,
   FileBadge,
   RefreshCw,
   RotateCcw,
+  ScanSearch,
   Send,
   UserPlus,
 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
-import { RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
+import { ListPager, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
-import { ObjectCard, ObjectEssentials } from '@/components/chrome/object-page/ObjectPage';
+import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
+import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
+import { ManualIssueDialog } from '@/components/certificates/ManualIssueDialog';
 import { EmptyState } from '@/components/chrome/PageState';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { SidePanel } from '@/components/chrome/SidePanel';
 import { StatusChip } from '@/components/chrome/StatusChip';
-import { matchesQuery } from '@/lib/list-query';
+import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import Link from 'next/link';
 import {
   certificatesApi,
+  type CertificateAttendance,
+  type CertificateAttendanceRow,
   type CertificateBatch,
+  type CertificateRule,
   type CertificateEventSummary,
   type CertificateTemplate,
   type IssuedCertificate,
 } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 import { coreProblemMessage } from '@/lib/core-problems';
+import type { EventDay } from '@/lib/api/eventDays';
+import {
+  ATTENDANCE_STATUS,
+  attendanceCloseLine,
+  attendanceViewCounts,
+  finalizeCount,
+  issuableByHand,
+  needsJustification,
+  rescanCount,
+  searchAttendance,
+  viewAttendance,
+  type AttendanceView,
+} from '@/lib/certificate-attendance';
+import { ruleSummaryParts } from '@/lib/certificate-rule';
 import type { Ticket } from '@/lib/api/tickets';
 import { listStatus } from '@/lib/list-status';
+import { DEFAULT_PAGE_SIZE } from '@/lib/ui/page-sizes';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -68,6 +98,7 @@ const batchReasonLabel: Record<CertificateBatch['reason'], string> = {
   finalization: 'Katılım kapatma',
   manual: 'Manuel verme',
   reissue: 'Yeniden verme',
+  rescan: 'Yeniden tarama',
 };
 
 /** Batches with failed jobs, newest first: what "Yeniden dene" can act on. */
@@ -89,20 +120,38 @@ export function EventCertificatesPanel({
   attendanceRule,
   attendanceRatio,
   finalizeOpen,
+  lastSessionEnded = false,
   tickets,
   canIssue,
   canBind,
   canRevoke,
   canReadIssued,
   ruleHref,
+  days = [],
+  onRuleSaved,
 }: {
-  /** Where the rule is changed (the edit page's Sertifika section), for who may edit the event. */
+  /**
+   * Who may edit the event: where an older core (no rule editor) changes the
+   * rule, the edit page's Sertifika section. With core's rule editor the card
+   * opens it here instead.
+   */
   ruleHref?: string;
+  /** The event's days, to group the Sessions in the rule editor. */
+  days?: readonly EventDay[];
+  /** The rule was saved: the event and its Sessions changed. */
+  onRuleSaved?: () => void;
   eventId: string;
   ownerTeam: string;
   attendanceRule: string;
   attendanceRatio?: number;
+  /** Whether core opens finalization by the Event's dates (ended or undated). */
   finalizeOpen: boolean;
+  /**
+   * The last live Session has ended: core with the attendance list opens
+   * finalization then too, without waiting for the automatic close (K7).
+   */
+  lastSessionEnded?: boolean;
+  /** For the person picker of an older core; the attendance list replaces it. */
   tickets: Ticket[];
   canIssue: boolean;
   canBind: boolean;
@@ -110,6 +159,17 @@ export function EventCertificatesPanel({
   canReadIssued: boolean;
 }) {
   const [summary, setSummary] = useState<CertificateEventSummary>();
+  // null: core has no rule editor (404, older core) or it could not be read
+  const [rule, setRule] = useState<CertificateRule | null>(null);
+  // null: core has no attendance list (404, older core): the person picker stays
+  const [attendance, setAttendance] = useState<CertificateAttendance | null>(null);
+  const [attendanceFailed, setAttendanceFailed] = useState(false);
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [peopleView, setPeopleView] = useState<AttendanceView>('all');
+  const [peoplePage, setPeoplePage] = useState(1);
+  const [peopleSize, setPeopleSize] = useState(DEFAULT_PAGE_SIZE);
+  const [issuing, setIssuing] = useState<CertificateAttendanceRow | null>(null);
+  const [ruleOpen, setRuleOpen] = useState(false);
   const [templates, setTemplates] = useState<CertificateTemplate[]>([]);
   const [issued, setIssued] = useState<IssuedCertificate[]>([]);
   const [failed, setFailed] = useState<CertificateBatch[]>([]);
@@ -149,10 +209,18 @@ export function EventCertificatesPanel({
   async function load() {
     setLoading(true);
     try {
-      const [nextSummary, nextTemplates, nextIssued] = await Promise.all([
+      const [nextSummary, nextTemplates, nextIssued, nextRule, nextAttendance] = await Promise.all([
         certificatesApi.summary(eventId),
         canBind ? certificatesApi.templates() : Promise.resolve([]),
         canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
+        // An older core answers 404: the card says the rule as before
+        certificatesApi.rule(eventId).catch(() => null),
+        // An older core answers 404: the tab stays as it was; another failure says so
+        certificatesApi
+          .attendance(eventId)
+          .catch((cause: unknown) =>
+            cause instanceof ProblemError && cause.status === 404 ? null : ('failed' as const),
+          ),
       ]);
       // Only read the batches when something failed: retrying is what they are for here,
       // and a failed read keeps the rest of the tab
@@ -161,6 +229,9 @@ export function EventCertificatesPanel({
           ? await certificatesApi.listBatches(eventId).catch(() => null)
           : [];
       setSummary(nextSummary);
+      setRule(nextRule);
+      setAttendance(nextAttendance === 'failed' ? null : nextAttendance);
+      setAttendanceFailed(nextAttendance === 'failed');
       setTemplates(nextTemplates);
       setIssued(nextIssued);
       setFailed(failedBatches(nextBatches ?? []));
@@ -203,11 +274,48 @@ export function EventCertificatesPanel({
     }
   }
 
+  /** From the attendance list's row: the dialog shows a refusal itself. */
+  async function issueRow(row: CertificateAttendanceRow, justification?: string) {
+    setBusy(true);
+    try {
+      await certificatesApi.issue(eventId, row.ticketId, justification);
+      setIssuing(null);
+      done(`${row.name} için sertifika kuyruğa alındı`);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function askRescan(count: number) {
+    confirm({
+      title: 'Uygunlar yeniden taransın mı?',
+      description: `${count} kişiye sertifika üretilip e-postayla gönderilecek.`,
+      actionLabel: 'Yeniden tara',
+      destructive: false,
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          const result = await certificatesApi.rescan(eventId);
+          settled(
+            result.queued
+              ? `${result.queued} sertifika üretim kuyruğuna alındı.`
+              : 'Yeni uygun kişi yok.',
+          );
+          await load();
+        } finally {
+          setBusy(false);
+        }
+      },
+      failure: 'Yeniden taranamadı',
+    });
+  }
+
   function askFinalize(eligible: number) {
     confirm({
-      title: 'Katılım kapatılıp sertifikalar üretilsin mi?',
-      description: `Katılım kuralına uyan ${eligible} kişiye sertifika üretilir ve e-postayla gönderilir. Geri alınamaz: katılım kapandıktan sonra açılmaz, giden e-posta geri çekilmez.`,
-      actionLabel: 'Katılımı kapat ve üret',
+      title: 'Katılım kapatılsın mı?',
+      description: `${eligible} kişiye sertifika üretilip e-postayla gönderilecek. Katılım yeniden açılmaz.`,
+      actionLabel: 'Kapat ve üret',
       onConfirm: async () => {
         setBusy(true);
         try {
@@ -340,16 +448,132 @@ export function EventCertificatesPanel({
     },
   ];
 
+  const finalized = Boolean(summary?.attendanceFinalizedAt);
+  // With the attendance list core opens finalization once the last Session is over too
+  const canFinalize = finalizeOpen || (attendance !== null && lastSessionEnded);
+  const closeLine = attendance && summary ? attendanceCloseLine(summary) : null;
+  const toRescan = attendance ? rescanCount(attendance) : 0;
+  const peopleSearched = attendance ? searchAttendance(attendance.rows, peopleQuery) : [];
+  const peopleCounts = attendance
+    ? attendanceViewCounts(peopleSearched, attendance)
+    : { all: 0, eligible: 0, below: 0, issued: 0 };
+  // Core's eligibleCount counts the issued too; a finalization queues only the rest
+  const eligibleNow = attendance ? finalizeCount(attendance) : (summary?.eligibleCount ?? 0);
+  const peoplePaged = paginateRows(
+    attendance ? viewAttendance(peopleSearched, peopleView, attendance) : [],
+    peoplePage,
+    peopleSize,
+  );
+  const choosePeopleView = (next: AttendanceView) => {
+    setPeopleView(next);
+    setPeoplePage(1);
+  };
+  const peoplePaging = {
+    total: peoplePaged.total,
+    page: peoplePaged.page,
+    pageSize: peopleSize,
+    onPage: setPeoplePage,
+    onPageSize: (size: number) => {
+      setPeopleSize(size);
+      setPeoplePage(1);
+    },
+  };
+  const counted = attendance?.countedTotal ?? 0;
+  const missingText = (row: CertificateAttendanceRow) =>
+    row.missingRequired.map((session) => session.title).join(', ');
+
+  const peopleColumns: DataListColumn<CertificateAttendanceRow>[] = [
+    {
+      id: 'name',
+      width: 'minmax(0,1fr)',
+      header: 'Kişi',
+      cell: (row) => (
+        <DataListTitle
+          title={row.name}
+          subtitle={
+            <span className={TEXT_SECONDARY}>
+              <span className="tabular-nums md:hidden">{`${row.attended}/${counted} oturum`}</span>
+              {row.missingRequired.length ? (
+                <span className="text-destructive lg:hidden">
+                  <span className="md:hidden"> · </span>
+                  {`Eksik: ${missingText(row)}`}
+                </span>
+              ) : null}
+            </span>
+          }
+        />
+      ),
+    },
+    {
+      id: 'sessions',
+      width: '5rem',
+      from: 'md',
+      header: 'Oturum',
+      cell: (row) => (
+        <span className="text-foreground text-[13px]/5 tabular-nums">{`${row.attended}/${counted}`}</span>
+      ),
+    },
+    ...(attendance?.required.length
+      ? [
+          {
+            id: 'required',
+            width: '12rem',
+            from: 'lg',
+            header: 'Eksik zorunlu',
+            cell: (row: CertificateAttendanceRow) =>
+              row.missingRequired.length ? (
+                <span className="text-destructive text-[13px]/5">{missingText(row)}</span>
+              ) : (
+                <span className="text-subtle-foreground text-[13px]/5">—</span>
+              ),
+          } satisfies DataListColumn<CertificateAttendanceRow>,
+        ]
+      : []),
+    {
+      id: 'status',
+      width: { base: 'auto', sm: '6.5rem' },
+      label: 'Durum',
+      cell: (row) => (
+        <StatusChip
+          kind={ATTENDANCE_STATUS[row.status].kind}
+          label={ATTENDANCE_STATUS[row.status].label}
+        />
+      ),
+    },
+    {
+      id: 'actions',
+      width: '2.5rem',
+      label: 'Eylemler',
+      interactive: true,
+      align: 'end',
+      cell: (row) =>
+        canIssue && issuableByHand(row) ? (
+          <RowMenu rowName={row.name}>
+            <MenuItem icon={UserPlus} disabled={busy} onClick={() => setIssuing(row)}>
+              Elle ver
+            </MenuItem>
+          </RowMenu>
+        ) : (
+          // Holds the menu's room so every row keeps one height
+          <span aria-hidden className="inline-block size-7 pointer-coarse:size-9" />
+        ),
+    },
+  ];
+
   const pendingCount = (summary?.queuedCount ?? 0) + (summary?.failedCount ?? 0);
-  const ruleText =
-    attendanceRule === 'ratio'
+  const ruleKind = rule?.rule ?? attendanceRule;
+  const ruleText = rule
+    ? ruleSummaryParts(rule).join(' · ')
+    : attendanceRule === 'ratio'
       ? `%${Math.round((attendanceRatio ?? 0) * 100)} oturum`
       : attendanceRule === 'once'
         ? 'En az bir oturum'
-        : 'Sertifika yok';
+        : attendanceRule === 'count'
+          ? 'Oturum sayısı'
+          : 'Sertifika yok';
   const attendanceText = summary?.attendanceFinalizedAt
     ? `${when(summary.attendanceFinalizedAt)} kapatıldı`
-    : !finalizeOpen
+    : !canFinalize
       ? 'Etkinlik bitince kapatılır'
       : 'Açık';
 
@@ -370,7 +594,26 @@ export function EventCertificatesPanel({
         <>
           <SummaryStrip
             items={[
-              { key: 'eligible', label: 'Uygun', value: summary.eligibleCount },
+              {
+                key: 'eligible',
+                label: 'Uygun',
+                value: eligibleNow,
+                active: attendance !== null && peopleView === 'eligible',
+                onSelect: attendance
+                  ? () => choosePeopleView(peopleView === 'eligible' ? 'all' : 'eligible')
+                  : undefined,
+              },
+              ...(attendance
+                ? [
+                    {
+                      key: 'below',
+                      label: 'Eşik altı',
+                      value: summary.belowCount ?? peopleCounts.below,
+                      active: peopleView === 'below',
+                      onSelect: () => choosePeopleView(peopleView === 'below' ? 'all' : 'below'),
+                    },
+                  ]
+                : []),
               {
                 key: 'issued',
                 label: 'Verilen',
@@ -399,18 +642,37 @@ export function EventCertificatesPanel({
               },
             ]}
           />
+          {closeLine ? (
+            <p className="text-secondary-foreground flex items-center gap-2 text-sm">
+              <Clock className="text-subtle-foreground size-4 shrink-0" aria-hidden />
+              {closeLine}
+            </p>
+          ) : null}
           <CommandBar label="Sertifika komutları">
-            {canIssue && !summary.attendanceFinalizedAt ? (
+            {canIssue && !finalized ? (
               <Command
                 primary
                 icon={Send}
-                label="Katılımı kapat ve üret"
-                disabled={busy || attendanceRule === 'none' || !finalizeOpen}
-                onClick={() => askFinalize(summary.eligibleCount)}
+                label={
+                  attendance && summary.autoFinalizeAt
+                    ? 'Şimdi kapat ve üret'
+                    : 'Katılımı kapat ve üret'
+                }
+                disabled={busy || ruleKind === 'none' || !canFinalize}
+                onClick={() => askFinalize(eligibleNow)}
+              />
+            ) : null}
+            {canIssue && finalized && attendance ? (
+              <Command
+                primary
+                icon={ScanSearch}
+                label="Uygunları yeniden tara"
+                disabled={busy || toRescan === 0}
+                onClick={() => askRescan(toRescan)}
               />
             ) : null}
             <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
-            {canIssue ? (
+            {canIssue && !attendance ? (
               <Command
                 icon={UserPlus}
                 label="Elle ver"
@@ -424,18 +686,41 @@ export function EventCertificatesPanel({
               <Command icon={FileBadge} label="Şablonu değiştir" onClick={() => setBinding(true)} />
             ) : null}
           </CommandBar>
-          <ObjectEssentials
+          <ObjectCard
             title="Kural"
-            editHref={ruleHref}
-            editName="Kuralı değiştir"
-            items={[
-              { label: 'Şablon', value: summary.resolution.template.name },
-              { label: 'Sürüm', value: `v${summary.resolution.version.version}` },
-              { label: 'Kaynak', value: sourceLabel(summary.resolution.source, ownerTeam) },
-              { label: 'Katılım kuralı', value: ruleText },
-              { label: 'Katılım', value: attendanceText },
-            ]}
-          />
+            action={
+              rule && ruleHref ? (
+                <button
+                  type="button"
+                  aria-label="Kuralı düzenle"
+                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+                  onClick={() => setRuleOpen(true)}
+                >
+                  Düzenle
+                </button>
+              ) : ruleHref ? (
+                <Link
+                  href={ruleHref}
+                  aria-label="Kuralı değiştir"
+                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+                >
+                  Düzenle
+                </Link>
+              ) : undefined
+            }
+          >
+            <DescriptionList
+              columns={2}
+              items={[
+                { label: 'Şablon', value: summary.resolution.template.name },
+                { label: 'Sürüm', value: `v${summary.resolution.version.version}` },
+                { label: 'Kaynak', value: sourceLabel(summary.resolution.source, ownerTeam) },
+                { label: 'Katılım kuralı', value: ruleText },
+                // The line over the commands says it when core gives a time
+                ...(closeLine ? [] : [{ label: 'Katılım', value: attendanceText }]),
+              ]}
+            />
+          </ObjectCard>
         </>
       ) : null}
 
@@ -458,7 +743,14 @@ export function EventCertificatesPanel({
               <ListItem
                 key={batch.id}
                 title={`${batchReasonLabel[batch.reason] ?? batch.reason} · ${batch.totalCount} sertifika`}
-                subtitle={`${batch.issuedCount} verildi · ${batch.queuedCount} bekliyor · ${batch.failedCount} başarısız · ${when(batch.createdAt)}`}
+                subtitle={[
+                  batch.reason === 'manual' && batch.justification
+                    ? `Gerekçe: ${batch.justification}`
+                    : null,
+                  `${batch.issuedCount} verildi · ${batch.queuedCount} bekliyor · ${batch.failedCount} başarısız · ${when(batch.createdAt)}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
                 trailing={
                   <ActionButton
                     icon={RotateCcw}
@@ -492,6 +784,63 @@ export function EventCertificatesPanel({
             ))}
           </ListPanel>
         </ObjectCard>
+      ) : null}
+
+      {attendance || attendanceFailed ? (
+        <section className="flex flex-col gap-3" aria-label="Katılımcılar">
+          <h2 className="text-foreground text-sm font-semibold">Katılımcılar</h2>
+          {attendanceFailed ? (
+            <EmptyState
+              kind="failed"
+              title="Katılımcılar yüklenemedi"
+              onRetry={() => void load()}
+            />
+          ) : attendance && attendance.rows.length ? (
+            <>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1">
+                  <ListToolbar
+                    query={peopleQuery}
+                    onQuery={(next) => {
+                      setPeopleQuery(next);
+                      setPeoplePage(1);
+                    }}
+                    placeholder="Ad"
+                    searchLabel="Katılımcı ara"
+                    views={[
+                      { value: 'all', label: 'Hepsi', count: peopleCounts.all },
+                      { value: 'eligible', label: 'Uygun', count: peopleCounts.eligible },
+                      { value: 'below', label: 'Eşik altı', count: peopleCounts.below },
+                      { value: 'issued', label: 'Verildi', count: peopleCounts.issued },
+                    ]}
+                    view={peopleView}
+                    onView={choosePeopleView}
+                  />
+                </div>
+                <ListPager {...peoplePaging} placement="top" />
+              </div>
+              {peoplePaged.total ? (
+                <DataList
+                  columns={peopleColumns}
+                  rows={peoplePaged.slice}
+                  getRowId={(row) => row.ticketId}
+                  rowLabel={(row) => row.name}
+                />
+              ) : (
+                <EmptyState
+                  kind="no-results"
+                  onClear={() => {
+                    setPeopleQuery('');
+                    choosePeopleView('all');
+                  }}
+                />
+              )}
+              <ListPager {...peoplePaging} />
+            </>
+          ) : (
+            <EmptyState kind="first-use" title="Henüz kayıt yok" />
+          )}
+        </section>
       ) : null}
 
       {canReadIssued ? (
@@ -533,6 +882,17 @@ export function EventCertificatesPanel({
         </section>
       ) : null}
 
+      {issuing && attendance ? (
+        <ManualIssueDialog
+          key={issuing.ticketId}
+          row={issuing}
+          countedTotal={attendance.countedTotal}
+          needsReason={needsJustification(attendance, issuing)}
+          onClose={() => setIssuing(null)}
+          onIssue={(justification) => issueRow(issuing, justification)}
+        />
+      ) : null}
+
       <PickerDrawer
         open={picking}
         onClose={() => setPicking(false)}
@@ -549,6 +909,24 @@ export function EventCertificatesPanel({
         emptyMessage={pickQuery.trim() ? 'Eşleşen katılımcı yok' : 'Sertifikasız katılımcı yok'}
         onPick={(id) => void issueTo(id)}
       />
+
+      {rule && ruleHref ? (
+        <CertificateRuleSheet
+          open={ruleOpen}
+          rule={rule}
+          eventId={eventId}
+          days={days}
+          finalized={Boolean(summary?.attendanceFinalizedAt)}
+          onClose={() => setRuleOpen(false)}
+          onSaved={(saved) => {
+            setRule(saved);
+            setRuleOpen(false);
+            done('Kural kaydedildi');
+            onRuleSaved?.();
+            void load();
+          }}
+        />
+      ) : null}
 
       {canBind ? (
         <SidePanel
