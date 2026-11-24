@@ -50,7 +50,9 @@ describe('EventFeedbackPanel', () => {
     expect(
       screen.getByRole('link', { name: /gecekodu-skydaysgeribildirim2026$/ }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('QR gecekodu-skydaysgeribildirim2026')).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'QR gecekodu-skydaysgeribildirim2026' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Gönderilen 12 · Cevaplayan 5')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Şimdi gönder' })).not.toBeInTheDocument();
   });
