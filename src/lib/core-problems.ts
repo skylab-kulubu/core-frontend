@@ -126,6 +126,7 @@ const CODE_MESSAGES: Record<string, string> = {
   credential_not_found: 'Kimlik bilgisi bulunamadı; sayfayı yenile.',
   provider_not_found: 'Bağlantı bulunamadı; sayfayı yenile.',
   mail_not_sent: 'E-posta gönderilemedi. Biraz sonra tekrar dene.',
+  resend_too_soon: 'Herkese yeniden gönderme 10 dakikada bir yapılabilir.',
   name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',
   account_invalid: 'Hesap bilgisi kabul edilmedi.',
   // Group name refusals (core teamcode)
