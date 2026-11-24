@@ -426,4 +426,15 @@ describe('ticket cancellation', () => {
     );
     expect(ticketCancelProblem(new Error('boom'), 'cancel')).toBe('Bilet iptal edilemedi');
   });
+
+  it('words the refusals of Öne al', () => {
+    const conflict = (code: string) => new ProblemError(409, 'Conflict', { code });
+    expect(ticketCancelProblem(conflict('ticket_cancelled'), 'promote')).toBe(
+      'Bilet iptal edilmiş; öne alınamaz.',
+    );
+    expect(ticketCancelProblem(new ProblemError(403, 'Forbidden'), 'promote')).toBe(
+      'Bu bileti öne alma yetkin yok.',
+    );
+    expect(ticketCancelProblem(new Error('boom'), 'promote')).toBe('Öne alınamadı');
+  });
 });

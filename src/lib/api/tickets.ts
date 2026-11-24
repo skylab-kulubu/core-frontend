@@ -97,6 +97,10 @@ export type Ticket = {
   cancelledAt?: string;
   cancelledBy?: 'holder' | 'operator' | 'form' | string;
   cancelReason?: string;
+  /** When a waitlisted Ticket went on the list: its place in it (core docs/event-capacity.md). */
+  waitlistedAt?: string;
+  /** On the answer of a panel write that went past the Event's capacity; never stored. */
+  overCapacity?: boolean;
 };
 
 export type TicketStatus = 'active' | 'waitlisted' | 'cancelled';
@@ -224,6 +228,12 @@ export const ticketsApi = {
   /** Takes the cancellation back: active again with a new link and QR. 409 `event_ended`. */
   restore: (ticketId: string) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/restore`, { method: 'POST' }),
+  /**
+   * "Öne al": a waitlisted Ticket becomes active, past the capacity if it must (`overCapacity`).
+   * An active one answers as it is; 409 `ticket_cancelled`, `event_ended`; 403 as cancel.
+   */
+  promote: (ticketId: string) =>
+    coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/promote`, { method: 'POST' }),
   /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {

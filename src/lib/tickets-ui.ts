@@ -444,19 +444,29 @@ export function isTicketCancelled(row: Pick<Ticket, 'status'>): boolean {
  * Why core refused "Bileti iptal et" or "Geri al" (core docs/ticket-cancellation.md): an ended
  * Event, an entry, a Competition entrant, a waitlisted Ticket, or no right to edit the Event.
  */
-export function ticketCancelProblem(error: unknown, action: 'cancel' | 'restore'): string {
-  const verb = action === 'cancel' ? 'iptal edilemez' : 'geri alınamaz';
+export function ticketCancelProblem(
+  error: unknown,
+  action: 'cancel' | 'restore' | 'promote',
+): string {
+  const verb = { cancel: 'iptal edilemez', restore: 'geri alınamaz', promote: 'öne alınamaz' }[
+    action
+  ];
   if (error instanceof ProblemError) {
     if (error.code === 'event_ended') return `Etkinlik bitmiş; bilet ${verb}.`;
     if (error.code === 'ticket_waitlisted') return `Bilet bekleme listesinde; ${verb}.`;
+    if (error.code === 'ticket_cancelled') return `Bilet iptal edilmiş; ${verb}.`;
     if (error.status === 403) {
-      return action === 'cancel'
-        ? 'Bu bileti iptal etme yetkin yok.'
-        : 'Bu bileti geri alma yetkin yok.';
+      return {
+        cancel: 'Bu bileti iptal etme yetkin yok.',
+        restore: 'Bu bileti geri alma yetkin yok.',
+        promote: 'Bu bileti öne alma yetkin yok.',
+      }[action];
     }
   }
   return coreProblemMessage(
     error,
-    action === 'cancel' ? 'Bilet iptal edilemedi' : 'İptal geri alınamadı',
+    { cancel: 'Bilet iptal edilemedi', restore: 'İptal geri alınamadı', promote: 'Öne alınamadı' }[
+      action
+    ],
   );
 }
