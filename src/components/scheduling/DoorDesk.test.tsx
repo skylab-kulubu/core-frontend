@@ -6,6 +6,7 @@ import { DoorDesk } from '@/components/scheduling/DoorDesk';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
+import { resetDoorSoundForTests } from '@/lib/door-feedback';
 import { UNDO_GRACE_MS } from '@/lib/ui/use-deferred-undo';
 
 const mockAuthUser = {
@@ -381,6 +382,53 @@ describe('DoorDesk', () => {
     } finally {
       camera.remove();
       Object.defineProperty(navigator, 'vibrate', { configurable: true, value: undefined });
+    }
+  });
+
+  it('closes the result with Escape, and wakes the sound on a tap and when the door comes back', async () => {
+    const resume = jest.fn();
+    const contexts: Array<{ state: string }> = [];
+    class FakeAudioContext {
+      state = 'suspended';
+      resume = async () => {
+        resume();
+        this.state = 'running';
+      };
+      constructor() {
+        contexts.push(this);
+      }
+    }
+    (window as unknown as { AudioContext?: unknown }).AudioContext = FakeAudioContext;
+    resetDoorSoundForTests();
+    // A second code about 1.5 s after the first (each empty read is one 250 ms frame)
+    const camera = fakeCamera(['TOKEN-1', '', '', '', '', '', '', 'TOKEN-2']);
+    (ticketsApi.scanCheckIn as jest.Mock).mockRejectedValue(new ProblemError(409, 'Conflict'));
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(await screen.findByTestId('door-flash')).toHaveAttribute('data-signal', 'already');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByTestId('door-flash')).not.toBeInTheDocument();
+
+      // The phone locked: the sound is interrupted; a tap on the next result wakes it
+      contexts[0].state = 'interrupted';
+      const next = await screen.findByTestId('door-flash', {}, { timeout: 4000 });
+      await user.click(next);
+      expect(resume).toHaveBeenCalledTimes(2);
+
+      // Back from another app: the door wakes it when it is in view again
+      contexts[0].state = 'interrupted';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(resume).toHaveBeenCalledTimes(3);
+    } finally {
+      camera.remove();
+      delete (window as unknown as { AudioContext?: unknown }).AudioContext;
+      resetDoorSoundForTests();
     }
   });
 

@@ -20,7 +20,7 @@ const ICONS = { in: CircleCheck, already: Clock, refused: CircleX } as const;
 /**
  * A code's result over the whole screen for a moment (Eventbrite Organizer, Tito, Luma):
  * green for an entry, amber for "already in", red for a refusal, each with its own icon and
- * words, so the colour is never the only sign. A tap closes it early. Screen readers hear the
+ * words, so the colour is never the only sign. A tap or Escape closes it early. Screen readers hear the
  * result band under it, so this layer is hidden from them. Without motion when reduced motion
  * is asked for. Drawn on the body, so no transformed parent of the page can shrink it.
  */
@@ -41,6 +41,17 @@ export function DoorFlash({
     const frame = window.requestAnimationFrame(() => setShown(true));
     return () => window.cancelAnimationFrame(frame);
   }, [result]);
+
+  // Escape closes it too
+  const open = result !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   if (!result) return null;
   const Icon = ICONS[result.signal];

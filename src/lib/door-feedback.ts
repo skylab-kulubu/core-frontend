@@ -67,13 +67,18 @@ function audioContextClass(): AudioContextClass | null {
 
 let audio: AudioContext | null = null;
 
-/** Opens (or wakes) the page's sound in a tap, so later beeps may play. */
+/**
+ * Opens (or wakes) the page's sound in a tap, so later beeps may play. An iPhone stops it when
+ * the screen locks or another app comes up (`interrupted`, or `suspended`): the next tap or the
+ * page coming back into view calls this again. A closed one is made anew.
+ */
 export function primeDoorSound(): void {
   const Context = audioContextClass();
   if (!Context) return;
   try {
+    if (audio?.state === 'closed') audio = null;
     audio ??= new Context();
-    if (audio.state === 'suspended') void audio.resume().catch(() => undefined);
+    if (audio.state !== 'running') void audio.resume().catch(() => undefined);
   } catch {
     audio = null;
   }

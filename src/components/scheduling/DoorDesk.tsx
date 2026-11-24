@@ -207,6 +207,15 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   useEffect(() => setCamera(canScanWithCamera()), []);
   useEffect(() => setSoundOn(doorSoundOn()), []);
   useEffect(() => () => clearTimeout(flashTimer.current), []);
+  // An iPhone stops the page's sound when the screen locks or another app comes up: wake it
+  // when the door comes back into view (the next tap on the result wakes it too)
+  useEffect(() => {
+    const wake = () => {
+      if (document.visibilityState === 'visible') primeDoorSound();
+    };
+    document.addEventListener('visibilitychange', wake);
+    return () => document.removeEventListener('visibilitychange', wake);
+  }, []);
 
   /** A vibration and a beep for each result; a scan's also covers the screen for a moment. */
   function signal(kind: DoorSignal, shown?: Flash) {
@@ -218,6 +227,8 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   }
 
   function closeFlash() {
+    // A tap on the result also wakes the sound an iPhone stopped
+    primeDoorSound();
     clearTimeout(flashTimer.current);
     setFlash(null);
   }

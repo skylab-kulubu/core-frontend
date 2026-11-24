@@ -114,6 +114,30 @@ describe('door feedback', () => {
     }
   });
 
+  it('wakes a sound the phone stopped (screen locked, another app) and remakes a closed one', async () => {
+    const audio = fakeAudio();
+    try {
+      primeDoorSound();
+      await Promise.resolve();
+      expect(audio.contexts[0].state).toBe('running');
+      // iOS: the screen locked; the context is interrupted and beeps would be silent
+      audio.contexts[0].state = 'interrupted';
+      signalDoor('in', true);
+      expect(audio.oscillators).toHaveLength(0);
+      primeDoorSound();
+      await Promise.resolve();
+      expect(audio.contexts[0].resume).toHaveBeenCalledTimes(2);
+      signalDoor('in', true);
+      expect(audio.oscillators).toHaveLength(1);
+      // A closed one is made anew
+      audio.contexts[0].state = 'closed';
+      primeDoorSound();
+      expect(audio.contexts).toHaveLength(2);
+    } finally {
+      audio.remove();
+    }
+  });
+
   it('keeps the sound choice on this device, on unless turned off', () => {
     expect(doorSoundOn()).toBe(true);
     setDoorSoundOn(false);
