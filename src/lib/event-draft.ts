@@ -128,6 +128,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     feedbackAutoSend: ev.feedbackAutoSend ?? true,
     feedbackSlot: feedbackSlotFromEvent(ev),
     capacity: ev.capacity,
+    waitlistEnabled: ev.waitlistEnabled,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',

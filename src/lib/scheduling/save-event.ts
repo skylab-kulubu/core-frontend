@@ -27,6 +27,11 @@ function locationBody(form: EventFormState): Partial<EventBody> {
   };
 }
 
+/** The waiting list switch; left out until it was read or set, so core keeps its default. */
+function waitlistBody(form: EventFormState): { waitlistEnabled?: boolean } {
+  return typeof form.waitlistEnabled === 'boolean' ? { waitlistEnabled: form.waitlistEnabled } : {};
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -42,6 +47,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     extraFormUrls: forms.extraFormUrls,
     ...feedbackBody(form),
     capacity: form.capacity,
+    ...waitlistBody(form),
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
@@ -85,6 +91,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     feedbackFormAlias: form.feedbackSlot?.alias.trim() || null,
     feedbackAutoSend: form.feedbackAutoSend ?? true,
     capacity: form.capacity,
+    ...waitlistBody(form),
     startDate: toRfc3339(form.startDate ?? '') ?? null,
     endDate: toRfc3339(form.endDate ?? '') ?? null,
     linkedin: form.linkedin || null,

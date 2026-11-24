@@ -92,3 +92,52 @@ describe('AddParticipantDrawer guest apply', () => {
     expect(screen.getByRole('button', { name: 'Misafir kaydı yaz' })).toBeDisabled();
   });
 });
+
+describe('AddParticipantDrawer on a full Event', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (ticketsApi.listAssignableUsers as jest.Mock).mockResolvedValue([]);
+  });
+
+  it('warns before going past the capacity, and says how far it went', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.applyGuest as jest.Mock).mockResolvedValue({
+      id: 't-guest',
+      eventId: 'e1',
+      ticketType: 'GUEST',
+      checkIns: [],
+      overCapacity: true,
+    });
+    render(
+      <AddParticipantDrawer
+        open
+        onClose={jest.fn()}
+        eventId="e1"
+        onCreated={jest.fn()}
+        capacity={50}
+        activeTickets={51}
+      />,
+    );
+    expect(screen.getByText('Kontenjan dolu (51/50)')).toBeInTheDocument();
+    expect(screen.getByText('Eklenen kişi kontenjanı aşar.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Ad'), 'Ada');
+    await user.type(screen.getByLabelText('Soyad'), 'Lovelace');
+    await user.type(screen.getByLabelText('E-posta'), 'ada@example.com');
+    await user.click(screen.getByRole('button', { name: 'Misafir kaydı yaz' }));
+    expect(await screen.findByText('Kontenjan aşıldı (52/50)')).toBeInTheDocument();
+  });
+
+  it('says nothing while there is room', () => {
+    render(
+      <AddParticipantDrawer
+        open
+        onClose={jest.fn()}
+        eventId="e1"
+        onCreated={jest.fn()}
+        capacity={50}
+        activeTickets={49}
+      />,
+    );
+    expect(screen.queryByText(/Kontenjan dolu/)).not.toBeInTheDocument();
+  });
+});

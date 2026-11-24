@@ -91,10 +91,14 @@ describe('Event workspace layout', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     const workspace = await renderEventTab(<EventProgramPage />, '/events/e1/program');
     expect(await screen.findByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
-    // The event's own reads; the tab reads its cancelled tickets itself (`?status=cancelled`)
+    // The event's own reads; the tab reads its cancelled tickets and its waiting list itself
+    // (`?status=cancelled`, `?status=waitlisted`)
     const eventReads = () =>
       [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
-        (call) => (call as jest.Mock).mock.calls.filter((args) => args[1] !== 'cancelled').length,
+        (call) =>
+          (call as jest.Mock).mock.calls.filter(
+            (args) => args[1] !== 'cancelled' && args[1] !== 'waitlisted',
+          ).length,
       );
     const reads = eventReads();
 

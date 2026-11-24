@@ -63,6 +63,21 @@ export default function EventParticipantsPage() {
     void readCancelled();
   }, [readCancelled]);
 
+  // The waiting list, read the same way; a core without it lists nothing waiting
+  const [waitlisted, setWaitlisted] = useState<Ticket[] | undefined>(undefined);
+  const readWaitlisted = useCallback(async () => {
+    if (!canTickets) return;
+    try {
+      const rows = await ticketsApi.listByEvent(event.id, 'waitlisted');
+      setWaitlisted(rows.filter((ticket) => ticket.status === 'waitlisted'));
+    } catch {
+      setWaitlisted(undefined);
+    }
+  }, [canTickets, event.id]);
+  useEffect(() => {
+    void readWaitlisted();
+  }, [readWaitlisted]);
+
   // The address decides, also when a link changes it while the page is open
   const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
   useEffect(() => {
@@ -74,9 +89,10 @@ export default function EventParticipantsPage() {
       openId
         ? (tickets.find((ticket) => ticket.id === openId) ??
           cancelled?.find((ticket) => ticket.id === openId) ??
+          waitlisted?.find((ticket) => ticket.id === openId) ??
           null)
         : null,
-    [openId, tickets, cancelled],
+    [openId, tickets, cancelled, waitlisted],
   );
 
   function show(ticket: Ticket | null) {
@@ -122,13 +138,20 @@ export default function EventParticipantsPage() {
     });
   }
 
+  const capacity = event.capacity ?? 0;
+  const readAll = async () => {
+    await Promise.all([reload(), readCancelled(), readWaitlisted()]);
+  };
+
   // Exactly who may edit the event cancels a ticket and takes it back (core)
-  const { askCancel, askRestore } = ticketCancelQuestions({
+  const { askCancel, askRestore, askPromote, askLeave } = ticketCancelQuestions({
     confirm,
     people: personById,
     notify,
+    // Geri al and Öne al may go past the capacity (core `overCapacity`)
+    seats: { active: tickets.length, capacity },
     onChanged: async () => {
-      await Promise.all([reload(), readCancelled()]);
+      await readAll();
     },
   });
 
@@ -166,6 +189,8 @@ export default function EventParticipantsPage() {
         eventId={event.id}
         tickets={tickets}
         cancelledTickets={cancelled}
+        waitlistedTickets={waitlisted}
+        capacity={capacity}
         people={personById}
         event={event}
         sessions={sessions}
@@ -180,8 +205,13 @@ export default function EventParticipantsPage() {
         onMarkAttended={markAttended}
         onResend={resend}
         onRenew={renew}
-        onCancel={canCancelTickets ? askCancel : undefined}
+        onCancel={
+          canCancelTickets
+            ? (ticket) => (ticket.status === 'waitlisted' ? askLeave(ticket) : askCancel(ticket))
+            : undefined
+        }
         onRestore={canCancelTickets ? askRestore : undefined}
+        onPromote={canCancelTickets ? askPromote : undefined}
         eventEnded={eventHasEnded(event)}
         dialogs={confirmDialog}
       />
@@ -189,8 +219,10 @@ export default function EventParticipantsPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         eventId={event.id}
+        capacity={capacity}
+        activeTickets={tickets.length}
         onCreated={async () => {
-          await reload();
+          await readAll();
         }}
       />
     </>

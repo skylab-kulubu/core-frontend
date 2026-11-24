@@ -27,6 +27,7 @@ import {
 } from '@/lib/event-forms';
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
+import { capacityBelowTickets } from '@/lib/capacity';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
@@ -73,6 +74,8 @@ type EventEditorProps = {
   legacyRules?: boolean;
   /** The ratio the Event was saved with, if any: kept as it is, a new one is refused. */
   storedRatio?: number;
+  /** The saved Event's active Tickets (core `ticketCount`), for the lowered-capacity note. */
+  activeTickets?: number;
 };
 
 /** The editor's sections in page order, for the jump list beside the form. */
@@ -179,6 +182,7 @@ export function EventEditor({
   certificatesHref,
   legacyRules,
   storedRatio,
+  activeTickets,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -326,13 +330,21 @@ export function EventEditor({
         {notices.bilet}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1">
-            <FieldLabel>Kapasite</FieldLabel>
+            <FieldLabel>Kontenjan</FieldLabel>
             <Field
               type="number"
               min={0}
               value={Number.isFinite(value.capacity) ? value.capacity : 0}
               onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
+              aria-describedby="kontenjan-ipucu"
             />
+            <span id="kontenjan-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+              {capacityBelowTickets(value.capacity, activeTickets)
+                ? `${activeTickets} kayıt var. Kimse çıkarılmaz; yeni kayıt ${
+                    (value.waitlistEnabled ?? true) ? 'sıraya girer' : 'alınmaz'
+                  }.`
+                : '0 = sınırsız'}
+            </span>
           </label>
           <DatePicker
             label="Son başvuru"
@@ -340,6 +352,18 @@ export function EventEditor({
             onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
           />
         </div>
+        {value.capacity > 0 ? (
+          <Switch
+            checked={value.waitlistEnabled ?? true}
+            onChange={(waitlistEnabled) => patch({ waitlistEnabled })}
+            label="Bekleme listesi açık"
+            hint={
+              (value.waitlistEnabled ?? true)
+                ? 'Dolunca yeni kayıt sıraya girer; yer açılınca sıradaki bilet alır.'
+                : 'Dolunca kayıt alınmaz.'
+            }
+          />
+        ) : null}
         {assignDoorStaff ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
