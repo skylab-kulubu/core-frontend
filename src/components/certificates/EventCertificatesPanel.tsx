@@ -548,7 +548,10 @@ export function EventCertificatesPanel({
               Elle ver
             </MenuItem>
           </RowMenu>
-        ) : null,
+        ) : (
+          // Holds the menu's room so every row keeps one height
+          <span aria-hidden className="inline-block size-7 pointer-coarse:size-9" />
+        ),
     },
   ];
 
@@ -645,7 +648,11 @@ export function EventCertificatesPanel({
               <Command
                 primary
                 icon={Send}
-                label={summary.autoFinalizeAt ? 'Şimdi kapat ve üret' : 'Katılımı kapat ve üret'}
+                label={
+                  attendance && summary.autoFinalizeAt
+                    ? 'Şimdi kapat ve üret'
+                    : 'Katılımı kapat ve üret'
+                }
                 disabled={busy || ruleKind === 'none' || !canFinalize}
                 onClick={() => askFinalize(summary.eligibleCount)}
               />
