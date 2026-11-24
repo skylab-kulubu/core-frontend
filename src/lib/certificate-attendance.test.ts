@@ -9,6 +9,7 @@ import {
   lastSessionEndsAt,
   locativeAfterTime,
   MAIL_STATUS,
+  mailReason,
   mailResendable,
   mailResendLine,
   meetsRule,
@@ -250,6 +251,18 @@ describe('certificate mail', () => {
     expect(mailResendLine({ queued: 0, alreadyQueued: 1 })).toBe(
       '0 posta sıraya alındı. 1 kişinin postası zaten sırada.',
     );
+  });
+
+  it('says why a mail waits or failed, never its code', () => {
+    expect(mailReason({ status: 'failed', errorCode: 'skymail_unreachable' })).toBe(
+      "SkyMail'e ulaşılamadı",
+    );
+    expect(mailReason({ status: 'queued', errorCode: 'skymail_503' })).toBe('SkyMail hata verdi');
+    expect(mailReason({ status: 'failed', errorCode: 'skymail_400' })).toBe('SkyMail reddetti');
+    expect(mailReason({ status: 'failed', errorCode: 'expired' })).toBe('Süresi doldu');
+    expect(mailReason({ status: 'failed', errorCode: 'new_code' })).toBe('Gönderilemedi');
+    expect(mailReason({ status: 'sent' })).toBeNull();
+    expect(mailReason({ status: 'queued' })).toBeNull();
   });
 
   it('names every mail state', () => {

@@ -109,6 +109,22 @@ export const MAIL_STATUS: Record<
   cancelled: { label: 'Gönderilmedi', kind: 'ended' },
 };
 
+/** Why a mail waits or failed, in a few words; null when there is nothing to say. */
+export function mailReason(
+  mail: Pick<CertificateMailState, 'status' | 'errorCode'>,
+): string | null {
+  const code = mail.errorCode ?? '';
+  if (!code || mail.status === 'sent') return null;
+  if (code === 'skymail_unreachable') return "SkyMail'e ulaşılamadı";
+  if (code === 'skymail_400' || code === 'skymail_422') return 'SkyMail reddetti';
+  if (code.startsWith('skymail_')) return 'SkyMail hata verdi';
+  if (code === 'mail_unconfigured') return 'Posta ayarı yok';
+  if (code === 'no_recipient') return 'Adres yok';
+  if (code === 'expired') return 'Süresi doldu';
+  if (code === 'revoked') return 'Sertifika iptal';
+  return 'Gönderilemedi';
+}
+
 /** Its mail may be sent again: an active certificate, when core keeps mails at all. */
 export function mailResendable(
   certificate: { revokedAt?: string } | null | undefined,

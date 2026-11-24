@@ -27,7 +27,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListPager, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
-import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
+import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
 import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
 import { ManualIssueDialog } from '@/components/certificates/ManualIssueDialog';
@@ -61,6 +61,7 @@ import {
   finalizeCount,
   issuableByHand,
   MAIL_STATUS,
+  mailReason,
   mailResendable,
   mailResendLine,
   needsJustification,
@@ -99,13 +100,23 @@ function when(raw?: string): string {
 
 type IssuedView = 'all' | 'valid' | 'revoked';
 
-/** A certificate's latest mail as a chip; a dash for one with no mail kept. */
+/** A mail's state and, under it, when it went or why it waits or failed. */
+function mailLine(mail: CertificateMailState): string {
+  const detail = mail.status === 'sent' ? when(mail.sentAt) : mailReason(mail);
+  return detail ? `${MAIL_STATUS[mail.status].label} · ${detail}` : MAIL_STATUS[mail.status].label;
+}
+
+/** A certificate's latest mail as a chip with its detail; a dash for one with no mail kept. */
 function MailCell({ mail }: { mail?: CertificateMailState }) {
   if (!mail) return <span className="text-subtle-foreground text-[13px]/5">—</span>;
   const status = MAIL_STATUS[mail.status];
+  const detail = mail.status === 'sent' ? when(mail.sentAt) : mailReason(mail);
   return (
-    <span title={mail.status === 'sent' ? when(mail.sentAt) : mail.errorCode || undefined}>
+    <span className="flex min-w-0 flex-col items-start gap-0.5">
       <StatusChip kind={status.kind} label={status.label} />
+      {detail ? (
+        <span className={`text-subtle-foreground truncate ${TEXT_SECONDARY}`}>{detail}</span>
+      ) : null}
     </span>
   );
 }
@@ -453,7 +464,18 @@ export function EventCertificatesPanel({
       cell: (row) => (
         <DataListTitle
           title={row.recipientName}
-          subtitle={<span className={TEXT_SECONDARY}>{row.serial}</span>}
+          subtitle={
+            <span className={TEXT_SECONDARY}>
+              {row.serial}
+              {mailKept && row.mail && !row.revokedAt ? (
+                <span
+                  className={`block md:hidden ${row.mail.status === 'failed' ? 'text-destructive' : ''}`}
+                >
+                  {`Posta: ${mailLine(row.mail)}`}
+                </span>
+              ) : null}
+            </span>
+          }
         />
       ),
     },
@@ -470,7 +492,7 @@ export function EventCertificatesPanel({
       ? [
           {
             id: 'mail',
-            width: '7.5rem',
+            width: '10rem',
             from: 'md',
             header: 'Posta',
             cell: (row: IssuedCertificate) =>
@@ -583,7 +605,7 @@ export function EventCertificatesPanel({
                 </span>
               ) : null}
               {row.certificate?.mail?.status === 'failed' && !row.certificate.revokedAt ? (
-                <span className="text-destructive md:hidden"> · Posta gönderilemedi</span>
+                <span className="text-destructive md:hidden">{` · Posta: ${mailLine(row.certificate.mail)}`}</span>
               ) : null}
             </span>
           }
@@ -619,7 +641,7 @@ export function EventCertificatesPanel({
       ? [
           {
             id: 'mail',
-            width: '7.5rem',
+            width: '10rem',
             from: 'md',
             header: 'Posta',
             cell: (row: CertificateAttendanceRow) =>
@@ -731,23 +753,11 @@ export function EventCertificatesPanel({
                 key: 'issued',
                 label: 'Verilen',
                 value: summary.issuedCount,
-                hint:
-                  summary.revokedCount || mailFailed || mailQueued ? (
-                    <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-                      {[
-                        summary.revokedCount ? `${summary.revokedCount} iptal` : null,
-                        mailQueued ? `${mailQueued} posta sırada` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                      {mailFailed ? (
-                        <span className="text-destructive whitespace-nowrap">
-                          {summary.revokedCount || mailQueued ? ' · ' : ''}
-                          {mailFailed} posta gönderilemedi
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : undefined,
+                hint: summary.revokedCount ? (
+                  <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+                    {summary.revokedCount} iptal
+                  </span>
+                ) : undefined,
                 active: view === 'valid',
                 onSelect: canReadIssued
                   ? () => setView(view === 'valid' ? 'all' : 'valid')
@@ -755,7 +765,7 @@ export function EventCertificatesPanel({
               },
               {
                 key: 'pending',
-                label: 'Sırada · Başarısız',
+                label: 'Üretim: sırada · başarısız',
                 value: `${summary.queuedCount} · ${summary.failedCount}`,
                 hint: summary.failedCount ? (
                   <span className={`text-destructive ${TEXT_SECONDARY}`}>
@@ -771,6 +781,19 @@ export function EventCertificatesPanel({
             <p className="text-secondary-foreground flex items-center gap-2 text-sm">
               <Clock className="text-subtle-foreground size-4 shrink-0" aria-hidden />
               {closeLine}
+            </p>
+          ) : null}
+          {mailKept && (mailFailed || mailQueued) ? (
+            <p className="text-secondary-foreground flex items-center gap-2 text-sm">
+              <Mail className="text-subtle-foreground size-4 shrink-0" aria-hidden />
+              <span>
+                Sertifika postası:{' '}
+                {mailFailed ? (
+                  <span className="text-destructive">{mailFailed} gönderilemedi</span>
+                ) : null}
+                {mailFailed && mailQueued ? ' · ' : null}
+                {mailQueued ? `${mailQueued} sırada` : null}
+              </span>
             </p>
           ) : null}
           <CommandBar label="Sertifika komutları">
@@ -796,23 +819,6 @@ export function EventCertificatesPanel({
                 onClick={() => askRescan(toRescan)}
               />
             ) : null}
-            {canIssue && mailKept && mailFailed > 0 ? (
-              <Command
-                icon={Mail}
-                label="Gönderilemeyenlere gönder"
-                disabled={busy}
-                onClick={() => askResend('failed', mailFailed)}
-              />
-            ) : null}
-            {canIssue && mailKept && summary.issuedCount > 0 ? (
-              <Command
-                icon={Mail}
-                label="Herkese yeniden gönder"
-                disabled={busy}
-                onClick={() => askResend('all', summary.issuedCount)}
-              />
-            ) : null}
-            <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
             {canIssue && !attendance ? (
               <Command
                 icon={UserPlus}
@@ -823,9 +829,46 @@ export function EventCertificatesPanel({
                 }}
               />
             ) : null}
-            {canBind ? (
-              <Command icon={FileBadge} label="Şablonu değiştir" onClick={() => setBinding(true)} />
-            ) : null}
+            {/* One menu keeps the bar inside a phone's width */}
+            <CommandMenu
+              name="Diğer sertifika eylemleri"
+              items={[
+                <MenuItem key="preview" icon={Eye} onClick={() => void preview()}>
+                  Örnek PDF
+                </MenuItem>,
+                ...(canBind
+                  ? [
+                      <MenuItem key="binding" icon={FileBadge} onClick={() => setBinding(true)}>
+                        Şablonu değiştir
+                      </MenuItem>,
+                    ]
+                  : []),
+                ...(canIssue && mailKept && summary.issuedCount > 0 && mailFailed > 0
+                  ? [
+                      <MenuItem
+                        key="mail-failed"
+                        icon={Mail}
+                        disabled={busy}
+                        onClick={() => askResend('failed', mailFailed)}
+                      >
+                        {`Postayı gönderilemeyenlere yeniden gönder (${mailFailed})`}
+                      </MenuItem>,
+                    ]
+                  : []),
+                ...(canIssue && mailKept && summary.issuedCount > 0
+                  ? [
+                      <MenuItem
+                        key="mail-all"
+                        icon={Mail}
+                        disabled={busy}
+                        onClick={() => askResend('all', summary.issuedCount)}
+                      >
+                        Postayı herkese yeniden gönder
+                      </MenuItem>,
+                    ]
+                  : []),
+              ]}
+            />
           </CommandBar>
           <ObjectCard
             title="Kural"

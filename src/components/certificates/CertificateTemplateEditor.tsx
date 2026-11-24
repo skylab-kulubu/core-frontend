@@ -89,6 +89,18 @@ function justifyClass(align: CertificateElement['align']) {
  */
 const REQUIRED_KINDS: readonly CertificateElementKind[] = ['recipientName', 'eventName'];
 
+/** Core wants one of these so a paper certificate can be verified. */
+const VERIFY_KINDS: readonly CertificateElementKind[] = ['verificationQr', 'serial'];
+const LAST_VERIFIER = 'QR ya da sertifika kodundan biri kalmalı.';
+
+/** Deleting it would leave the layout neither the QR nor the serial. */
+function lastVerifier(elements: readonly CertificateElement[], element: CertificateElement) {
+  return (
+    VERIFY_KINDS.includes(element.kind) &&
+    !elements.some((other) => other.id !== element.id && VERIFY_KINDS.includes(other.kind))
+  );
+}
+
 function makeElement(kind: CertificateElementKind): CertificateElement {
   const isQr = kind === 'verificationQr';
   const isShape = kind === 'shape';
@@ -167,9 +179,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
       anyTeamCan('certificateTemplate.create');
 
+  const elements = draft.layout.elements;
   const selected = useMemo(
-    () => draft.layout.elements.find((element) => element.id === selectedId),
-    [draft.layout.elements, selectedId],
+    () => elements.find((element) => element.id === selectedId),
+    [elements, selectedId],
   );
   const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
   const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
@@ -207,6 +220,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         if (!selected || selected.locked || REQUIRED_KINDS.includes(selected.kind)) {
           return;
         }
+        if (lastVerifier(elements, selected)) {
+          setError(LAST_VERIFIER);
+          return;
+        }
         setDraft((current) => ({
           ...current,
           layout: {
@@ -239,7 +256,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canEdit, selected, selectedId]);
+  }, [canEdit, elements, selected, selectedId]);
 
   useEffect(() => {
     if (!templateId) return;
@@ -349,6 +366,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
   function deleteElement(element: CertificateElement) {
     if (!canEdit || REQUIRED_KINDS.includes(element.kind)) return;
+    if (lastVerifier(draft.layout.elements, element)) {
+      setError(LAST_VERIFIER);
+      return;
+    }
     updateLayout({
       elements: draft.layout.elements.filter((candidate) => candidate.id !== element.id),
     });

@@ -146,6 +146,18 @@ describe('CertificateTemplateEditor', () => {
         .getAllByRole('button', { name })
         .find((button) => button.className.includes('truncate'));
     expect(layer('Doğrulama QR')).toBeDefined();
+    // The QR is the only way to verify yet: it stays, with a short line
+    await user.click(layer('Doğrulama QR')!);
+    await user.click(screen.getByRole('button', { name: /Katmanı sil/ }));
+    expect(layer('Doğrulama QR')).toBeDefined();
+    expect(screen.getByText('QR ya da sertifika kodundan biri kalmalı.')).toBeInTheDocument();
+
+    // With the serial on the certificate the QR may go
+    await user.click(
+      within(screen.getByRole('complementary', { name: 'Katman ekle' })).getByRole('button', {
+        name: /Sertifika kodu/,
+      }),
+    );
     await user.click(layer('Doğrulama QR')!);
     await user.click(screen.getByRole('button', { name: /Katmanı sil/ }));
     expect(layer('Doğrulama QR')).toBeUndefined();

@@ -189,7 +189,7 @@ describe('EventCertificatesPanel failed batches', () => {
     renderPanel();
     expect(await screen.findByText('SKY LAB')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Başarısız üretim işleri okunamadı');
-    expect(screen.getByText('Sırada · Başarısız')).toBeInTheDocument();
+    expect(screen.getByText('Üretim: sırada · başarısız')).toBeInTheDocument();
   });
 
   it('shows why a retry failed', async () => {
@@ -788,6 +788,7 @@ describe('EventCertificatesPanel certificate mail', () => {
       certificate('S1', 'Ada Lovelace', {
         status: 'failed',
         attempts: 10,
+        errorCode: 'skymail_unreachable',
         updatedAt: '2026-11-24T21:00:00Z',
       }),
       certificate('S2', 'Grace Hopper', {
@@ -803,16 +804,24 @@ describe('EventCertificatesPanel certificate mail', () => {
   it("shows each certificate's mail and counts the failed", async () => {
     renderMail();
     const list = await screen.findByRole('region', { name: 'Verilen sertifikalar' });
-    expect(within(list).getByText('Gönderilemedi')).toBeInTheDocument();
-    expect(within(list).getByText('Gönderildi')).toBeInTheDocument();
-    expect(screen.getByText('1 posta gönderilemedi')).toBeInTheDocument();
+    expect(within(list).getAllByText('Gönderilemedi').length).toBeGreaterThan(0);
+    expect(within(list).getAllByText('Gönderildi').length).toBeGreaterThan(0);
+    // Why, in words, never the code
+    expect(within(list).getAllByText("SkyMail'e ulaşılamadı").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/skymail_/)).not.toBeInTheDocument();
+    expect(screen.getByText('1 gönderilemedi')).toBeInTheDocument();
   });
 
   it('resends the failed after confirming, and says what was queued', async () => {
     const user = userEvent.setup();
     api.resendEventMails.mockResolvedValue({ queued: 1, alreadyQueued: 0 });
     renderMail();
-    await user.click(await screen.findByRole('button', { name: 'Gönderilemeyenlere gönder' }));
+    await user.click(await screen.findByRole('button', { name: 'Diğer sertifika eylemleri' }));
+    await user.click(
+      await screen.findByRole('menuitem', {
+        name: 'Postayı gönderilemeyenlere yeniden gönder (1)',
+      }),
+    );
     const confirm = await screen.findByRole('alertdialog', {
       name: '1 kişiye sertifika postası yeniden gönderilsin mi?',
     });
@@ -826,7 +835,10 @@ describe('EventCertificatesPanel certificate mail', () => {
     const user = userEvent.setup();
     api.resendEventMails.mockResolvedValue({ queued: 2, alreadyQueued: 1 });
     renderMail();
-    await user.click(await screen.findByRole('button', { name: 'Herkese yeniden gönder' }));
+    await user.click(await screen.findByRole('button', { name: 'Diğer sertifika eylemleri' }));
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Postayı herkese yeniden gönder' }),
+    );
     const confirm = await screen.findByRole('alertdialog', {
       name: '3 kişiye sertifika postası yeniden gönderilsin mi?',
     });
@@ -850,7 +862,27 @@ describe('EventCertificatesPanel certificate mail', () => {
     api.summary.mockResolvedValue({ ...summary(0), issuedCount: 3 });
     renderMail();
     await screen.findByRole('region', { name: 'Verilen sertifikalar' });
-    expect(screen.queryByRole('button', { name: /yeniden gönder/ })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Diğer sertifika eylemleri' }));
+    expect(screen.queryByRole('menuitem', { name: /yeniden gönder/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Posta')).not.toBeInTheDocument();
+  });
+
+  it('says when everyone was sent to too recently', async () => {
+    const user = userEvent.setup();
+    const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+    api.resendEventMails.mockRejectedValue(
+      new Problem(429, 'Too Many Requests', { code: 'resend_too_soon' }),
+    );
+    renderMail();
+    await user.click(await screen.findByRole('button', { name: 'Diğer sertifika eylemleri' }));
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Postayı herkese yeniden gönder' }),
+    );
+    const confirm = await screen.findByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Yeniden gönder' }));
+    expect(
+      await screen.findByText('Herkese yeniden gönderme 10 dakikada bir yapılabilir.'),
+    ).toBeInTheDocument();
   });
 });
