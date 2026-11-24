@@ -418,6 +418,9 @@ describe('ticket cancellation', () => {
     expect(ticketCancelProblem(conflict('event_ended'), 'restore')).toBe(
       'Etkinlik bitmiş; bilet geri alınamaz.',
     );
+    expect(ticketCancelProblem(conflict('ticket_cancel_closed'), 'cancel')).toBe(
+      'Etkinlik başladı; bilet iptal edilemez.',
+    );
     expect(ticketCancelProblem(conflict('ticket_waitlisted'), 'restore')).toBe(
       'Bilet bekleme listesinde; geri alınamaz.',
     );

@@ -1,7 +1,16 @@
 'use client';
 
 import { Button, MenuItem, Timeline, type DescriptionItem } from '@skylab-kulubu/skylcn-ui';
-import { Ban, CheckCircle2, KeyRound, Mail, RotateCcw, Undo2, UserRound } from 'lucide-react';
+import {
+  Ban,
+  CheckCircle2,
+  ChevronsUp,
+  KeyRound,
+  Mail,
+  RotateCcw,
+  Undo2,
+  UserRound,
+} from 'lucide-react';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import {
@@ -25,6 +34,7 @@ import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
 import { ProblemError } from '@/lib/api/core';
 import { useCapabilities } from '@/lib/capabilities-context';
+import { waitlistPlaces } from '@/lib/capacity';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
@@ -125,6 +135,25 @@ export default function TicketDetailPage({
     };
   }, [id, ticketId, user, authLoading, capabilities]);
 
+  // A waiting ticket's place in the list: the whole list's order (core's), read only for one
+  const waitingId = ticket?.status === 'waitlisted' ? ticket.id : null;
+  const [place, setPlace] = useState<number | null>(null);
+  useEffect(() => {
+    if (!waitingId) return;
+    let cancelled = false;
+    ticketsApi
+      .listByEvent(id, 'waitlisted')
+      .then((rows) => {
+        if (!cancelled) setPlace(waitlistPlaces(rows).get(waitingId) ?? null);
+      })
+      .catch(() => {
+        // Without the list the chip says only that it waits
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, waitingId]);
+
   const reloadTicket = useCallback(async () => {
     try {
       setTicket(await ticketsApi.get(ticketId));
@@ -171,13 +200,17 @@ export default function TicketDetailPage({
     canCancelEventTicket(groups, event.ownerTeam),
   );
   const cancelled = isTicketCancelled(ticket);
+  // A waiting ticket passes no door and has no mail to send again: only Öne al and Listeden çıkar
+  const waiting = ticket.status === 'waitlisted';
+  const apart = cancelled || waiting;
   // core refuses both once the event is over (`event_ended`): shown, but shut
   const ended = eventHasEnded(event);
   const shut = cancelShut(ticket, ended);
-  const { askCancel, askRestore } = ticketCancelQuestions({
+  const { askCancel, askRestore, askPromote, askLeave } = ticketCancelQuestions({
     confirm,
     people: personById,
     notify,
+    seats: { active: event.ticketCount ?? 0, capacity: event.capacity ?? 0 },
     onChanged: (saved) => {
       // core answers the ticket without its form answers and entries: keep the page's
       setTicket((shown) => (shown ? { ...shown, ...saved } : saved));
@@ -292,7 +325,7 @@ export default function TicketDetailPage({
 
   const unentered = sessions.filter((session) => !session.cancelled && !entered.has(session.id));
   const attendCommand =
-    !canDesk || !sessions.length || cancelled ? null : attendSession &&
+    !canDesk || !sessions.length || apart ? null : attendSession &&
       !entered.has(attendSession.id) ? (
       <Command
         primary
@@ -328,7 +361,12 @@ export default function TicketDetailPage({
             badges={
               <>
                 <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
-                {cancelled ? (
+                {waiting ? (
+                  <StatusChip
+                    kind="pending"
+                    label={place ? `Bekleme listesinde · ${place}. sıra` : 'Bekleme listesinde'}
+                  />
+                ) : cancelled ? (
                   <StatusChip kind="cancelled" />
                 ) : (
                   <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
@@ -350,13 +388,32 @@ export default function TicketDetailPage({
                 onClick={() => askRestore(ticket)}
               />
             ) : null}
-            {canAssign && !cancelled ? (
+            {canCancel && waiting ? (
+              <Command
+                primary
+                icon={ChevronsUp}
+                label="Öne al"
+                title={ended ? EVENT_OVER : undefined}
+                disabled={ended}
+                onClick={() => askPromote(ticket)}
+              />
+            ) : null}
+            {canCancel && waiting ? (
+              <Command
+                icon={Ban}
+                label="Listeden çıkar"
+                title={ended ? EVENT_OVER : undefined}
+                disabled={ended}
+                onClick={() => askLeave(ticket)}
+              />
+            ) : null}
+            {canAssign && !apart ? (
               <Command icon={Mail} label="Bileti yeniden gönder" onClick={askResend} />
             ) : null}
-            {canAssign && !cancelled ? (
+            {canAssign && !apart ? (
               <Command icon={KeyRound} label="Bağlantıyı yenile" onClick={askRenew} />
             ) : null}
-            {canCancel && !cancelled ? (
+            {canCancel && !apart ? (
               <Command
                 icon={Ban}
                 label="Bileti iptal et"

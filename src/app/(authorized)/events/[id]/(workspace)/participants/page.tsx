@@ -8,15 +8,9 @@ import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
-import { capacityFull, overCapacityLine } from '@/lib/capacity';
 import { ticketsApi } from '@/lib/api/tickets';
 import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
-import {
-  isTicketCancelled,
-  ticketApplicantEmail,
-  ticketCancelProblem,
-  ticketSendProblem,
-} from '@/lib/tickets-ui';
+import { isTicketCancelled, ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -150,54 +144,16 @@ export default function EventParticipantsPage() {
   };
 
   // Exactly who may edit the event cancels a ticket and takes it back (core)
-  const { askCancel, askRestore } = ticketCancelQuestions({
+  const { askCancel, askRestore, askPromote, askLeave } = ticketCancelQuestions({
     confirm,
     people: personById,
     notify,
-    // Geri al may go past the capacity (core `overCapacity`)
-    onChanged: async (saved) => {
-      if (saved.overCapacity)
-        notify.success('Kontenjan aşıldı', overCapacityLine(tickets.length + 1, capacity));
+    // Geri al and Öne al may go past the capacity (core `overCapacity`)
+    seats: { active: tickets.length, capacity },
+    onChanged: async () => {
       await readAll();
     },
   });
-
-  // "Öne al": past the capacity if it must; who may cancel may promote (core)
-  function askPromote(ticket: Ticket) {
-    const full = capacityFull(tickets.length, capacity);
-    confirm({
-      title: `${doorTicketName(ticket, personById)} öne alınsın mı?`,
-      description: full
-        ? `Bilet etkinleşir ve kontenjan aşılır (${tickets.length + 1}/${capacity}).`
-        : 'Bilet etkinleşir, kişiye bilet postası gider.',
-      actionLabel: 'Öne al',
-      destructive: false,
-      failure: (err) => ticketCancelProblem(err, 'promote'),
-      onConfirm: async () => {
-        const saved = await ticketsApi.promote(ticket.id);
-        if (saved.overCapacity) {
-          notify.success('Öne alındı', overCapacityLine(tickets.length + 1, capacity));
-        } else {
-          notify.success('Öne alındı');
-        }
-        await readAll();
-      },
-    });
-  }
-
-  function askLeave(ticket: Ticket) {
-    confirm({
-      title: `${doorTicketName(ticket, personById)} listeden çıkarılsın mı?`,
-      description: 'İptal edilenlere geçer.',
-      actionLabel: 'Listeden çıkar',
-      failure: (err) => ticketCancelProblem(err, 'cancel'),
-      onConfirm: async () => {
-        await ticketsApi.cancel(ticket.id);
-        notify.success('Listeden çıkarıldı');
-        await readAll();
-      },
-    });
-  }
 
   if (!canTickets) {
     return <StateCard title="Katılımcıları görme yetkin yok" tone="danger" />;

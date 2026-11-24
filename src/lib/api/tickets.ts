@@ -220,10 +220,14 @@ export const ticketsApi = {
    * 409 `event_ended`, `ticket_checked_in`, `ticket_in_competition`; 403 for who may not edit
    * the Event. A cancelled Ticket answers 200 as it is.
    */
-  cancel: (ticketId: string, reason?: string) =>
+  cancel: (ticketId: string, { reason, notify }: { reason?: string; notify?: boolean } = {}) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/cancel`, {
       method: 'POST',
-      body: JSON.stringify(reason ? { reason } : {}),
+      // `notify`: the holder is told (core #412; core before it ignores the field)
+      body: JSON.stringify({
+        ...(reason ? { reason } : {}),
+        ...(notify !== undefined ? { notify } : {}),
+      }),
     }),
   /** Takes the cancellation back: active again with a new link and QR. 409 `event_ended`. */
   restore: (ticketId: string) =>

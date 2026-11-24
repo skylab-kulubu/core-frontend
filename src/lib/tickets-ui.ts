@@ -453,6 +453,7 @@ export function ticketCancelProblem(
   ];
   if (error instanceof ProblemError) {
     if (error.code === 'event_ended') return `Etkinlik bitmiş; bilet ${verb}.`;
+    if (error.code === 'ticket_cancel_closed') return `Etkinlik başladı; bilet ${verb}.`;
     if (error.code === 'ticket_waitlisted') return `Bilet bekleme listesinde; ${verb}.`;
     if (error.code === 'ticket_cancelled') return `Bilet iptal edilmiş; ${verb}.`;
     if (error.status === 403) {
