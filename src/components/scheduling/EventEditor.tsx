@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Section } from '@skylab-kulubu/skylcn-ui';
-import { Plus, X } from 'lucide-react';
+import { ArrowRight, Plus, X } from 'lucide-react';
+import Link from 'next/link';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
@@ -29,6 +30,7 @@ import type { EventMediaHint } from '@/lib/event-media';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
+import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
@@ -65,6 +67,12 @@ type EventEditorProps = {
   formInUse?: FormInUse | null;
   /** Said at the top of a section, such as choices that could not be loaded. */
   notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
+  /** The Sertifikalar tab, where the threshold and the counted Sessions are chosen. */
+  certificatesHref?: string;
+  /** An older core without the rule editor (no "Oturum sayısı"): the ratio is typed here. */
+  legacyRules?: boolean;
+  /** The ratio the Event was saved with, if any: kept as it is, a new one is refused. */
+  storedRatio?: number;
 };
 
 /** The editor's sections in page order, for the jump list beside the form. */
@@ -126,6 +134,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     imageIds: [],
     attendanceRule: 'none',
     attendanceRatio: undefined,
+    attendanceMinCount: null,
     doorStaffIds: [],
     registrationClosesAt: '',
   };
@@ -167,6 +176,9 @@ export function EventEditor({
   onLeaveToSkyforms,
   formInUse,
   notices = {},
+  certificatesHref,
+  legacyRules,
+  storedRatio,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -413,16 +425,39 @@ export function EventEditor({
               patch({
                 attendanceRule: e.target.value,
                 attendanceRatio:
-                  e.target.value === 'ratio' ? (value.attendanceRatio ?? 0.75) : undefined,
+                  e.target.value === 'ratio'
+                    ? (value.attendanceRatio ?? storedRatio ?? 0.75)
+                    : undefined,
+                // The threshold is chosen on the Sertifikalar tab; until then the default
+                attendanceMinCount: null,
               })
             }
           >
             <option value="none">Yok</option>
             <option value="once">En az bir oturum</option>
-            <option value="ratio">Oran</option>
+            {legacyRules ? null : <option value="count">Oturum sayısı</option>}
+            {/* A new ratio is refused by core: only an Event that has one keeps it */}
+            {legacyRules || storedRatio ? (
+              <option value="ratio">
+                {legacyRules ? 'Oran' : `Oran (%${Math.round((storedRatio ?? 0) * 100)})`}
+              </option>
+            ) : null}
           </Select>
         </label>
-        {value.attendanceRule === 'ratio' ? (
+        {!legacyRules && (value.attendanceRule === 'count' || value.attendanceRule === 'ratio') ? (
+          certificatesHref ? (
+            <Link
+              href={certificatesHref}
+              className={`text-skylab-300 hover:text-foreground inline-flex items-center gap-1 ${TEXT_SECONDARY}`}
+            >
+              Eşiği ve oturumları Sertifikalar sekmesinde seç
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          ) : (
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Varsayılan eşik %75</p>
+          )
+        ) : null}
+        {legacyRules && value.attendanceRule === 'ratio' ? (
           <label className="block space-y-1">
             <FieldLabel>Katılım oranı</FieldLabel>
             <Field

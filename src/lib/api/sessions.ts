@@ -50,6 +50,9 @@ export type EventSession = {
   feedbackFormAlias?: string;
   /** Mail the form two hours after the Session ends; default on. */
   feedbackAutoSend?: boolean;
+  /** Certificate marks (core docs/certificate-rule.md); an older core sends neither. */
+  certificateCounted?: boolean;
+  certificateRequired?: boolean;
 };
 
 export type SessionBody = {
@@ -69,6 +72,9 @@ export type SessionBody = {
   feedbackFormUrl?: string | null;
   feedbackFormAlias?: string | null;
   feedbackAutoSend?: boolean;
+  /** Left out: core keeps the mark (on create, its default for the type). */
+  certificateCounted?: boolean;
+  certificateRequired?: boolean;
 };
 
 export type SessionRow = EventSession & {
