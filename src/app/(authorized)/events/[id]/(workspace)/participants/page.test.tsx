@@ -38,6 +38,13 @@ jest.mock('@/lib/scheduling/save-event', () =>
 const renderParticipants = () =>
   renderEventTab(<EventParticipantsPage />, '/events/e1/participants');
 
+// jsdom has no PointerEvent; base-ui's Checkbox sends one to its hidden input on a click
+beforeAll(() => {
+  if (!('PointerEvent' in window)) {
+    Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+  }
+});
+
 describe('Event Katılımcılar tab', () => {
   beforeEach(primeEventWorkspace);
 
@@ -287,7 +294,10 @@ describe('Event Katılımcılar tab', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
 
       await waitFor(() =>
-        expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', 'Yanlış kayıt'),
+        expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', {
+          reason: 'Yanlış kayıt',
+          notify: true,
+        }),
       );
       expect(await screen.findByText('Bilet iptal edildi')).toBeInTheDocument();
       await waitFor(() =>
@@ -306,7 +316,33 @@ describe('Event Katılımcılar tab', () => {
       await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
       const dialog = await screen.findByRole('alertdialog');
       await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
-      await waitFor(() => expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', undefined));
+      await waitFor(() =>
+        expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', {
+          reason: undefined,
+          notify: true,
+        }),
+      );
+    });
+
+    it('tells the holder unless Kişiye bildir is cleared', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      lists([coded], []);
+      (ticketsApi.cancel as jest.Mock).mockResolvedValue({ ...coded, status: 'cancelled' });
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
+      const dialog = await screen.findByRole('alertdialog');
+      const box = within(dialog).getByRole('checkbox', { name: 'Kişiye bildir' });
+      expect(box).toBeChecked();
+      await user.click(box);
+      await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
+      await waitFor(() =>
+        expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', {
+          reason: undefined,
+          notify: false,
+        }),
+      );
     });
 
     it.each([

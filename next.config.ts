@@ -4,9 +4,24 @@ import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 // Off unless the image is built with the playground (see the Dockerfile)
 const includePlayground = process.env.NEXT_PUBLIC_INCLUDE_PLAYGROUND === 'true';
 
+// On every response, the Account center's set (its next.config.ts) where the panel can share it.
+// The Content Security Policy comes per request from proxy.ts (its nonce). The camera stays the
+// panel's own for the door scanner (DoorScanner.tsx); the other powerful features are off.
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  {
+    key: 'Permissions-Policy',
+    value:
+      'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=()',
+  },
+];
+
 const nextConfig: NextConfig = {
   reactCompiler: true,
   output: 'standalone',
+  poweredByHeader: false,
   // skylcn-ui ships ESM only; this also lets next/jest transform it for the tests.
   // Its DataTable (skylcn-ui/data-table) brings TanStack Table, ESM only too
   transpilePackages: [
@@ -32,11 +47,15 @@ const nextConfig: NextConfig = {
     };
   },
   async headers() {
-    if (!includePlayground) return [];
-    return ['/playground', '/playground/:path*', '/playground-assets/:path*'].map((source) => ({
-      source,
-      headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
-    }));
+    const everywhere = [{ source: '/:path*', headers: securityHeaders }];
+    if (!includePlayground) return everywhere;
+    return [
+      ...everywhere,
+      ...['/playground', '/playground/:path*', '/playground-assets/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      })),
+    ];
   },
 };
 

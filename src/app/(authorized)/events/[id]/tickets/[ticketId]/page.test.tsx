@@ -27,6 +27,7 @@ jest.mock('@/lib/api/tickets', () => ({
     renewLink: jest.fn(),
     cancel: jest.fn(),
     restore: jest.fn(),
+    promote: jest.fn(),
   },
 }));
 // core's capabilities cannot be read: the group rule decides (YK may do everything)
@@ -52,6 +53,13 @@ async function renderTicket() {
     render(<TicketDetailPage params={Promise.resolve({ id: 'e1', ticketId: 't1' })} />);
   });
 }
+
+// jsdom has no PointerEvent; base-ui's Checkbox sends one to its hidden input on a click
+beforeAll(() => {
+  if (!('PointerEvent' in window)) {
+    Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+  }
+});
 
 describe('Ticket detail page', () => {
   beforeEach(() => {
@@ -135,7 +143,9 @@ describe('Ticket detail page', () => {
     });
     await user.type(within(dialog).getByLabelText('Gerekçe (isteğe bağlı)'), 'Çift kayıt');
     await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
-    await waitFor(() => expect(ticketsApi.cancel).toHaveBeenCalledWith('t1', 'Çift kayıt'));
+    await waitFor(() =>
+      expect(ticketsApi.cancel).toHaveBeenCalledWith('t1', { reason: 'Çift kayıt', notify: true }),
+    );
 
     await waitFor(() =>
       expect(within(commands).getByRole('button', { name: 'Geri al' })).toBeInTheDocument(),
@@ -176,6 +186,88 @@ describe('Ticket detail page', () => {
     const restore = within(commands).getByRole('button', { name: 'Geri al' });
     expect(restore).toBeDisabled();
     expect(restore).toHaveAttribute('title', 'Etkinlik bitti');
+  });
+
+  describe('a waitlisted ticket', () => {
+    const waiting = (id: string, at: string) => ({
+      ...registered,
+      id,
+      status: 'waitlisted',
+      waitlistedAt: at,
+      owner: { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+    });
+    const ada = waiting('t1', '2026-11-23T10:00:00Z');
+
+    beforeEach(() => {
+      (ticketsApi.get as jest.Mock).mockResolvedValue(ada);
+      // Ada waits second: one joined the list before her
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([
+        ada,
+        waiting('t0', '2026-11-22T10:00:00Z'),
+      ]);
+    });
+
+    it('says its place and offers only Öne al and Listeden çıkar', async () => {
+      await renderTicket();
+      expect(await screen.findByText('Bekleme listesinde · 2. sıra')).toBeInTheDocument();
+      expect(ticketsApi.listByEvent).toHaveBeenCalledWith('e1', 'waitlisted');
+      const commands = screen.getByRole('group', { name: 'Kayıt komutları' });
+      expect(within(commands).getByRole('button', { name: 'Öne al' })).toBeInTheDocument();
+      expect(within(commands).getByRole('button', { name: 'Listeden çıkar' })).toBeInTheDocument();
+      for (const name of [
+        'Katıldı',
+        'Bileti yeniden gönder',
+        'Bağlantıyı yenile',
+        'Bileti iptal et',
+        'Geri al',
+      ]) {
+        expect(within(commands).queryByRole('button', { name })).toBeNull();
+      }
+      expect(screen.queryByText('Gelmedi')).toBeNull();
+    });
+
+    it('moves it up, saying when it goes past the capacity', async () => {
+      const { eventsApi } = jest.requireMock('@/lib/api/events');
+      (eventsApi.get as jest.Mock).mockResolvedValueOnce({
+        id: 'e1',
+        name: 'GeceKodu',
+        ownerTeam: 'GECEKODU',
+        capacity: 40,
+        ticketCount: 40,
+      });
+      (ticketsApi.promote as jest.Mock).mockResolvedValue({
+        ...ada,
+        status: 'active',
+        overCapacity: true,
+      });
+      const user = userEvent.setup();
+      await renderTicket();
+      const commands = await screen.findByRole('group', { name: 'Kayıt komutları' });
+      await user.click(within(commands).getByRole('button', { name: 'Öne al' }));
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace öne alınsın mı?',
+      });
+      expect(within(dialog).getByText(/kontenjan aşılır \(41\/40\)/)).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Öne al' }));
+      await waitFor(() => expect(ticketsApi.promote).toHaveBeenCalledWith('t1'));
+      expect(await screen.findByText('Kontenjan aşıldı (41/40)')).toBeInTheDocument();
+    });
+
+    it('takes it off the list, telling the holder unless cleared', async () => {
+      (ticketsApi.cancel as jest.Mock).mockResolvedValue({ ...ada, status: 'cancelled' });
+      const user = userEvent.setup();
+      await renderTicket();
+      const commands = await screen.findByRole('group', { name: 'Kayıt komutları' });
+      await user.click(within(commands).getByRole('button', { name: 'Listeden çıkar' }));
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace listeden çıkarılsın mı?',
+      });
+      const box = within(dialog).getByRole('checkbox', { name: 'Kişiye bildir' });
+      expect(box).toBeChecked();
+      await user.click(box);
+      await user.click(within(dialog).getByRole('button', { name: 'Listeden çıkar' }));
+      await waitFor(() => expect(ticketsApi.cancel).toHaveBeenCalledWith('t1', { notify: false }));
+    });
   });
 
   it('takes a cancellation back', async () => {

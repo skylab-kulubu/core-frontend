@@ -419,3 +419,15 @@ describe('the count rule threshold', () => {
     );
   });
 });
+
+describe('the waiting list switch', () => {
+  it('sends the switch only when changed, and leaves it to core on an older Event', () => {
+    const loaded = formStateFromEvent({ ...savedEvent, capacity: 50, waitlistEnabled: true });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, waitlistEnabled: false }, loaded)).toEqual({
+      waitlistEnabled: false,
+    });
+    const older = formStateFromEvent({ ...savedEvent, capacity: 50 });
+    expect(eventPatchFromForm(older)).not.toHaveProperty('waitlistEnabled');
+  });
+});

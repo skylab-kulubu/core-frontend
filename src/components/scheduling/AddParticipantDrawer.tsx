@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Notice } from '@skylab-kulubu/skylcn-ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -11,6 +12,7 @@ import { SaveButton } from '@/components/chrome/SaveButton';
 import { PersonPick } from '@/components/identity/PersonPick';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi, type GuestApplyBody, type Ticket } from '@/lib/api/tickets';
+import { capacityFigure, capacityFull, overCapacityLine } from '@/lib/capacity';
 import { useNotify } from '@/lib/ui/use-notify';
 
 const memberSchema = z.object({
@@ -32,11 +34,16 @@ export function AddParticipantDrawer({
   onClose,
   eventId,
   onCreated,
+  capacity,
+  activeTickets,
 }: {
   open: boolean;
   onClose: () => void;
   eventId: string;
   onCreated: (ticket: Ticket) => void;
+  /** The Event's capacity (0: none) and its active Tickets, to warn before going past it. */
+  capacity?: number;
+  activeTickets?: number;
 }) {
   const [error, setError] = useState<string | null>(null);
   const notify = useNotify();
@@ -50,6 +57,14 @@ export function AddParticipantDrawer({
   });
   const personId = memberForm.watch('personId');
   const pending = memberForm.formState.isSubmitting || guestForm.formState.isSubmitting;
+  const active = activeTickets ?? 0;
+  const full = activeTickets !== undefined && capacityFull(active, capacity);
+
+  /** The toast; core says when the write went past the capacity (`overCapacity`). */
+  function written(title: string, ticket: Ticket) {
+    if (ticket.overCapacity) notify.success(title, overCapacityLine(active + 1, capacity));
+    else notify.success(title);
+  }
 
   function reset() {
     memberForm.reset();
@@ -68,6 +83,11 @@ export function AddParticipantDrawer({
       dirty={memberForm.formState.isDirty || guestForm.formState.isDirty}
     >
       <div className="space-y-6">
+        {full ? (
+          <Notice tone="warning" title={`Kontenjan dolu (${capacityFigure(active, capacity)})`}>
+            Eklenen kişi kontenjanı aşar.
+          </Notice>
+        ) : null}
         {error ? (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -83,7 +103,7 @@ export function AddParticipantDrawer({
               reset();
               onCreated(ticket);
               onClose();
-              notify.success('Üye kaydı yazıldı');
+              written('Üye kaydı yazıldı', ticket);
             } catch (err) {
               setError(coreProblemMessage(err, 'Üye kaydı yazılamadı'));
             }
@@ -119,7 +139,7 @@ export function AddParticipantDrawer({
               reset();
               onCreated(ticket);
               onClose();
-              notify.success('Misafir kaydı yazıldı');
+              written('Misafir kaydı yazıldı', ticket);
             } catch (err) {
               setError(coreProblemMessage(err, 'Misafir kaydı yazılamadı'));
             }

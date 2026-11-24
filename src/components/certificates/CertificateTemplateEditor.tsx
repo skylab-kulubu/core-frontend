@@ -728,10 +728,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             onPointerCancel={() => (dragRef.current = null)}
           >
             {backgroundIsPDF && backgroundUrl ? (
-              <object
+              // A frame, not an <object>: the panel's CSP allows no objects (object-src 'none')
+              <iframe
                 title="PDF arka plan önizlemesi"
-                data={`${backgroundUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
-                type="application/pdf"
+                src={`${backgroundUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                tabIndex={-1}
                 className="pointer-events-none absolute inset-0 z-0 h-full w-full border-0"
               />
             ) : null}

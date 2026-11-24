@@ -188,7 +188,7 @@ describe('Program: a Session feedback form (per_session)', () => {
 
     await sessionAction(user, 'Geri bildirim');
     const drawer = await screen.findByRole('dialog', { name: 'Açılış · Geri bildirim' });
-    expect(within(drawer).getByLabelText('QR acilis')).toBeInTheDocument();
+    expect(within(drawer).getByRole('img', { name: 'QR acilis' })).toBeInTheDocument();
     expect(await within(drawer).findByText('Gönderilen 4 · Cevaplayan 1')).toBeInTheDocument();
 
     await user.click(within(drawer).getByRole('button', { name: 'Şimdi gönder' }));

@@ -16,12 +16,8 @@ export function QrPreview({
 }) {
   return (
     <div className="space-y-3">
-      <object
-        data={imageUrl}
-        type="image/png"
-        className="h-48 w-48 rounded-md bg-white"
-        aria-label={label}
-      />
+      {/* An <img>, not an <object>: the panel's CSP allows no objects (object-src 'none') */}
+      <img src={imageUrl} alt={label} className="h-48 w-48 rounded-md bg-white" />
       <SaveButton type="button" onClick={() => void downloadBlob(downloadPath, fileName)}>
         İndir
       </SaveButton>

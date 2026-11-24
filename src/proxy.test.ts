@@ -89,3 +89,78 @@ describe('proxy', () => {
     });
   });
 });
+
+describe('proxy CSP', () => {
+  afterEach(saveEnv('AUTH_COOKIE_SECURE', 'CSP_ENFORCE'));
+
+  beforeEach(() => {
+    process.env.AUTH_COOKIE_SECURE = 'true';
+    delete process.env.CSP_ENFORCE;
+    freezeClock();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const signedIn = () =>
+    `__Host-auth_token=access-1; __Host-session_auth_time=${signedInAgo(3600)}`;
+
+  function nonceOf(policy: string | null): string | undefined {
+    return policy?.match(/'nonce-([A-Za-z0-9+/=]+)'/)?.[1];
+  }
+
+  it('reports only by default, with a fresh nonce on every response', () => {
+    const first = visit('/dashboard', signedIn());
+    const second = visit('/dashboard', signedIn());
+    expect(first.headers.get('content-security-policy')).toBeNull();
+    const firstNonce = nonceOf(first.headers.get('content-security-policy-report-only'));
+    const secondNonce = nonceOf(second.headers.get('content-security-policy-report-only'));
+    expect(firstNonce).toBeTruthy();
+    expect(secondNonce).toBeTruthy();
+    expect(firstNonce).not.toBe(secondNonce);
+  });
+
+  it('binds the policy when CSP_ENFORCE=true', () => {
+    process.env.CSP_ENFORCE = 'true';
+    const response = visit('/dashboard', signedIn());
+    expect(response.headers.get('content-security-policy')).toContain("'strict-dynamic'");
+    expect(response.headers.get('content-security-policy-report-only')).toBeNull();
+  });
+
+  it('hands the nonce and the policy on to the page render, where Next and the layout read them', () => {
+    const response = visit('/dashboard', signedIn());
+    const policy = response.headers.get('content-security-policy-report-only');
+    // NextResponse.next({ request: { headers } }) carries the request headers this way
+    expect(response.headers.get('x-middleware-request-x-nonce')).toBe(nonceOf(policy));
+    expect(response.headers.get('x-middleware-request-content-security-policy-report-only')).toBe(
+      policy,
+    );
+  });
+
+  it.each([
+    ['a signed-in page', '/dashboard', signedIn],
+    ['the login page', '/login', () => ''],
+    ['the login redirect', '/dashboard', () => ''],
+    ['an auth route', '/api/auth/me', () => ''],
+    ['the health check', '/api/health', () => ''],
+    ['a CSP report', '/api/csp-report', () => ''],
+  ])('sets the policy on %s', (_, path, cookie) => {
+    const policy = visit(path, cookie()).headers.get('content-security-policy-report-only');
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("object-src 'none'");
+  });
+
+  it('takes CSP reports without a session', () => {
+    expect(sentToLogin(visit('/api/csp-report', ''))).toBe(false);
+  });
+
+  it.each(['/playground', '/playground/button', '/playground-assets/_next/x.js'])(
+    "leaves the playground's static export (%s) without a nonce policy, but behind the session",
+    (path) => {
+      const response = visit(path, signedIn());
+      expect(response.headers.get('content-security-policy-report-only')).toBeNull();
+      expect(sentToLogin(visit(path, ''))).toBe(true);
+    },
+  );
+});
