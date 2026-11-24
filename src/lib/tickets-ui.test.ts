@@ -373,6 +373,28 @@ describe('ticketCrumbName', () => {
 });
 
 describe('ticket cancellation', () => {
+  it('says a cancelled ticket as such, its status fields never as form answers', () => {
+    const ticket = {
+      id: 't1',
+      eventId: 'e1',
+      ticketType: 'GUEST',
+      guestFirstName: 'Ada',
+      checkIns: [],
+      createdAt: '2026-11-20T10:00:00Z',
+      updatedAt: '2026-11-20T10:00:00Z',
+      status: 'cancelled',
+      cancelledAt: '2026-11-21T10:00:00Z',
+      cancelledBy: 'operator',
+      cancelReason: 'Çift kayıt',
+      statusChangedAt: '2026-11-21T10:00:00Z',
+    } as Ticket;
+    const fields = ticketDetailFields(ticket, new Map(), null);
+    const labels = fields.map((field) => field.label);
+    expect(fields.find((field) => field.label === 'Durum')?.value).toBe('İptal edildi');
+    expect(labels.join(' ')).not.toMatch(/Cancel|Status/);
+    expect(fields.some((field) => field.value === 'Çift kayıt')).toBe(false);
+  });
+
   it('lets who edits the event cancel, never DK', () => {
     expect(canCancelEventTicket(['/UYELER/YK'], 'WEBLAB')).toBe(true);
     expect(canCancelEventTicket(['/UYELER/ADMIN'], 'WEBLAB')).toBe(true);

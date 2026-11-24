@@ -24,7 +24,7 @@ export type TicketRosterRow = {
   sourceFormLabel: string;
   sourceFormHref: string | null;
   createdAtLabel: string;
-  status: 'registered' | 'checked-in';
+  status: 'registered' | 'checked-in' | 'cancelled';
   statusLabel: string;
 };
 
@@ -150,7 +150,11 @@ export function ticketTypeLabel(ticketType: string): string {
   return ticketType;
 }
 
-export function ticketStatus(row: Ticket): { key: 'registered' | 'checked-in'; label: string } {
+export function ticketStatus(row: Ticket): {
+  key: 'registered' | 'checked-in' | 'cancelled';
+  label: string;
+} {
+  if (row.status === 'cancelled') return { key: 'cancelled', label: 'İptal edildi' };
   if ((row.checkIns?.length ?? 0) > 0) return { key: 'checked-in', label: 'Giriş yaptı' };
   return { key: 'registered', label: 'Kayıtlı' };
 }
@@ -302,6 +306,13 @@ const KNOWN_TICKET_KEYS = new Set([
   'createdAt',
   'updatedAt',
   'event',
+  // The ticket's status (core docs/ticket-cancellation.md): said by its badge, not as an answer
+  'status',
+  'statusChangedAt',
+  'waitlistedAt',
+  'cancelledAt',
+  'cancelledBy',
+  'cancelReason',
 ]);
 
 function dash(value: string | undefined | null): string {
