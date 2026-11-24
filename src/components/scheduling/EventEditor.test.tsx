@@ -256,6 +256,26 @@ describe('EventEditor capacity and waiting list', () => {
     expect(screen.getByText('Dolunca kayıt alınmaz.')).toBeInTheDocument();
   });
 
+  it('picks the door’s mode, automatic by default, and turns the door’s mails off', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    render(<CapacityEditor start={{ capacity: 0 }} onValue={onValue} />);
+    const mode = screen.getByRole('combobox', { name: /Kapı düzeni/ });
+    expect(mode).toHaveValue('auto');
+    expect(
+      screen.getByText('Oturum varsa her oturumda kapı; yoksa günde bir etkinlik girişi.'),
+    ).toBeInTheDocument();
+    await user.selectOptions(mode, 'venue');
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ entryMode: 'venue' }));
+    await user.selectOptions(mode, 'auto');
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ entryMode: null }));
+    expect(screen.getByRole('switch', { name: /Hoş geldin postası/ })).toBeChecked();
+    await user.click(screen.getByText('Katılım postası'));
+    expect(onValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attendanceRecordedMail: false }),
+    );
+  });
+
   it('says nobody is taken out when the capacity goes below the tickets', () => {
     render(<CapacityEditor start={{ capacity: 40 }} activeTickets={52} />);
     expect(

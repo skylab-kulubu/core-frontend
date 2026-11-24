@@ -137,6 +137,11 @@ export type CertificateEventSummary = {
   countedTotal?: number;
   effectiveMin?: number;
   belowCount?: number;
+  /**
+   * No live session (core docs/certificate-rule.md, "An Event with no Session"): N is the
+   * event itself (1) and a venue entry its attendance. Absent before core #422.
+   */
+  sessionless?: boolean;
   /** When the attendance closes by itself; left out once closed or when it will not. */
   autoFinalizeAt?: string;
   /** Who closed it, once closed. */
@@ -170,6 +175,8 @@ export type CertificateAttendance = {
   countedTotal: number;
   effectiveMin: number;
   rule: CertificateRule['rule'];
+  /** No live session: `attended` 1 is a venue entry (core #422). */
+  sessionless?: boolean;
   required: { id: string; title: string }[];
   rows: CertificateAttendanceRow[];
 };
@@ -219,6 +226,8 @@ export type CertificateRule = {
   minCount: number | null;
   effectiveMin: number;
   countedTotal: number;
+  /** No live session: the event itself is the one counted unit, a venue entry its attendance. */
+  sessionless?: boolean;
   sessions: CertificateRuleSession[];
   /**
    * Close attendance an hour after the last Session ends (ticket 03). Not in

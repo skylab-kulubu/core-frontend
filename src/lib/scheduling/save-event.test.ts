@@ -431,3 +431,32 @@ describe('the waiting list switch', () => {
     expect(eventPatchFromForm(older)).not.toHaveProperty('waitlistEnabled');
   });
 });
+
+describe('the door’s mode and mails', () => {
+  it('reads null as automatic and sends only what changed', () => {
+    const loaded = formStateFromEvent({
+      ...savedEvent,
+      entryMode: null,
+      effectiveEntryMode: 'venue',
+      attendanceWelcomeMail: true,
+      attendanceRecordedMail: true,
+    });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, entryMode: 'venue' }, loaded)).toEqual({
+      entryMode: 'venue',
+    });
+    const venue = { ...loaded, entryMode: 'venue' as const };
+    expect(eventPatchFromForm({ ...venue, entryMode: null }, venue)).toEqual({ entryMode: null });
+    expect(eventPatchFromForm({ ...loaded, attendanceRecordedMail: false }, loaded)).toEqual({
+      attendanceRecordedMail: false,
+    });
+  });
+
+  it('leaves them to core on an older Event and on a new one not touched', () => {
+    const older = formStateFromEvent(savedEvent);
+    const patch = eventPatchFromForm(older);
+    expect(patch).not.toHaveProperty('entryMode');
+    expect(patch).not.toHaveProperty('attendanceWelcomeMail');
+    expect(eventBodyFromForm(older)).not.toHaveProperty('attendanceRecordedMail');
+  });
+});

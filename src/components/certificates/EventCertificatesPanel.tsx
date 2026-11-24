@@ -55,6 +55,7 @@ import type { EventDay } from '@/lib/api/eventDays';
 import {
   ATTENDANCE_STATUS,
   attendanceCloseLine,
+  attendedText,
   attendanceViewCounts,
   finalizeCount,
   issuableByHand,
@@ -479,6 +480,7 @@ export function EventCertificatesPanel({
     },
   };
   const counted = attendance?.countedTotal ?? 0;
+  const sessionless = attendance?.sessionless ?? false;
   const missingText = (row: CertificateAttendanceRow) =>
     row.missingRequired.map((session) => session.title).join(', ');
 
@@ -492,7 +494,9 @@ export function EventCertificatesPanel({
           title={row.name}
           subtitle={
             <span className={TEXT_SECONDARY}>
-              <span className="tabular-nums md:hidden">{`${row.attended}/${counted} oturum`}</span>
+              <span className="tabular-nums md:hidden">
+                {attendedText({ countedTotal: counted, sessionless }, row)}
+              </span>
               {row.missingRequired.length ? (
                 <span className="text-destructive lg:hidden">
                   <span className="md:hidden"> · </span>
@@ -508,9 +512,11 @@ export function EventCertificatesPanel({
       id: 'sessions',
       width: '5rem',
       from: 'md',
-      header: 'Oturum',
+      header: sessionless ? 'Giriş' : 'Oturum',
       cell: (row) => (
-        <span className="text-foreground text-[13px]/5 tabular-nums">{`${row.attended}/${counted}`}</span>
+        <span className="text-foreground text-[13px]/5 tabular-nums">
+          {attendedText({ countedTotal: counted, sessionless }, row, '')}
+        </span>
       ),
     },
     ...(attendance?.required.length
@@ -887,6 +893,7 @@ export function EventCertificatesPanel({
           key={issuing.ticketId}
           row={issuing}
           countedTotal={attendance.countedTotal}
+          sessionless={attendance.sessionless}
           needsReason={needsJustification(attendance, issuing)}
           onClose={() => setIssuing(null)}
           onIssue={(justification) => issueRow(issuing, justification)}

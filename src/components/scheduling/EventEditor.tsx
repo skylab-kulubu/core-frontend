@@ -17,6 +17,7 @@ import { DatePicker } from '@/components/forms/DatePicker';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type EventBody, type FeedbackMode } from '@/lib/api/events';
+import type { EntryMode } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
 import type { Season } from '@/lib/api/seasons';
 import {
@@ -77,6 +78,25 @@ type EventEditorProps = {
   /** The saved Event's active Tickets (core `ticketCount`), for the lowered-capacity note. */
   activeTickets?: number;
 };
+
+/** The door's mode (core docs/venue-entry.md); `auto` is core's `null`. */
+export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: string }[] = [
+  {
+    value: 'auto',
+    label: 'Otomatik',
+    hint: 'Oturum varsa her oturumda kapı; yoksa günde bir etkinlik girişi.',
+  },
+  {
+    value: 'per_session',
+    label: 'Her oturumda kapı',
+    hint: 'Kapı okutması seçilen oturumun yoklamasını yazar.',
+  },
+  {
+    value: 'venue',
+    label: 'Alana tek giriş',
+    hint: 'Kapı kişiyi günde bir kez okutur; oturum yoklaması ekrandaki QR’la alınır.',
+  },
+];
 
 /** The editor's sections in page order, for the jump list beside the form. */
 export const EVENT_EDITOR_SECTIONS = [
@@ -364,6 +384,40 @@ export function EventEditor({
             }
           />
         ) : null}
+        <label className="block space-y-1">
+          <FieldLabel>Kapı düzeni</FieldLabel>
+          <Select
+            value={value.entryMode ?? 'auto'}
+            onChange={(change) =>
+              patch({
+                entryMode:
+                  change.target.value === 'auto' ? null : (change.target.value as EntryMode),
+              })
+            }
+            aria-describedby="kapi-duzeni-ipucu"
+          >
+            {ENTRY_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </Select>
+          <span id="kapi-duzeni-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+            {ENTRY_MODES.find((mode) => mode.value === (value.entryMode ?? 'auto'))?.hint}
+          </span>
+        </label>
+        <Switch
+          checked={value.attendanceWelcomeMail ?? true}
+          onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
+          label="Hoş geldin postası"
+          hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
+        />
+        <Switch
+          checked={value.attendanceRecordedMail ?? true}
+          onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
+          label="Katılım postası"
+          hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
+        />
         {assignDoorStaff ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
