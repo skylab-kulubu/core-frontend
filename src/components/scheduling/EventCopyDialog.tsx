@@ -47,7 +47,8 @@ type EventCopyDialogProps = {
 
 /**
  * "Etkinliği kopyala" (SPEC §5.4): the copy's name, start and Owner team,
- * and the door staff and Competitions when there are any. Which teams and
+ * and the door staff, Competitions, external registration link and attendee
+ * note when there are any. Which teams and
  * boxes it offers is core's capabilities; core decides the copy.
  */
 export function EventCopyDialog({
@@ -66,6 +67,8 @@ export function EventCopyDialog({
   const [competitionCount, setCompetitionCount] = useState(0);
   const [withDoorStaff, setWithDoorStaff] = useState(false);
   const [withCompetitions, setWithCompetitions] = useState(false);
+  const [withExternalRegistration, setWithExternalRegistration] = useState(true);
+  const [withAttendeeNote, setWithAttendeeNote] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A second click before the first answer is the same request
@@ -106,6 +109,8 @@ export function EventCopyDialog({
   const doorStaffCount = source.doorStaffIds?.length ?? 0;
   const offersDoorStaff = doorStaffCount > 0 && canCopyDoorStaff(capabilities, target);
   const end = copyEnd(source, start);
+  const offersExternalRegistration = Boolean(source.externalRegistrationUrl);
+  const offersAttendeeNote = Boolean(source.attendeeNote);
 
   async function submit() {
     if (running.current) return;
@@ -124,6 +129,8 @@ export function EventCopyDialog({
         startDate,
         includeDoorStaff: offersDoorStaff && withDoorStaff,
         includeCompetitions: competitionCount > 0 && withCompetitions,
+        includeExternalRegistration: offersExternalRegistration && withExternalRegistration,
+        includeAttendeeNote: offersAttendeeNote && withAttendeeNote,
         ...(target !== source.ownerTeam ? { ownerTeam: target } : {}),
       });
       onOpenChange(false);
@@ -205,6 +212,20 @@ export function EventCopyDialog({
                 label={`Yarışmaları da kopyala (${competitionCount} yarışma)`}
                 defaultChecked={withCompetitions}
                 onChange={setWithCompetitions}
+              />
+            ) : null}
+            {offersExternalRegistration ? (
+              <CheckboxRow
+                label="Dış kayıt bağlantısını da kopyala"
+                defaultChecked={withExternalRegistration}
+                onChange={setWithExternalRegistration}
+              />
+            ) : null}
+            {offersAttendeeNote ? (
+              <CheckboxRow
+                label="Katılımcı notunu da kopyala"
+                defaultChecked={withAttendeeNote}
+                onChange={setWithAttendeeNote}
               />
             ) : null}
           </DialogBody>
