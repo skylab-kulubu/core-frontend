@@ -1,7 +1,16 @@
 'use client';
 
 import { Button, CopyButton, Timeline, type TimelineItem } from '@skylab-kulubu/skylcn-ui';
-import { Ban, CheckCircle2, LogIn, Mail, MailWarning, RotateCcw, TicketCheck } from 'lucide-react';
+import {
+  Ban,
+  CheckCircle2,
+  ChevronsUp,
+  LogIn,
+  Mail,
+  MailWarning,
+  RotateCcw,
+  TicketCheck,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Avatar } from '@/components/chrome/Avatar';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -83,6 +92,7 @@ export function TicketPanel({
   onRenew,
   onCancel,
   onRestore,
+  onPromote,
   eventEnded = false,
 }: {
   ticket: Ticket;
@@ -100,10 +110,14 @@ export function TicketPanel({
   onRenew?: (ticket: Ticket) => void;
   onCancel?: (ticket: Ticket) => void;
   onRestore?: (ticket: Ticket) => void;
+  /** "Öne al" for a waitlisted ticket. */
+  onPromote?: (ticket: Ticket) => void;
   /** The event is over: cancel and Geri al are shown but shut (core `event_ended`). */
   eventEnded?: boolean;
 }) {
-  const cancelled = isTicketCancelled(ticket);
+  const waiting = ticket.status === 'waitlisted';
+  // A waiting ticket passes no door and has no mail to send again: only Öne al and Listeden çıkar
+  const cancelled = isTicketCancelled(ticket) || waiting;
   const shut = cancelShut(ticket, eventEnded);
   // Said under the buttons when the one offered cannot be pressed
   const shutLine =
@@ -134,7 +148,9 @@ export function TicketPanel({
           ) : null}
           <div className="flex flex-wrap items-center gap-1.5">
             <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
-            {cancelled ? (
+            {waiting ? (
+              <StatusChip kind="pending" label="Bekleme listesi" />
+            ) : cancelled ? (
               <StatusChip kind="cancelled" />
             ) : (
               <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
@@ -154,7 +170,32 @@ export function TicketPanel({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {cancelled && onRestore ? (
+        {waiting && onPromote ? (
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="primary"
+            disabled={eventEnded}
+            title={eventEnded ? EVENT_OVER : undefined}
+            onClick={() => onPromote(ticket)}
+          >
+            <ChevronsUp className="size-4" />
+            Öne al
+          </Button>
+        ) : null}
+        {waiting && onCancel ? (
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="outline"
+            disabled={eventEnded}
+            onClick={() => onCancel(ticket)}
+          >
+            <Ban className="size-4" />
+            Listeden çıkar
+          </Button>
+        ) : null}
+        {cancelled && !waiting && onRestore ? (
           <Button
             className={BUTTON_TEXT}
             size="sm"

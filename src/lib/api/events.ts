@@ -33,6 +33,17 @@ export type CoreEvent = {
   feedbackFormAlias?: string;
   feedbackAutoSend?: boolean;
   capacity: number;
+  /**
+   * A full Event puts a registration on its waiting list while on (core
+   * docs/event-capacity.md, default true); an older core sends none.
+   */
+  waitlistEnabled?: boolean;
+  /** `capacity > 0` and the active Tickets fill it. */
+  full?: boolean;
+  /** The active Tickets; only for who may edit the Event. */
+  ticketCount?: number;
+  /** The waitlisted Tickets; only for who may edit the Event. */
+  waitlistCount?: number;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -138,6 +149,8 @@ export type EventBody = {
   feedbackFormAlias?: string;
   feedbackAutoSend?: boolean;
   capacity: number;
+  /** Left out: core's default (on). */
+  waitlistEnabled?: boolean;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -178,6 +191,8 @@ export type EventPatch = {
   feedbackFormAlias?: string | null;
   feedbackAutoSend?: boolean;
   capacity?: number | null;
+  /** Takes no `null` (400). */
+  waitlistEnabled?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;

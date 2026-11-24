@@ -161,6 +161,72 @@ export function RosterTiles({
   );
 }
 
+/**
+ * The capacity over the figures (core docs/event-capacity.md): the active tickets against it,
+ * and the waiting list, which opens its view. Nothing while there is neither.
+ */
+export function CapacityStrip({
+  active,
+  capacity,
+  waitlisted,
+  waitlistOpen,
+  onWaitlist,
+}: {
+  active: number;
+  capacity: number;
+  waitlisted: number;
+  waitlistOpen: boolean;
+  onWaitlist: () => void;
+}) {
+  if (!(capacity > 0) && waitlisted === 0) return null;
+  const share = capacity > 0 ? Math.min(100, (active / capacity) * 100) : 0;
+  const over = capacity > 0 && active > capacity;
+  const full = capacity > 0 && active >= capacity;
+  return (
+    <div className="bg-card border-border-subtle flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border px-3 py-3 sm:px-4">
+      {capacity > 0 ? (
+        <div className="flex min-w-[220px] flex-1 items-center gap-3">
+          <span className="text-subtle-foreground text-[13px]/5 font-medium">Kontenjan</span>
+          <span
+            className={`text-base font-semibold tabular-nums ${
+              full ? 'text-warning' : 'text-foreground-strong'
+            }`}
+          >
+            {active}/{capacity}
+          </span>
+          <span className="bg-accent block h-1.5 min-w-16 flex-1 overflow-hidden rounded-full">
+            <span
+              className={`block h-full rounded-full ${full ? 'bg-warning' : 'bg-skylab-400'}`}
+              style={{ width: `${share}%` }}
+            />
+          </span>
+          <span className="text-muted-foreground text-[13px]/5 whitespace-nowrap">
+            {over ? `${active - capacity} fazla` : full ? 'Dolu' : `${capacity - active} yer`}
+          </span>
+        </div>
+      ) : null}
+      <button
+        type="button"
+        onClick={onWaitlist}
+        aria-pressed={waitlistOpen}
+        aria-label={`Bekleme listesi, ${waitlisted} kişi`}
+        className={`hover:border-border-strong flex items-center gap-2 rounded-md border px-2.5 py-1 text-[13px]/5 transition-colors ${
+          waitlistOpen ? 'border-skylab-400/60' : 'border-border-subtle'
+        }`}
+      >
+        <span className="text-subtle-foreground font-medium">Bekleme listesi</span>
+        <span
+          className={`font-semibold tabular-nums ${
+            waitlisted ? 'text-warning' : 'text-foreground-strong'
+          }`}
+        >
+          {waitlisted}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 /** Registrations over time beside the two splits, in one card. */
 export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
   const counts = rosterViewCounts(tickets);

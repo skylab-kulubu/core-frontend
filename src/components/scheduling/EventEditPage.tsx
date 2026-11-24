@@ -115,6 +115,7 @@ export function EventEditPage() {
           formInUse={editor.inUse}
           certificatesHref={eventTabHref(event.id, 'certificates')}
           legacyRules={legacyRules}
+          activeTickets={event.ticketCount}
           storedRatio={
             event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
           }

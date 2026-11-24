@@ -24,7 +24,7 @@ describe('QrPreview', () => {
       />,
     );
     expect(imageUrl).toContain('logo=1');
-    expect(screen.getByLabelText('QR hack')).toHaveAttribute('data', imageUrl);
+    expect(screen.getByRole('img', { name: 'QR hack' })).toHaveAttribute('src', imageUrl);
     expect(screen.queryByRole('link', { name: 'İndir' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'İndir' }));
     expect(downloadBlob).toHaveBeenCalledWith(downloadPath, 'skylapp-hack.png');

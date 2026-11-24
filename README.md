@@ -84,6 +84,12 @@ APP_URL=http://localhost:3000
 - Playground ayrı bir bağımlılık ağacıyla build edilir ve panelle aynı origin'den servis edilir; admin access token'ı o origin'deki JS'e açık olduğu için production imajında kapalıdır (ADR 0055: dokümantasyon GitHub Pages'te yayımlanır). `.github/workflows/ghcr.yml` bayrağı yalnız sandbox (`main`) build'inde `true` yapar.
 - Yerelde imajda denemek için: `docker build --build-arg NEXT_PUBLIC_INCLUDE_PLAYGROUND=true ...` (diğer `NEXT_PUBLIC_*` build-arg'larıyla birlikte).
 
+### Güvenlik başlıkları (CSP)
+
+- `src/proxy.ts` her istekte yeni bir nonce üretir ve Content Security Policy'yi yazar (`src/lib/security/content-security-policy.ts`, Hesap Merkezi'nin kalıbı): yalnız nonce'lu script'ler ve onların yüklediği chunk'lar çalışır (`'strict-dynamic'`), `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, `frame-ancestors 'none'`. `connect-src` imajın `NEXT_PUBLIC_*` adreslerinden (core, CMS, GitHub bölümü), CDN'den ve medya deposundan (R2, imzalı yükleme adresleri) oluşur.
+- **Varsayılan Report-Only** (`Content-Security-Policy-Report-Only`): tarayıcı engellemez, yalnız raporlar. İhlaller konsola ve `/api/csp-report`'a gider; route her raporu container günlüğüne tek satır `csp-violation {...}` olarak yazar (sorgu dizesi olmadan). Dokploy'da container env'ine `CSP_ENFORCE=true` verilince politika bağlayıcı olur (`Content-Security-Policy`); yeniden build gerekmez, yeniden deploy yeter.
+- `next.config.ts` her yanıta `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` ve `Permissions-Policy` (kamera yalnız panelin kendisine, kapı tarayıcısı için; mikrofon, konum vb. kapalı) ekler; `X-Powered-By` gönderilmez.
+
 ## Komutlar
 
 - `pnpm dev`: Geliştirme
