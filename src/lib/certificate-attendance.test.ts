@@ -1,5 +1,6 @@
 import type { CertificateAttendance, CertificateAttendanceRow } from '@/lib/api/certificates';
 import {
+  attendedText,
   attendanceCloseLine,
   attendanceViewCounts,
   closeTimeLabel,
@@ -8,6 +9,10 @@ import {
   lastSessionEnded,
   lastSessionEndsAt,
   locativeAfterTime,
+  MAIL_STATUS,
+  mailReason,
+  mailResendable,
+  mailResendLine,
   meetsRule,
   needsJustification,
   rescanCount,
@@ -229,5 +234,49 @@ describe('lastSessionEnded', () => {
         new Date('2026-11-24T16:00:00Z'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('attendedText', () => {
+  it('counts sessions, or says whether the person entered an event without sessions', () => {
+    expect(attendedText({ countedTotal: 8 }, { attended: 6 })).toBe('6/8 oturum');
+    expect(attendedText({ countedTotal: 8 }, { attended: 6 }, '')).toBe('6/8');
+    expect(attendedText({ countedTotal: 1, sessionless: true }, { attended: 1 })).toBe('Girdi');
+    expect(attendedText({ countedTotal: 1, sessionless: true }, { attended: 0 })).toBe('Girmedi');
+  });
+});
+
+describe('certificate mail', () => {
+  it('resends an active certificate only when core keeps mails', () => {
+    const summary = { mailFailedCount: 0 };
+    expect(mailResendable({}, summary)).toBe(true);
+    expect(mailResendable({ revokedAt: '2026-11-24T19:00:00Z' }, summary)).toBe(false);
+    expect(mailResendable(null, summary)).toBe(false);
+    expect(mailResendable({}, {})).toBe(false);
+    expect(mailResendable({}, undefined)).toBe(false);
+  });
+
+  it('says what a resend did', () => {
+    expect(mailResendLine({ queued: 3, alreadyQueued: 0 })).toBe('3 posta sıraya alındı.');
+    expect(mailResendLine({ queued: 0, alreadyQueued: 1 })).toBe(
+      '0 posta sıraya alındı. 1 kişinin postası zaten sırada.',
+    );
+  });
+
+  it('says why a mail waits or failed, never its code', () => {
+    expect(mailReason({ status: 'failed', errorCode: 'skymail_unreachable' })).toBe(
+      "SkyMail'e ulaşılamadı",
+    );
+    expect(mailReason({ status: 'queued', errorCode: 'skymail_503' })).toBe('SkyMail hata verdi');
+    expect(mailReason({ status: 'failed', errorCode: 'skymail_400' })).toBe('SkyMail reddetti');
+    expect(mailReason({ status: 'failed', errorCode: 'expired' })).toBe('Süresi doldu');
+    expect(mailReason({ status: 'failed', errorCode: 'new_code' })).toBe('Gönderilemedi');
+    expect(mailReason({ status: 'sent' })).toBeNull();
+    expect(mailReason({ status: 'queued' })).toBeNull();
+  });
+
+  it('names every mail state', () => {
+    expect(MAIL_STATUS.failed.label).toBe('Gönderilemedi');
+    expect(MAIL_STATUS.sent.kind).toBe('active');
   });
 });

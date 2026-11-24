@@ -17,6 +17,7 @@ import { DatePicker } from '@/components/forms/DatePicker';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi, type EventBody, type FeedbackMode } from '@/lib/api/events';
+import type { EntryMode } from '@/lib/api/tickets';
 import type { Person } from '@/lib/api/identity';
 import type { Season } from '@/lib/api/seasons';
 import {
@@ -28,6 +29,10 @@ import {
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { capacityBelowTickets } from '@/lib/capacity';
+import {
+  externalRegistrationIssue,
+  isExternalRegistrationIssue,
+} from '@/lib/external-registration';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
@@ -78,6 +83,28 @@ type EventEditorProps = {
   activeTickets?: number;
 };
 
+/** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
+export const ATTENDEE_NOTE_MAX = 1000;
+
+/** The door's mode (core docs/venue-entry.md); `auto` is core's `null`. */
+export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: string }[] = [
+  {
+    value: 'auto',
+    label: 'Otomatik',
+    hint: 'Oturum varsa her oturumda kapı; yoksa günde bir etkinlik girişi.',
+  },
+  {
+    value: 'per_session',
+    label: 'Her oturumda kapı',
+    hint: 'Kapı okutması seçilen oturumun yoklamasını yazar.',
+  },
+  {
+    value: 'venue',
+    label: 'Alana tek giriş',
+    hint: 'Kapı kişiyi günde bir kez okutur; oturum yoklaması ekrandaki QR’la alınır.',
+  },
+];
+
 /** The editor's sections in page order, for the jump list beside the form. */
 export const EVENT_EDITOR_SECTIONS = [
   { id: 'temel', title: 'Temel bilgiler' },
@@ -92,6 +119,7 @@ export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
 
 /** The section a form problem (eventFormIssue) belongs to, to jump there. */
 export function sectionOfIssue(issue: string): EventEditorSectionId {
+  if (isExternalRegistrationIssue(issue)) return 'basvuru';
   if (/adı/i.test(issue)) return 'temel';
   return 'zaman';
 }
@@ -114,6 +142,10 @@ function EditorSection({
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
+    // A new event takes the note and the door's mails; an edited one shows them once core sends them
+    attendeeNote: '',
+    attendanceWelcomeMail: true,
+    attendanceRecordedMail: true,
     name: '',
     description: '',
     location: '',
@@ -123,6 +155,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     formAlias: '',
     extraFormUrls: [],
     formSlots: [emptyApplySlot()],
+    externalRegistrationUrl: '',
     feedbackMode: 'event',
     feedbackAutoSend: true,
     feedbackSlot: emptyFeedbackSlot(),
@@ -156,6 +189,44 @@ export async function closeFeedbackReminders(eventId: string | undefined, gate: 
     if (err instanceof ProblemError && err.status === 404) return;
     throw err;
   }
+}
+
+/**
+ * "Dış kayıt bağlantısı": the form on another product (Microsoft Forms and
+ * the like) where people register; anyone who reads the Event sees it.
+ * Its registrations come in through Katılımcılar → İçe aktar.
+ */
+function ExternalRegistrationField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const issue = externalRegistrationIssue(value);
+  return (
+    <div className="space-y-1">
+      <label className="block space-y-1">
+        <FieldLabel>Dış kayıt bağlantısı</FieldLabel>
+        <Field
+          type="url"
+          inputMode="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://forms.office.com/…"
+          aria-invalid={Boolean(issue)}
+          aria-describedby="dis-kayit-ipucu"
+        />
+      </label>
+      <span
+        id="dis-kayit-ipucu"
+        className={`${issue ? 'text-destructive' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
+      >
+        {issue ??
+          'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.'}
+      </span>
+    </div>
+  );
 }
 
 export function parseDoorStaffIds(raw: string): string[] {
@@ -289,6 +360,10 @@ export function EventEditor({
           inUse={formInUse}
           onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
         />
+        <ExternalRegistrationField
+          value={value.externalRegistrationUrl ?? ''}
+          onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
+        />
         <div className="space-y-2">
           <label className="block space-y-1">
             <FieldLabel>Geri bildirim</FieldLabel>
@@ -363,6 +438,57 @@ export function EventEditor({
                 : 'Dolunca kayıt alınmaz.'
             }
           />
+        ) : null}
+        <label className="block space-y-1">
+          <FieldLabel>Kapı düzeni</FieldLabel>
+          <Select
+            value={value.entryMode ?? 'auto'}
+            onChange={(change) =>
+              patch({
+                entryMode:
+                  change.target.value === 'auto' ? null : (change.target.value as EntryMode),
+              })
+            }
+            aria-describedby="kapi-duzeni-ipucu"
+          >
+            {ENTRY_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </Select>
+          <span id="kapi-duzeni-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+            {ENTRY_MODES.find((mode) => mode.value === (value.entryMode ?? 'auto'))?.hint}
+          </span>
+        </label>
+        {/* An older core sends no switches: they are not offered */}
+        {value.attendanceWelcomeMail !== undefined ? (
+          <>
+            <Switch
+              checked={value.attendanceWelcomeMail ?? true}
+              onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
+              label="Hoş geldin postası"
+              hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
+            />
+            <Switch
+              checked={value.attendanceRecordedMail ?? true}
+              onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
+              label="Katılım postası"
+              hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
+            />
+          </>
+        ) : null}
+        {value.attendeeNote !== undefined ? (
+          <label className="block space-y-1">
+            <FieldLabel>Katılımcı notu</FieldLabel>
+            <TextArea
+              rows={3}
+              maxLength={ATTENDEE_NOTE_MAX}
+              placeholder="Wi-Fi, salon tarifi"
+              value={value.attendeeNote}
+              onChange={(e) => patch({ attendeeNote: e.target.value })}
+            />
+          </label>
         ) : null}
         {assignDoorStaff ? (
           <div className="space-y-2">

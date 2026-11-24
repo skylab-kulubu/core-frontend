@@ -21,6 +21,25 @@ export type DoorEvent = {
   coverImageUrl?: string;
   active: boolean;
   ranked: boolean;
+  /**
+   * What a scan writes now (core docs/venue-entry.md): `venue` (the day's venue entry; always
+   * on an event without a live session) or `per_session`. Absent before core #413.
+   */
+  effectiveEntryMode?: EntryMode;
+};
+
+/** The door's mode (core docs/venue-entry.md); `null` on an event is automatic. */
+export type EntryMode = 'per_session' | 'venue';
+
+/** A ticket's entry into the venue on a day, as the event's door shows it (no ticket id, no e-mail). */
+export type VenueEntry = {
+  id: string;
+  kind: 'entry';
+  entryDate: string;
+  eventDayId?: string;
+  source: 'scan' | 'desk' | 'attendance';
+  name: string;
+  createdAt: string;
 };
 
 /**
@@ -116,6 +135,65 @@ export type GuestApplyBody = {
   lastName: string;
   email: string;
   phoneNumber?: string;
+};
+
+/** One row of an attendee list and what it does (preview) or did (import); core docs/attendee-import.md. */
+export type ImportOutcome = 'active' | 'waitlisted' | 'full' | 'existing' | 'duplicate' | 'invalid';
+
+export type ImportRow = {
+  /** The row's line in the list, the header's being 1. */
+  line: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  sessions?: { id: string; title: string }[];
+  unknownSessions?: string[];
+  outcome: ImportOutcome;
+  /** Why an invalid row is: missing_first_name, missing_last_name, invalid_email, name_too_long, account_unavailable. */
+  problem?: string;
+  /** An account holds the e-mail: the Ticket is the member's. */
+  account: boolean;
+  /** The Ticket already there, on an existing row. */
+  ticketStatus?: 'active' | 'waitlisted' | 'cancelled';
+  overCapacity?: boolean;
+};
+
+export type ImportReport = {
+  imported: boolean;
+  columns: {
+    header: boolean;
+    delimiter: 'comma' | 'semicolon' | 'tab';
+    firstName?: string;
+    lastName?: string;
+    fullName?: string;
+    email: string;
+    session?: string;
+  };
+  summary: {
+    rows: number;
+    active: number;
+    waitlisted: number;
+    full: number;
+    existing: number;
+    duplicates: number;
+    invalid: number;
+    overCapacity: number;
+    members: number;
+    guests: number;
+    unknownSessions: number;
+  };
+  capacity: { capacity: number; active: number; free: number; waitlistEnabled: boolean };
+  /** queued, off (the reader turned it off), notifications_off (core sends none), on_publish (a draft). */
+  mail: 'queued' | 'off' | 'notifications_off' | 'on_publish';
+  rows: ImportRow[];
+};
+
+export type ImportBody = {
+  /** A CSV file's text or the pasted rows; core keeps none of it. */
+  text: string;
+  /** On when left out. */
+  sendMail?: boolean;
+  pastCapacity?: boolean;
 };
 
 export const ticketsApi = {
@@ -236,8 +314,49 @@ export const ticketsApi = {
    * "Öne al": a waitlisted Ticket becomes active, past the capacity if it must (`overCapacity`).
    * An active one answers as it is; 409 `ticket_cancelled`, `event_ended`; 403 as cancel.
    */
+  /** What importing the list would do; writes nothing (core docs/attendee-import.md). */
+  previewImport: (eventId: string, body: ImportBody) =>
+    coreFetch<ImportReport>(`/v1/events/${encodeURIComponent(eventId)}/attendee-imports/preview`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    }),
+  /** Writes the list's Tickets; the same list again writes nothing. */
+  importAttendees: (eventId: string, body: ImportBody) =>
+    coreFetch<ImportReport>(`/v1/events/${encodeURIComponent(eventId)}/attendee-imports`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    }),
   promote: (ticketId: string) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/promote`, { method: 'POST' }),
+  /**
+   * The event's own door, no session picked (core docs/venue-entry.md): the day's venue entry
+   * from a Ticket QR or SkyPass code. 409 `already_entered` (with `name`) for a second one that
+   * day; 403 `event_closed`; the session scan's other refusals.
+   */
+  scanEntry: (eventId: string, token: string) =>
+    coreFetch<VenueEntry>(`/v1/events/${encodeURIComponent(eventId)}/entries/scan`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  /** The event desk: a ticket code, a name, an e-mail or a person; as `scanEntry`. */
+  resolveEntry: (eventId: string, target: { personId?: string; query?: string }) =>
+    coreFetch<VenueEntry>(`/v1/events/${encodeURIComponent(eventId)}/entries/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(target),
+    }),
+  /** Takes a venue entry back (204); the day's session check-ins stay. */
+  undoEntry: (eventId: string, entryId: string) =>
+    coreFetch<void>(
+      `/v1/events/${encodeURIComponent(eventId)}/entries/${encodeURIComponent(entryId)}`,
+      { method: 'DELETE' },
+    ),
+  /** Live: the venue day's entries, newest first (core picks the day the event is on now). */
+  venueEntries: (eventId: string) =>
+    coreFetch<VenueEntry[]>(`/v1/events/${encodeURIComponent(eventId)}/entries`, {
+      cache: 'no-store',
+    }),
   /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {

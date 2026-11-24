@@ -162,6 +162,9 @@ export function doorTicketName(
  */
 export const ALREADY_CHECKED_IN = { 409: 'Bu kişi bu oturuma zaten girmiş.' };
 
+/** core's 409 `already_entered` at the event's door: one venue entry a day. */
+export const ALREADY_ENTERED_TODAY = 'Bu kişi bugün etkinliğe zaten girmiş.';
+
 /** A scan core did not write, in the door's words: a short title and one line under it. */
 export type ScanRefusal = { kind: 'already' | 'refused'; title: string; text: string };
 
@@ -182,6 +185,15 @@ export function doorConflict(error: unknown): ScanRefusal | null {
         title: 'Bilet bekleme listesinde',
         text: 'Bu bilet henüz etkin değil.',
       };
+    case 'already_entered': {
+      // The event's door: one venue entry a day; core names who is already in
+      const name = typeof error.fields.name === 'string' ? error.fields.name : '';
+      return {
+        kind: 'already',
+        title: 'Bugün zaten girmiş',
+        text: name ? `${name} bugün etkinliğe girdi.` : ALREADY_ENTERED_TODAY,
+      };
+    }
     case undefined:
       break;
     default:
@@ -207,6 +219,7 @@ export function scanRefusal(error: unknown): ScanRefusal {
   const code = error instanceof ProblemError ? error.code : undefined;
   const conflict = doorConflict(error);
   if (conflict?.kind === 'already') {
+    if (code === 'already_entered') return conflict;
     return { ...conflict, text: 'Bu bilet bu oturumda daha önce okundu.' };
   }
   if (conflict) return conflict;
@@ -225,6 +238,13 @@ export function scanRefusal(error: unknown): ScanRefusal {
   }
   if (status === 401) {
     return { kind: 'refused', title: 'Geçersiz bilet', text: 'Bu kod bir SKY LAB bileti değil.' };
+  }
+  if (code === 'event_closed') {
+    return {
+      kind: 'refused',
+      title: 'Etkinlik girişe kapalı',
+      text: 'Etkinlik taslak, iptal ya da bitmiş.',
+    };
   }
   if (code === 'session_closed') {
     return { kind: 'refused', title: 'Oturum girişe kapalı', text: 'Etkinlik taslak ya da iptal.' };

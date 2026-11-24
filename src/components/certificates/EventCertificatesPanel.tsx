@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Eye,
   FileBadge,
+  Mail,
   RefreshCw,
   RotateCcw,
   ScanSearch,
@@ -26,7 +27,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { ListPager, RowMenu, SummaryStrip } from '@/components/chrome/ListPage';
 import { ListToolbar } from '@/components/chrome/ListToolbar';
-import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
+import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
 import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
 import { ManualIssueDialog } from '@/components/certificates/ManualIssueDialog';
@@ -46,6 +47,7 @@ import {
   type CertificateBatch,
   type CertificateRule,
   type CertificateEventSummary,
+  type CertificateMailState,
   type CertificateTemplate,
   type IssuedCertificate,
 } from '@/lib/api/certificates';
@@ -55,9 +57,14 @@ import type { EventDay } from '@/lib/api/eventDays';
 import {
   ATTENDANCE_STATUS,
   attendanceCloseLine,
+  attendedText,
   attendanceViewCounts,
   finalizeCount,
   issuableByHand,
+  MAIL_STATUS,
+  mailReason,
+  mailResendable,
+  mailResendLine,
   needsJustification,
   rescanCount,
   searchAttendance,
@@ -93,6 +100,27 @@ function when(raw?: string): string {
 }
 
 type IssuedView = 'all' | 'valid' | 'revoked';
+
+/** A mail's state and, under it, when it went or why it waits or failed. */
+function mailLine(mail: CertificateMailState): string {
+  const detail = mail.status === 'sent' ? when(mail.sentAt) : mailReason(mail);
+  return detail ? `${MAIL_STATUS[mail.status].label} · ${detail}` : MAIL_STATUS[mail.status].label;
+}
+
+/** A certificate's latest mail as a chip with its detail; a dash for one with no mail kept. */
+function MailCell({ mail }: { mail?: CertificateMailState }) {
+  if (!mail) return <span className="text-subtle-foreground text-[13px]/5">—</span>;
+  const status = MAIL_STATUS[mail.status];
+  const detail = mail.status === 'sent' ? when(mail.sentAt) : mailReason(mail);
+  return (
+    <span className="flex min-w-0 flex-col items-start gap-0.5">
+      <StatusChip kind={status.kind} label={status.label} />
+      {detail ? (
+        <span className={`text-subtle-foreground truncate ${TEXT_SECONDARY}`}>{detail}</span>
+      ) : null}
+    </span>
+  );
+}
 
 const batchReasonLabel: Record<CertificateBatch['reason'], string> = {
   finalization: 'Katılım kapatma',
@@ -363,6 +391,43 @@ export function EventCertificatesPanel({
     }
   }
 
+  /** One person's mail again: the certificate stays as it is. */
+  async function resendOne(name: string, serial: string) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const result = await certificatesApi.resendMail(serial);
+      done(result.queued ? `${name} için posta sıraya alındı` : `${name} için posta zaten sırada`);
+      await load();
+    } catch (cause) {
+      setError(coreProblemMessage(cause, 'Posta yeniden gönderilemedi'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function askResend(scope: 'failed' | 'all', count: number) {
+    confirm({
+      title: `${count} kişiye sertifika postası yeniden gönderilsin mi?`,
+      description:
+        scope === 'failed'
+          ? 'Yalnız postası gönderilemeyenlere gider. Sertifikalar değişmez.'
+          : 'Postayı almış olanlara da gider. Sertifikalar değişmez.',
+      actionLabel: 'Yeniden gönder',
+      destructive: false,
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          settled(mailResendLine(await certificatesApi.resendEventMails(eventId, scope)));
+          await load();
+        } finally {
+          setBusy(false);
+        }
+      },
+      failure: 'Postalar yeniden gönderilemedi',
+    });
+  }
+
   if (loading) {
     return (
       <div className="space-y-3" aria-busy>
@@ -387,6 +452,13 @@ export function EventCertificatesPanel({
       pickerMatch(pickQuery, ticketLabel(ticket), ticket.guestEmail ?? undefined),
     );
 
+  // An older core keeps no mails: no column, no resend
+  const mailKept = summary?.mailFailedCount !== undefined;
+  const mailFailed = summary?.mailFailedCount ?? 0;
+  const mailQueued = summary?.mailQueuedCount ?? 0;
+  // The two mail commands: for who may issue, once a certificate is out
+  const mailCommands = canIssue && mailKept && (summary?.issuedCount ?? 0) > 0;
+
   const columns: DataListColumn<IssuedCertificate>[] = [
     {
       id: 'name',
@@ -395,7 +467,18 @@ export function EventCertificatesPanel({
       cell: (row) => (
         <DataListTitle
           title={row.recipientName}
-          subtitle={<span className={TEXT_SECONDARY}>{row.serial}</span>}
+          subtitle={
+            <span className={TEXT_SECONDARY}>
+              {row.serial}
+              {mailKept && row.mail && !row.revokedAt ? (
+                <span
+                  className={`block md:hidden ${row.mail.status === 'failed' ? 'text-destructive' : ''}`}
+                >
+                  {`Posta: ${mailLine(row.mail)}`}
+                </span>
+              ) : null}
+            </span>
+          }
         />
       ),
     },
@@ -408,6 +491,22 @@ export function EventCertificatesPanel({
         <span className="text-secondary-foreground text-[13px]/5">{when(row.issuedAt)}</span>
       ),
     },
+    ...(mailKept
+      ? [
+          {
+            id: 'mail',
+            width: '10rem',
+            from: 'md',
+            header: 'Posta',
+            cell: (row: IssuedCertificate) =>
+              row.revokedAt ? (
+                <span className="text-subtle-foreground text-[13px]/5">—</span>
+              ) : (
+                <MailCell mail={row.mail} />
+              ),
+          } satisfies DataListColumn<IssuedCertificate>,
+        ]
+      : []),
     {
       id: 'status',
       width: { base: 'auto', sm: '6rem' },
@@ -433,6 +532,15 @@ export function EventCertificatesPanel({
           >
             Doğrulama sayfası
           </MenuItem>
+          {canIssue && mailResendable(row, summary) ? (
+            <MenuItem
+              icon={Mail}
+              disabled={busy}
+              onClick={() => void resendOne(row.recipientName, row.serial)}
+            >
+              Postayı yeniden gönder
+            </MenuItem>
+          ) : null}
           {canRevoke && !row.revokedAt ? (
             <MenuItem icon={Ban} destructive disabled={busy} onClick={() => askRevoke(row)}>
               İptal et
@@ -479,6 +587,7 @@ export function EventCertificatesPanel({
     },
   };
   const counted = attendance?.countedTotal ?? 0;
+  const sessionless = attendance?.sessionless ?? false;
   const missingText = (row: CertificateAttendanceRow) =>
     row.missingRequired.map((session) => session.title).join(', ');
 
@@ -492,12 +601,17 @@ export function EventCertificatesPanel({
           title={row.name}
           subtitle={
             <span className={TEXT_SECONDARY}>
-              <span className="tabular-nums md:hidden">{`${row.attended}/${counted} oturum`}</span>
+              <span className="tabular-nums md:hidden">
+                {attendedText({ countedTotal: counted, sessionless }, row)}
+              </span>
               {row.missingRequired.length ? (
                 <span className="text-destructive lg:hidden">
                   <span className="md:hidden"> · </span>
                   {`Eksik: ${missingText(row)}`}
                 </span>
+              ) : null}
+              {row.certificate?.mail?.status === 'failed' && !row.certificate.revokedAt ? (
+                <span className="text-destructive md:hidden">{` · Posta: ${mailLine(row.certificate.mail)}`}</span>
               ) : null}
             </span>
           }
@@ -508,9 +622,11 @@ export function EventCertificatesPanel({
       id: 'sessions',
       width: '5rem',
       from: 'md',
-      header: 'Oturum',
+      header: sessionless ? 'Giriş' : 'Oturum',
       cell: (row) => (
-        <span className="text-foreground text-[13px]/5 tabular-nums">{`${row.attended}/${counted}`}</span>
+        <span className="text-foreground text-[13px]/5 tabular-nums">
+          {attendedText({ countedTotal: counted, sessionless }, row, '')}
+        </span>
       ),
     },
     ...(attendance?.required.length
@@ -523,6 +639,22 @@ export function EventCertificatesPanel({
             cell: (row: CertificateAttendanceRow) =>
               row.missingRequired.length ? (
                 <span className="text-destructive text-[13px]/5">{missingText(row)}</span>
+              ) : (
+                <span className="text-subtle-foreground text-[13px]/5">—</span>
+              ),
+          } satisfies DataListColumn<CertificateAttendanceRow>,
+        ]
+      : []),
+    ...(mailKept
+      ? [
+          {
+            id: 'mail',
+            width: '10rem',
+            from: 'md',
+            header: 'Posta',
+            cell: (row: CertificateAttendanceRow) =>
+              row.certificate && !row.certificate.revokedAt ? (
+                <MailCell mail={row.certificate.mail} />
               ) : (
                 <span className="text-subtle-foreground text-[13px]/5">—</span>
               ),
@@ -547,11 +679,22 @@ export function EventCertificatesPanel({
       interactive: true,
       align: 'end',
       cell: (row) =>
-        canIssue && issuableByHand(row) ? (
+        canIssue && (issuableByHand(row) || mailResendable(row.certificate, summary)) ? (
           <RowMenu rowName={row.name}>
-            <MenuItem icon={UserPlus} disabled={busy} onClick={() => setIssuing(row)}>
-              Elle ver
-            </MenuItem>
+            {issuableByHand(row) ? (
+              <MenuItem icon={UserPlus} disabled={busy} onClick={() => setIssuing(row)}>
+                Elle ver
+              </MenuItem>
+            ) : null}
+            {row.certificate && mailResendable(row.certificate, summary) ? (
+              <MenuItem
+                icon={Mail}
+                disabled={busy}
+                onClick={() => void resendOne(row.name, row.certificate!.serial)}
+              >
+                Postayı yeniden gönder
+              </MenuItem>
+            ) : null}
           </RowMenu>
         ) : (
           // Holds the menu's room so every row keeps one height
@@ -630,7 +773,7 @@ export function EventCertificatesPanel({
               },
               {
                 key: 'pending',
-                label: 'Sırada · Başarısız',
+                label: 'Üretim: sırada · başarısız',
                 value: `${summary.queuedCount} · ${summary.failedCount}`,
                 hint: summary.failedCount ? (
                   <span className={`text-destructive ${TEXT_SECONDARY}`}>
@@ -646,6 +789,19 @@ export function EventCertificatesPanel({
             <p className="text-secondary-foreground flex items-center gap-2 text-sm">
               <Clock className="text-subtle-foreground size-4 shrink-0" aria-hidden />
               {closeLine}
+            </p>
+          ) : null}
+          {mailKept && (mailFailed || mailQueued) ? (
+            <p className="text-secondary-foreground flex items-center gap-2 text-sm">
+              <Mail className="text-subtle-foreground size-4 shrink-0" aria-hidden />
+              <span>
+                Sertifika postası:{' '}
+                {mailFailed ? (
+                  <span className="text-destructive">{mailFailed} gönderilemedi</span>
+                ) : null}
+                {mailFailed && mailQueued ? ' · ' : null}
+                {mailQueued ? `${mailQueued} sırada` : null}
+              </span>
             </p>
           ) : null}
           <CommandBar label="Sertifika komutları">
@@ -671,7 +827,6 @@ export function EventCertificatesPanel({
                 onClick={() => askRescan(toRescan)}
               />
             ) : null}
-            <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
             {canIssue && !attendance ? (
               <Command
                 icon={UserPlus}
@@ -682,9 +837,87 @@ export function EventCertificatesPanel({
                 }}
               />
             ) : null}
-            {canBind ? (
-              <Command icon={FileBadge} label="Şablonu değiştir" onClick={() => setBinding(true)} />
+            {/* Wide: each command its own button (the mail ones from xl, where
+                they fit); narrower, the rest goes behind one menu */}
+            <span className="hidden md:contents">
+              <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
+              {canBind ? (
+                <Command
+                  icon={FileBadge}
+                  label="Şablonu değiştir"
+                  onClick={() => setBinding(true)}
+                />
+              ) : null}
+            </span>
+            {mailCommands ? (
+              <span className="hidden xl:contents">
+                {mailFailed > 0 ? (
+                  <Command
+                    icon={Mail}
+                    label="Gönderilemeyenlere gönder"
+                    disabled={busy}
+                    onClick={() => askResend('failed', mailFailed)}
+                  />
+                ) : null}
+                <Command
+                  icon={Mail}
+                  label="Herkese yeniden gönder"
+                  disabled={busy}
+                  onClick={() => askResend('all', summary.issuedCount)}
+                />
+              </span>
             ) : null}
+            <span className={mailCommands ? 'contents xl:hidden' : 'contents md:hidden'}>
+              <CommandMenu
+                name="Diğer sertifika eylemleri"
+                items={[
+                  <MenuItem
+                    key="preview"
+                    icon={Eye}
+                    className="md:hidden"
+                    onClick={() => void preview()}
+                  >
+                    Örnek PDF
+                  </MenuItem>,
+                  ...(canBind
+                    ? [
+                        <MenuItem
+                          key="binding"
+                          icon={FileBadge}
+                          className="md:hidden"
+                          onClick={() => setBinding(true)}
+                        >
+                          Şablonu değiştir
+                        </MenuItem>,
+                      ]
+                    : []),
+                  ...(mailCommands && mailFailed > 0
+                    ? [
+                        <MenuItem
+                          key="mail-failed"
+                          icon={Mail}
+                          disabled={busy}
+                          onClick={() => askResend('failed', mailFailed)}
+                        >
+                          {`Postayı gönderilemeyenlere yeniden gönder (${mailFailed})`}
+                        </MenuItem>,
+                      ]
+                    : []),
+                  ...(mailCommands
+                    ? [
+                        <MenuItem
+                          key="mail-all"
+                          icon={Mail}
+                          disabled={busy}
+                          onClick={() => askResend('all', summary.issuedCount)}
+                        >
+                          Postayı herkese yeniden gönder
+                        </MenuItem>,
+                      ]
+                    : []),
+                ]}
+              />
+            </span>
           </CommandBar>
           <ObjectCard
             title="Kural"
@@ -887,6 +1120,7 @@ export function EventCertificatesPanel({
           key={issuing.ticketId}
           row={issuing}
           countedTotal={attendance.countedTotal}
+          sessionless={attendance.sessionless}
           needsReason={needsJustification(attendance, issuing)}
           onClose={() => setIssuing(null)}
           onIssue={(justification) => issueRow(issuing, justification)}
