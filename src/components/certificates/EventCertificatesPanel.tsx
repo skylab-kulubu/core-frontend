@@ -455,6 +455,8 @@ export function EventCertificatesPanel({
   const mailKept = summary?.mailFailedCount !== undefined;
   const mailFailed = summary?.mailFailedCount ?? 0;
   const mailQueued = summary?.mailQueuedCount ?? 0;
+  // The two mail commands: for who may issue, once a certificate is out
+  const mailCommands = canIssue && mailKept && (summary?.issuedCount ?? 0) > 0;
 
   const columns: DataListColumn<IssuedCertificate>[] = [
     {
@@ -829,46 +831,87 @@ export function EventCertificatesPanel({
                 }}
               />
             ) : null}
-            {/* One menu keeps the bar inside a phone's width */}
-            <CommandMenu
-              name="Diğer sertifika eylemleri"
-              items={[
-                <MenuItem key="preview" icon={Eye} onClick={() => void preview()}>
-                  Örnek PDF
-                </MenuItem>,
-                ...(canBind
-                  ? [
-                      <MenuItem key="binding" icon={FileBadge} onClick={() => setBinding(true)}>
-                        Şablonu değiştir
-                      </MenuItem>,
-                    ]
-                  : []),
-                ...(canIssue && mailKept && summary.issuedCount > 0 && mailFailed > 0
-                  ? [
-                      <MenuItem
-                        key="mail-failed"
-                        icon={Mail}
-                        disabled={busy}
-                        onClick={() => askResend('failed', mailFailed)}
-                      >
-                        {`Postayı gönderilemeyenlere yeniden gönder (${mailFailed})`}
-                      </MenuItem>,
-                    ]
-                  : []),
-                ...(canIssue && mailKept && summary.issuedCount > 0
-                  ? [
-                      <MenuItem
-                        key="mail-all"
-                        icon={Mail}
-                        disabled={busy}
-                        onClick={() => askResend('all', summary.issuedCount)}
-                      >
-                        Postayı herkese yeniden gönder
-                      </MenuItem>,
-                    ]
-                  : []),
-              ]}
-            />
+            {/* Wide: each command its own button (the mail ones from xl, where
+                they fit); narrower, the rest goes behind one menu */}
+            <span className="hidden md:contents">
+              <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
+              {canBind ? (
+                <Command
+                  icon={FileBadge}
+                  label="Şablonu değiştir"
+                  onClick={() => setBinding(true)}
+                />
+              ) : null}
+            </span>
+            {mailCommands ? (
+              <span className="hidden xl:contents">
+                {mailFailed > 0 ? (
+                  <Command
+                    icon={Mail}
+                    label="Gönderilemeyenlere gönder"
+                    disabled={busy}
+                    onClick={() => askResend('failed', mailFailed)}
+                  />
+                ) : null}
+                <Command
+                  icon={Mail}
+                  label="Herkese yeniden gönder"
+                  disabled={busy}
+                  onClick={() => askResend('all', summary.issuedCount)}
+                />
+              </span>
+            ) : null}
+            <span className={mailCommands ? 'contents xl:hidden' : 'contents md:hidden'}>
+              <CommandMenu
+                name="Diğer sertifika eylemleri"
+                items={[
+                  <MenuItem
+                    key="preview"
+                    icon={Eye}
+                    className="md:hidden"
+                    onClick={() => void preview()}
+                  >
+                    Örnek PDF
+                  </MenuItem>,
+                  ...(canBind
+                    ? [
+                        <MenuItem
+                          key="binding"
+                          icon={FileBadge}
+                          className="md:hidden"
+                          onClick={() => setBinding(true)}
+                        >
+                          Şablonu değiştir
+                        </MenuItem>,
+                      ]
+                    : []),
+                  ...(mailCommands && mailFailed > 0
+                    ? [
+                        <MenuItem
+                          key="mail-failed"
+                          icon={Mail}
+                          disabled={busy}
+                          onClick={() => askResend('failed', mailFailed)}
+                        >
+                          {`Postayı gönderilemeyenlere yeniden gönder (${mailFailed})`}
+                        </MenuItem>,
+                      ]
+                    : []),
+                  ...(mailCommands
+                    ? [
+                        <MenuItem
+                          key="mail-all"
+                          icon={Mail}
+                          disabled={busy}
+                          onClick={() => askResend('all', summary.issuedCount)}
+                        >
+                          Postayı herkese yeniden gönder
+                        </MenuItem>,
+                      ]
+                    : []),
+                ]}
+              />
+            </span>
           </CommandBar>
           <ObjectCard
             title="Kural"
