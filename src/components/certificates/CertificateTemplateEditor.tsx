@@ -82,6 +82,13 @@ function justifyClass(align: CertificateElement['align']) {
   return 'justify-start';
 }
 
+/**
+ * Layers a template cannot lose: core refuses a layout without them. The
+ * verification QR is optional (ADR-0040 addendum 2026-11-24): the default
+ * keeps one, a designer may delete it.
+ */
+const REQUIRED_KINDS: readonly CertificateElementKind[] = ['recipientName', 'eventName'];
+
 function makeElement(kind: CertificateElementKind): CertificateElement {
   const isQr = kind === 'verificationQr';
   const isShape = kind === 'shape';
@@ -197,11 +204,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       if (!delta && event.key !== 'Delete' && event.key !== 'Backspace') return;
       event.preventDefault();
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (
-          !selected ||
-          selected.locked ||
-          ['recipientName', 'eventName', 'verificationQr'].includes(selected.kind)
-        ) {
+        if (!selected || selected.locked || REQUIRED_KINDS.includes(selected.kind)) {
           return;
         }
         setDraft((current) => ({
@@ -345,7 +348,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   function deleteElement(element: CertificateElement) {
-    if (!canEdit || ['recipientName', 'eventName', 'verificationQr'].includes(element.kind)) return;
+    if (!canEdit || REQUIRED_KINDS.includes(element.kind)) return;
     updateLayout({
       elements: draft.layout.elements.filter((candidate) => candidate.id !== element.id),
     });
@@ -1117,7 +1120,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   />
                 </label>
               </div>
-              {!['recipientName', 'eventName', 'verificationQr'].includes(selected.kind) ? (
+              {!REQUIRED_KINDS.includes(selected.kind) ? (
                 <button
                   type="button"
                   className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5"

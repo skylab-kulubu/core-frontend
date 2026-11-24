@@ -136,6 +136,25 @@ describe('CertificateTemplateEditor', () => {
     expect(options.length).toBeGreaterThanOrEqual(18);
   });
 
+  it('lets the designer delete the verification QR, and keeps the names', async () => {
+    const user = userEvent.setup();
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    const layer = (name: string) =>
+      screen
+        .getAllByRole('button', { name })
+        .find((button) => button.className.includes('truncate'));
+    expect(layer('Doğrulama QR')).toBeDefined();
+    await user.click(layer('Doğrulama QR')!);
+    await user.click(screen.getByRole('button', { name: /Katmanı sil/ }));
+    expect(layer('Doğrulama QR')).toBeUndefined();
+
+    await user.click(layer('Katılımcı adı')!);
+    expect(screen.queryByRole('button', { name: /Katmanı sil/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Zorunlu katman')).toBeInTheDocument();
+  });
+
   it('accepts a one-page PDF as a vector certificate background', async () => {
     const user = userEvent.setup();
     (mediaApi.upload as jest.Mock).mockResolvedValue({

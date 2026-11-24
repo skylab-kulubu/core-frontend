@@ -8,6 +8,9 @@ import {
   lastSessionEnded,
   lastSessionEndsAt,
   locativeAfterTime,
+  MAIL_STATUS,
+  mailResendable,
+  mailResendLine,
   meetsRule,
   needsJustification,
   rescanCount,
@@ -229,5 +232,28 @@ describe('lastSessionEnded', () => {
         new Date('2026-11-24T16:00:00Z'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('certificate mail', () => {
+  it('resends an active certificate only when core keeps mails', () => {
+    const summary = { mailFailedCount: 0 };
+    expect(mailResendable({}, summary)).toBe(true);
+    expect(mailResendable({ revokedAt: '2026-11-24T19:00:00Z' }, summary)).toBe(false);
+    expect(mailResendable(null, summary)).toBe(false);
+    expect(mailResendable({}, {})).toBe(false);
+    expect(mailResendable({}, undefined)).toBe(false);
+  });
+
+  it('says what a resend did', () => {
+    expect(mailResendLine({ queued: 3, alreadyQueued: 0 })).toBe('3 posta sıraya alındı.');
+    expect(mailResendLine({ queued: 0, alreadyQueued: 1 })).toBe(
+      '0 posta sıraya alındı. 1 kişinin postası zaten sırada.',
+    );
+  });
+
+  it('names every mail state', () => {
+    expect(MAIL_STATUS.failed.label).toBe('Gönderilemedi');
+    expect(MAIL_STATUS.sent.kind).toBe('active');
   });
 });

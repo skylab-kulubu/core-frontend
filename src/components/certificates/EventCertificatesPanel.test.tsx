@@ -28,6 +28,8 @@ jest.mock('@/lib/api/certificates', () => ({
       return Promise.reject(new Problem(404, 'Not Found'));
     }),
     rescan: jest.fn(),
+    resendMail: jest.fn(),
+    resendEventMails: jest.fn(),
   },
 }));
 
@@ -741,5 +743,114 @@ describe('EventCertificatesPanel attendance list', () => {
     expect(within(section).queryByText('Kişi 26')).not.toBeInTheDocument();
     await user.click(within(section).getAllByRole('button', { name: /^(Sayfa|Page) 2$/ })[0]);
     expect(within(section).getByText('Kişi 26')).toBeInTheDocument();
+  });
+});
+
+describe('EventCertificatesPanel certificate mail', () => {
+  const certificate = (serial: string, name: string, mail?: Record<string, unknown>) => ({
+    id: serial,
+    eventId: 'e1',
+    ticketId: `t-${serial}`,
+    serial,
+    recipientName: name,
+    recipientEmail: 'x@example.com',
+    eventName: 'GeceKodu',
+    ownerTeam: 'GECEKODU',
+    verifyUrl: `https://skyl.app/c/${serial}`,
+    templateSource: 'clubDefault',
+    issuedAt: '2026-11-24T17:00:00Z',
+    mail,
+  });
+  const withMail = { ...summary(0), issuedCount: 3, mailQueuedCount: 0, mailFailedCount: 1 };
+
+  function renderMail(canIssue = true) {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        finalizeOpen
+        tickets={[]}
+        canIssue={canIssue}
+        canBind={false}
+        canRevoke={false}
+        canReadIssued
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue(withMail);
+    api.templates.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+    api.listIssued.mockResolvedValue([
+      certificate('S1', 'Ada Lovelace', {
+        status: 'failed',
+        attempts: 10,
+        updatedAt: '2026-11-24T21:00:00Z',
+      }),
+      certificate('S2', 'Grace Hopper', {
+        status: 'sent',
+        attempts: 1,
+        sentAt: '2026-11-24T17:01:00Z',
+        updatedAt: '2026-11-24T17:01:00Z',
+      }),
+      certificate('S3', 'Alan Turing'),
+    ]);
+  });
+
+  it("shows each certificate's mail and counts the failed", async () => {
+    renderMail();
+    const list = await screen.findByRole('region', { name: 'Verilen sertifikalar' });
+    expect(within(list).getByText('Gönderilemedi')).toBeInTheDocument();
+    expect(within(list).getByText('Gönderildi')).toBeInTheDocument();
+    expect(screen.getByText('1 posta gönderilemedi')).toBeInTheDocument();
+  });
+
+  it('resends the failed after confirming, and says what was queued', async () => {
+    const user = userEvent.setup();
+    api.resendEventMails.mockResolvedValue({ queued: 1, alreadyQueued: 0 });
+    renderMail();
+    await user.click(await screen.findByRole('button', { name: 'Gönderilemeyenlere gönder' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: '1 kişiye sertifika postası yeniden gönderilsin mi?',
+    });
+    expect(api.resendEventMails).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole('button', { name: 'Yeniden gönder' }));
+    await waitFor(() => expect(api.resendEventMails).toHaveBeenCalledWith('e1', 'failed'));
+    expect(await screen.findByText('1 posta sıraya alındı.')).toBeInTheDocument();
+  });
+
+  it('resends everyone on its own command', async () => {
+    const user = userEvent.setup();
+    api.resendEventMails.mockResolvedValue({ queued: 2, alreadyQueued: 1 });
+    renderMail();
+    await user.click(await screen.findByRole('button', { name: 'Herkese yeniden gönder' }));
+    const confirm = await screen.findByRole('alertdialog', {
+      name: '3 kişiye sertifika postası yeniden gönderilsin mi?',
+    });
+    await user.click(within(confirm).getByRole('button', { name: 'Yeniden gönder' }));
+    await waitFor(() => expect(api.resendEventMails).toHaveBeenCalledWith('e1', 'all'));
+    expect(
+      await screen.findByText('2 posta sıraya alındı. 1 kişinin postası zaten sırada.'),
+    ).toBeInTheDocument();
+  });
+
+  it("resends one person's mail from the row", async () => {
+    const user = userEvent.setup();
+    api.resendMail.mockResolvedValue({ queued: 1, alreadyQueued: 0 });
+    renderMail();
+    await choose(user, 'Postayı yeniden gönder');
+    await waitFor(() => expect(api.resendMail).toHaveBeenCalledWith('S1'));
+    expect(await screen.findByText('Ada Lovelace için posta sıraya alındı')).toBeInTheDocument();
+  });
+
+  it('offers no resend on an older core, nor to who may not issue', async () => {
+    api.summary.mockResolvedValue({ ...summary(0), issuedCount: 3 });
+    renderMail();
+    await screen.findByRole('region', { name: 'Verilen sertifikalar' });
+    expect(screen.queryByRole('button', { name: /yeniden gönder/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Posta')).not.toBeInTheDocument();
   });
 });

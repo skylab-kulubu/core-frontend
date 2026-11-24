@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Eye,
   FileBadge,
+  Mail,
   RefreshCw,
   RotateCcw,
   ScanSearch,
@@ -46,6 +47,7 @@ import {
   type CertificateBatch,
   type CertificateRule,
   type CertificateEventSummary,
+  type CertificateMailState,
   type CertificateTemplate,
   type IssuedCertificate,
 } from '@/lib/api/certificates';
@@ -58,6 +60,9 @@ import {
   attendanceViewCounts,
   finalizeCount,
   issuableByHand,
+  MAIL_STATUS,
+  mailResendable,
+  mailResendLine,
   needsJustification,
   rescanCount,
   searchAttendance,
@@ -93,6 +98,17 @@ function when(raw?: string): string {
 }
 
 type IssuedView = 'all' | 'valid' | 'revoked';
+
+/** A certificate's latest mail as a chip; a dash for one with no mail kept. */
+function MailCell({ mail }: { mail?: CertificateMailState }) {
+  if (!mail) return <span className="text-subtle-foreground text-[13px]/5">—</span>;
+  const status = MAIL_STATUS[mail.status];
+  return (
+    <span title={mail.status === 'sent' ? when(mail.sentAt) : mail.errorCode || undefined}>
+      <StatusChip kind={status.kind} label={status.label} />
+    </span>
+  );
+}
 
 const batchReasonLabel: Record<CertificateBatch['reason'], string> = {
   finalization: 'Katılım kapatma',
@@ -363,6 +379,43 @@ export function EventCertificatesPanel({
     }
   }
 
+  /** One person's mail again: the certificate stays as it is. */
+  async function resendOne(name: string, serial: string) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const result = await certificatesApi.resendMail(serial);
+      done(result.queued ? `${name} için posta sıraya alındı` : `${name} için posta zaten sırada`);
+      await load();
+    } catch (cause) {
+      setError(coreProblemMessage(cause, 'Posta yeniden gönderilemedi'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function askResend(scope: 'failed' | 'all', count: number) {
+    confirm({
+      title: `${count} kişiye sertifika postası yeniden gönderilsin mi?`,
+      description:
+        scope === 'failed'
+          ? 'Yalnız postası gönderilemeyenlere gider. Sertifikalar değişmez.'
+          : 'Postayı almış olanlara da gider. Sertifikalar değişmez.',
+      actionLabel: 'Yeniden gönder',
+      destructive: false,
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          settled(mailResendLine(await certificatesApi.resendEventMails(eventId, scope)));
+          await load();
+        } finally {
+          setBusy(false);
+        }
+      },
+      failure: 'Postalar yeniden gönderilemedi',
+    });
+  }
+
   if (loading) {
     return (
       <div className="space-y-3" aria-busy>
@@ -387,6 +440,11 @@ export function EventCertificatesPanel({
       pickerMatch(pickQuery, ticketLabel(ticket), ticket.guestEmail ?? undefined),
     );
 
+  // An older core keeps no mails: no column, no resend
+  const mailKept = summary?.mailFailedCount !== undefined;
+  const mailFailed = summary?.mailFailedCount ?? 0;
+  const mailQueued = summary?.mailQueuedCount ?? 0;
+
   const columns: DataListColumn<IssuedCertificate>[] = [
     {
       id: 'name',
@@ -408,6 +466,22 @@ export function EventCertificatesPanel({
         <span className="text-secondary-foreground text-[13px]/5">{when(row.issuedAt)}</span>
       ),
     },
+    ...(mailKept
+      ? [
+          {
+            id: 'mail',
+            width: '7.5rem',
+            from: 'md',
+            header: 'Posta',
+            cell: (row: IssuedCertificate) =>
+              row.revokedAt ? (
+                <span className="text-subtle-foreground text-[13px]/5">—</span>
+              ) : (
+                <MailCell mail={row.mail} />
+              ),
+          } satisfies DataListColumn<IssuedCertificate>,
+        ]
+      : []),
     {
       id: 'status',
       width: { base: 'auto', sm: '6rem' },
@@ -433,6 +507,15 @@ export function EventCertificatesPanel({
           >
             Doğrulama sayfası
           </MenuItem>
+          {canIssue && mailResendable(row, summary) ? (
+            <MenuItem
+              icon={Mail}
+              disabled={busy}
+              onClick={() => void resendOne(row.recipientName, row.serial)}
+            >
+              Postayı yeniden gönder
+            </MenuItem>
+          ) : null}
           {canRevoke && !row.revokedAt ? (
             <MenuItem icon={Ban} destructive disabled={busy} onClick={() => askRevoke(row)}>
               İptal et
@@ -499,6 +582,9 @@ export function EventCertificatesPanel({
                   {`Eksik: ${missingText(row)}`}
                 </span>
               ) : null}
+              {row.certificate?.mail?.status === 'failed' && !row.certificate.revokedAt ? (
+                <span className="text-destructive md:hidden"> · Posta gönderilemedi</span>
+              ) : null}
             </span>
           }
         />
@@ -529,6 +615,22 @@ export function EventCertificatesPanel({
           } satisfies DataListColumn<CertificateAttendanceRow>,
         ]
       : []),
+    ...(mailKept
+      ? [
+          {
+            id: 'mail',
+            width: '7.5rem',
+            from: 'md',
+            header: 'Posta',
+            cell: (row: CertificateAttendanceRow) =>
+              row.certificate && !row.certificate.revokedAt ? (
+                <MailCell mail={row.certificate.mail} />
+              ) : (
+                <span className="text-subtle-foreground text-[13px]/5">—</span>
+              ),
+          } satisfies DataListColumn<CertificateAttendanceRow>,
+        ]
+      : []),
     {
       id: 'status',
       width: { base: 'auto', sm: '6.5rem' },
@@ -547,11 +649,22 @@ export function EventCertificatesPanel({
       interactive: true,
       align: 'end',
       cell: (row) =>
-        canIssue && issuableByHand(row) ? (
+        canIssue && (issuableByHand(row) || mailResendable(row.certificate, summary)) ? (
           <RowMenu rowName={row.name}>
-            <MenuItem icon={UserPlus} disabled={busy} onClick={() => setIssuing(row)}>
-              Elle ver
-            </MenuItem>
+            {issuableByHand(row) ? (
+              <MenuItem icon={UserPlus} disabled={busy} onClick={() => setIssuing(row)}>
+                Elle ver
+              </MenuItem>
+            ) : null}
+            {row.certificate && mailResendable(row.certificate, summary) ? (
+              <MenuItem
+                icon={Mail}
+                disabled={busy}
+                onClick={() => void resendOne(row.name, row.certificate!.serial)}
+              >
+                Postayı yeniden gönder
+              </MenuItem>
+            ) : null}
           </RowMenu>
         ) : (
           // Holds the menu's room so every row keeps one height
@@ -618,11 +731,23 @@ export function EventCertificatesPanel({
                 key: 'issued',
                 label: 'Verilen',
                 value: summary.issuedCount,
-                hint: summary.revokedCount ? (
-                  <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-                    {summary.revokedCount} iptal
-                  </span>
-                ) : undefined,
+                hint:
+                  summary.revokedCount || mailFailed || mailQueued ? (
+                    <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+                      {[
+                        summary.revokedCount ? `${summary.revokedCount} iptal` : null,
+                        mailQueued ? `${mailQueued} posta sırada` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      {mailFailed ? (
+                        <span className="text-destructive whitespace-nowrap">
+                          {summary.revokedCount || mailQueued ? ' · ' : ''}
+                          {mailFailed} posta gönderilemedi
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : undefined,
                 active: view === 'valid',
                 onSelect: canReadIssued
                   ? () => setView(view === 'valid' ? 'all' : 'valid')
@@ -669,6 +794,22 @@ export function EventCertificatesPanel({
                 label="Uygunları yeniden tara"
                 disabled={busy || toRescan === 0}
                 onClick={() => askRescan(toRescan)}
+              />
+            ) : null}
+            {canIssue && mailKept && mailFailed > 0 ? (
+              <Command
+                icon={Mail}
+                label="Gönderilemeyenlere gönder"
+                disabled={busy}
+                onClick={() => askResend('failed', mailFailed)}
+              />
+            ) : null}
+            {canIssue && mailKept && summary.issuedCount > 0 ? (
+              <Command
+                icon={Mail}
+                label="Herkese yeniden gönder"
+                disabled={busy}
+                onClick={() => askResend('all', summary.issuedCount)}
               />
             ) : null}
             <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />

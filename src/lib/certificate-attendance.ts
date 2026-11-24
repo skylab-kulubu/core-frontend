@@ -3,6 +3,7 @@ import type {
   CertificateAttendanceRow,
   CertificateAttendanceStatus,
   CertificateEventSummary,
+  CertificateMailState,
 } from '@/lib/api/certificates';
 import type { EventDay } from '@/lib/api/eventDays';
 import type { EventSession } from '@/lib/api/sessions';
@@ -95,6 +96,32 @@ export function meetsRule(
 /** "Elle ver" in the row menu: someone with no certificate and nothing queued or failed. */
 export function issuableByHand(row: Pick<CertificateAttendanceRow, 'status'>): boolean {
   return row.status === 'eligible' || row.status === 'below';
+}
+
+/** A certificate mail's state as a chip (core docs/certificate-mail.md). */
+export const MAIL_STATUS: Record<
+  CertificateMailState['status'],
+  { label: string; kind: StatusChipKind }
+> = {
+  sent: { label: 'Gönderildi', kind: 'active' },
+  queued: { label: 'Sırada', kind: 'neutral' },
+  failed: { label: 'Gönderilemedi', kind: 'cancelled' },
+  cancelled: { label: 'Gönderilmedi', kind: 'ended' },
+};
+
+/** Its mail may be sent again: an active certificate, when core keeps mails at all. */
+export function mailResendable(
+  certificate: { revokedAt?: string } | null | undefined,
+  summary: Pick<CertificateEventSummary, 'mailFailedCount'> | undefined,
+): boolean {
+  return Boolean(certificate && !certificate.revokedAt && summary?.mailFailedCount !== undefined);
+}
+
+/** What a resend did, in one line. */
+export function mailResendLine(result: { queued: number; alreadyQueued: number }): string {
+  const parts = [`${result.queued} posta sıraya alındı.`];
+  if (result.alreadyQueued) parts.push(`${result.alreadyQueued} kişinin postası zaten sırada.`);
+  return parts.join(' ');
 }
 
 /** Core refuses a manual issue below the threshold without a justification. */
