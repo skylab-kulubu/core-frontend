@@ -9,6 +9,9 @@ import {
   ticketMailRecipients,
   ticketCrumbName,
   ticketRosterRow,
+  canCancelEventTicket,
+  isTicketCancelled,
+  ticketCancelProblem,
 } from '@/lib/tickets-ui';
 
 const ada: Ticket = {
@@ -366,5 +369,39 @@ describe('ticketCrumbName', () => {
     ]);
     expect(ticketCrumbName(member, people)).toBe('Başvuru');
     expect(ticketCrumbName(member, new Map())).toBe('Başvuru');
+  });
+});
+
+describe('ticket cancellation', () => {
+  it('lets who edits the event cancel, never DK', () => {
+    expect(canCancelEventTicket(['/UYELER/YK'], 'WEBLAB')).toBe(true);
+    expect(canCancelEventTicket(['/UYELER/ADMIN'], 'WEBLAB')).toBe(true);
+    expect(canCancelEventTicket(['/UYELER/DK'], 'WEBLAB')).toBe(false);
+    expect(canCancelEventTicket(['/UYELER/ORGANIZASYON/WEBLAB/LIDERLER'], 'WEBLAB')).toBe(true);
+    expect(canCancelEventTicket(['/UYELER/ORGANIZASYON/WEBLAB'], 'WEBLAB')).toBe(false);
+    expect(canCancelEventTicket(['/UYELER/ORGANIZASYON/GECEKODU'], 'GECEKODU')).toBe(true);
+  });
+
+  it('reads the status core gives, a ticket without one as active', () => {
+    expect(isTicketCancelled({ status: 'cancelled' })).toBe(true);
+    expect(isTicketCancelled({ status: 'waitlisted' })).toBe(false);
+    expect(isTicketCancelled({})).toBe(false);
+  });
+
+  it('says each refusal in Turkish', () => {
+    const conflict = (code: string) => new ProblemError(409, 'Conflict', { code });
+    expect(ticketCancelProblem(conflict('event_ended'), 'cancel')).toBe(
+      'Etkinlik bitmiş; bilet iptal edilemez.',
+    );
+    expect(ticketCancelProblem(conflict('event_ended'), 'restore')).toBe(
+      'Etkinlik bitmiş; bilet geri alınamaz.',
+    );
+    expect(ticketCancelProblem(conflict('ticket_waitlisted'), 'restore')).toBe(
+      'Bilet bekleme listesinde; geri alınamaz.',
+    );
+    expect(ticketCancelProblem(new ProblemError(403, 'Forbidden'), 'restore')).toBe(
+      'Bu bileti geri alma yetkin yok.',
+    );
+    expect(ticketCancelProblem(new Error('boom'), 'cancel')).toBe('Bilet iptal edilemedi');
   });
 });

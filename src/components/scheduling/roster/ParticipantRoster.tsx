@@ -15,9 +15,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Mail,
+  Ban,
   MoreHorizontal,
   Plus,
   RefreshCw,
+  RotateCcw,
   Send,
   X,
 } from 'lucide-react';
@@ -47,12 +49,14 @@ import {
 import { ticketTypeStatus } from '@/lib/status-chip';
 import {
   filterApplicantRoster,
+  isTicketCancelled,
   ticketMailRecipients,
   ticketRosterRow,
   type TicketMailRecipient,
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
 import { RosterCharts, RosterTiles } from './RosterOverview';
+import { CANCEL_NEEDS_NO_ENTRY, cancelBlocked } from './ticket-cancel';
 import { TicketPanel } from './TicketPanel';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
@@ -64,11 +68,17 @@ const SORTS = {
   checkIn: 'Son giriş önce',
 } as const;
 type Sort = keyof typeof SORTS;
+/** The views of the active tickets, and the cancelled ones core lists apart (`?status=cancelled`). */
+type ListView = RosterView | 'cancelled';
+const CANCELLED_VIEW = { value: 'cancelled', label: 'İptal edilenler' } as const;
 type Saved = { query?: string; view?: RosterView; sort?: Sort; page?: number };
 
 export type ParticipantRosterProps = {
   eventId: string;
+  /** The active tickets. */
   tickets: Ticket[];
+  /** The cancelled tickets; absent while unread or when they cannot be read. */
+  cancelledTickets?: Ticket[];
   people: Map<string, Person>;
   event?: TicketSourceEvent | null;
   sessions: readonly DoorSession[];
@@ -82,6 +92,10 @@ export type ParticipantRosterProps = {
   onMarkAttended?: (ticket: Ticket, sessionId: string) => Promise<string | null>;
   onResend?: (ticket: Ticket) => void;
   onRenew?: (ticket: Ticket) => void;
+  /** "Bileti iptal et": only for who may edit the event. */
+  onCancel?: (ticket: Ticket) => void;
+  /** "Geri al" on a cancelled ticket. */
+  onRestore?: (ticket: Ticket) => void;
   /** The page's confirm dialog: inside the drawer while one is open, so it sits above it. */
   dialogs: ReactNode;
 };
@@ -93,6 +107,7 @@ export type ParticipantRosterProps = {
 export function ParticipantRoster({
   eventId,
   tickets,
+  cancelledTickets,
   people,
   event,
   sessions,
@@ -105,10 +120,12 @@ export function ParticipantRoster({
   onMarkAttended,
   onResend,
   onRenew,
+  onCancel,
+  onRestore,
   dialogs,
 }: ParticipantRosterProps) {
   const [query, setQuery] = useState('');
-  const [view, setView] = useState<RosterView>('all');
+  const [view, setView] = useState<ListView>('all');
   const [sort, setSort] = useState<Sort>('newest');
   const [page, setPage] = useState(1);
   const [restored, setRestored] = useState('');
@@ -129,6 +146,7 @@ export function ParticipantRoster({
     try {
       const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}') as Saved;
       setQuery(typeof saved.query === 'string' ? saved.query : '');
+      // The cancelled list is never where a return lands: the active tickets are the default
       setView(ROSTER_VIEWS.some((option) => option.value === saved.view) ? saved.view! : 'all');
       setSort(saved.sort && saved.sort in SORTS ? saved.sort : 'newest');
       setPage(typeof saved.page === 'number' && saved.page > 0 ? saved.page : 1);
@@ -153,9 +171,24 @@ export function ParticipantRoster({
       filterApplicantRoster(tickets, people, { query, ticketType: 'all', status: 'all' }, event),
     [tickets, people, query, event],
   );
+  const searchedCancelled = useMemo(
+    () =>
+      filterApplicantRoster(
+        cancelledTickets ?? [],
+        people,
+        { query, ticketType: 'all', status: 'all' },
+        event,
+      ),
+    [cancelledTickets, people, query, event],
+  );
+  const cancelledView = view === CANCELLED_VIEW.value;
   const counts = rosterViewCounts(searched);
+  const anyTicket = tickets.length > 0 || (cancelledTickets?.length ?? 0) > 0;
   const rows = useMemo(() => {
-    const kept = searched.filter((ticket) => inRosterView(ticket, view));
+    const kept =
+      view === CANCELLED_VIEW.value
+        ? searchedCancelled
+        : searched.filter((ticket) => inRosterView(ticket, view));
     const name = (ticket: Ticket) => ticketRosterRow(ticket, people, event).name;
     const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) || 0 : 0);
     return [...kept].sort((left, right) => {
@@ -164,15 +197,16 @@ export function ParticipantRoster({
       const order = at(left.createdAt) - at(right.createdAt);
       return sort === 'oldest' ? order : -order;
     });
-  }, [searched, view, sort, people, event]);
+  }, [searched, searchedCancelled, view, sort, people, event]);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const slice = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const filtered = Boolean(query.trim()) || view !== 'all';
 
-  function pickView(next: RosterView) {
+  function pickView(next: ListView) {
     setView(next);
     setPage(1);
+    setSelected(new Set());
   }
 
   function clearFilters() {
@@ -217,7 +251,7 @@ export function ParticipantRoster({
     failed,
     rowCount: rows.length,
     emptyMessage: emptyListCopy({
-      none: 'Henüz kayıt yok',
+      none: cancelledView ? 'İptal edilen bilet yok' : 'Henüz kayıt yok',
       noneMatch: 'Eşleşen kayıt yok',
       query,
       filtered,
@@ -253,7 +287,7 @@ export function ParticipantRoster({
           aria-label="Katılımcı ara"
         />
       </div>
-      {onMarkAttended && sessions.length > 0 ? (
+      {onMarkAttended && sessions.length > 0 && !cancelledView ? (
         <Select
           aria-label="Giriş oturumu"
           className="w-full sm:w-64"
@@ -268,7 +302,7 @@ export function ParticipantRoster({
           ))}
         </Select>
       ) : null}
-      {onMarkAttended && sessions.length > 0 && !attendSession ? (
+      {onMarkAttended && sessions.length > 0 && !attendSession && !cancelledView ? (
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
@@ -280,14 +314,18 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
-        <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
+        {cancelledView ? null : (
+          <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
+        )}
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col gap-4">
-      {tickets.length > 0 ? <RosterTiles tickets={tickets} view={view} onView={pickView} /> : null}
+      {tickets.length > 0 ? (
+        <RosterTiles tickets={tickets} view={cancelledView ? null : view} onView={pickView} />
+      ) : null}
       {tickets.length > 0 ? (
         // On a phone the list comes first, the charts after it
         <div className="order-last lg:order-none">
@@ -296,17 +334,22 @@ export function ParticipantRoster({
       ) : null}
       <div className="space-y-3">
         {toolbar}
-        {tickets.length > 0 ? (
+        {anyTicket ? (
           <div className="flex flex-wrap items-center gap-2">
             <div className="-mx-1 max-w-full overflow-x-auto px-1 pb-1 [&_button]:whitespace-nowrap">
-              <FilterPills
+              <FilterPills<ListView>
                 aria-label="Görünüm"
                 value={view}
                 onValueChange={pickView}
-                options={ROSTER_VIEWS.filter(
-                  (option) =>
-                    option.value === 'all' || counts[option.value] > 0 || option.value === view,
-                ).map((option) => ({ ...option, count: counts[option.value] }))}
+                options={[
+                  ...ROSTER_VIEWS.filter(
+                    (option) =>
+                      option.value === 'all' || counts[option.value] > 0 || option.value === view,
+                  ).map((option) => ({ ...option, count: counts[option.value] })),
+                  ...(searchedCancelled.length > 0 || cancelledView
+                    ? [{ ...CANCELLED_VIEW, count: searchedCancelled.length }]
+                    : []),
+                ]}
               />
             </div>
             <Select
@@ -345,6 +388,8 @@ export function ParticipantRoster({
                 onAttend={() => void attend(ticket)}
                 onResend={onResend}
                 onRenew={onRenew}
+                onCancel={onCancel}
+                onRestore={onRestore}
               />
             ))}
           </ul>
@@ -377,6 +422,8 @@ export function ParticipantRoster({
             onMarkAttended={onMarkAttended ? (ticket) => void attend(ticket) : undefined}
             onResend={onResend}
             onRenew={onRenew}
+            onCancel={onCancel}
+            onRestore={onRestore}
           />
         ) : null}
         {openTicket ? dialogs : null}
@@ -400,6 +447,8 @@ function RosterRow({
   onAttend,
   onResend,
   onRenew,
+  onCancel,
+  onRestore,
 }: {
   ticket: Ticket;
   eventId: string;
@@ -414,7 +463,10 @@ function RosterRow({
   onAttend: () => void;
   onResend?: (ticket: Ticket) => void;
   onRenew?: (ticket: Ticket) => void;
+  onCancel?: (ticket: Ticket) => void;
+  onRestore?: (ticket: Ticket) => void;
 }) {
+  const cancelled = isTicketCancelled(ticket);
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
   const entryTime = entry ? formatEntry(entry) : null;
@@ -426,13 +478,18 @@ function RosterRow({
         current ? 'bg-card' : ''
       }`}
     >
-      <input
-        type="checkbox"
-        className="accent-skylab-400 h-3.5 w-3.5 shrink-0"
-        checked={selected}
-        aria-label={`${row.name} seç`}
-        onChange={onToggle}
-      />
+      {cancelled ? (
+        // Nobody to mail: the cancelled list has no choice
+        <span className="w-3.5 shrink-0" aria-hidden />
+      ) : (
+        <input
+          type="checkbox"
+          className="accent-skylab-400 h-3.5 w-3.5 shrink-0"
+          checked={selected}
+          aria-label={`${row.name} seç`}
+          onChange={onToggle}
+        />
+      )}
       <Link
         href={href}
         onClick={onOpen}
@@ -447,14 +504,23 @@ function RosterRow({
           <span className="text-subtle-foreground block truncate text-[13px]/5">
             {row.email || '—'}
           </span>
+          {cancelled && ticket.cancelReason ? (
+            <span className="text-muted-foreground block truncate text-[13px]/5">
+              Gerekçe: {ticket.cancelReason}
+            </span>
+          ) : null}
           {/* The status column gives way on phones: said under the name instead */}
           <span className="mt-0.5 flex gap-2 text-[13px]/5 sm:hidden">
-            {entryTime ? (
+            {cancelled ? (
+              <span className="text-destructive">{cancelledLabel(ticket)}</span>
+            ) : entryTime ? (
               <span className="text-success">Giriş {entryTime}</span>
             ) : (
               <span className="text-muted-foreground">Gelmedi</span>
             )}
-            {ticket.sent === false ? <span className="text-warning">Bilet gitmedi</span> : null}
+            {ticket.sent === false && !cancelled ? (
+              <span className="text-warning">Bilet gitmedi</span>
+            ) : null}
           </span>
           {error ? (
             <span role="alert" className="text-destructive mt-0.5 block text-[13px]/5">
@@ -474,18 +540,20 @@ function RosterRow({
           <StatusChip kind={ticketTypeStatus(row.ticketType)} />
         </span>
         <span className="hidden w-36 shrink-0 sm:block">
-          {entryTime ? (
+          {cancelled ? (
+            <StatusChip kind="cancelled" label={cancelledLabel(ticket)} />
+          ) : entryTime ? (
             <StatusChip kind="checked-in" label={`Giriş ${entryTime}`} />
           ) : (
             <StatusChip kind="neutral" label="Gelmedi" />
           )}
-          {ticket.sent === false ? (
+          {ticket.sent === false && !cancelled ? (
             <span className="text-warning mt-1 block text-[13px]/5">Bilet gitmedi</span>
           ) : null}
         </span>
       </Link>
       <div className="flex shrink-0 items-center gap-1">
-        {canAttend ? (
+        {canAttend && !cancelled ? (
           <Button
             className={BUTTON_TEXT}
             size="xs"
@@ -498,7 +566,20 @@ function RosterRow({
             <span className="hidden sm:inline">{inSession ? 'Girişi var' : 'Katıldı'}</span>
           </Button>
         ) : null}
-        {onResend || onRenew ? (
+        {cancelled ? (
+          onRestore ? (
+            <Button
+              className={BUTTON_TEXT}
+              size="xs"
+              variant="outline"
+              onClick={() => onRestore(ticket)}
+              aria-label={`${row.name}: iptali geri al`}
+            >
+              <RotateCcw className="size-3.5" />
+              <span className="hidden sm:inline">Geri al</span>
+            </Button>
+          ) : null
+        ) : onResend || onRenew || onCancel ? (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -521,6 +602,25 @@ function RosterRow({
                   Bağlantıyı yenile
                 </MenuItem>
               ) : null}
+              {onCancel ? (
+                <MenuItem
+                  icon={Ban}
+                  destructive
+                  disabled={cancelBlocked(ticket)}
+                  onClick={() => onCancel(ticket)}
+                >
+                  {cancelBlocked(ticket) ? (
+                    <span>
+                      Bileti iptal et
+                      <span className="text-muted-foreground block text-xs">
+                        {CANCEL_NEEDS_NO_ENTRY}
+                      </span>
+                    </span>
+                  ) : (
+                    'Bileti iptal et'
+                  )}
+                </MenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -528,4 +628,9 @@ function RosterRow({
       </div>
     </li>
   );
+}
+
+/** "İptal · 24 Kas 13:05": when the ticket was cancelled, if core says so. */
+function cancelledLabel(ticket: Ticket): string {
+  return ticket.cancelledAt ? `İptal · ${formatEntry(ticket.cancelledAt)}` : 'İptal';
 }

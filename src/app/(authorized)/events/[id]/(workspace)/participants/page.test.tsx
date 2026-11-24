@@ -216,11 +216,8 @@ describe('Event Katılımcılar tab', () => {
       expect(await screen.findByText('Bağlantı yenilendi, bilet gönderildi')).toBeInTheDocument();
     });
 
-    it.each([
-      { name: 'DK', groups: ['/UYELER/DK'] },
-      { name: 'a team member', groups: ['/UYELER/ORGANIZASYON/GECEKODU'] },
-    ])('offers no row menu to $name', async ({ groups }) => {
-      signInAs(groups);
+    it('offers no row menu to DK', async () => {
+      signInAs(['/UYELER/DK']);
       (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
       await renderParticipants();
       await waitFor(() =>
@@ -229,6 +226,184 @@ describe('Event Katılımcılar tab', () => {
       expect(
         screen.queryByRole('button', { name: 'Ada Lovelace: eylemler' }),
       ).not.toBeInTheDocument();
+    });
+
+    it('offers a GECEKODU member, who edits its events, the cancel alone', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([coded]);
+      await renderParticipants();
+      await openMenu(user);
+      expect(await screen.findByRole('menuitem', { name: 'Bileti iptal et' })).toBeInTheDocument();
+      expect(
+        screen.queryByRole('menuitem', { name: 'Bileti yeniden gönder' }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Bağlantıyı yenile' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Bileti iptal et, Geri al', () => {
+    const coded = { ...guestTicket, code: 'K7M2-QX9F', status: 'active' as const };
+    const cancelledTicket = {
+      ...guestTicket,
+      id: 't-gone',
+      guestFirstName: 'Grace',
+      guestLastName: 'Hopper',
+      guestEmail: 'grace@example.com',
+      status: 'cancelled' as const,
+      cancelledAt: '2026-11-24T10:05:00.000Z',
+      cancelledBy: 'operator',
+      cancelReason: 'Yanlış kayıt',
+    };
+
+    /** core's two lists: the active tickets by default, the cancelled ones with `?status=`. */
+    function lists(active: unknown[], cancelled: unknown[]) {
+      (ticketsApi.listByEvent as jest.Mock).mockImplementation(
+        async (_event: string, status?: string) => (status === 'cancelled' ? cancelled : active),
+      );
+    }
+
+    it('cancels a ticket with its reason once asked, and reads both lists again', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+      lists([coded], []);
+      (ticketsApi.cancel as jest.Mock).mockResolvedValue({ ...coded, status: 'cancelled' });
+
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Ada Lovelace: bilet iptal edilsin mi?',
+      });
+      await user.type(within(dialog).getByLabelText('Gerekçe (isteğe bağlı)'), ' Yanlış kayıt ');
+      expect(ticketsApi.cancel).not.toHaveBeenCalled();
+      const reads = (ticketsApi.listByEvent as jest.Mock).mock.calls.length;
+      await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
+
+      await waitFor(() =>
+        expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', 'Yanlış kayıt'),
+      );
+      expect(await screen.findByText('Bilet iptal edildi')).toBeInTheDocument();
+      await waitFor(() =>
+        expect((ticketsApi.listByEvent as jest.Mock).mock.calls.length).toBeGreaterThan(reads),
+      );
+      expect(ticketsApi.listByEvent).toHaveBeenCalledWith('e1', 'cancelled');
+    });
+
+    it('sends no reason when none is written', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      lists([coded], []);
+      (ticketsApi.cancel as jest.Mock).mockResolvedValue({ ...coded, status: 'cancelled' });
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
+      await waitFor(() => expect(ticketsApi.cancel).toHaveBeenCalledWith('t-guest', undefined));
+    });
+
+    it.each([
+      ['event_ended', 'Etkinlik bitmiş; bilet iptal edilemez.'],
+      ['ticket_checked_in', 'Girişi olan bilet iptal edilemez; önce girişi geri al.'],
+      ['ticket_in_competition', 'Kişi yarışmada; önce yarışmadan çıkar.'],
+    ])('says core’s 409 %s in the dialog', async (code, text) => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      lists([coded], []);
+      (ticketsApi.cancel as jest.Mock).mockRejectedValue(
+        new ProblemError(409, 'Conflict', { code }),
+      );
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
+      expect(await within(dialog).findByText(text)).toBeInTheDocument();
+    });
+
+    it('says a 403 as no right to cancel', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      lists([coded], []);
+      (ticketsApi.cancel as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Bileti iptal et' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Bileti iptal et' }));
+      expect(
+        await within(dialog).findByText('Bu bileti iptal etme yetkin yok.'),
+      ).toBeInTheDocument();
+    });
+
+    it('keeps the cancel of a ticket with an entry shut, saying why', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      lists(
+        [
+          {
+            ...coded,
+            checkIns: [
+              { id: 'c1', ticketId: 't-guest', sessionId: 's1', createdAt: '2026-09-19T09:00:00Z' },
+            ],
+          },
+        ],
+        [],
+      );
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      const item = await screen.findByRole('menuitem', { name: /Bileti iptal et/ });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      expect(item).toHaveTextContent('Önce girişi geri al');
+    });
+
+    it('lists the cancelled tickets apart, with the reason, and takes one back', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+      lists([coded], [cancelledTicket]);
+      (ticketsApi.restore as jest.Mock).mockResolvedValue({ ...cancelledTicket, status: 'active' });
+
+      await renderParticipants();
+      expect(await screen.findByRole('link', { name: 'Ada Lovelace' })).toBeInTheDocument();
+      // The active tickets by default
+      expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: /İptal edilenler/ }));
+
+      expect(await screen.findByRole('link', { name: 'Grace Hopper' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Ada Lovelace' })).not.toBeInTheDocument();
+      expect(screen.getByText('Gerekçe: Yanlış kayıt')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'E-posta' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('checkbox', { name: 'Grace Hopper seç' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Grace Hopper: iptali geri al' }));
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Grace Hopper: iptal geri alınsın mı?',
+      });
+      await user.click(within(dialog).getByRole('button', { name: 'Geri al' }));
+      await waitFor(() => expect(ticketsApi.restore).toHaveBeenCalledWith('t-gone'));
+      expect(await screen.findByText('Bilet yeniden etkin')).toBeInTheDocument();
+    });
+
+    it('offers no Geri al to who may not edit the event', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/DK']);
+      lists([coded], [cancelledTicket]);
+      await renderParticipants();
+      await user.click(await screen.findByRole('button', { name: /İptal edilenler/ }));
+      expect(await screen.findByRole('link', { name: 'Grace Hopper' })).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Grace Hopper: iptali geri al' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows no cancelled ticket when core does not know the status yet', async () => {
+      signInAs(['/UYELER/YK']);
+      // An older core ignores `?status=` and answers every ticket, none of them with a status
+      (ticketsApi.listByEvent as jest.Mock).mockResolvedValue([guestTicket]);
+      await renderParticipants();
+      expect(await screen.findByRole('link', { name: 'Ada Lovelace' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /İptal edilenler/ })).not.toBeInTheDocument();
     });
   });
 
@@ -253,9 +428,16 @@ describe('Event Katılımcılar tab', () => {
   it('says the registrations could not be read instead of an empty list, and retries', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
-    (ticketsApi.listByEvent as jest.Mock)
-      .mockRejectedValueOnce(new ProblemError(503, 'Service Unavailable'))
-      .mockResolvedValue([guestTicket]);
+    // The first read of the active tickets fails; the tab's cancelled read may come first
+    let failed = false;
+    (ticketsApi.listByEvent as jest.Mock).mockImplementation(async (_event, status?: string) => {
+      if (status) return [];
+      if (!failed) {
+        failed = true;
+        throw new ProblemError(503, 'Service Unavailable');
+      }
+      return [guestTicket];
+    });
     await renderParticipants();
     expect(await screen.findByText('Kayıtlar yüklenemedi')).toBeInTheDocument();
     expect(screen.queryByText('Henüz başvuru yok.')).not.toBeInTheDocument();

@@ -103,7 +103,8 @@ export function RosterTiles({
   onView,
 }: {
   tickets: readonly Ticket[];
-  view: RosterView;
+  /** The view shown; null when the list shows none of these (the cancelled tickets). */
+  view: RosterView | null;
   onView: (view: RosterView) => void;
 }) {
   const counts = rosterViewCounts(tickets);
