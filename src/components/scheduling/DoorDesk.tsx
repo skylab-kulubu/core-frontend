@@ -12,6 +12,8 @@ import {
   Search,
   Undo2,
   UserCheck,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Field } from '@/components/chrome/Field';
@@ -20,6 +22,7 @@ import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { Select } from '@/components/chrome/Select';
 import { StateCard } from '@/components/chrome/StateCard';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
+import { DoorFlash, type DoorFlashResult } from '@/components/scheduling/DoorFlash';
 import { DoorScanner, canScanWithCamera } from '@/components/scheduling/DoorScanner';
 import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
 import { ProblemError } from '@/lib/api/core';
@@ -32,7 +35,16 @@ import {
   defaultDoorSessionId,
   doorSessionLabel,
   doorSessionTiming,
+  scanRefusal,
 } from '@/lib/door-check-in';
+import {
+  DOOR_FLASH_MS,
+  doorSoundOn,
+  primeDoorSound,
+  setDoorSoundOn,
+  signalDoor,
+  type DoorSignal,
+} from '@/lib/door-feedback';
 import { eventTabHref } from '@/lib/event-workspace';
 import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
@@ -44,8 +56,11 @@ type Entry = { id: string; name: string; createdAt: string };
 type Outcome =
   | { kind: 'in'; entry: Entry }
   | { kind: 'undone'; name: string }
-  | { kind: 'already'; text: string }
-  | { kind: 'refused'; text: string };
+  | { kind: 'already'; text: string; title?: string }
+  | { kind: 'refused'; text: string; title?: string };
+
+/** The full-screen result of a scan, tied to its entry so the name can arrive after it. */
+type Flash = DoorFlashResult & { entryId?: string };
 
 const RECENT = 10;
 const SUGGESTIONS = 6;
@@ -118,8 +133,8 @@ function OutcomeBand({
                 : outcome.kind === 'undone'
                   ? 'Geri alındı'
                   : outcome.kind === 'already'
-                    ? 'Zaten girmiş'
-                    : 'Girmedi'}
+                    ? (outcome.title ?? 'Zaten girmiş')
+                    : (outcome.title ?? 'Girmedi')}
             </p>
             <p className={cn('text-secondary-foreground break-words', TEXT_SECONDARY)}>
               {outcome.kind === 'in'
@@ -181,12 +196,38 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   const scanBusy = useRef(false);
   const [guestQr, setGuestQr] = useState(false);
   const [camera, setCamera] = useState(false);
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [soundOn, setSoundOn] = useState(true);
   const deferred = useDeferredUndo();
   // The session the desk shows now, for answers that arrive after it was changed
   const shownSession = useRef(sessionId);
   shownSession.current = sessionId;
 
   useEffect(() => setCamera(canScanWithCamera()), []);
+  useEffect(() => setSoundOn(doorSoundOn()), []);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
+
+  /** A vibration and a beep for each result; a scan's also covers the screen for a moment. */
+  function signal(kind: DoorSignal, shown?: Flash) {
+    signalDoor(kind, soundOn);
+    if (!shown) return;
+    clearTimeout(flashTimer.current);
+    setFlash(shown);
+    flashTimer.current = setTimeout(() => setFlash(null), DOOR_FLASH_MS[kind]);
+  }
+
+  function closeFlash() {
+    clearTimeout(flashTimer.current);
+    setFlash(null);
+  }
+
+  function toggleSound() {
+    primeDoorSound();
+    const next = !soundOn;
+    setSoundOn(next);
+    setDoorSoundOn(next);
+  }
 
   // The doors and the event's days in one round: the event is in the address
   useEffect(() => {
@@ -297,8 +338,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
     try {
       const created = await ticketsApi.resolveAndCheckIn(sessionId, target);
       admitted({ id: created.id, name: created.personName || label, createdAt: created.createdAt });
+      signal('in');
     } catch (err) {
-      setOutcome(refusal(err, 'Giriş yazılamadı'));
+      const refused = refusal(err, 'Giriş yazılamadı');
+      setOutcome(refused);
+      signal(refused.kind === 'already' ? 'already' : 'refused');
     } finally {
       setBusy(false);
       document.getElementById('door-query')?.focus();
@@ -317,6 +361,13 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         name: created.personName || SCANNED,
         createdAt: created.createdAt,
       });
+      signal('in', {
+        signal: 'in',
+        title: 'Giriş yazıldı',
+        line: created.personName || '',
+        time: timeOf(created.createdAt),
+        entryId: created.id,
+      });
       const rows = await refresh();
       const found = rows.find((row) => row.id === created.id);
       if (found?.name) {
@@ -325,9 +376,14 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             ? { kind: 'in', entry: { ...shown.entry, name: found.name } }
             : shown,
         );
+        setFlash((shown) =>
+          shown?.entryId === created.id ? { ...shown, line: found.name } : shown,
+        );
       }
     } catch (err) {
-      setOutcome(refusal(err, 'Kod okunamadı'));
+      const refused = scanRefusal(err);
+      setOutcome(refused);
+      signal(refused.kind, { signal: refused.kind, title: refused.title, line: refused.text });
     } finally {
       scanBusy.current = false;
     }
@@ -511,23 +567,44 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             </Button>
           </div>
         </div>
-        {camera && !cameraOpen ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className={cn(BUTTON_TEXT, 'w-full')}
-            disabled={!sessionId}
-            onClick={() => setCameraOpen(true)}
-          >
-            <ScanLine aria-hidden />
-            Kamerayla tara
-          </Button>
+        {camera ? (
+          <div className="flex gap-2">
+            {!cameraOpen ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className={cn(BUTTON_TEXT, 'min-w-0 flex-1')}
+                disabled={!sessionId}
+                onClick={() => {
+                  // The tap that opens the camera also lets the page beep (iPhone)
+                  primeDoorSound();
+                  setCameraOpen(true);
+                }}
+              >
+                <ScanLine aria-hidden />
+                Kamerayla tara
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className={cn(BUTTON_TEXT, cameraOpen && 'ml-auto')}
+              aria-pressed={soundOn}
+              onClick={toggleSound}
+            >
+              {soundOn ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+              Ses
+            </Button>
+          </div>
         ) : null}
       </form>
       {cameraOpen && sessionId ? (
         <DoorScanner onScan={(value) => void scanned(value)} onClose={() => setCameraOpen(false)} />
       ) : null}
+
+      <DoorFlash result={flash} onClose={closeFlash} />
 
       <OutcomeBand
         outcome={outcome}

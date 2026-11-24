@@ -318,6 +318,92 @@ describe('DoorDesk', () => {
     }
   });
 
+  it('covers the screen with the result of each code, vibrates, and keeps the camera reading', async () => {
+    const vibrate = jest.fn(() => true);
+    Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
+    const camera = fakeCamera(['TOKEN-1', 'TOKEN-OLD']);
+    (ticketsApi.scanCheckIn as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'ci-scan-1',
+        ticketId: 't1',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        createdAt: new Date(2026, 8, 19, 9, 6, 0).toISOString(),
+      })
+      .mockRejectedValueOnce(
+        new ProblemError(410, 'Gone', { code: 'ticket_qr_superseded', detail: 'yenilenmiş' }),
+      );
+    (ticketsApi.doorActivity as jest.Mock).mockImplementation(async () =>
+      (ticketsApi.scanCheckIn as jest.Mock).mock.calls.length
+        ? {
+            total: 1,
+            items: [
+              {
+                id: 'ci-scan-1',
+                sessionId: 's1',
+                eventDayId: 'd1',
+                personName: 'Ada Lovelace',
+                createdAt: '2026-09-19T06:06:00.000Z',
+              },
+            ],
+          }
+        : { total: 0, items: [] },
+    );
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      // Green, with its icon and words, the name arriving from the list of entries
+      const flash = await screen.findByTestId('door-flash');
+      expect(flash).toHaveAttribute('data-signal', 'in');
+      expect(flash).toHaveTextContent('Giriş yazıldı');
+      await waitFor(() =>
+        expect(screen.getByTestId('door-flash')).toHaveTextContent('Ada Lovelace'),
+      );
+      expect(vibrate).toHaveBeenCalledWith(120);
+      // The next code, a renewed ticket: red, said in words; the band says it to screen readers
+      await waitFor(
+        () => expect(screen.getByTestId('door-flash')).toHaveAttribute('data-signal', 'refused'),
+        { timeout: 4000 },
+      );
+      expect(screen.getByTestId('door-flash')).toHaveTextContent('Bilet yenilenmiş');
+      expect(screen.getByTestId('door-flash')).toHaveAttribute('aria-hidden', 'true');
+      expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toHaveTextContent(
+        'Bilet yenilenmiş',
+      );
+      expect(vibrate).toHaveBeenLastCalledWith([300, 100, 300]);
+      // A tap closes it; the camera is still open for the next code
+      await user.click(screen.getByTestId('door-flash'));
+      expect(screen.queryByTestId('door-flash')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Kamerayı kapat' })).toBeInTheDocument();
+      expect(camera.track.stop).not.toHaveBeenCalled();
+    } finally {
+      camera.remove();
+      Object.defineProperty(navigator, 'vibrate', { configurable: true, value: undefined });
+    }
+  });
+
+  it('turns the beep off and on, and remembers it on this device', async () => {
+    const camera = fakeCamera([]);
+    window.localStorage.clear();
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      const sound = await screen.findByRole('button', { name: 'Ses' });
+      expect(sound).toHaveAttribute('aria-pressed', 'true');
+      await user.click(sound);
+      expect(sound).toHaveAttribute('aria-pressed', 'false');
+      expect(window.localStorage.getItem('door-sound')).toBe('off');
+      await user.click(sound);
+      expect(sound).toHaveAttribute('aria-pressed', 'true');
+      expect(window.localStorage.getItem('door-sound')).toBe('on');
+    } finally {
+      camera.remove();
+    }
+  });
+
   it('names the search box by its label alone, the button standing outside it', async () => {
     render(<DoorDesk eventId="e1" />);
     await ready();
