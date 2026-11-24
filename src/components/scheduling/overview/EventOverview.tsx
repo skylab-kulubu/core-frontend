@@ -146,10 +146,13 @@ function AttendanceTiles({ o }: { o: Overview }) {
         href={participants}
         label="Doluluk"
         value={o.event.capacity > 0 ? `${counts.all}/${o.event.capacity}` : counts.all}
+        // Who waits says more than the share once the list has anyone
         hint={
-          o.event.capacity > 0
-            ? `%${Math.round((counts.all / o.event.capacity) * 100)}`
-            : 'sınır yok'
+          o.event.waitlistCount
+            ? `${o.event.waitlistCount} bekliyor`
+            : o.event.capacity > 0
+              ? `%${Math.round((counts.all / o.event.capacity) * 100)}`
+              : 'sınır yok'
         }
       >
         {o.event.capacity > 0 ? (

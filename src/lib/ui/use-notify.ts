@@ -26,8 +26,9 @@ export function useNotify() {
   const { add, close } = useToast();
   return useMemo(
     () => ({
-      success(title: string) {
-        add({ title, type: 'success' });
+      /** `description`: a second line, such as a capacity gone past. */
+      success(title: string, description?: string) {
+        add(description ? { title, description, type: 'success' } : { title, type: 'success' });
       },
       /** Says a write went through and offers the next step on the toast, such as a mail. */
       withAction(title: string, label: string, onClick: () => void) {

@@ -59,7 +59,7 @@ export function EventListPanel({
     { label: 'Tarih', value: eventWhenLong(event) || 'Tarihsiz' },
     { label: 'Yer', value: event.location?.trim() || '—' },
     { label: 'Ekip', value: event.ownerTeam?.trim() || 'Genel' },
-    { label: 'Kapasite', value: event.capacity > 0 ? event.capacity : 'Sınırsız' },
+    { label: 'Kontenjan', value: event.capacity > 0 ? event.capacity : 'Sınırsız' },
   ];
   if (stat) {
     items.push(

@@ -97,6 +97,10 @@ export type Ticket = {
   cancelledAt?: string;
   cancelledBy?: 'holder' | 'operator' | 'form' | string;
   cancelReason?: string;
+  /** When a waitlisted Ticket went on the list: its place in it (core docs/event-capacity.md). */
+  waitlistedAt?: string;
+  /** On the answer of a panel write that went past the Event's capacity; never stored. */
+  overCapacity?: boolean;
 };
 
 export type TicketStatus = 'active' | 'waitlisted' | 'cancelled';
@@ -216,14 +220,24 @@ export const ticketsApi = {
    * 409 `event_ended`, `ticket_checked_in`, `ticket_in_competition`; 403 for who may not edit
    * the Event. A cancelled Ticket answers 200 as it is.
    */
-  cancel: (ticketId: string, reason?: string) =>
+  cancel: (ticketId: string, { reason, notify }: { reason?: string; notify?: boolean } = {}) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/cancel`, {
       method: 'POST',
-      body: JSON.stringify(reason ? { reason } : {}),
+      // `notify`: the holder is told (core #412; core before it ignores the field)
+      body: JSON.stringify({
+        ...(reason ? { reason } : {}),
+        ...(notify !== undefined ? { notify } : {}),
+      }),
     }),
   /** Takes the cancellation back: active again with a new link and QR. 409 `event_ended`. */
   restore: (ticketId: string) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/restore`, { method: 'POST' }),
+  /**
+   * "Öne al": a waitlisted Ticket becomes active, past the capacity if it must (`overCapacity`).
+   * An active one answers as it is; 409 `ticket_cancelled`, `event_ended`; 403 as cancel.
+   */
+  promote: (ticketId: string) =>
+    coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/promote`, { method: 'POST' }),
   /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {
