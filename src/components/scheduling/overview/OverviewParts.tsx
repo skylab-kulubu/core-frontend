@@ -120,7 +120,7 @@ export function eventEssentialItems({
     { label: 'Ekip', value: event.ownerTeam || '—' },
     { label: 'Sezon', value: seasonName || '—' },
     {
-      label: 'Kapasite',
+      label: 'Kontenjan',
       value:
         event.capacity > 0
           ? fill

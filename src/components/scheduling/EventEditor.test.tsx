@@ -213,3 +213,53 @@ describe('EventEditor certificate rule', () => {
     expect(screen.getByText('Katılım oranı')).toBeInTheDocument();
   });
 });
+
+describe('EventEditor capacity and waiting list', () => {
+  function CapacityEditor({
+    start,
+    activeTickets,
+    onValue,
+  }: {
+    start: Partial<EventFormState>;
+    activeTickets?: number;
+    onValue?: (value: EventFormState) => void;
+  }) {
+    const [value, setValue] = useState<EventFormState>({
+      ...emptyEventForm('GECEKODU'),
+      ...start,
+    });
+    return (
+      <EventEditor
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onValue?.(next);
+        }}
+        ownerOptions={['GECEKODU']}
+        activeTickets={activeTickets}
+      />
+    );
+  }
+
+  it('offers the waiting list only with a capacity, on by default', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    const { unmount } = render(<CapacityEditor start={{ capacity: 0 }} />);
+    expect(screen.getByText('0 = sınırsız')).toBeInTheDocument();
+    expect(screen.queryByText('Bekleme listesi açık')).not.toBeInTheDocument();
+    unmount();
+
+    render(<CapacityEditor start={{ capacity: 50 }} onValue={onValue} />);
+    expect(screen.getByRole('switch', { name: /Bekleme listesi açık/ })).toBeChecked();
+    await user.click(screen.getByText('Bekleme listesi açık'));
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ waitlistEnabled: false }));
+    expect(screen.getByText('Dolunca kayıt alınmaz.')).toBeInTheDocument();
+  });
+
+  it('says nobody is taken out when the capacity goes below the tickets', () => {
+    render(<CapacityEditor start={{ capacity: 40 }} activeTickets={52} />);
+    expect(
+      screen.getByText('52 kayıt var. Kimse çıkarılmaz; yeni kayıt sıraya girer.'),
+    ).toBeInTheDocument();
+  });
+});
