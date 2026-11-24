@@ -125,6 +125,47 @@ describe('Kopya diyaloğu', () => {
     );
   });
 
+  it('offers the external registration link and the attendee note, on by default', async () => {
+    capabilities(LEADER);
+    const user = userEvent.setup();
+    render(
+      <Harness
+        event={{
+          ...source,
+          externalRegistrationUrl: 'https://forms.office.com/r/abc',
+          attendeeNote: 'Wi-Fi: SKYLAB',
+        }}
+      />,
+    );
+    const dialog = await openDialog(user);
+    const link = within(dialog).getByRole('checkbox', {
+      name: 'Dış kayıt bağlantısını da kopyala',
+    });
+    const note = within(dialog).getByRole('checkbox', { name: 'Katılımcı notunu da kopyala' });
+    expect(link).toBeChecked();
+    expect(note).toBeChecked();
+    await user.click(note);
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(eventsApi.copy).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ includeExternalRegistration: true, includeAttendeeNote: false }),
+    );
+  });
+
+  it('offers neither when the source has none, and sends neither', async () => {
+    capabilities(LEADER);
+    const user = userEvent.setup();
+    render(<Harness event={{ ...source, attendeeNote: '' }} />);
+    const dialog = await openDialog(user);
+    expect(within(dialog).queryByText(/Dış kayıt bağlantısını/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Katılımcı notunu/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(eventsApi.copy).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ includeExternalRegistration: false, includeAttendeeNote: false }),
+    );
+  });
+
   it('hides the door staff box from who may not assign them', async () => {
     capabilities([{ team: 'GECEKODU', can: { 'event.create': true, 'event.update': true } }]);
     const user = userEvent.setup();

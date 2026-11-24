@@ -134,6 +134,10 @@ export type EventCopyBody = {
   startDate: string;
   includeDoorStaff?: boolean;
   includeCompetitions?: boolean;
+  /** None: the external registration link is not copied. */
+  includeExternalRegistration?: boolean;
+  /** None: the attendee note is not copied. */
+  includeAttendeeNote?: boolean;
   /** None: the source's Owner team. */
   ownerTeam?: string;
 };
