@@ -5,6 +5,7 @@ import {
   doorSessionLabel,
   doorSessionTiming,
   resolveDoorTicket,
+  doorConflict,
   scanRefusal,
 } from '@/lib/door-check-in';
 import { ProblemError } from '@/lib/api/core';
@@ -247,5 +248,38 @@ describe('scanRefusal', () => {
     expect(scanRefusal(problem(403, 'session_closed')).title).toBe('Oturum girişe kapalı');
     expect(scanRefusal(problem(403)).title).toBe('Yetkin yok');
     expect(scanRefusal(new Error('boom'))).toMatchObject({ kind: 'refused', title: 'Okunamadı' });
+  });
+
+  it('keeps amber for "already in" alone: every other 409 is a red refusal', () => {
+    expect(scanRefusal(problem(409, 'ticket_cancelled'))).toMatchObject({
+      kind: 'refused',
+      title: 'Bilet iptal edilmiş',
+    });
+    expect(scanRefusal(problem(409, 'ticket_waitlisted'))).toMatchObject({
+      kind: 'refused',
+      title: 'Bilet bekleme listesinde',
+    });
+    expect(scanRefusal(problem(409, 'something_new'))).toMatchObject({ kind: 'refused' });
+  });
+});
+
+describe('doorConflict', () => {
+  it('reads core’s 409s on the door’s ways in', () => {
+    expect(doorConflict(new ProblemError(409, 'Conflict'))).toMatchObject({
+      kind: 'already',
+      text: 'Bu kişi bu oturuma zaten girmiş.',
+    });
+    expect(doorConflict(new ProblemError(409, 'Conflict', { code: 'ticket_cancelled' }))).toEqual({
+      kind: 'refused',
+      title: 'Bilet iptal edilmiş',
+      text: 'Bu bilet kapıdan geçmez.',
+    });
+    expect(doorConflict(new ProblemError(409, 'Ambiguous Match'))).toEqual({
+      kind: 'refused',
+      title: 'Birden fazla kişi',
+      text: 'Bu adla birden fazla kayıt var; e-posta ile dene.',
+    });
+    expect(doorConflict(new ProblemError(404, 'Not Found'))).toBeNull();
+    expect(doorConflict(new Error('boom'))).toBeNull();
   });
 });

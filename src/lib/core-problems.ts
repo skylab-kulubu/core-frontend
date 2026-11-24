@@ -100,6 +100,11 @@ const CODE_MESSAGES: Record<string, string> = {
     'Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.',
   ticket_notification_off: 'Bilet postası kapalı; bilet gönderilemiyor.',
   ticket_holder_erased: 'Bilet sahibinin hesabı silinmiş; gönderilecek kimse yok.',
+  // A Ticket's status (core docs/ticket-cancellation.md): the door and the panel's ticket writes
+  ticket_cancelled: 'Bilet iptal edilmiş.',
+  ticket_waitlisted: 'Bilet bekleme listesinde.',
+  ticket_checked_in: 'Girişi olan bilet iptal edilemez; önce girişi geri al.',
+  ticket_in_competition: 'Kişi yarışmada; önce yarışmadan çıkar.',
   audit_unavailable: 'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',

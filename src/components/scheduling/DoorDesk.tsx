@@ -33,6 +33,7 @@ import { ticketsApi, type DoorAttendee, type DoorEvent } from '@/lib/api/tickets
 import {
   ALREADY_CHECKED_IN,
   defaultDoorSessionId,
+  doorConflict,
   doorSessionLabel,
   doorSessionTiming,
   scanRefusal,
@@ -77,11 +78,14 @@ const timeOf = (iso: string) => {
   return Number.isNaN(at.getTime()) ? '' : clock.format(at);
 };
 
-/** A refusal in the door's words: already in, nobody found, or core's Turkish reason. */
+/**
+ * A refusal in the door's words: already in (amber), a cancelled or waitlisted ticket, two
+ * people of that name, nobody found, or core's Turkish reason (red).
+ */
 function refusal(err: unknown, fallback: string): Outcome {
-  if (err instanceof ProblemError && err.status === 409) {
-    return { kind: 'already', text: coreProblemMessage(err, fallback, ALREADY_CHECKED_IN) };
-  }
+  const conflict = doorConflict(err);
+  if (conflict?.kind === 'already') return { kind: 'already', text: conflict.text };
+  if (conflict) return { kind: 'refused', title: conflict.title, text: conflict.text };
   if (err instanceof ProblemError && err.status === 404) {
     return { kind: 'refused', text: 'Bulunamadı. Adı, e-postayı ya da bilet kodunu denetle.' };
   }

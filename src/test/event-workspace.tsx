@@ -68,6 +68,8 @@ export const ticketsModule = {
     checkIn: jest.fn(),
     resend: jest.fn(),
     renewLink: jest.fn(),
+    cancel: jest.fn(),
+    restore: jest.fn(),
   },
 };
 export const identityModule = { identityApi: { listUsers: jest.fn(), getUser: jest.fn() } };

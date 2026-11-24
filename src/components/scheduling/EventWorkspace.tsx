@@ -73,6 +73,7 @@ import { linkSessionFeedbackForm, sessionIdOfFeedbackSlot } from '@/lib/session-
 import { useNotify } from '@/lib/ui/use-notify';
 import {
   canAssignEventTicket,
+  canCancelEventTicket,
   canDeskCheckIn,
   canListEventTickets,
   ticketOwnerPeople,
@@ -95,6 +96,8 @@ export type EventPermissions = Readonly<{
   canCompetitors: boolean;
   canTickets: boolean;
   canAssign: boolean;
+  /** Cancelling a ticket and taking it back: who edits the event (core), never DK. */
+  canCancelTickets: boolean;
   canDesk: boolean;
   canCertificates: boolean;
   canReadIssuedCertificates: boolean;
@@ -116,6 +119,7 @@ export function eventPermissions(
     canCompetitors: canManageCompetitors(groups, team),
     canTickets: canListEventTickets(groups, team, roles),
     canAssign: canAssignEventTicket(groups, team),
+    canCancelTickets: canCancelEventTicket(groups, team),
     canDesk: canDeskCheckIn(groups, team) || doorAccess,
     canCertificates: canUseCertificateWorkspace(groups, roles, team),
     canReadIssuedCertificates: canReadCertificates(groups, roles, team),
@@ -145,6 +149,7 @@ export function withTeamCapabilities(
     canCompetitors: team('competitor.update', can.canCompetitors),
     canTickets: team('ticket.read', can.canTickets),
     canAssign: team('ticket.assign', can.canAssign),
+    canCancelTickets: team('event.update', can.canCancelTickets),
     canDesk: doorAccess || team('door.checkIn', can.canDesk),
     // The tab: any certificate decision of the team
     canCertificates:
