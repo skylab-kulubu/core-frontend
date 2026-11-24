@@ -1,5 +1,6 @@
 import type { CertificateAttendance, CertificateAttendanceRow } from '@/lib/api/certificates';
 import {
+  attendedText,
   attendanceCloseLine,
   attendanceViewCounts,
   closeTimeLabel,
@@ -233,6 +234,15 @@ describe('lastSessionEnded', () => {
         new Date('2026-11-24T16:00:00Z'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('attendedText', () => {
+  it('counts sessions, or says whether the person entered an event without sessions', () => {
+    expect(attendedText({ countedTotal: 8 }, { attended: 6 })).toBe('6/8 oturum');
+    expect(attendedText({ countedTotal: 8 }, { attended: 6 }, '')).toBe('6/8');
+    expect(attendedText({ countedTotal: 1, sessionless: true }, { attended: 1 })).toBe('Girdi');
+    expect(attendedText({ countedTotal: 1, sessionless: true }, { attended: 0 })).toBe('Girmedi');
   });
 });
 

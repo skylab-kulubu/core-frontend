@@ -283,3 +283,16 @@ export function lastSessionEnded(
   const end = lastSessionEndsAt(event, days, sessions);
   return end !== null && end <= now.getTime();
 }
+
+/**
+ * A person's attendance as the list says it: "6/8 oturum", or on an event without sessions
+ * (core #422) whether they entered.
+ */
+export function attendedText(
+  list: Pick<CertificateAttendance, 'countedTotal' | 'sessionless'>,
+  row: Pick<CertificateAttendanceRow, 'attended'>,
+  unit = ' oturum',
+): string {
+  if (list.sessionless) return row.attended > 0 ? 'Girdi' : 'Girmedi';
+  return `${row.attended}/${list.countedTotal}${unit}`;
+}

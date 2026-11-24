@@ -21,6 +21,25 @@ export type DoorEvent = {
   coverImageUrl?: string;
   active: boolean;
   ranked: boolean;
+  /**
+   * What a scan writes now (core docs/venue-entry.md): `venue` (the day's venue entry; always
+   * on an event without a live session) or `per_session`. Absent before core #413.
+   */
+  effectiveEntryMode?: EntryMode;
+};
+
+/** The door's mode (core docs/venue-entry.md); `null` on an event is automatic. */
+export type EntryMode = 'per_session' | 'venue';
+
+/** A ticket's entry into the venue on a day, as the event's door shows it (no ticket id, no e-mail). */
+export type VenueEntry = {
+  id: string;
+  kind: 'entry';
+  entryDate: string;
+  eventDayId?: string;
+  source: 'scan' | 'desk' | 'attendance';
+  name: string;
+  createdAt: string;
 };
 
 /**
@@ -238,6 +257,33 @@ export const ticketsApi = {
    */
   promote: (ticketId: string) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/promote`, { method: 'POST' }),
+  /**
+   * The event's own door, no session picked (core docs/venue-entry.md): the day's venue entry
+   * from a Ticket QR or SkyPass code. 409 `already_entered` (with `name`) for a second one that
+   * day; 403 `event_closed`; the session scan's other refusals.
+   */
+  scanEntry: (eventId: string, token: string) =>
+    coreFetch<VenueEntry>(`/v1/events/${encodeURIComponent(eventId)}/entries/scan`, {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  /** The event desk: a ticket code, a name, an e-mail or a person; as `scanEntry`. */
+  resolveEntry: (eventId: string, target: { personId?: string; query?: string }) =>
+    coreFetch<VenueEntry>(`/v1/events/${encodeURIComponent(eventId)}/entries/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(target),
+    }),
+  /** Takes a venue entry back (204); the day's session check-ins stay. */
+  undoEntry: (eventId: string, entryId: string) =>
+    coreFetch<void>(
+      `/v1/events/${encodeURIComponent(eventId)}/entries/${encodeURIComponent(entryId)}`,
+      { method: 'DELETE' },
+    ),
+  /** Live: the venue day's entries, newest first (core picks the day the event is on now). */
+  venueEntries: (eventId: string) =>
+    coreFetch<VenueEntry[]>(`/v1/events/${encodeURIComponent(eventId)}/entries`, {
+      cache: 'no-store',
+    }),
   /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {

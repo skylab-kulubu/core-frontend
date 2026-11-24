@@ -1,6 +1,7 @@
 import type { EventStat } from './dashboard';
 import type { EventFile, EventVideo } from './uploads';
 import { coreFetch } from './core';
+import type { EntryMode } from './tickets';
 
 export type CoreEvent = {
   id: string;
@@ -38,6 +39,24 @@ export type CoreEvent = {
    * docs/event-capacity.md, default true); an older core sends none.
    */
   waitlistEnabled?: boolean;
+  /**
+   * The door's mode (core docs/venue-entry.md): `per_session`, `venue`, or `null` for automatic
+   * (`venue` without a live session). `effectiveEntryMode` is what applies now. Absent before
+   * core #413.
+   */
+  entryMode?: EntryMode | null;
+  effectiveEntryMode?: EntryMode;
+  /**
+   * The door's mails (core docs/attendance-mail.md), on unless off: "hoş geldin" on the day's
+   * first entry, "katılımın alındı" on each session check-in. Absent before core's door mails.
+   */
+  attendanceWelcomeMail?: boolean;
+  attendanceRecordedMail?: boolean;
+  /**
+   * The organizer's note for whoever enters (Wi-Fi, the room), sent in the welcome mail alone:
+   * only to who may edit the event, `""` for none; absent otherwise and before core's door mails.
+   */
+  attendeeNote?: string;
   /** `capacity > 0` and the active Tickets fill it. */
   full?: boolean;
   /** The active Tickets; only for who may edit the Event. */
@@ -151,6 +170,12 @@ export type EventBody = {
   capacity: number;
   /** Left out: core's default (on). */
   waitlistEnabled?: boolean;
+  /** Left out or `null`: automatic. */
+  entryMode?: EntryMode | null;
+  /** Left out: core's default (on). */
+  attendanceWelcomeMail?: boolean;
+  attendanceRecordedMail?: boolean;
+  attendeeNote?: string;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -193,6 +218,13 @@ export type EventPatch = {
   capacity?: number | null;
   /** Takes no `null` (400). */
   waitlistEnabled?: boolean;
+  /** `null` back to automatic. */
+  entryMode?: EntryMode | null;
+  /** Take no `null` (400). */
+  attendanceWelcomeMail?: boolean;
+  attendanceRecordedMail?: boolean;
+  /** `""` or `null` clears it. */
+  attendeeNote?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;
