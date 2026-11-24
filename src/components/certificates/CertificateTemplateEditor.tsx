@@ -1142,15 +1142,26 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 </label>
               </div>
               {!REQUIRED_KINDS.includes(selected.kind) ? (
-                <button
-                  type="button"
-                  className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5"
-                  onClick={() => {
-                    deleteElement(selected);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" /> Katmanı sil
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled={lastVerifier(elements, selected)}
+                    aria-describedby={
+                      lastVerifier(elements, selected) ? 'last-verifier-note' : undefined
+                    }
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                    onClick={() => {
+                      deleteElement(selected);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" /> Katmanı sil
+                  </button>
+                  {lastVerifier(elements, selected) ? (
+                    <p id="last-verifier-note" className="text-subtle-foreground text-[13px]/5">
+                      {LAST_VERIFIER}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-subtle-foreground text-[13px]/5">Zorunlu katman</p>
               )}
