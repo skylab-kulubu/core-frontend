@@ -21,6 +21,7 @@ import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
+import { AttendanceQr } from '@/components/scheduling/AttendanceQr';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
@@ -37,7 +38,7 @@ import {
   sessionTypeLabel,
   type EventSession,
 } from '@/lib/api/sessions';
-import { ticketsApi } from '@/lib/api/tickets';
+import { ticketsApi, type SessionQrMode } from '@/lib/api/tickets';
 import { urlsApi } from '@/lib/api/urls';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
@@ -113,6 +114,8 @@ export default function EventProgramPage() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
+  // Core's SESSION_QR_MODE, learnt from the attendance QR; null until it answers.
+  const [sessionQrMode, setSessionQrMode] = useState<SessionQrMode | null>(null);
   const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
   // A drawer's own error shows inside it; the tab's line sits behind the open drawer
   const [dayError, setDayError] = useState<string | null>(null);
@@ -718,12 +721,34 @@ export default function EventProgramPage() {
         title={qrSession ? `${qrSession.title} QR` : 'Oturum QR'}
       >
         {qrSession ? (
-          <QrPreview
-            imageUrl={sessionQrUrl(qrSession.id)}
-            downloadPath={sessionQrPath(qrSession.id, { size: 1024 })}
-            fileName={sessionQrFileName(qrSession.id, qrSession.title)}
-            label={`${qrSession.title} QR`}
-          />
+          <div className="space-y-6">
+            {canDesk ? (
+              <AttendanceQr
+                sessionId={qrSession.id}
+                title={qrSession.title}
+                onMode={setSessionQrMode}
+              />
+            ) : null}
+            {sessionQrMode === 'qr' ? (
+              <p className="text-secondary-foreground text-sm">
+                Basılı oturum QR&apos;ı artık yoklama yazmaz.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {canDesk ? (
+                  <p className="text-secondary-foreground text-sm">
+                    Basılı QR: sky-app&apos;in bugünkü sürümü bunu okur. Geçiş bitince kalkar.
+                  </p>
+                ) : null}
+                <QrPreview
+                  imageUrl={sessionQrUrl(qrSession.id)}
+                  downloadPath={sessionQrPath(qrSession.id, { size: 1024 })}
+                  fileName={sessionQrFileName(qrSession.id, qrSession.title)}
+                  label={`${qrSession.title} QR`}
+                />
+              </div>
+            )}
+          </div>
         ) : null}
       </Drawer>
       <Drawer
