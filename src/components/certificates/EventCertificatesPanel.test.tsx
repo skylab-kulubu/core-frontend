@@ -623,6 +623,20 @@ describe('EventCertificatesPanel attendance list', () => {
     );
   });
 
+  it('counts as eligible and closes for only who has no certificate yet', async () => {
+    const user = userEvent.setup();
+    // Core counts Can's issued certificate in eligibleCount; closing queues Ayşe and Ece
+    api.summary.mockResolvedValue({ ...open, eligibleCount: 3 });
+    renderList();
+    await list();
+    const [card] = screen.getAllByRole('button', { name: /^Uygun/ });
+    expect(card).toHaveTextContent('2');
+    expect(card).not.toHaveTextContent('3');
+    await user.click(screen.getByRole('button', { name: 'Katılımı kapat ve üret' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Katılım kapatılsın mı?' });
+    expect(confirm).toHaveTextContent('2 kişiye sertifika üretilip e-postayla gönderilecek');
+  });
+
   it('counts the below threshold beside the eligible, a filter of the list', async () => {
     const user = userEvent.setup();
     renderList();

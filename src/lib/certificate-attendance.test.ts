@@ -3,6 +3,7 @@ import {
   attendanceCloseLine,
   attendanceViewCounts,
   closeTimeLabel,
+  finalizeCount,
   issuableByHand,
   lastSessionEnded,
   lastSessionEndsAt,
@@ -71,12 +72,23 @@ describe('attendance list views', () => {
     expect(searchAttendance(rows, '')).toHaveLength(rows.length);
   });
 
-  it('narrows to a status and counts each view over the searched rows', () => {
-    expect(viewAttendance(rows, 'below').map((r) => r.name)).toEqual(['Burak Demir', 'Deniz Kaya']);
-    expect(viewAttendance(rows, 'issued').map((r) => r.name)).toEqual(['Can Aydın']);
-    expect(viewAttendance(rows, 'eligible').map((r) => r.name)).toEqual(['Ayşe Yılmaz']);
-    expect(attendanceViewCounts(rows)).toEqual({ all: 9, eligible: 1, below: 2, issued: 1 });
-    expect(attendanceViewCounts(searchAttendance(rows, 'demir'))).toEqual({
+  it('narrows to a view and counts each view over the searched rows', () => {
+    const rule = list(rows);
+    expect(viewAttendance(rows, 'below', rule).map((r) => r.name)).toEqual([
+      'Burak Demir',
+      'Deniz Kaya',
+    ]);
+    expect(viewAttendance(rows, 'issued', rule).map((r) => r.name)).toEqual(['Can Aydın']);
+    // Uygun: meets the rule and holds no certificate, whatever its job; not İpek (3 of 8)
+    expect(viewAttendance(rows, 'eligible', rule).map((r) => r.name)).toEqual([
+      'Ayşe Yılmaz',
+      'Ece Şahin',
+      'Fatma Öz',
+      'Gül Ak',
+      'Hakan Er',
+    ]);
+    expect(attendanceViewCounts(rows, rule)).toEqual({ all: 9, eligible: 5, below: 2, issued: 1 });
+    expect(attendanceViewCounts(searchAttendance(rows, 'demir'), rule)).toEqual({
       all: 1,
       eligible: 0,
       below: 1,
@@ -110,6 +122,13 @@ describe('manual issue', () => {
     // `once`: core says 1, never less
     expect(meetsRule({ ...rule, rule: 'once', effectiveMin: 0 }, row('x', 'below', 0))).toBe(false);
     expect(meetsRule({ ...rule, rule: 'once', effectiveMin: 1 }, row('x', 'below', 1))).toBe(true);
+  });
+});
+
+describe('finalizeCount', () => {
+  it('leaves out who already has a certificate, as core queues', () => {
+    // Core's eligibleCount says 6 here (Can's issued one too); a finalization queues 5
+    expect(finalizeCount(list(rows))).toBe(5);
   });
 });
 

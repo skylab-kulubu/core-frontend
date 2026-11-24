@@ -56,6 +56,7 @@ import {
   ATTENDANCE_STATUS,
   attendanceCloseLine,
   attendanceViewCounts,
+  finalizeCount,
   issuableByHand,
   needsJustification,
   rescanCount,
@@ -453,9 +454,13 @@ export function EventCertificatesPanel({
   const closeLine = attendance && summary ? attendanceCloseLine(summary) : null;
   const toRescan = attendance ? rescanCount(attendance) : 0;
   const peopleSearched = attendance ? searchAttendance(attendance.rows, peopleQuery) : [];
-  const peopleCounts = attendanceViewCounts(peopleSearched);
+  const peopleCounts = attendance
+    ? attendanceViewCounts(peopleSearched, attendance)
+    : { all: 0, eligible: 0, below: 0, issued: 0 };
+  // Core's eligibleCount counts the issued too; a finalization queues only the rest
+  const eligibleNow = attendance ? finalizeCount(attendance) : (summary?.eligibleCount ?? 0);
   const peoplePaged = paginateRows(
-    viewAttendance(peopleSearched, peopleView),
+    attendance ? viewAttendance(peopleSearched, peopleView, attendance) : [],
     peoplePage,
     peopleSize,
   );
@@ -592,7 +597,7 @@ export function EventCertificatesPanel({
               {
                 key: 'eligible',
                 label: 'Uygun',
-                value: summary.eligibleCount,
+                value: eligibleNow,
                 active: attendance !== null && peopleView === 'eligible',
                 onSelect: attendance
                   ? () => choosePeopleView(peopleView === 'eligible' ? 'all' : 'eligible')
@@ -654,7 +659,7 @@ export function EventCertificatesPanel({
                     : 'Katılımı kapat ve üret'
                 }
                 disabled={busy || ruleKind === 'none' || !canFinalize}
-                onClick={() => askFinalize(summary.eligibleCount)}
+                onClick={() => askFinalize(eligibleNow)}
               />
             ) : null}
             {canIssue && finalized && attendance ? (

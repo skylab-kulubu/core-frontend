@@ -30,11 +30,7 @@ export const ATTENDANCE_STATUS: Record<
   revoked: { label: 'İptal', kind: 'ended' },
 };
 
-const VIEW_STATUS: Record<Exclude<AttendanceView, 'all'>, CertificateAttendanceStatus> = {
-  eligible: 'eligible',
-  below: 'below',
-  issued: 'issued',
-};
+type RuleOf = Pick<CertificateAttendance, 'rule' | 'countedTotal' | 'effectiveMin'>;
 
 /** The rows the search keeps, by name. */
 export function searchAttendance(
@@ -44,23 +40,41 @@ export function searchAttendance(
   return rows.filter((row) => matchesQuery(query, row.name));
 }
 
+/**
+ * Meets the rule and holds no certificate yet: who a finalization queues
+ * (core's `finalizationTickets`: eligible, no active certificate), whatever
+ * job or revoked certificate it has. The "Uygun" card, chip and confirmation.
+ */
+export function eligibleUnissued(rule: RuleOf, row: CertificateAttendanceRow): boolean {
+  return row.status !== 'issued' && meetsRule(rule, row);
+}
+
 /** The rows a view shows, out of the searched ones. */
 export function viewAttendance(
   rows: readonly CertificateAttendanceRow[],
   view: AttendanceView,
+  rule: RuleOf,
 ): CertificateAttendanceRow[] {
-  return view === 'all' ? [...rows] : rows.filter((row) => row.status === VIEW_STATUS[view]);
+  if (view === 'all') return [...rows];
+  if (view === 'eligible') return rows.filter((row) => eligibleUnissued(rule, row));
+  return rows.filter((row) => row.status === view);
+}
+
+/** How many certificates closing the attendance queues now. */
+export function finalizeCount(list: CertificateAttendance): number {
+  return list.rows.filter((row) => eligibleUnissued(list, row)).length;
 }
 
 /** "Hepsi 42 · Uygun 30 · Eşik altı 8 · Verildi 4" over the searched rows. */
 export function attendanceViewCounts(
   rows: readonly CertificateAttendanceRow[],
+  rule: RuleOf,
 ): Record<AttendanceView, number> {
   return {
     all: rows.length,
-    eligible: viewAttendance(rows, 'eligible').length,
-    below: viewAttendance(rows, 'below').length,
-    issued: viewAttendance(rows, 'issued').length,
+    eligible: viewAttendance(rows, 'eligible', rule).length,
+    below: viewAttendance(rows, 'below', rule).length,
+    issued: viewAttendance(rows, 'issued', rule).length,
   };
 }
 
@@ -70,7 +84,7 @@ export function attendanceViewCounts(
  * (`effectiveMin` is core's, the fewest check-ins the rule takes).
  */
 export function meetsRule(
-  list: Pick<CertificateAttendance, 'rule' | 'countedTotal' | 'effectiveMin'>,
+  list: RuleOf,
   row: Pick<CertificateAttendanceRow, 'attended' | 'missingRequired'>,
 ): boolean {
   if (list.rule === 'none' || list.countedTotal < 1) return false;
