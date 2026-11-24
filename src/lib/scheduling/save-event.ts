@@ -32,6 +32,34 @@ function waitlistBody(form: EventFormState): { waitlistEnabled?: boolean } {
   return typeof form.waitlistEnabled === 'boolean' ? { waitlistEnabled: form.waitlistEnabled } : {};
 }
 
+/**
+ * The door's mode and mail switches; each left out until it was read or set, so core keeps
+ * what it has (an older core reads none).
+ */
+function doorBody(
+  form: EventFormState,
+  create = false,
+): Pick<EventPatch, 'entryMode' | 'attendanceWelcomeMail' | 'attendanceRecordedMail'> & {
+  attendeeNote?: string;
+} {
+  return {
+    ...(form.entryMode !== undefined ? { entryMode: form.entryMode } : {}),
+    // A new event sends a switch only when turned off (on is core's default)
+    ...(typeof form.attendanceWelcomeMail === 'boolean' && (!create || !form.attendanceWelcomeMail)
+      ? { attendanceWelcomeMail: form.attendanceWelcomeMail }
+      : {}),
+    ...(typeof form.attendanceRecordedMail === 'boolean' &&
+    (!create || !form.attendanceRecordedMail)
+      ? { attendanceRecordedMail: form.attendanceRecordedMail }
+      : {}),
+    // Read only by who may edit the event: left out until core sent it
+    // A new event leaves an empty one out; an edit sends "" to clear it
+    ...(typeof form.attendeeNote === 'string' && (!create || form.attendeeNote.trim())
+      ? { attendeeNote: form.attendeeNote.trim() }
+      : {}),
+  };
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -49,6 +77,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     ...feedbackBody(form),
     capacity: form.capacity,
     ...waitlistBody(form),
+    ...doorBody(form, true),
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
@@ -94,6 +123,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     feedbackAutoSend: form.feedbackAutoSend ?? true,
     capacity: form.capacity,
     ...waitlistBody(form),
+    ...doorBody(form),
     startDate: toRfc3339(form.startDate ?? '') ?? null,
     endDate: toRfc3339(form.endDate ?? '') ?? null,
     linkedin: form.linkedin || null,

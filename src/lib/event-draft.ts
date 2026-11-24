@@ -130,6 +130,11 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     feedbackSlot: feedbackSlotFromEvent(ev),
     capacity: ev.capacity,
     waitlistEnabled: ev.waitlistEnabled,
+    // Undefined while core sends none: nothing is written back
+    entryMode: ev.entryMode,
+    attendanceWelcomeMail: ev.attendanceWelcomeMail,
+    attendanceRecordedMail: ev.attendanceRecordedMail,
+    attendeeNote: ev.attendeeNote,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',

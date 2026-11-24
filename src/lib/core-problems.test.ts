@@ -335,6 +335,11 @@ describe('coreProblemMessage for any core refusal', () => {
     ['registration_closed', 409, 'Etkinliğin başvurusu kapalı.'],
     ['event_location_invalid', 400, 'Konum geçersiz: noktayı ve açık adresi denetle.'],
     [
+      'event_attendee_note_invalid',
+      400,
+      'Katılımcı notu geçersiz: en çok 1000 karakter, görünmez karakter olmasın.',
+    ],
+    [
       'invalid_name',
       422,
       'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
