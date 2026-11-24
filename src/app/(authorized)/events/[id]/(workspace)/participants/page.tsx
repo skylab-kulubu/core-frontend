@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StateCard } from '@/components/chrome/StateCard';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
+import { AttendeeImportDrawer } from '@/components/scheduling/roster/AttendeeImportDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
@@ -43,6 +44,7 @@ export default function EventParticipantsPage() {
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   // A second click while the first is out sends nothing more
   const sending = useRef(new Set<string>());
@@ -199,6 +201,7 @@ export default function EventParticipantsPage() {
         openTicket={openTicket}
         onOpenTicket={show}
         onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
+        onImport={canAssign ? () => setImportOpen(true) : undefined}
         onMail={(recipients) =>
           void mailApplicants(recipients.map((recipient) => recipient.ticketId))
         }
@@ -222,6 +225,15 @@ export default function EventParticipantsPage() {
         capacity={capacity}
         activeTickets={tickets.length}
         onCreated={async () => {
+          await readAll();
+        }}
+      />
+      <AttendeeImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        eventId={event.id}
+        capacity={capacity}
+        onImported={async () => {
           await readAll();
         }}
       />

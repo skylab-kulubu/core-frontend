@@ -95,6 +95,17 @@ const CODE_MESSAGES: Record<string, string> = {
   registration_closed: 'Etkinliğin başvurusu kapalı.',
   // An Event's place (core docs/event-location.md): a half point, one off the globe, a control character
   event_location_invalid: 'Konum geçersiz: noktayı ve açık adresi denetle.',
+  // The external registration link and the attendee import (core docs/attendee-import.md)
+  external_registration_url_invalid:
+    'Dış kayıt bağlantısı https:// ile başlayan tam bir adres olmalı.',
+  import_empty: 'Listede satır yok.',
+  import_no_email_column: 'Listede e-posta sütunu bulunamadı. Başlığa "E-posta" yaz.',
+  import_unreadable: 'Liste okunamadı. Dosyayı UTF-8 CSV olarak kaydet.',
+  import_too_large: "Liste 2 MB'tan büyük.",
+  import_too_many_rows: 'Liste 1000 satırdan uzun; böl ve ayrı ayrı içe aktar.',
+  // The attendee note (core docs/attendance-mail.md): over 1000 characters or an invisible character
+  event_attendee_note_invalid:
+    'Katılımcı notu geçersiz: en çok 1000 karakter, görünmez karakter olmasın.',
   // Sending a Ticket again, renewing its link (core docs/ticket-resend.md)
   ticket_resend_rate_limited:
     'Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.',
@@ -126,6 +137,7 @@ const CODE_MESSAGES: Record<string, string> = {
   credential_not_found: 'Kimlik bilgisi bulunamadı; sayfayı yenile.',
   provider_not_found: 'Bağlantı bulunamadı; sayfayı yenile.',
   mail_not_sent: 'E-posta gönderilemedi. Biraz sonra tekrar dene.',
+  resend_too_soon: 'Herkese yeniden gönderme 10 dakikada bir yapılabilir.',
   name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',
   account_invalid: 'Hesap bilgisi kabul edilmedi.',
   // Group name refusals (core teamcode)

@@ -82,6 +82,25 @@ function justifyClass(align: CertificateElement['align']) {
   return 'justify-start';
 }
 
+/**
+ * Layers a template cannot lose: core refuses a layout without them. The
+ * verification QR is optional (ADR-0040 addendum 2026-11-24): the default
+ * keeps one, a designer may delete it.
+ */
+const REQUIRED_KINDS: readonly CertificateElementKind[] = ['recipientName', 'eventName'];
+
+/** Core wants one of these so a paper certificate can be verified. */
+const VERIFY_KINDS: readonly CertificateElementKind[] = ['verificationQr', 'serial'];
+const LAST_VERIFIER = 'QR ya da sertifika kodundan biri kalmalı.';
+
+/** Deleting it would leave the layout neither the QR nor the serial. */
+function lastVerifier(elements: readonly CertificateElement[], element: CertificateElement) {
+  return (
+    VERIFY_KINDS.includes(element.kind) &&
+    !elements.some((other) => other.id !== element.id && VERIFY_KINDS.includes(other.kind))
+  );
+}
+
 function makeElement(kind: CertificateElementKind): CertificateElement {
   const isQr = kind === 'verificationQr';
   const isShape = kind === 'shape';
@@ -160,9 +179,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
       anyTeamCan('certificateTemplate.create');
 
+  const elements = draft.layout.elements;
   const selected = useMemo(
-    () => draft.layout.elements.find((element) => element.id === selectedId),
-    [draft.layout.elements, selectedId],
+    () => elements.find((element) => element.id === selectedId),
+    [elements, selectedId],
   );
   const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
   const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
@@ -197,11 +217,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       if (!delta && event.key !== 'Delete' && event.key !== 'Backspace') return;
       event.preventDefault();
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (
-          !selected ||
-          selected.locked ||
-          ['recipientName', 'eventName', 'verificationQr'].includes(selected.kind)
-        ) {
+        if (!selected || selected.locked || REQUIRED_KINDS.includes(selected.kind)) {
+          return;
+        }
+        if (lastVerifier(elements, selected)) {
+          setError(LAST_VERIFIER);
           return;
         }
         setDraft((current) => ({
@@ -236,7 +256,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canEdit, selected, selectedId]);
+  }, [canEdit, elements, selected, selectedId]);
 
   useEffect(() => {
     if (!templateId) return;
@@ -345,7 +365,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   function deleteElement(element: CertificateElement) {
-    if (!canEdit || ['recipientName', 'eventName', 'verificationQr'].includes(element.kind)) return;
+    if (!canEdit || REQUIRED_KINDS.includes(element.kind)) return;
+    if (lastVerifier(draft.layout.elements, element)) {
+      setError(LAST_VERIFIER);
+      return;
+    }
     updateLayout({
       elements: draft.layout.elements.filter((candidate) => candidate.id !== element.id),
     });
@@ -1117,16 +1141,27 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   />
                 </label>
               </div>
-              {!['recipientName', 'eventName', 'verificationQr'].includes(selected.kind) ? (
-                <button
-                  type="button"
-                  className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5"
-                  onClick={() => {
-                    deleteElement(selected);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" /> Katmanı sil
-                </button>
+              {!REQUIRED_KINDS.includes(selected.kind) ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={lastVerifier(elements, selected)}
+                    aria-describedby={
+                      lastVerifier(elements, selected) ? 'last-verifier-note' : undefined
+                    }
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                    onClick={() => {
+                      deleteElement(selected);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" /> Katmanı sil
+                  </button>
+                  {lastVerifier(elements, selected) ? (
+                    <p id="last-verifier-note" className="text-subtle-foreground text-[13px]/5">
+                      {LAST_VERIFIER}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-subtle-foreground text-[13px]/5">Zorunlu katman</p>
               )}

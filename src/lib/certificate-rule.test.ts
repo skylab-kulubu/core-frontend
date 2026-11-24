@@ -103,6 +103,13 @@ describe('ruleSummaryParts', () => {
     expect(ruleSummaryParts(rule({ rule: 'once', sessions }))).toEqual(['En az bir oturum']);
     expect(ruleSummaryParts(rule({ rule: 'none', sessions }))).toEqual(['Sertifika yok']);
     expect(ruleSummaryParts(rule({ sessions: [] }))).toEqual(['Sayılan oturum yok']);
+    // An event without sessions: whoever entered it (core #422)
+    expect(ruleSummaryParts(rule({ sessions: [], sessionless: true }))).toEqual([
+      'Oturumsuz etkinlik: etkinliğe giren alır',
+    ]);
+    expect(ruleSummaryParts(rule({ rule: 'none', sessions: [], sessionless: true }))).toEqual([
+      'Sertifika yok',
+    ]);
   });
 });
 

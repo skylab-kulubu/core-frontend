@@ -16,7 +16,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { TextArea } from '@/components/chrome/TextArea';
 import { ProblemError } from '@/lib/api/core';
 import type { CertificateAttendanceRow } from '@/lib/api/certificates';
-import { JUSTIFICATION_MAX } from '@/lib/certificate-attendance';
+import { attendedText, JUSTIFICATION_MAX } from '@/lib/certificate-attendance';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
@@ -32,12 +32,15 @@ const FIELD_ERRORS: Record<string, string> = {
 export function ManualIssueDialog({
   row,
   countedTotal,
+  sessionless,
   needsReason,
   onClose,
   onIssue,
 }: {
   row: CertificateAttendanceRow;
   countedTotal: number;
+  /** An event without sessions: the line says whether the person entered (core #422). */
+  sessionless?: boolean;
   needsReason: boolean;
   onClose: () => void;
   /** Rejects with core's problem; the dialog says it. */
@@ -107,7 +110,7 @@ export function ManualIssueDialog({
             <p className="text-foreground text-sm">
               {row.name}
               <span className={`text-subtle-foreground ms-2 ${TEXT_SECONDARY}`}>
-                {`${row.attended}/${countedTotal} oturum`}
+                {attendedText({ countedTotal, sessionless }, row)}
               </span>
             </p>
             {showReason ? (

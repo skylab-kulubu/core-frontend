@@ -3,6 +3,7 @@ import type {
   CertificateAttendanceRow,
   CertificateAttendanceStatus,
   CertificateEventSummary,
+  CertificateMailState,
 } from '@/lib/api/certificates';
 import type { EventDay } from '@/lib/api/eventDays';
 import type { EventSession } from '@/lib/api/sessions';
@@ -95,6 +96,48 @@ export function meetsRule(
 /** "Elle ver" in the row menu: someone with no certificate and nothing queued or failed. */
 export function issuableByHand(row: Pick<CertificateAttendanceRow, 'status'>): boolean {
   return row.status === 'eligible' || row.status === 'below';
+}
+
+/** A certificate mail's state as a chip (core docs/certificate-mail.md). */
+export const MAIL_STATUS: Record<
+  CertificateMailState['status'],
+  { label: string; kind: StatusChipKind }
+> = {
+  sent: { label: 'Gönderildi', kind: 'active' },
+  queued: { label: 'Sırada', kind: 'neutral' },
+  failed: { label: 'Gönderilemedi', kind: 'cancelled' },
+  cancelled: { label: 'Gönderilmedi', kind: 'ended' },
+};
+
+/** Why a mail waits or failed, in a few words; null when there is nothing to say. */
+export function mailReason(
+  mail: Pick<CertificateMailState, 'status' | 'errorCode'>,
+): string | null {
+  const code = mail.errorCode ?? '';
+  if (!code || mail.status === 'sent') return null;
+  if (code === 'skymail_unreachable') return "SkyMail'e ulaşılamadı";
+  if (code === 'skymail_400' || code === 'skymail_422') return 'SkyMail reddetti';
+  if (code.startsWith('skymail_')) return 'SkyMail hata verdi';
+  if (code === 'mail_unconfigured') return 'Posta ayarı yok';
+  if (code === 'no_recipient') return 'Adres yok';
+  if (code === 'expired') return 'Süresi doldu';
+  if (code === 'revoked') return 'Sertifika iptal';
+  return 'Gönderilemedi';
+}
+
+/** Its mail may be sent again: an active certificate, when core keeps mails at all. */
+export function mailResendable(
+  certificate: { revokedAt?: string } | null | undefined,
+  summary: Pick<CertificateEventSummary, 'mailFailedCount'> | undefined,
+): boolean {
+  return Boolean(certificate && !certificate.revokedAt && summary?.mailFailedCount !== undefined);
+}
+
+/** What a resend did, in one line. */
+export function mailResendLine(result: { queued: number; alreadyQueued: number }): string {
+  const parts = [`${result.queued} posta sıraya alındı.`];
+  if (result.alreadyQueued) parts.push(`${result.alreadyQueued} kişinin postası zaten sırada.`);
+  return parts.join(' ');
 }
 
 /** Core refuses a manual issue below the threshold without a justification. */
@@ -239,4 +282,17 @@ export function lastSessionEnded(
   if (event.status !== 'published') return false;
   const end = lastSessionEndsAt(event, days, sessions);
   return end !== null && end <= now.getTime();
+}
+
+/**
+ * A person's attendance as the list says it: "6/8 oturum", or on an event without sessions
+ * (core #422) whether they entered.
+ */
+export function attendedText(
+  list: Pick<CertificateAttendance, 'countedTotal' | 'sessionless'>,
+  row: Pick<CertificateAttendanceRow, 'attended'>,
+  unit = ' oturum',
+): string {
+  if (list.sessionless) return row.attended > 0 ? 'Girdi' : 'Girmedi';
+  return `${row.attended}/${list.countedTotal}${unit}`;
 }

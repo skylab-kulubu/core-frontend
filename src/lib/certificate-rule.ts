@@ -68,6 +68,8 @@ export function withMark(
  */
 export function ruleSummaryParts(rule: CertificateRule): string[] {
   if (rule.rule === 'none') return ['Sertifika yok'];
+  // No session: whoever entered the event (core #422)
+  if (rule.sessionless) return ['Oturumsuz etkinlik: etkinliğe giren alır'];
   const n = countedTotal(rule.sessions);
   const parts: string[] = [];
   if (rule.rule === 'once') {
