@@ -24,6 +24,12 @@ export type CoreEvent = {
   formAlias?: string;
   extraFormUrls?: { label: string; url: string; alias?: string }[];
   /**
+   * Where people register when the sign-up runs on another product's form
+   * (Microsoft Forms and the like): an https address, left out for none (core
+   * docs/attendee-import.md); public, for a "Kayıt ol" that opens it.
+   */
+  externalRegistrationUrl?: string;
+  /**
    * The feedback form (etkinlik geri bildirim formu): not a Form slot, its
    * answers write no Ticket. `feedbackAutoSend` mails it two hours after the
    * Event ends to whom checked in; an older core sends none of these.
@@ -144,6 +150,8 @@ export type EventBody = {
   formUrl?: string;
   formAlias?: string;
   extraFormUrls?: { label: string; url: string; alias?: string }[];
+  /** An https address; none for none (`400 external_registration_url_invalid`). */
+  externalRegistrationUrl?: string;
   feedbackMode?: FeedbackMode;
   feedbackFormUrl?: string;
   feedbackFormAlias?: string;
@@ -186,6 +194,8 @@ export type EventPatch = {
   formUrl?: string | null;
   formAlias?: string | null;
   extraFormUrls?: { label: string; url: string; alias?: string }[] | null;
+  /** `null` or `""` clears it. */
+  externalRegistrationUrl?: string | null;
   feedbackMode?: FeedbackMode;
   feedbackFormUrl?: string | null;
   feedbackFormAlias?: string | null;

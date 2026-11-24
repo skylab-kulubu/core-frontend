@@ -118,6 +118,65 @@ export type GuestApplyBody = {
   phoneNumber?: string;
 };
 
+/** One row of an attendee list and what it does (preview) or did (import); core docs/attendee-import.md. */
+export type ImportOutcome = 'active' | 'waitlisted' | 'full' | 'existing' | 'duplicate' | 'invalid';
+
+export type ImportRow = {
+  /** The row's line in the list, the header's being 1. */
+  line: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  sessions?: { id: string; title: string }[];
+  unknownSessions?: string[];
+  outcome: ImportOutcome;
+  /** Why an invalid row is: missing_first_name, missing_last_name, invalid_email, name_too_long, account_unavailable. */
+  problem?: string;
+  /** An account holds the e-mail: the Ticket is the member's. */
+  account: boolean;
+  /** The Ticket already there, on an existing row. */
+  ticketStatus?: 'active' | 'waitlisted' | 'cancelled';
+  overCapacity?: boolean;
+};
+
+export type ImportReport = {
+  imported: boolean;
+  columns: {
+    header: boolean;
+    delimiter: 'comma' | 'semicolon' | 'tab';
+    firstName?: string;
+    lastName?: string;
+    fullName?: string;
+    email: string;
+    session?: string;
+  };
+  summary: {
+    rows: number;
+    active: number;
+    waitlisted: number;
+    full: number;
+    existing: number;
+    duplicates: number;
+    invalid: number;
+    overCapacity: number;
+    members: number;
+    guests: number;
+    unknownSessions: number;
+  };
+  capacity: { capacity: number; active: number; free: number; waitlistEnabled: boolean };
+  /** queued, off (the reader turned it off), notifications_off (core sends none), on_publish (a draft). */
+  mail: 'queued' | 'off' | 'notifications_off' | 'on_publish';
+  rows: ImportRow[];
+};
+
+export type ImportBody = {
+  /** A CSV file's text or the pasted rows; core keeps none of it. */
+  text: string;
+  /** On when left out. */
+  sendMail?: boolean;
+  pastCapacity?: boolean;
+};
+
 export const ticketsApi = {
   listDoorEvents: () => coreFetch<DoorEvent[]>('/v1/door/events'),
   /** Live: a guest who just applied must show in the next search, never from the kept reads. */
@@ -236,6 +295,20 @@ export const ticketsApi = {
    * "Öne al": a waitlisted Ticket becomes active, past the capacity if it must (`overCapacity`).
    * An active one answers as it is; 409 `ticket_cancelled`, `event_ended`; 403 as cancel.
    */
+  /** What importing the list would do; writes nothing (core docs/attendee-import.md). */
+  previewImport: (eventId: string, body: ImportBody) =>
+    coreFetch<ImportReport>(`/v1/events/${encodeURIComponent(eventId)}/attendee-imports/preview`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    }),
+  /** Writes the list's Tickets; the same list again writes nothing. */
+  importAttendees: (eventId: string, body: ImportBody) =>
+    coreFetch<ImportReport>(`/v1/events/${encodeURIComponent(eventId)}/attendee-imports`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    }),
   promote: (ticketId: string) =>
     coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/promote`, { method: 'POST' }),
   /** Live: the door page asks every few seconds, never from the kept reads. */

@@ -1,5 +1,6 @@
 import { pad2 } from '@/lib/date-picker';
 import { getInclusiveLocalCalendarDates } from '@/lib/utils/eventCalendar';
+import { externalRegistrationIssue } from '@/lib/external-registration';
 
 export type DatedEvent = {
   id: string;
@@ -21,9 +22,12 @@ export function eventFormIssue(form: {
   location: string;
   startDate?: string;
   endDate?: string;
+  externalRegistrationUrl?: string;
 }): string | null {
   if (!form.name.trim()) return 'Etkinlik adı gerekli.';
   if (!form.location.trim()) return 'Konum gerekli.';
+  const link = externalRegistrationIssue(form.externalRegistrationUrl);
+  if (link) return link;
   const start = form.startDate?.trim() ? Date.parse(form.startDate) : NaN;
   const end = form.endDate?.trim() ? Date.parse(form.endDate) : NaN;
   if (form.startDate?.trim() && Number.isNaN(start)) return 'Başlangıç tarihi geçersiz.';

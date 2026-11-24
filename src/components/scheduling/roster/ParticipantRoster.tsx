@@ -22,6 +22,7 @@ import {
   RefreshCw,
   RotateCcw,
   Send,
+  Upload,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -97,6 +98,8 @@ export type ParticipantRosterProps = {
   openTicket: Ticket | null;
   onOpenTicket: (ticket: Ticket | null) => void;
   onAddParticipant?: () => void;
+  /** "İçe aktar": a list from another form turned into tickets (core docs/attendee-import.md). */
+  onImport?: () => void;
   onMail: (recipients: TicketMailRecipient[]) => void;
   /** Writes the entry; a refusal comes back as its text and shows in the row. */
   onMarkAttended?: (ticket: Ticket, sessionId: string) => Promise<string | null>;
@@ -132,6 +135,7 @@ export function ParticipantRoster({
   openTicket,
   onOpenTicket,
   onAddParticipant,
+  onImport,
   onMail,
   onMarkAttended,
   onResend,
@@ -347,6 +351,9 @@ export function ParticipantRoster({
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
+        {onImport ? (
+          <ActionButton icon={Upload} label="İçe aktar" showLabel onClick={onImport} />
+        ) : null}
         {onAddParticipant ? (
           <ActionButton
             icon={Plus}
