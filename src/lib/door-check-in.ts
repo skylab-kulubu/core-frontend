@@ -166,20 +166,50 @@ export const ALREADY_CHECKED_IN = { 409: 'Bu kişi bu oturuma zaten girmiş.' };
 export type ScanRefusal = { kind: 'already' | 'refused'; title: string; text: string };
 
 /**
- * What a refused scan says (core docs/ticket-qr.md): already in, another event's ticket, an
- * expired, renewed or foreign code, a closed session. Never null: anything else is "Okunamadı"
+ * core's 409s on the door's ways in (core handlers ticketError): a bare 409 is the one that
+ * means "already in"; `ticket_cancelled` and `ticket_waitlisted` refuse a Ticket that is not
+ * active (core docs/ticket-cancellation.md); `Ambiguous Match` (resolve by name) found two
+ * people. Null for any other answer, and for a 409 whose code the door does not know (a refusal).
+ */
+export function doorConflict(error: unknown): ScanRefusal | null {
+  if (!(error instanceof ProblemError) || error.status !== 409) return null;
+  switch (error.code) {
+    case 'ticket_cancelled':
+      return { kind: 'refused', title: 'Bilet iptal edilmiş', text: 'Bu bilet kapıdan geçmez.' };
+    case 'ticket_waitlisted':
+      return {
+        kind: 'refused',
+        title: 'Bilet bekleme listesinde',
+        text: 'Bu bilet henüz etkin değil.',
+      };
+    case undefined:
+      break;
+    default:
+      return {
+        kind: 'refused',
+        title: 'Girmedi',
+        text: coreProblemMessage(error, 'Giriş yazılamadı'),
+      };
+  }
+  if (error.title === 'Ambiguous Match') {
+    return { kind: 'refused', title: 'Birden fazla kişi', text: coreProblemMessage(error) };
+  }
+  return { kind: 'already', title: 'Zaten girmiş', text: ALREADY_CHECKED_IN[409] };
+}
+
+/**
+ * What a refused scan says (core docs/ticket-qr.md): already in, a cancelled or waitlisted
+ * ticket, another event's ticket, an expired, renewed or foreign code, a closed session. Never null: anything else is "Okunamadı"
  * with core's reason.
  */
 export function scanRefusal(error: unknown): ScanRefusal {
   const status = error instanceof ProblemError ? error.status : 0;
   const code = error instanceof ProblemError ? error.code : undefined;
-  if (status === 409) {
-    return {
-      kind: 'already',
-      title: 'Zaten girmiş',
-      text: 'Bu bilet bu oturumda daha önce okundu.',
-    };
+  const conflict = doorConflict(error);
+  if (conflict?.kind === 'already') {
+    return { ...conflict, text: 'Bu bilet bu oturumda daha önce okundu.' };
   }
+  if (conflict) return conflict;
   if (status === 404) {
     return {
       kind: 'refused',

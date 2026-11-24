@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, CopyButton, Timeline, type TimelineItem } from '@skylab-kulubu/skylcn-ui';
-import { CheckCircle2, LogIn, Mail, MailWarning, TicketCheck } from 'lucide-react';
+import { Ban, CheckCircle2, LogIn, Mail, MailWarning, RotateCcw, TicketCheck } from 'lucide-react';
 import Link from 'next/link';
 import { Avatar } from '@/components/chrome/Avatar';
 import { StatusChip } from '@/components/chrome/StatusChip';
@@ -12,14 +12,16 @@ import type { DoorSession } from '@/lib/door-check-in';
 import { formatClock, hasCheckIn } from '@/lib/roster-insights';
 import { ticketCheckInStatus, ticketTypeStatus } from '@/lib/status-chip';
 import {
+  isTicketCancelled,
   ticketApplicantEmail,
   ticketApplicantName,
   ticketSourceForm,
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
+import { CANCEL_NEEDS_NO_ENTRY, cancelShut, EVENT_OVER } from './ticket-cancel';
 
-/** What happened to a registration, oldest first: registered, ticket mail, entries. */
+/** What happened to a registration, oldest first: registered, ticket mail, entries, cancelled. */
 export function ticketTimeline(
   ticket: Ticket,
   sessions: readonly Pick<DoorSession, 'id' | 'title'>[],
@@ -54,6 +56,16 @@ export function ticketTimeline(
       tone: 'success',
     });
   }
+  if (isTicketCancelled(ticket)) {
+    items.push({
+      id: 'iptal',
+      title: 'Bilet iptal edildi',
+      description: ticket.cancelReason || undefined,
+      time: ticket.cancelledAt ? formatClock(ticket.cancelledAt) : undefined,
+      icon: Ban,
+      tone: 'danger',
+    });
+  }
   return items;
 }
 
@@ -69,6 +81,9 @@ export function TicketPanel({
   onMarkAttended,
   onResend,
   onRenew,
+  onCancel,
+  onRestore,
+  eventEnded = false,
 }: {
   ticket: Ticket;
   people: Map<string, Person>;
@@ -83,7 +98,22 @@ export function TicketPanel({
   onMarkAttended?: (ticket: Ticket) => void;
   onResend?: (ticket: Ticket) => void;
   onRenew?: (ticket: Ticket) => void;
+  onCancel?: (ticket: Ticket) => void;
+  onRestore?: (ticket: Ticket) => void;
+  /** The event is over: cancel and Geri al are shown but shut (core `event_ended`). */
+  eventEnded?: boolean;
 }) {
+  const cancelled = isTicketCancelled(ticket);
+  const shut = cancelShut(ticket, eventEnded);
+  // Said under the buttons when the one offered cannot be pressed
+  const shutLine =
+    cancelled && onRestore && eventEnded
+      ? `${EVENT_OVER}.`
+      : !cancelled && onCancel && shut
+        ? shut === CANCEL_NEEDS_NO_ENTRY
+          ? `İptal için ${CANCEL_NEEDS_NO_ENTRY.toLocaleLowerCase('tr')}.`
+          : `${shut}.`
+        : null;
   const name = ticketApplicantName(ticket, people);
   const email = ticketApplicantEmail(ticket, people);
   const inSession =
@@ -104,7 +134,11 @@ export function TicketPanel({
           ) : null}
           <div className="flex flex-wrap items-center gap-1.5">
             <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
-            <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
+            {cancelled ? (
+              <StatusChip kind="cancelled" />
+            ) : (
+              <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
+            )}
             {ticket.code ? (
               <span className="text-secondary-foreground inline-flex items-center gap-0.5 font-mono text-xs tabular-nums">
                 {ticket.code}
@@ -120,7 +154,20 @@ export function TicketPanel({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {onMarkAttended ? (
+        {cancelled && onRestore ? (
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="outline"
+            disabled={eventEnded}
+            title={eventEnded ? EVENT_OVER : undefined}
+            onClick={() => onRestore(ticket)}
+          >
+            <RotateCcw className="size-4" />
+            Geri al
+          </Button>
+        ) : null}
+        {onMarkAttended && !cancelled ? (
           <Button
             className={BUTTON_TEXT}
             size="sm"
@@ -132,7 +179,7 @@ export function TicketPanel({
             {inSession ? 'Girişi var' : 'Katıldı'}
           </Button>
         ) : null}
-        {onResend ? (
+        {onResend && !cancelled ? (
           <Button
             className={BUTTON_TEXT}
             size="sm"
@@ -142,7 +189,7 @@ export function TicketPanel({
             Bileti yeniden gönder
           </Button>
         ) : null}
-        {onRenew ? (
+        {onRenew && !cancelled ? (
           <Button
             className={BUTTON_TEXT}
             size="sm"
@@ -152,7 +199,21 @@ export function TicketPanel({
             Bağlantıyı yenile
           </Button>
         ) : null}
+        {onCancel && !cancelled ? (
+          <Button
+            className={BUTTON_TEXT}
+            size="sm"
+            variant="outline"
+            disabled={shut !== null}
+            title={shut ?? undefined}
+            onClick={() => onCancel(ticket)}
+          >
+            <Ban className="size-4" />
+            Bileti iptal et
+          </Button>
+        ) : null}
       </div>
+      {shutLine ? <p className="text-muted-foreground -mt-4 text-[13px]/5">{shutLine}</p> : null}
       {error ? (
         <p role="alert" className="text-destructive -mt-4 text-sm">
           {error}
