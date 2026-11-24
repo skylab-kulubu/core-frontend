@@ -124,6 +124,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     formAlias: ev.formAlias || '',
     extraFormUrls: ev.extraFormUrls ?? [],
     formSlots: slots,
+    externalRegistrationUrl: ev.externalRegistrationUrl ?? '',
     feedbackMode: ev.feedbackMode ?? 'event',
     feedbackAutoSend: ev.feedbackAutoSend ?? true,
     feedbackSlot: feedbackSlotFromEvent(ev),

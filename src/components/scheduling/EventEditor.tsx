@@ -29,6 +29,10 @@ import {
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { capacityBelowTickets } from '@/lib/capacity';
+import {
+  externalRegistrationIssue,
+  isExternalRegistrationIssue,
+} from '@/lib/external-registration';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
@@ -115,6 +119,7 @@ export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
 
 /** The section a form problem (eventFormIssue) belongs to, to jump there. */
 export function sectionOfIssue(issue: string): EventEditorSectionId {
+  if (isExternalRegistrationIssue(issue)) return 'basvuru';
   if (/adı/i.test(issue)) return 'temel';
   return 'zaman';
 }
@@ -150,6 +155,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     formAlias: '',
     extraFormUrls: [],
     formSlots: [emptyApplySlot()],
+    externalRegistrationUrl: '',
     feedbackMode: 'event',
     feedbackAutoSend: true,
     feedbackSlot: emptyFeedbackSlot(),
@@ -183,6 +189,44 @@ export async function closeFeedbackReminders(eventId: string | undefined, gate: 
     if (err instanceof ProblemError && err.status === 404) return;
     throw err;
   }
+}
+
+/**
+ * "Dış kayıt bağlantısı": the form on another product (Microsoft Forms and
+ * the like) where people register; anyone who reads the Event sees it.
+ * Its registrations come in through Katılımcılar → İçe aktar.
+ */
+function ExternalRegistrationField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const issue = externalRegistrationIssue(value);
+  return (
+    <div className="space-y-1">
+      <label className="block space-y-1">
+        <FieldLabel>Dış kayıt bağlantısı</FieldLabel>
+        <Field
+          type="url"
+          inputMode="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://forms.office.com/…"
+          aria-invalid={Boolean(issue)}
+          aria-describedby="dis-kayit-ipucu"
+        />
+      </label>
+      <span
+        id="dis-kayit-ipucu"
+        className={`${issue ? 'text-destructive' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
+      >
+        {issue ??
+          'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.'}
+      </span>
+    </div>
+  );
 }
 
 export function parseDoorStaffIds(raw: string): string[] {
@@ -315,6 +359,10 @@ export function EventEditor({
           onLeaveToSkyforms={onLeaveToSkyforms}
           inUse={formInUse}
           onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
+        />
+        <ExternalRegistrationField
+          value={value.externalRegistrationUrl ?? ''}
+          onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
         />
         <div className="space-y-2">
           <label className="block space-y-1">

@@ -307,3 +307,19 @@ describe('EventEditor capacity and waiting list', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('EventEditor external registration link', () => {
+  it('takes the link in Başvuru ve form and says why a plain http one is refused', async () => {
+    const user = userEvent.setup();
+    render(<Editor doorStaffIds={[]} />);
+    const field = screen.getByRole('textbox', { name: 'Dış kayıt bağlantısı' });
+    expect(field.closest('section')).toHaveAttribute('id', 'basvuru');
+    await user.type(field, 'http://forms.office.com/r/x');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText(/https:\/\/ ile başlayan/)).toBeInTheDocument();
+    await user.clear(field);
+    await user.type(field, 'https://forms.office.com/r/x');
+    expect(field).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByText(/Katılımcılar → İçe aktar/)).toBeInTheDocument();
+  });
+});

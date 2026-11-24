@@ -432,6 +432,31 @@ describe('the waiting list switch', () => {
   });
 });
 
+describe('the external registration link (core docs/attendee-import.md)', () => {
+  it('sends a trimmed link on create and leaves an empty one out', () => {
+    expect(
+      eventBodyFromForm({ ...form, externalRegistrationUrl: ' https://forms.office.com/r/x ' }),
+    ).toMatchObject({ externalRegistrationUrl: 'https://forms.office.com/r/x' });
+    expect(eventBodyFromForm(form)).not.toHaveProperty(
+      'externalRegistrationUrl',
+      expect.anything(),
+    );
+  });
+
+  it('loads the link, sends only a change, and clears it with null', () => {
+    const loaded = formStateFromEvent({
+      ...savedEvent,
+      externalRegistrationUrl: 'https://forms.office.com/r/x',
+    });
+    expect(loaded.externalRegistrationUrl).toBe('https://forms.office.com/r/x');
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, externalRegistrationUrl: '' }, loaded)).toEqual({
+      externalRegistrationUrl: null,
+    });
+    expect(formStateFromEvent(savedEvent).externalRegistrationUrl).toBe('');
+  });
+});
+
 describe('the door’s mode and mails', () => {
   it('reads null as automatic and sends only what changed', () => {
     const loaded = formStateFromEvent({
