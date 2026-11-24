@@ -6,6 +6,7 @@ import { TextArea } from '@/components/chrome/TextArea';
 import type { Person } from '@/lib/api/identity';
 import { ticketsApi, type Ticket } from '@/lib/api/tickets';
 import { doorTicketName } from '@/lib/door-check-in';
+import { eventEndsAt } from '@/lib/events-view';
 import { ticketCancelProblem } from '@/lib/tickets-ui';
 import type { ConfirmRequest } from '@/lib/ui/use-confirm';
 
@@ -18,6 +19,24 @@ export const CANCEL_NEEDS_NO_ENTRY = 'Önce girişi geri al';
 /** Whether the ticket has an entry, so "Bileti iptal et" is shown but not pressable. */
 export function cancelBlocked(ticket: Pick<Ticket, 'checkIns'>): boolean {
   return (ticket.checkIns?.length ?? 0) > 0;
+}
+
+/** Why cancel and Geri al are shut once the event is over: core refuses both (`event_ended`). */
+export const EVENT_OVER = 'Etkinlik bitti';
+
+/** Whether the event is over as core counts it (`Event.EndedAt`: its end, or a day after an undated start). */
+export function eventHasEnded(
+  event: { startDate?: string; endDate?: string } | null | undefined,
+  now = new Date(),
+): boolean {
+  const end = event ? eventEndsAt(event) : null;
+  return end !== null && end <= now.getTime();
+}
+
+/** Why "Bileti iptal et" cannot be pressed for this ticket, or null when it can. */
+export function cancelShut(ticket: Pick<Ticket, 'checkIns'>, eventEnded: boolean): string | null {
+  if (eventEnded) return EVENT_OVER;
+  return cancelBlocked(ticket) ? CANCEL_NEEDS_NO_ENTRY : null;
 }
 
 function ReasonField({ onReason }: { onReason: (reason: string) => void }) {
@@ -78,7 +97,7 @@ export function ticketCancelQuestions({
   function askRestore(ticket: Ticket) {
     confirm({
       title: `${doorTicketName(ticket, people)}: iptal geri alınsın mı?`,
-      description: 'Bilete yeni bağlantı ve QR verilir.',
+      description: 'Kişiye yeni bağlantı ve QR’lı bilet postası gider.',
       actionLabel: 'Geri al',
       destructive: false,
       failure: (err) => ticketCancelProblem(err, 'restore'),

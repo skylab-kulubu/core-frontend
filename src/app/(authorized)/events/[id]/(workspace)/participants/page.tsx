@@ -6,7 +6,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
-import { ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
+import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
 import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
@@ -182,6 +182,7 @@ export default function EventParticipantsPage() {
         onRenew={renew}
         onCancel={canCancelTickets ? askCancel : undefined}
         onRestore={canCancelTickets ? askRestore : undefined}
+        eventEnded={eventHasEnded(event)}
         dialogs={confirmDialog}
       />
       <AddParticipantDrawer

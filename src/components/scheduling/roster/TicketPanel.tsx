@@ -19,7 +19,7 @@ import {
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
-import { CANCEL_NEEDS_NO_ENTRY, cancelBlocked } from './ticket-cancel';
+import { CANCEL_NEEDS_NO_ENTRY, cancelShut, EVENT_OVER } from './ticket-cancel';
 
 /** What happened to a registration, oldest first: registered, ticket mail, entries, cancelled. */
 export function ticketTimeline(
@@ -83,6 +83,7 @@ export function TicketPanel({
   onRenew,
   onCancel,
   onRestore,
+  eventEnded = false,
 }: {
   ticket: Ticket;
   people: Map<string, Person>;
@@ -99,8 +100,20 @@ export function TicketPanel({
   onRenew?: (ticket: Ticket) => void;
   onCancel?: (ticket: Ticket) => void;
   onRestore?: (ticket: Ticket) => void;
+  /** The event is over: cancel and Geri al are shown but shut (core `event_ended`). */
+  eventEnded?: boolean;
 }) {
   const cancelled = isTicketCancelled(ticket);
+  const shut = cancelShut(ticket, eventEnded);
+  // Said under the buttons when the one offered cannot be pressed
+  const shutLine =
+    cancelled && onRestore && eventEnded
+      ? `${EVENT_OVER}.`
+      : !cancelled && onCancel && shut
+        ? shut === CANCEL_NEEDS_NO_ENTRY
+          ? `İptal için ${CANCEL_NEEDS_NO_ENTRY.toLocaleLowerCase('tr')}.`
+          : `${shut}.`
+        : null;
   const name = ticketApplicantName(ticket, people);
   const email = ticketApplicantEmail(ticket, people);
   const inSession =
@@ -146,6 +159,8 @@ export function TicketPanel({
             className={BUTTON_TEXT}
             size="sm"
             variant="outline"
+            disabled={eventEnded}
+            title={eventEnded ? EVENT_OVER : undefined}
             onClick={() => onRestore(ticket)}
           >
             <RotateCcw className="size-4" />
@@ -189,8 +204,8 @@ export function TicketPanel({
             className={BUTTON_TEXT}
             size="sm"
             variant="outline"
-            disabled={cancelBlocked(ticket)}
-            title={cancelBlocked(ticket) ? CANCEL_NEEDS_NO_ENTRY : undefined}
+            disabled={shut !== null}
+            title={shut ?? undefined}
             onClick={() => onCancel(ticket)}
           >
             <Ban className="size-4" />
@@ -198,11 +213,7 @@ export function TicketPanel({
           </Button>
         ) : null}
       </div>
-      {onCancel && !cancelled && cancelBlocked(ticket) ? (
-        <p className="text-muted-foreground -mt-4 text-[13px]/5">
-          İptal için {CANCEL_NEEDS_NO_ENTRY.toLocaleLowerCase('tr')}.
-        </p>
-      ) : null}
+      {shutLine ? <p className="text-muted-foreground -mt-4 text-[13px]/5">{shutLine}</p> : null}
       {error ? (
         <p role="alert" className="text-destructive -mt-4 text-sm">
           {error}

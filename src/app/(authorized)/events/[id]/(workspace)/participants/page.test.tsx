@@ -5,7 +5,13 @@ import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/pa
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
-import { guestTicket, primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
+import {
+  guestTicket,
+  primeEventWorkspace,
+  renderEventTab,
+  signInAs,
+  workspaceEvent,
+} from '@/test/event-workspace';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
 jest.mock('@/context/AuthContext', () => jest.requireActual('@/test/event-workspace').authModule);
@@ -380,9 +386,37 @@ describe('Event Katılımcılar tab', () => {
       const dialog = await screen.findByRole('alertdialog', {
         name: 'Grace Hopper: iptal geri alınsın mı?',
       });
+      expect(
+        within(dialog).getByText('Kişiye yeni bağlantı ve QR’lı bilet postası gider.'),
+      ).toBeInTheDocument();
       await user.click(within(dialog).getByRole('button', { name: 'Geri al' }));
       await waitFor(() => expect(ticketsApi.restore).toHaveBeenCalledWith('t-gone'));
       expect(await screen.findByText('Bilet yeniden etkin')).toBeInTheDocument();
+    });
+
+    it('shuts cancel and Geri al once the event is over, saying so', async () => {
+      const user = userEvent.setup();
+      signInAs(['/UYELER/YK']);
+      (eventsApi.get as jest.Mock).mockResolvedValue({
+        ...workspaceEvent,
+        startDate: '2026-01-10T09:00:00+03:00',
+        endDate: '2026-01-10T18:00:00+03:00',
+      });
+      lists([coded], [cancelledTicket]);
+      await renderParticipants();
+
+      await user.click(await screen.findByRole('button', { name: 'Ada Lovelace: eylemler' }));
+      const item = await screen.findByRole('menuitem', { name: /Bileti iptal et/ });
+      expect(item).toHaveAttribute('aria-disabled', 'true');
+      expect(item).toHaveTextContent('Etkinlik bitti');
+      await user.keyboard('{Escape}');
+
+      await user.click(await screen.findByRole('button', { name: /İptal edilenler/ }));
+      const restore = await screen.findByRole('button', { name: 'Grace Hopper: iptali geri al' });
+      expect(restore).toBeDisabled();
+      expect(restore).toHaveAttribute('title', 'Etkinlik bitti');
+      expect(ticketsApi.cancel).not.toHaveBeenCalled();
+      expect(ticketsApi.restore).not.toHaveBeenCalled();
     });
 
     it('offers no Geri al to who may not edit the event', async () => {

@@ -56,7 +56,7 @@ import {
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
 import { RosterCharts, RosterTiles } from './RosterOverview';
-import { CANCEL_NEEDS_NO_ENTRY, cancelBlocked } from './ticket-cancel';
+import { cancelShut, EVENT_OVER } from './ticket-cancel';
 import { TicketPanel } from './TicketPanel';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
@@ -96,6 +96,8 @@ export type ParticipantRosterProps = {
   onCancel?: (ticket: Ticket) => void;
   /** "Geri al" on a cancelled ticket. */
   onRestore?: (ticket: Ticket) => void;
+  /** The event is over: cancel and Geri al are shown but shut (core `event_ended`). */
+  eventEnded?: boolean;
   /** The page's confirm dialog: inside the drawer while one is open, so it sits above it. */
   dialogs: ReactNode;
 };
@@ -122,6 +124,7 @@ export function ParticipantRoster({
   onRenew,
   onCancel,
   onRestore,
+  eventEnded = false,
   dialogs,
 }: ParticipantRosterProps) {
   const [query, setQuery] = useState('');
@@ -390,6 +393,7 @@ export function ParticipantRoster({
                 onRenew={onRenew}
                 onCancel={onCancel}
                 onRestore={onRestore}
+                eventEnded={eventEnded}
               />
             ))}
           </ul>
@@ -424,6 +428,7 @@ export function ParticipantRoster({
             onRenew={onRenew}
             onCancel={onCancel}
             onRestore={onRestore}
+            eventEnded={eventEnded}
           />
         ) : null}
         {openTicket ? dialogs : null}
@@ -449,6 +454,7 @@ function RosterRow({
   onRenew,
   onCancel,
   onRestore,
+  eventEnded,
 }: {
   ticket: Ticket;
   eventId: string;
@@ -465,8 +471,10 @@ function RosterRow({
   onRenew?: (ticket: Ticket) => void;
   onCancel?: (ticket: Ticket) => void;
   onRestore?: (ticket: Ticket) => void;
+  eventEnded: boolean;
 }) {
   const cancelled = isTicketCancelled(ticket);
+  const shut = cancelShut(ticket, eventEnded);
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
   const entryTime = entry ? formatEntry(entry) : null;
@@ -572,6 +580,8 @@ function RosterRow({
               className={BUTTON_TEXT}
               size="xs"
               variant="outline"
+              disabled={eventEnded}
+              title={eventEnded ? EVENT_OVER : undefined}
               onClick={() => onRestore(ticket)}
               aria-label={`${row.name}: iptali geri al`}
             >
@@ -606,15 +616,13 @@ function RosterRow({
                 <MenuItem
                   icon={Ban}
                   destructive
-                  disabled={cancelBlocked(ticket)}
+                  disabled={shut !== null}
                   onClick={() => onCancel(ticket)}
                 >
-                  {cancelBlocked(ticket) ? (
+                  {shut ? (
                     <span>
                       Bileti iptal et
-                      <span className="text-muted-foreground block text-xs">
-                        {CANCEL_NEEDS_NO_ENTRY}
-                      </span>
+                      <span className="text-muted-foreground block text-xs">{shut}</span>
                     </span>
                   ) : (
                     'Bileti iptal et'

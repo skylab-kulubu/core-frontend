@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import TicketDetailPage from '@/app/(authorized)/events/[id]/tickets/[ticketId]/page';
@@ -144,6 +144,38 @@ describe('Ticket detail page', () => {
     expect(within(commands).queryByRole('button', { name: 'Bileti yeniden gönder' })).toBeNull();
     expect(within(commands).queryByRole('button', { name: 'Bağlantıyı yenile' })).toBeNull();
     expect(screen.getAllByText('Çift kayıt').length).toBeGreaterThan(0);
+  });
+
+  it('shuts cancel and Geri al once the event is over', async () => {
+    const { eventsApi } = jest.requireMock('@/lib/api/events');
+    const over = {
+      id: 'e1',
+      name: 'GeceKodu',
+      ownerTeam: 'GECEKODU',
+      startDate: '2026-01-10T09:00:00+03:00',
+      endDate: '2026-01-10T18:00:00+03:00',
+    };
+    const ada = {
+      ...registered,
+      status: 'active',
+      owner: { id: 'u-ada', email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+    };
+    (eventsApi.get as jest.Mock).mockResolvedValueOnce(over);
+    (ticketsApi.get as jest.Mock).mockResolvedValue(ada);
+    await renderTicket();
+    let commands = await screen.findByRole('group', { name: 'Kayıt komutları' });
+    const cancel = within(commands).getByRole('button', { name: 'Bileti iptal et' });
+    expect(cancel).toBeDisabled();
+    expect(cancel).toHaveAttribute('title', 'Etkinlik bitti');
+
+    (eventsApi.get as jest.Mock).mockResolvedValueOnce(over);
+    (ticketsApi.get as jest.Mock).mockResolvedValue({ ...ada, status: 'cancelled' });
+    cleanup();
+    await renderTicket();
+    commands = await screen.findByRole('group', { name: 'Kayıt komutları' });
+    const restore = within(commands).getByRole('button', { name: 'Geri al' });
+    expect(restore).toBeDisabled();
+    expect(restore).toHaveAttribute('title', 'Etkinlik bitti');
   });
 
   it('takes a cancellation back', async () => {

@@ -15,8 +15,9 @@ import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import {
-  CANCEL_NEEDS_NO_ENTRY,
-  cancelBlocked,
+  cancelShut,
+  EVENT_OVER,
+  eventHasEnded,
   ticketCancelQuestions,
 } from '@/components/scheduling/roster/ticket-cancel';
 import { ticketTimeline } from '@/components/scheduling/roster/TicketPanel';
@@ -170,6 +171,9 @@ export default function TicketDetailPage({
     canCancelEventTicket(groups, event.ownerTeam),
   );
   const cancelled = isTicketCancelled(ticket);
+  // core refuses both once the event is over (`event_ended`): shown, but shut
+  const ended = eventHasEnded(event);
+  const shut = cancelShut(ticket, ended);
   const { askCancel, askRestore } = ticketCancelQuestions({
     confirm,
     people: personById,
@@ -341,7 +345,8 @@ export default function TicketDetailPage({
                 primary
                 icon={RotateCcw}
                 label="Geri al"
-                title="İptali geri al"
+                title={ended ? EVENT_OVER : 'İptali geri al'}
+                disabled={ended}
                 onClick={() => askRestore(ticket)}
               />
             ) : null}
@@ -355,8 +360,8 @@ export default function TicketDetailPage({
               <Command
                 icon={Ban}
                 label="Bileti iptal et"
-                disabled={cancelBlocked(ticket)}
-                title={cancelBlocked(ticket) ? CANCEL_NEEDS_NO_ENTRY : undefined}
+                disabled={shut !== null}
+                title={shut ?? undefined}
                 onClick={() => askCancel(ticket)}
               />
             ) : null}
