@@ -2,6 +2,7 @@
 
 import type { ImportReport } from '@/lib/api/tickets';
 import {
+  decodeImportFile,
   importCapacityLine,
   importFileIssue,
   importMailLine,
@@ -78,5 +79,17 @@ describe('attendee import copy', () => {
     expect(importFileIssue(big)).toMatch(/2 MB/);
     expect(importFileIssue(xlsx)).toMatch(/CSV/);
     expect(importFileIssue(ok)).toBeNull();
+  });
+});
+
+describe('decodeImportFile', () => {
+  it('reads UTF-8, and Windows-1254 when the bytes are not UTF-8', () => {
+    const utf8 = new TextEncoder().encode('Ayşe;Yılmaz');
+    expect(decodeImportFile(utf8.buffer as ArrayBuffer)).toBe('Ayşe;Yılmaz');
+    // "Ayşe;Yılmaz" as Excel in Turkish saves it: ş = 0xFE, ı = 0xFD
+    const cp1254 = new Uint8Array([
+      0x41, 0x79, 0xfe, 0x65, 0x3b, 0x59, 0xfd, 0x6c, 0x6d, 0x61, 0x7a,
+    ]);
+    expect(decodeImportFile(cp1254.buffer)).toBe('Ayşe;Yılmaz');
   });
 });

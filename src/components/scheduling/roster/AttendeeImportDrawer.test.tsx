@@ -95,6 +95,8 @@ describe('AttendeeImportDrawer', () => {
       }),
     );
     expect(await screen.findByText('Önizleme')).toBeInTheDocument();
+    expect(screen.getByTestId('import-report-top')).toHaveFocus();
+    expect(screen.getByText('ada@example.com')).toHaveAttribute('title', 'ada@example.com');
     expect(screen.getByText('Bilet yazılacak')).toBeInTheDocument();
     expect(screen.getByText('Soyad yok')).toBeInTheDocument();
     expect(screen.getByText('Zaten kayıtlı')).toBeInTheDocument();
@@ -108,6 +110,7 @@ describe('AttendeeImportDrawer', () => {
       pastCapacity: false,
     });
     expect(await screen.findByText('1 bilet yazıldı')).toBeInTheDocument();
+    expect(screen.getByTestId('import-report-top')).toHaveFocus();
   });
 
   it('sends the mail off and past the capacity when asked', async () => {

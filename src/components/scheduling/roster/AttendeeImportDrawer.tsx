@@ -2,7 +2,7 @@
 
 import { Badge, Button, Notice, Radio, RadioGroup } from '@skylab-kulubu/skylcn-ui';
 import { ArrowLeft } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Drawer } from '@/components/chrome/Drawer';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { SaveButton } from '@/components/chrome/SaveButton';
@@ -10,6 +10,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { ticketsApi, type ImportReport } from '@/lib/api/tickets';
 import {
+  decodeImportFile,
   IMPORT_OUTCOME_TONE,
   importCapacityLine,
   importFileIssue,
@@ -86,7 +87,7 @@ export function AttendeeImportDrawer({
       return;
     }
     try {
-      setText(await file.text());
+      setText(decodeImportFile(await file.arrayBuffer()));
       setFileName(file.name);
     } catch {
       setError('Dosya okunamadı.');
@@ -260,23 +261,31 @@ function ImportReportView({ report }: { report: ImportReport }) {
   const items = importSummaryItems(report);
   const people = importPeopleLine(report);
   const capacityLine = importCapacityLine(report);
+  // The preview and the result take the focus: a screen reader says them,
+  // the keyboard goes on from them
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    top.current?.focus();
+  }, [report]);
   return (
     <div className="space-y-4">
-      {report.imported ? (
-        <Notice
-          tone="success"
-          title={`${report.summary.active + report.summary.waitlisted} bilet yazıldı`}
-        >
-          {importMailLine(report)}
-        </Notice>
-      ) : (
-        <div className="space-y-1">
-          <h3 className="text-foreground text-sm font-medium">Önizleme</h3>
-          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-            {report.summary.rows} satır okundu. Henüz hiçbir şey yazılmadı.
-          </p>
-        </div>
-      )}
+      <div ref={top} tabIndex={-1} className="outline-none" data-testid="import-report-top">
+        {report.imported ? (
+          <Notice
+            tone="success"
+            title={`${report.summary.active + report.summary.waitlisted} bilet yazıldı`}
+          >
+            {importMailLine(report)}
+          </Notice>
+        ) : (
+          <div className="space-y-1">
+            <h3 className="text-foreground text-sm font-medium">Önizleme</h3>
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              {report.summary.rows} satır okundu. Henüz hiçbir şey yazılmadı.
+            </p>
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2" aria-label="Özet">
         {items.map((item) => (
           <Badge key={item.key} tone={item.tone}>
@@ -302,11 +311,16 @@ function ImportReportView({ report }: { report: ImportReport }) {
                 {row.line}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-foreground truncate text-sm">
+                <p className="text-foreground truncate text-sm" title={name}>
                   {name}
                   {row.account ? <span className="text-subtle-foreground"> · üye</span> : null}
                 </p>
-                <p className="text-subtle-foreground truncate text-xs">{row.email || '—'}</p>
+                <p
+                  className="text-subtle-foreground truncate text-xs"
+                  title={row.email || undefined}
+                >
+                  {row.email || '—'}
+                </p>
                 {note ? <p className="text-subtle-foreground text-xs">{note}</p> : null}
               </div>
               <Badge tone={IMPORT_OUTCOME_TONE[row.outcome]} className="shrink-0">

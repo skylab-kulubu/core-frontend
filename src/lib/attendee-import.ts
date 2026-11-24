@@ -38,6 +38,8 @@ const PROBLEMS: Record<string, string> = {
   invalid_email: 'E-posta geçersiz',
   name_too_long: 'Ad ya da soyad 100 karakterden uzun',
   account_unavailable: 'Hesap artık yok',
+  invalid_characters: 'Okunamayan karakter var',
+  rejected: 'Kaydedilemedi',
 };
 
 /** The line under a row: why it is invalid, the Session it chose, the capacity. */
@@ -124,4 +126,16 @@ export function importFileIssue(file: File): string | null {
     return 'CSV dosyası seç (Excel: Farklı kaydet → CSV UTF-8).';
   }
   return null;
+}
+
+/**
+ * A CSV file's text: UTF-8 when it is, else Windows-1254 (Excel in Turkish
+ * saves "CSV" in it). Core makes any byte still not readable an invalid row.
+ */
+export function decodeImportFile(bytes: ArrayBuffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1254').decode(bytes);
+  }
 }

@@ -28,7 +28,10 @@ import {
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { capacityBelowTickets } from '@/lib/capacity';
-import { externalRegistrationIssue } from '@/lib/external-registration';
+import {
+  externalRegistrationIssue,
+  isExternalRegistrationIssue,
+} from '@/lib/external-registration';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
@@ -93,7 +96,7 @@ export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
 
 /** The section a form problem (eventFormIssue) belongs to, to jump there. */
 export function sectionOfIssue(issue: string): EventEditorSectionId {
-  if (/kayıt bağlantısı/i.test(issue)) return 'basvuru';
+  if (isExternalRegistrationIssue(issue)) return 'basvuru';
   if (/adı/i.test(issue)) return 'temel';
   return 'zaman';
 }

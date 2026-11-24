@@ -1,6 +1,9 @@
 /** @jest-environment node */
 
-import { externalRegistrationIssue } from '@/lib/external-registration';
+import {
+  externalRegistrationIssue,
+  externalRegistrationIssueCode,
+} from '@/lib/external-registration';
 import { eventFormIssue } from '@/lib/events-view';
 import { sectionOfIssue } from '@/components/scheduling/EventEditor';
 
@@ -31,5 +34,17 @@ describe('externalRegistrationIssue', () => {
     });
     expect(issue).toMatch(/Dış kayıt bağlantısı/);
     expect(sectionOfIssue(issue!)).toBe('basvuru');
+  });
+});
+
+describe('externalRegistrationIssueCode', () => {
+  it.each([
+    ['http://x.example.com', 'not_https'],
+    ['https://a b.example.com', 'blank'],
+    ['https://u:p@x.example.com', 'credentials'],
+    [`https://x.example.com/${'a'.repeat(2048)}`, 'too_long'],
+    ['https://x.example.com', null],
+  ])('%j → %j', (link, code) => {
+    expect(externalRegistrationIssueCode(link)).toBe(code);
   });
 });
