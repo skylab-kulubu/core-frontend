@@ -21,6 +21,7 @@ import {
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Field } from '@/components/chrome/Field';
 import { linkHref } from '@/lib/news-editor';
+import { useNonce } from '@/lib/security/nonce';
 
 /**
  * The same Tiptap set the CMS's own editor (inscribed SDK, use-rich-text-editor) uses, so a
@@ -179,6 +180,7 @@ export function RichTextEditor({
   id?: string;
 }) {
   const quiet = useRef(true);
+  const nonce = useNonce();
   const [linkOpen, setLinkOpen] = useState(false);
   const [href, setHref] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -199,6 +201,7 @@ export function RichTextEditor({
     extensions: RICH_TEXT_EXTENSIONS,
     content: value || '',
     immediatelyRender: false,
+    injectNonce: nonce,
     editorProps,
     onUpdate: ({ editor: current }) => {
       if (quiet.current) return;
@@ -296,12 +299,14 @@ export function RichTextEditor({
  * schema does not know (a script, an inline handler) never reaches the page.
  */
 export function RichTextView({ html }: { html: string }) {
+  const nonce = useNonce();
   const editor = useEditor(
     {
       extensions: RICH_TEXT_EXTENSIONS,
       content: html || '',
       editable: false,
       immediatelyRender: false,
+      injectNonce: nonce,
       editorProps: { attributes: { class: RICH_TEXT_CLASS } },
     },
     [html],
