@@ -460,3 +460,31 @@ describe('the door’s mode and mails', () => {
     expect(eventBodyFromForm(older)).not.toHaveProperty('attendanceRecordedMail');
   });
 });
+
+describe('the attendee note', () => {
+  it('is sent trimmed when changed, "" clears it, a new event leaves an empty one out', () => {
+    const loaded = formStateFromEvent({ ...savedEvent, attendeeNote: 'Wi-Fi: SKYLAB' });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(
+      eventPatchFromForm({ ...loaded, attendeeNote: '  Wi-Fi: SKYLAB-2\nSalon D-001 ' }, loaded),
+    ).toEqual({ attendeeNote: 'Wi-Fi: SKYLAB-2\nSalon D-001' });
+    expect(eventPatchFromForm({ ...loaded, attendeeNote: '' }, loaded)).toEqual({
+      attendeeNote: '',
+    });
+    expect(eventBodyFromForm({ ...loaded, attendeeNote: '' })).not.toHaveProperty('attendeeNote');
+    expect(eventBodyFromForm({ ...loaded, attendeeNote: 'Wi-Fi' }).attendeeNote).toBe('Wi-Fi');
+    // Core sends it to who may edit the event alone: otherwise nothing is written back
+    expect(eventPatchFromForm(formStateFromEvent(savedEvent))).not.toHaveProperty('attendeeNote');
+  });
+});
+
+describe('a new event’s door mails', () => {
+  it('sends a switch only when turned off', () => {
+    const fresh = emptyEventForm('GECEKODU');
+    expect(fresh.attendanceWelcomeMail).toBe(true);
+    expect(eventBodyFromForm(fresh)).not.toHaveProperty('attendanceWelcomeMail');
+    expect(eventBodyFromForm({ ...fresh, attendanceRecordedMail: false })).toMatchObject({
+      attendanceRecordedMail: false,
+    });
+  });
+});

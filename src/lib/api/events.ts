@@ -52,6 +52,11 @@ export type CoreEvent = {
    */
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
+  /**
+   * The organizer's note for whoever enters (Wi-Fi, the room), sent in the welcome mail alone:
+   * only to who may edit the event, `""` for none; absent otherwise and before core's door mails.
+   */
+  attendeeNote?: string;
   /** `capacity > 0` and the active Tickets fill it. */
   full?: boolean;
   /** The active Tickets; only for who may edit the Event. */
@@ -170,6 +175,7 @@ export type EventBody = {
   /** Left out: core's default (on). */
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
+  attendeeNote?: string;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -217,6 +223,8 @@ export type EventPatch = {
   /** Take no `null` (400). */
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
+  /** `""` or `null` clears it. */
+  attendeeNote?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;

@@ -38,14 +38,24 @@ function waitlistBody(form: EventFormState): { waitlistEnabled?: boolean } {
  */
 function doorBody(
   form: EventFormState,
-): Pick<EventPatch, 'entryMode' | 'attendanceWelcomeMail' | 'attendanceRecordedMail'> {
+  create = false,
+): Pick<EventPatch, 'entryMode' | 'attendanceWelcomeMail' | 'attendanceRecordedMail'> & {
+  attendeeNote?: string;
+} {
   return {
     ...(form.entryMode !== undefined ? { entryMode: form.entryMode } : {}),
-    ...(typeof form.attendanceWelcomeMail === 'boolean'
+    // A new event sends a switch only when turned off (on is core's default)
+    ...(typeof form.attendanceWelcomeMail === 'boolean' && (!create || !form.attendanceWelcomeMail)
       ? { attendanceWelcomeMail: form.attendanceWelcomeMail }
       : {}),
-    ...(typeof form.attendanceRecordedMail === 'boolean'
+    ...(typeof form.attendanceRecordedMail === 'boolean' &&
+    (!create || !form.attendanceRecordedMail)
       ? { attendanceRecordedMail: form.attendanceRecordedMail }
+      : {}),
+    // Read only by who may edit the event: left out until core sent it
+    // A new event leaves an empty one out; an edit sends "" to clear it
+    ...(typeof form.attendeeNote === 'string' && (!create || form.attendeeNote.trim())
+      ? { attendeeNote: form.attendeeNote.trim() }
       : {}),
   };
 }
@@ -66,7 +76,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     ...feedbackBody(form),
     capacity: form.capacity,
     ...waitlistBody(form),
-    ...doorBody(form),
+    ...doorBody(form, true),
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,

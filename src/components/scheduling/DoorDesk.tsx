@@ -480,6 +480,9 @@ export function DoorDesk({ eventId }: { eventId: string }) {
 
   const selectedSession = sessions.find((session) => session.id === sessionId);
   const hasSessions = sessions.some((session) => !session.cancelled);
+  // The event's own door: on an event without sessions, or one run with one entry a day; an
+  // event run per session keeps its sessions' doors alone
+  const offerEventDoor = !hasSessions || event?.effectiveEntryMode === 'venue';
   // Never blocks: says why nothing is chosen, what the event's door writes, or that the chosen
   // session is not running now
   const sessionNote = atEventDoor
@@ -547,7 +550,9 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             className="h-11"
           >
             {hasSessions ? <option value="">Oturum seç</option> : null}
-            <option value={EVENT_DOOR}>Etkinlik girişi (oturumsuz)</option>
+            {offerEventDoor ? (
+              <option value={EVENT_DOOR}>Etkinlik girişi (oturumsuz)</option>
+            ) : null}
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>
                 {doorSessionLabel(session)}

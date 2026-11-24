@@ -79,6 +79,9 @@ type EventEditorProps = {
   activeTickets?: number;
 };
 
+/** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
+export const ATTENDEE_NOTE_MAX = 1000;
+
 /** The door's mode (core docs/venue-entry.md); `auto` is core's `null`. */
 export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: string }[] = [
   {
@@ -134,6 +137,10 @@ function EditorSection({
 
 export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
+    // A new event takes the note and the door's mails; an edited one shows them once core sends them
+    attendeeNote: '',
+    attendanceWelcomeMail: true,
+    attendanceRecordedMail: true,
     name: '',
     description: '',
     location: '',
@@ -406,18 +413,35 @@ export function EventEditor({
             {ENTRY_MODES.find((mode) => mode.value === (value.entryMode ?? 'auto'))?.hint}
           </span>
         </label>
-        <Switch
-          checked={value.attendanceWelcomeMail ?? true}
-          onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
-          label="Hoş geldin postası"
-          hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
-        />
-        <Switch
-          checked={value.attendanceRecordedMail ?? true}
-          onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
-          label="Katılım postası"
-          hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
-        />
+        {/* An older core sends no switches: they are not offered */}
+        {value.attendanceWelcomeMail !== undefined ? (
+          <>
+            <Switch
+              checked={value.attendanceWelcomeMail ?? true}
+              onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
+              label="Hoş geldin postası"
+              hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
+            />
+            <Switch
+              checked={value.attendanceRecordedMail ?? true}
+              onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
+              label="Katılım postası"
+              hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
+            />
+          </>
+        ) : null}
+        {value.attendeeNote !== undefined ? (
+          <label className="block space-y-1">
+            <FieldLabel>Katılımcı notu</FieldLabel>
+            <TextArea
+              rows={3}
+              maxLength={ATTENDEE_NOTE_MAX}
+              placeholder="Wi-Fi, salon tarifi"
+              value={value.attendeeNote}
+              onChange={(e) => patch({ attendeeNote: e.target.value })}
+            />
+          </label>
+        ) : null}
         {assignDoorStaff ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">

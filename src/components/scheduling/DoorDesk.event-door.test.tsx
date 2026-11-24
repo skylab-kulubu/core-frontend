@@ -114,9 +114,9 @@ describe('DoorDesk at the event’s own door', () => {
     expect(result.firstElementChild).toHaveClass('bg-warning/15');
   });
 
-  it('offers the event’s door beside the sessions of an event that has some', async () => {
+  const withSessions = (mode: 'per_session' | 'venue') => {
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([
-      { ...door, effectiveEntryMode: 'per_session' },
+      { ...door, effectiveEntryMode: mode },
     ]);
     (eventDaysApi.listByEvent as jest.Mock).mockResolvedValue([
       { id: 'd1', eventId: 'e1', name: 'Gün' },
@@ -132,12 +132,25 @@ describe('DoorDesk at the event’s own door', () => {
       },
     ]);
     (ticketsApi.doorActivity as jest.Mock).mockResolvedValue({ total: 0, items: [] });
+  };
+
+  it('keeps an event run per session to its sessions’ doors', async () => {
+    withSessions('per_session');
     render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(picker()).toHaveValue('s1'));
-    expect(screen.getByRole('option', { name: 'Etkinlik girişi (oturumsuz)' })).toBeInTheDocument();
-    await userEvent.setup().selectOptions(picker(), EVENT_DOOR);
+    expect(
+      screen.queryByRole('option', { name: 'Etkinlik girişi (oturumsuz)' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens an event run with one entry a day on its own door, its sessions beside it', async () => {
+    withSessions('venue');
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(picker()).toHaveValue(EVENT_DOOR));
     expect(screen.getByText('Etkinlik girişi yazılır; oturum yoklaması yazılmaz.')).toBeVisible();
     expect(screen.getByRole('button', { name: /Misafir QR/ })).toBeDisabled();
+    await userEvent.setup().selectOptions(picker(), 's1');
+    expect(screen.getByRole('button', { name: /Misafir QR/ })).toBeEnabled();
   });
 
   it('names an event that is closed for entries', () => {

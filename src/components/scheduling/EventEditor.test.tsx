@@ -276,6 +276,30 @@ describe('EventEditor capacity and waiting list', () => {
     );
   });
 
+  it('hides the door’s mail switches when core sends none (an older core)', () => {
+    render(
+      <CapacityEditor
+        start={{ capacity: 0, attendanceWelcomeMail: undefined, attendanceRecordedMail: undefined }}
+      />,
+    );
+    expect(screen.queryByText('Hoş geldin postası')).not.toBeInTheDocument();
+    expect(screen.queryByText('Katılım postası')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Kapı düzeni/ })).toBeInTheDocument();
+  });
+
+  it('takes the attendee note when core sends it, and hides it otherwise', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    const { unmount } = render(<CapacityEditor start={{ capacity: 0, attendeeNote: undefined }} />);
+    expect(screen.queryByText('Katılımcı notu')).not.toBeInTheDocument();
+    unmount();
+    render(<CapacityEditor start={{ capacity: 0, attendeeNote: '' }} onValue={onValue} />);
+    const note = screen.getByRole('textbox', { name: 'Katılımcı notu' });
+    expect(note).toHaveAttribute('maxLength', '1000');
+    await user.type(note, 'Wi-Fi');
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ attendeeNote: 'Wi-Fi' }));
+  });
+
   it('says nobody is taken out when the capacity goes below the tickets', () => {
     render(<CapacityEditor start={{ capacity: 40 }} activeTickets={52} />);
     expect(
