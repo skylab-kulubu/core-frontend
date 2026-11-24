@@ -121,6 +121,23 @@ export type CertificateBatch = {
   jobs?: CertificateBatchJob[];
 };
 
+/**
+ * A certificate's latest mail (core docs/certificate-mail.md): queued (waiting
+ * or being tried again), sent, failed (refused or given up) or cancelled (the
+ * certificate was revoked before it went out). An older core sends none, and a
+ * certificate issued before the queue has none.
+ */
+export type CertificateMailState = {
+  status: 'queued' | 'sent' | 'failed' | 'cancelled';
+  attempts: number;
+  errorCode?: string;
+  sentAt?: string;
+  updatedAt: string;
+};
+
+/** POST …/mail/resend: mails written, and certificates whose mail was already waiting. */
+export type CertificateMailResend = { queued: number; alreadyQueued: number };
+
 export type CertificateEventSummary = {
   eventId: string;
   attendanceFinalizedAt?: string;
@@ -146,6 +163,9 @@ export type CertificateEventSummary = {
   autoFinalizeAt?: string;
   /** Who closed it, once closed. */
   finalizedSource?: 'manual' | 'auto';
+  /** Active certificates whose latest mail waits or failed; an older core sends none. */
+  mailQueuedCount?: number;
+  mailFailedCount?: number;
 };
 
 /** A Ticket's place in the list, first that holds: issued > queued > failed > revoked > eligible > below. */
@@ -167,7 +187,12 @@ export type CertificateAttendanceRow = {
   missingRequired: { id: string; title: string }[];
   status: CertificateAttendanceStatus;
   /** The active certificate, else the latest revoked one, else null. */
-  certificate: { serial: string; issuedAt: string; revokedAt?: string } | null;
+  certificate: {
+    serial: string;
+    issuedAt: string;
+    revokedAt?: string;
+    mail?: CertificateMailState;
+  } | null;
 };
 
 /** GET /v1/events/{id}/certificates/attendance (core docs/certificate-rule.md): no e-mail, by name. */
@@ -197,6 +222,7 @@ export type IssuedCertificate = {
   templateSource: string;
   revokedAt?: string;
   issuedAt: string;
+  mail?: CertificateMailState;
 };
 
 /** One of the Event's current Sessions as the rule editor shows it, cancelled ones too. */
@@ -322,6 +348,17 @@ export const certificatesApi = {
   reissue: (serial: string) =>
     coreFetch<CertificateBatch>(`/v1/certificates/${encodeURIComponent(serial)}/reissue`, {
       method: 'POST',
+    }),
+  /** One certificate's mail again; 409 for a revoked one. */
+  resendMail: (serial: string) =>
+    coreFetch<CertificateMailResend>(`/v1/certificates/${encodeURIComponent(serial)}/mail/resend`, {
+      method: 'POST',
+    }),
+  /** The Event's mails again: those that failed, or every active certificate's. */
+  resendEventMails: (eventId: string, scope: 'failed' | 'all') =>
+    coreFetch<CertificateMailResend>(`${eventPath(eventId)}/certificates/mail/resend`, {
+      method: 'POST',
+      body: JSON.stringify({ scope }),
     }),
   retryBatch: (id: string) =>
     coreFetch<CertificateBatch>(`/v1/certificate-batches/${encodeURIComponent(id)}/retry`, {
