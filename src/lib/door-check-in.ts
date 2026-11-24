@@ -1,7 +1,9 @@
 import { personLabel } from '@/components/identity/PersonPick';
+import { ProblemError } from '@/lib/api/core';
 import type { Person } from '@/lib/api/identity';
 import type { EventSession } from '@/lib/api/sessions';
 import type { Ticket } from '@/lib/api/tickets';
+import { coreProblemMessage } from '@/lib/core-problems';
 import { DOOR_GUEST_QR_WINDOW_HOURS } from '@/lib/door-qr';
 import { ticketApplicantName, formatApplicantWhen } from '@/lib/tickets-ui';
 
@@ -159,3 +161,46 @@ export function doorTicketName(
  * session. For coreProblemMessage's `statusText`.
  */
 export const ALREADY_CHECKED_IN = { 409: 'Bu kişi bu oturuma zaten girmiş.' };
+
+/** A scan core did not write, in the door's words: a short title and one line under it. */
+export type ScanRefusal = { kind: 'already' | 'refused'; title: string; text: string };
+
+/**
+ * What a refused scan says (core docs/ticket-qr.md): already in, another event's ticket, an
+ * expired, renewed or foreign code, a closed session. Never null: anything else is "Okunamadı"
+ * with core's reason.
+ */
+export function scanRefusal(error: unknown): ScanRefusal {
+  const status = error instanceof ProblemError ? error.status : 0;
+  const code = error instanceof ProblemError ? error.code : undefined;
+  if (status === 409) {
+    return {
+      kind: 'already',
+      title: 'Zaten girmiş',
+      text: 'Bu bilet bu oturumda daha önce okundu.',
+    };
+  }
+  if (status === 404) {
+    return {
+      kind: 'refused',
+      title: 'Bu etkinliğin bileti değil',
+      text: 'Başka bir etkinliğin bileti ya da bilet yok.',
+    };
+  }
+  if (code === 'ticket_qr_expired') {
+    return { kind: 'refused', title: 'Biletin süresi dolmuş', text: 'Etkinlik bitmiş.' };
+  }
+  if (code === 'ticket_qr_superseded') {
+    return { kind: 'refused', title: 'Bilet yenilenmiş', text: 'Kişi son postadaki bileti açsın.' };
+  }
+  if (status === 401) {
+    return { kind: 'refused', title: 'Geçersiz bilet', text: 'Bu kod bir SKY LAB bileti değil.' };
+  }
+  if (code === 'session_closed') {
+    return { kind: 'refused', title: 'Oturum girişe kapalı', text: 'Etkinlik taslak ya da iptal.' };
+  }
+  if (status === 403) {
+    return { kind: 'refused', title: 'Yetkin yok', text: 'Bu kapıda giriş yazamazsın.' };
+  }
+  return { kind: 'refused', title: 'Okunamadı', text: coreProblemMessage(error, 'Kod okunamadı') };
+}
