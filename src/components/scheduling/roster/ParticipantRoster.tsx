@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Mail,
   Ban,
+  ChevronsUp,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -35,6 +36,7 @@ import { Select } from '@/components/chrome/Select';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import type { Person } from '@/lib/api/identity';
 import type { Ticket } from '@/lib/api/tickets';
+import { waitedFor, waitlistOrder, waitlistPlaces } from '@/lib/capacity';
 import { defaultDoorSessionId, doorSessionLabel, type DoorSession } from '@/lib/door-check-in';
 import { emptyListCopy } from '@/lib/list-query';
 import { listStatus } from '@/lib/list-status';
@@ -55,7 +57,7 @@ import {
   type TicketMailRecipient,
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
-import { RosterCharts, RosterTiles } from './RosterOverview';
+import { CapacityStrip, RosterCharts, RosterTiles } from './RosterOverview';
 import { cancelShut, EVENT_OVER } from './ticket-cancel';
 import { TicketPanel } from './TicketPanel';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
@@ -68,8 +70,12 @@ const SORTS = {
   checkIn: 'Son giriş önce',
 } as const;
 type Sort = keyof typeof SORTS;
-/** The views of the active tickets, and the cancelled ones core lists apart (`?status=cancelled`). */
-type ListView = RosterView | 'cancelled';
+/**
+ * The views of the active tickets, and the waiting list and the cancelled ones core lists
+ * apart (`?status=waitlisted`, `?status=cancelled`).
+ */
+type ListView = RosterView | 'waitlisted' | 'cancelled';
+const WAITLIST_VIEW = { value: 'waitlisted', label: 'Bekleme listesi' } as const;
 const CANCELLED_VIEW = { value: 'cancelled', label: 'İptal edilenler' } as const;
 type Saved = { query?: string; view?: RosterView; sort?: Sort; page?: number };
 
@@ -79,6 +85,10 @@ export type ParticipantRosterProps = {
   tickets: Ticket[];
   /** The cancelled tickets; absent while unread or when they cannot be read. */
   cancelledTickets?: Ticket[];
+  /** The waiting list; absent while unread or when it cannot be read. */
+  waitlistedTickets?: Ticket[];
+  /** The Event's capacity, 0 for none. */
+  capacity?: number;
   people: Map<string, Person>;
   event?: TicketSourceEvent | null;
   sessions: readonly DoorSession[];
@@ -96,6 +106,8 @@ export type ParticipantRosterProps = {
   onCancel?: (ticket: Ticket) => void;
   /** "Geri al" on a cancelled ticket. */
   onRestore?: (ticket: Ticket) => void;
+  /** "Öne al" on a waitlisted ticket; who may cancel may promote. */
+  onPromote?: (ticket: Ticket) => void;
   /** The event is over: cancel and Geri al are shown but shut (core `event_ended`). */
   eventEnded?: boolean;
   /** The page's confirm dialog: inside the drawer while one is open, so it sits above it. */
@@ -110,6 +122,8 @@ export function ParticipantRoster({
   eventId,
   tickets,
   cancelledTickets,
+  waitlistedTickets,
+  capacity = 0,
   people,
   event,
   sessions,
@@ -124,6 +138,7 @@ export function ParticipantRoster({
   onRenew,
   onCancel,
   onRestore,
+  onPromote,
   eventEnded = false,
   dialogs,
 }: ParticipantRosterProps) {
@@ -184,10 +199,29 @@ export function ParticipantRoster({
       ),
     [cancelledTickets, people, query, event],
   );
+  const searchedWaitlisted = useMemo(
+    () =>
+      filterApplicantRoster(
+        waitlistedTickets ?? [],
+        people,
+        { query, ticketType: 'all', status: 'all' },
+        event,
+      ),
+    [waitlistedTickets, people, query, event],
+  );
+  // The place in the list is the whole list's, not the search's
+  const places = useMemo(() => waitlistPlaces(waitlistedTickets ?? []), [waitlistedTickets]);
   const cancelledView = view === CANCELLED_VIEW.value;
+  const waitlistView = view === WAITLIST_VIEW.value;
+  const apartView = cancelledView || waitlistView;
   const counts = rosterViewCounts(searched);
-  const anyTicket = tickets.length > 0 || (cancelledTickets?.length ?? 0) > 0;
+  const anyTicket =
+    tickets.length > 0 ||
+    (cancelledTickets?.length ?? 0) > 0 ||
+    (waitlistedTickets?.length ?? 0) > 0;
   const rows = useMemo(() => {
+    // The waiting list is served in its own order
+    if (view === WAITLIST_VIEW.value) return waitlistOrder(searchedWaitlisted);
     const kept =
       view === CANCELLED_VIEW.value
         ? searchedCancelled
@@ -200,7 +234,7 @@ export function ParticipantRoster({
       const order = at(left.createdAt) - at(right.createdAt);
       return sort === 'oldest' ? order : -order;
     });
-  }, [searched, searchedCancelled, view, sort, people, event]);
+  }, [searched, searchedCancelled, searchedWaitlisted, view, sort, people, event]);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const slice = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -254,7 +288,11 @@ export function ParticipantRoster({
     failed,
     rowCount: rows.length,
     emptyMessage: emptyListCopy({
-      none: cancelledView ? 'İptal edilen bilet yok' : 'Henüz kayıt yok',
+      none: cancelledView
+        ? 'İptal edilen bilet yok'
+        : waitlistView
+          ? 'Bekleyen yok'
+          : 'Henüz kayıt yok',
       noneMatch: 'Eşleşen kayıt yok',
       query,
       filtered,
@@ -290,7 +328,7 @@ export function ParticipantRoster({
           aria-label="Katılımcı ara"
         />
       </div>
-      {onMarkAttended && sessions.length > 0 && !cancelledView ? (
+      {onMarkAttended && sessions.length > 0 && !apartView ? (
         <Select
           aria-label="Giriş oturumu"
           className="w-full sm:w-64"
@@ -305,7 +343,7 @@ export function ParticipantRoster({
           ))}
         </Select>
       ) : null}
-      {onMarkAttended && sessions.length > 0 && !attendSession && !cancelledView ? (
+      {onMarkAttended && sessions.length > 0 && !attendSession && !apartView ? (
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
@@ -317,7 +355,7 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
-        {cancelledView ? null : (
+        {apartView ? null : (
           <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
         )}
       </div>
@@ -326,8 +364,15 @@ export function ParticipantRoster({
 
   return (
     <div className="flex flex-col gap-4">
+      <CapacityStrip
+        active={tickets.length}
+        capacity={capacity}
+        waitlisted={waitlistedTickets?.length ?? 0}
+        waitlistOpen={waitlistView}
+        onWaitlist={() => pickView('waitlisted')}
+      />
       {tickets.length > 0 ? (
-        <RosterTiles tickets={tickets} view={cancelledView ? null : view} onView={pickView} />
+        <RosterTiles tickets={tickets} view={apartView ? null : view} onView={pickView} />
       ) : null}
       {tickets.length > 0 ? (
         // On a phone the list comes first, the charts after it
@@ -349,27 +394,32 @@ export function ParticipantRoster({
                     (option) =>
                       option.value === 'all' || counts[option.value] > 0 || option.value === view,
                   ).map((option) => ({ ...option, count: counts[option.value] })),
+                  ...(searchedWaitlisted.length > 0 || waitlistView
+                    ? [{ ...WAITLIST_VIEW, count: searchedWaitlisted.length }]
+                    : []),
                   ...(searchedCancelled.length > 0 || cancelledView
                     ? [{ ...CANCELLED_VIEW, count: searchedCancelled.length }]
                     : []),
                 ]}
               />
             </div>
-            <Select
-              aria-label="Sıralama"
-              className="ml-auto w-40"
-              value={sort}
-              onChange={(change) => {
-                setSort(change.target.value as Sort);
-                setPage(1);
-              }}
-            >
-              {Object.entries(SORTS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
+            {waitlistView ? null : (
+              <Select
+                aria-label="Sıralama"
+                className="ml-auto w-40"
+                value={sort}
+                onChange={(change) => {
+                  setSort(change.target.value as Sort);
+                  setPage(1);
+                }}
+              >
+                {Object.entries(SORTS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            )}
           </div>
         ) : null}
         {failed ? <LoadError title="Kayıtlar yüklenemedi" onRetry={onRetry} /> : null}
@@ -393,6 +443,8 @@ export function ParticipantRoster({
                 onRenew={onRenew}
                 onCancel={onCancel}
                 onRestore={onRestore}
+                onPromote={onPromote}
+                place={places.get(ticket.id)}
                 eventEnded={eventEnded}
               />
             ))}
@@ -428,6 +480,7 @@ export function ParticipantRoster({
             onRenew={onRenew}
             onCancel={onCancel}
             onRestore={onRestore}
+            onPromote={onPromote}
             eventEnded={eventEnded}
           />
         ) : null}
@@ -454,6 +507,8 @@ function RosterRow({
   onRenew,
   onCancel,
   onRestore,
+  onPromote,
+  place,
   eventEnded,
 }: {
   ticket: Ticket;
@@ -471,9 +526,16 @@ function RosterRow({
   onRenew?: (ticket: Ticket) => void;
   onCancel?: (ticket: Ticket) => void;
   onRestore?: (ticket: Ticket) => void;
+  onPromote?: (ticket: Ticket) => void;
+  /** The place in the waiting list, for a waitlisted ticket. */
+  place?: number;
   eventEnded: boolean;
 }) {
   const cancelled = isTicketCancelled(ticket);
+  const waiting = ticket.status === 'waitlisted';
+  const apart = cancelled || waiting;
+  const waited = waiting ? waitedFor(ticket.waitlistedAt ?? ticket.createdAt) : null;
+  const waitLabel = waiting ? waitlistLabel(place, waited) : '';
   const shut = cancelShut(ticket, eventEnded);
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
@@ -486,8 +548,8 @@ function RosterRow({
         current ? 'bg-card' : ''
       }`}
     >
-      {cancelled ? (
-        // Nobody to mail: the cancelled list has no choice
+      {apart ? (
+        // Nobody to mail: the cancelled list and the waiting list have no choice
         <span className="w-3.5 shrink-0" aria-hidden />
       ) : (
         <input
@@ -521,12 +583,14 @@ function RosterRow({
           <span className="mt-0.5 flex gap-2 text-[13px]/5 sm:hidden">
             {cancelled ? (
               <span className="text-destructive">{cancelledLabel(ticket)}</span>
+            ) : waiting ? (
+              <span className="text-warning">{waitLabel}</span>
             ) : entryTime ? (
               <span className="text-success">Giriş {entryTime}</span>
             ) : (
               <span className="text-muted-foreground">Gelmedi</span>
             )}
-            {ticket.sent === false && !cancelled ? (
+            {ticket.sent === false && !apart ? (
               <span className="text-warning">Bilet gitmedi</span>
             ) : null}
           </span>
@@ -550,18 +614,20 @@ function RosterRow({
         <span className="hidden w-36 shrink-0 sm:block">
           {cancelled ? (
             <StatusChip kind="cancelled" label={cancelledLabel(ticket)} />
+          ) : waiting ? (
+            <StatusChip kind="pending" label={waitLabel} />
           ) : entryTime ? (
             <StatusChip kind="checked-in" label={`Giriş ${entryTime}`} />
           ) : (
             <StatusChip kind="neutral" label="Gelmedi" />
           )}
-          {ticket.sent === false && !cancelled ? (
+          {ticket.sent === false && !apart ? (
             <span className="text-warning mt-1 block text-[13px]/5">Bilet gitmedi</span>
           ) : null}
         </span>
       </Link>
       <div className="flex shrink-0 items-center gap-1">
-        {canAttend && !cancelled ? (
+        {canAttend && !apart ? (
           <Button
             className={BUTTON_TEXT}
             size="xs"
@@ -574,7 +640,48 @@ function RosterRow({
             <span className="hidden sm:inline">{inSession ? 'Girişi var' : 'Katıldı'}</span>
           </Button>
         ) : null}
-        {cancelled ? (
+        {waiting ? (
+          <>
+            {onPromote ? (
+              <Button
+                className={BUTTON_TEXT}
+                size="xs"
+                variant="outline"
+                disabled={eventEnded}
+                title={eventEnded ? EVENT_OVER : undefined}
+                onClick={() => onPromote(ticket)}
+                aria-label={`${row.name}: öne al`}
+              >
+                <ChevronsUp className="size-3.5" />
+                <span className="hidden sm:inline">Öne al</span>
+              </Button>
+            ) : null}
+            {onCancel ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <IconButton
+                      icon={MoreHorizontal}
+                      size="icon-sm"
+                      variant="ghost"
+                      label={`${row.name}: eylemler`}
+                    />
+                  }
+                />
+                <DropdownMenuContent align="end">
+                  <MenuItem
+                    icon={Ban}
+                    destructive
+                    disabled={eventEnded}
+                    onClick={() => onCancel(ticket)}
+                  >
+                    Listeden çıkar
+                  </MenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </>
+        ) : cancelled ? (
           onRestore ? (
             <Button
               className={BUTTON_TEXT}
@@ -636,6 +743,12 @@ function RosterRow({
       </div>
     </li>
   );
+}
+
+/** "Sırada 2 · 3 gün": the place in the waiting list and how long it has waited. */
+function waitlistLabel(place: number | undefined, waited: string | null): string {
+  const head = place ? `Sırada ${place}` : 'Sırada';
+  return waited ? `${head} · ${waited}` : head;
 }
 
 /** "İptal · 24 Kas 13:05": when the ticket was cancelled, if core says so. */

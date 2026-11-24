@@ -8,9 +8,15 @@ import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
+import { capacityFull, overCapacityLine } from '@/lib/capacity';
 import { ticketsApi } from '@/lib/api/tickets';
 import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
-import { isTicketCancelled, ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
+import {
+  isTicketCancelled,
+  ticketApplicantEmail,
+  ticketCancelProblem,
+  ticketSendProblem,
+} from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -63,6 +69,21 @@ export default function EventParticipantsPage() {
     void readCancelled();
   }, [readCancelled]);
 
+  // The waiting list, read the same way; a core without it lists nothing waiting
+  const [waitlisted, setWaitlisted] = useState<Ticket[] | undefined>(undefined);
+  const readWaitlisted = useCallback(async () => {
+    if (!canTickets) return;
+    try {
+      const rows = await ticketsApi.listByEvent(event.id, 'waitlisted');
+      setWaitlisted(rows.filter((ticket) => ticket.status === 'waitlisted'));
+    } catch {
+      setWaitlisted(undefined);
+    }
+  }, [canTickets, event.id]);
+  useEffect(() => {
+    void readWaitlisted();
+  }, [readWaitlisted]);
+
   // The address decides, also when a link changes it while the page is open
   const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
   useEffect(() => {
@@ -74,9 +95,10 @@ export default function EventParticipantsPage() {
       openId
         ? (tickets.find((ticket) => ticket.id === openId) ??
           cancelled?.find((ticket) => ticket.id === openId) ??
+          waitlisted?.find((ticket) => ticket.id === openId) ??
           null)
         : null,
-    [openId, tickets, cancelled],
+    [openId, tickets, cancelled, waitlisted],
   );
 
   function show(ticket: Ticket | null) {
@@ -122,15 +144,60 @@ export default function EventParticipantsPage() {
     });
   }
 
+  const capacity = event.capacity ?? 0;
+  const readAll = async () => {
+    await Promise.all([reload(), readCancelled(), readWaitlisted()]);
+  };
+
   // Exactly who may edit the event cancels a ticket and takes it back (core)
   const { askCancel, askRestore } = ticketCancelQuestions({
     confirm,
     people: personById,
     notify,
-    onChanged: async () => {
-      await Promise.all([reload(), readCancelled()]);
+    // Geri al may go past the capacity (core `overCapacity`)
+    onChanged: async (saved) => {
+      if (saved.overCapacity)
+        notify.success('Kontenjan aşıldı', overCapacityLine(tickets.length + 1, capacity));
+      await readAll();
     },
   });
+
+  // "Öne al": past the capacity if it must; who may cancel may promote (core)
+  function askPromote(ticket: Ticket) {
+    const full = capacityFull(tickets.length, capacity);
+    confirm({
+      title: `${doorTicketName(ticket, personById)} öne alınsın mı?`,
+      description: full
+        ? `Bilet etkinleşir ve kontenjan aşılır (${tickets.length + 1}/${capacity}).`
+        : 'Bilet etkinleşir, kişiye bilet postası gider.',
+      actionLabel: 'Öne al',
+      destructive: false,
+      failure: (err) => ticketCancelProblem(err, 'promote'),
+      onConfirm: async () => {
+        const saved = await ticketsApi.promote(ticket.id);
+        if (saved.overCapacity) {
+          notify.success('Öne alındı', overCapacityLine(tickets.length + 1, capacity));
+        } else {
+          notify.success('Öne alındı');
+        }
+        await readAll();
+      },
+    });
+  }
+
+  function askLeave(ticket: Ticket) {
+    confirm({
+      title: `${doorTicketName(ticket, personById)} listeden çıkarılsın mı?`,
+      description: 'İptal edilenlere geçer.',
+      actionLabel: 'Listeden çıkar',
+      failure: (err) => ticketCancelProblem(err, 'cancel'),
+      onConfirm: async () => {
+        await ticketsApi.cancel(ticket.id);
+        notify.success('Listeden çıkarıldı');
+        await readAll();
+      },
+    });
+  }
 
   if (!canTickets) {
     return <StateCard title="Katılımcıları görme yetkin yok" tone="danger" />;
@@ -166,6 +233,8 @@ export default function EventParticipantsPage() {
         eventId={event.id}
         tickets={tickets}
         cancelledTickets={cancelled}
+        waitlistedTickets={waitlisted}
+        capacity={capacity}
         people={personById}
         event={event}
         sessions={sessions}
@@ -180,8 +249,13 @@ export default function EventParticipantsPage() {
         onMarkAttended={markAttended}
         onResend={resend}
         onRenew={renew}
-        onCancel={canCancelTickets ? askCancel : undefined}
+        onCancel={
+          canCancelTickets
+            ? (ticket) => (ticket.status === 'waitlisted' ? askLeave(ticket) : askCancel(ticket))
+            : undefined
+        }
         onRestore={canCancelTickets ? askRestore : undefined}
+        onPromote={canCancelTickets ? askPromote : undefined}
         eventEnded={eventHasEnded(event)}
         dialogs={confirmDialog}
       />
@@ -189,8 +263,10 @@ export default function EventParticipantsPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         eventId={event.id}
+        capacity={capacity}
+        activeTickets={tickets.length}
         onCreated={async () => {
-          await reload();
+          await readAll();
         }}
       />
     </>
