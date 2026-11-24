@@ -24,7 +24,7 @@ export type TicketRosterRow = {
   sourceFormLabel: string;
   sourceFormHref: string | null;
   createdAtLabel: string;
-  status: 'registered' | 'checked-in';
+  status: 'registered' | 'checked-in' | 'cancelled';
   statusLabel: string;
 };
 
@@ -62,6 +62,17 @@ export function canListEventTickets(
 export function canAssignEventTicket(groups: readonly string[], ownerTeam: string): boolean {
   if (groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK)(\/|$)/.test(g))) return true;
   return ownerLevels(groups, ownerTeam).includes('LEADER');
+}
+
+/**
+ * Cancelling a Ticket and taking it back (core docs/ticket-cancellation.md): exactly who edits
+ * the Event, ADMIN and YK, its team's Leaders, GECEKODU's members. DK reads only. The group
+ * rule stands in when core's capabilities (`event.update`) cannot be read.
+ */
+export function canCancelEventTicket(groups: readonly string[], ownerTeam: string): boolean {
+  if (groups.some((g) => /^\/(UYELER\/)?(ADMIN|YK)(\/|$)/.test(g))) return true;
+  const levels = ownerLevels(groups, ownerTeam);
+  return ownerTeam === 'GECEKODU' ? levels.length > 0 : levels.includes('LEADER');
 }
 
 export function canDeskCheckIn(
@@ -139,7 +150,11 @@ export function ticketTypeLabel(ticketType: string): string {
   return ticketType;
 }
 
-export function ticketStatus(row: Ticket): { key: 'registered' | 'checked-in'; label: string } {
+export function ticketStatus(row: Ticket): {
+  key: 'registered' | 'checked-in' | 'cancelled';
+  label: string;
+} {
+  if (row.status === 'cancelled') return { key: 'cancelled', label: 'İptal edildi' };
   if ((row.checkIns?.length ?? 0) > 0) return { key: 'checked-in', label: 'Giriş yaptı' };
   return { key: 'registered', label: 'Kayıtlı' };
 }
@@ -291,6 +306,13 @@ const KNOWN_TICKET_KEYS = new Set([
   'createdAt',
   'updatedAt',
   'event',
+  // The ticket's status (core docs/ticket-cancellation.md): said by its badge, not as an answer
+  'status',
+  'statusChangedAt',
+  'waitlistedAt',
+  'cancelledAt',
+  'cancelledBy',
+  'cancelReason',
 ]);
 
 function dash(value: string | undefined | null): string {
@@ -411,4 +433,30 @@ export function ticketSendProblem(error: unknown, fallback: string): string {
     return 'Etkinlik bitmiş; bilet gönderilmez.';
   }
   return coreProblemMessage(error, fallback);
+}
+
+/** Whether core counts the Ticket as cancelled; a Ticket from before core #405 has no status. */
+export function isTicketCancelled(row: Pick<Ticket, 'status'>): boolean {
+  return row.status === 'cancelled';
+}
+
+/**
+ * Why core refused "Bileti iptal et" or "Geri al" (core docs/ticket-cancellation.md): an ended
+ * Event, an entry, a Competition entrant, a waitlisted Ticket, or no right to edit the Event.
+ */
+export function ticketCancelProblem(error: unknown, action: 'cancel' | 'restore'): string {
+  const verb = action === 'cancel' ? 'iptal edilemez' : 'geri alınamaz';
+  if (error instanceof ProblemError) {
+    if (error.code === 'event_ended') return `Etkinlik bitmiş; bilet ${verb}.`;
+    if (error.code === 'ticket_waitlisted') return `Bilet bekleme listesinde; ${verb}.`;
+    if (error.status === 403) {
+      return action === 'cancel'
+        ? 'Bu bileti iptal etme yetkin yok.'
+        : 'Bu bileti geri alma yetkin yok.';
+    }
+  }
+  return coreProblemMessage(
+    error,
+    action === 'cancel' ? 'Bilet iptal edilemedi' : 'İptal geri alınamadı',
+  );
 }

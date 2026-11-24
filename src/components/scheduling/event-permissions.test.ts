@@ -9,6 +9,7 @@ const ALL: EventPermissions = {
   canCompetitors: true,
   canTickets: true,
   canAssign: true,
+  canCancelTickets: true,
   canDesk: true,
   canCertificates: true,
   canReadIssuedCertificates: true,
@@ -27,6 +28,7 @@ describe('withTeamCapabilities', () => {
       canDelete: false,
       canCompetitors: false,
       canAssign: false,
+      canCancelTickets: false,
       canDesk: false,
       canIssueCertificate: false,
       canBindCertificate: false,
@@ -46,6 +48,8 @@ describe('withTeamCapabilities', () => {
       true,
     );
     expect(can.canMutate).toBe(true);
+    // Who edits the event cancels its tickets (core docs/ticket-cancellation.md)
+    expect(can.canCancelTickets).toBe(true);
     expect(can.canDelete).toBe(false);
     expect(can.canDesk).toBe(true);
     expect(asked.every((row) => row.startsWith('WEBLAB:'))).toBe(true);

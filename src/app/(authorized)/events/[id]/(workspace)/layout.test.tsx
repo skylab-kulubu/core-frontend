@@ -91,20 +91,19 @@ describe('Event workspace layout', () => {
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
     const workspace = await renderEventTab(<EventProgramPage />, '/events/e1/program');
     expect(await screen.findByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
-    const reads = [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
-      (call) => (call as jest.Mock).mock.calls.length,
-    );
+    // The event's own reads; the tab reads its cancelled tickets itself (`?status=cancelled`)
+    const eventReads = () =>
+      [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
+        (call) => (call as jest.Mock).mock.calls.filter((args) => args[1] !== 'cancelled').length,
+      );
+    const reads = eventReads();
 
     await workspace.openTab(<EventParticipantsPage />, '/events/e1/participants');
 
     // The participants tab is drawn (its roster's search), from the workspace's data
     expect(await screen.findByRole('searchbox', { name: 'Katılımcı ara' })).toBeInTheDocument();
     expect(tab('Katılımcılar')).toHaveAttribute('aria-current', 'page');
-    expect(
-      [eventsApi.get, eventDaysApi.listByEvent, ticketsApi.listByEvent].map(
-        (call) => (call as jest.Mock).mock.calls.length,
-      ),
-    ).toEqual(reads);
+    expect(eventReads()).toEqual(reads);
   });
 
   it('shows the owner-team Leader every tab the event has', async () => {

@@ -583,6 +583,45 @@ describe('DoorDesk', () => {
     expect(result).toHaveTextContent('Bu kişi bu oturuma zaten girmiş.');
   });
 
+  it('says a cancelled or waitlisted ticket in red, not as already in', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(409, 'Conflict', { code: 'ticket_cancelled' }),
+    );
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    await user.type(box(), 'ada{Enter}');
+    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Bilet iptal edilmiş'));
+    expect(result).not.toHaveTextContent('Zaten girmiş');
+    expect(result.firstElementChild).toHaveClass('bg-destructive/15');
+
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(409, 'Conflict', { code: 'ticket_waitlisted' }),
+    );
+    await user.type(box(), 'ada{Enter}');
+    await waitFor(() => expect(result).toHaveTextContent('Bilet bekleme listesinde'));
+    expect(result.firstElementChild).toHaveClass('bg-destructive/15');
+  });
+
+  it('shows a scanned cancelled ticket red over the whole screen', async () => {
+    const camera = fakeCamera(['TOKEN-1']);
+    (ticketsApi.scanCheckIn as jest.Mock).mockRejectedValue(
+      new ProblemError(409, 'Conflict', { code: 'ticket_cancelled' }),
+    );
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await ready();
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      const flash = await screen.findByTestId('door-flash');
+      expect(flash).toHaveAttribute('data-signal', 'refused');
+      expect(flash).toHaveTextContent('Bilet iptal edilmiş');
+    } finally {
+      camera.remove();
+    }
+  });
+
   it('says a refused entry in Turkish, never core’s English', async () => {
     const user = userEvent.setup();
     (ticketsApi.resolveAndCheckIn as jest.Mock).mockRejectedValue(

@@ -1,15 +1,16 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StateCard } from '@/components/chrome/StateCard';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
+import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
 import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
-import { ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
+import { isTicketCancelled, ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -37,6 +38,7 @@ export default function EventParticipantsPage() {
     canTickets,
     canAssign,
     canDesk,
+    canCancelTickets,
   } = useEventWorkspace();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -45,6 +47,22 @@ export default function EventParticipantsPage() {
   // A second click while the first is out sends nothing more
   const sending = useRef(new Set<string>());
 
+  // The cancelled tickets core lists apart; none shown when they cannot be read
+  const [cancelled, setCancelled] = useState<Ticket[] | undefined>(undefined);
+  const readCancelled = useCallback(async () => {
+    if (!canTickets) return;
+    try {
+      const rows = await ticketsApi.listByEvent(event.id, 'cancelled');
+      // A core without ticket status answers every ticket to the unknown `?status=`
+      setCancelled(rows.filter(isTicketCancelled));
+    } catch {
+      setCancelled(undefined);
+    }
+  }, [canTickets, event.id]);
+  useEffect(() => {
+    void readCancelled();
+  }, [readCancelled]);
+
   // The address decides, also when a link changes it while the page is open
   const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
   useEffect(() => {
@@ -52,8 +70,13 @@ export default function EventParticipantsPage() {
   }, [linked]);
 
   const openTicket = useMemo(
-    () => (openId ? (tickets.find((ticket) => ticket.id === openId) ?? null) : null),
-    [openId, tickets],
+    () =>
+      openId
+        ? (tickets.find((ticket) => ticket.id === openId) ??
+          cancelled?.find((ticket) => ticket.id === openId) ??
+          null)
+        : null,
+    [openId, tickets, cancelled],
   );
 
   function show(ticket: Ticket | null) {
@@ -99,6 +122,16 @@ export default function EventParticipantsPage() {
     });
   }
 
+  // Exactly who may edit the event cancels a ticket and takes it back (core)
+  const { askCancel, askRestore } = ticketCancelQuestions({
+    confirm,
+    people: personById,
+    notify,
+    onChanged: async () => {
+      await Promise.all([reload(), readCancelled()]);
+    },
+  });
+
   if (!canTickets) {
     return <StateCard title="Katılımcıları görme yetkin yok" tone="danger" />;
   }
@@ -132,6 +165,7 @@ export default function EventParticipantsPage() {
       <ParticipantRoster
         eventId={event.id}
         tickets={tickets}
+        cancelledTickets={cancelled}
         people={personById}
         event={event}
         sessions={sessions}
@@ -146,6 +180,9 @@ export default function EventParticipantsPage() {
         onMarkAttended={markAttended}
         onResend={resend}
         onRenew={renew}
+        onCancel={canCancelTickets ? askCancel : undefined}
+        onRestore={canCancelTickets ? askRestore : undefined}
+        eventEnded={eventHasEnded(event)}
         dialogs={confirmDialog}
       />
       <AddParticipantDrawer

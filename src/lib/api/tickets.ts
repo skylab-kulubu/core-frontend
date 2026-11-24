@@ -92,7 +92,14 @@ export type Ticket = {
   createdAt: string;
   updatedAt: string;
   event?: { id?: string; name?: string };
+  /** core docs/ticket-cancellation.md: only an active Ticket passes the door. Absent before core #405. */
+  status?: TicketStatus;
+  cancelledAt?: string;
+  cancelledBy?: 'holder' | 'operator' | 'form' | string;
+  cancelReason?: string;
 };
+
+export type TicketStatus = 'active' | 'waitlisted' | 'cancelled';
 
 /** "Bileti yeniden gönder": the n-th resend; `replayed` when the same key was sent before. */
 export type TicketResend = { resend: number; replayed: boolean; queued: boolean };
@@ -123,8 +130,11 @@ export const ticketsApi = {
       `/v1/events/${encodeURIComponent(eventId)}/assignable-users?${params.toString()}`,
     );
   },
-  listByEvent: (eventId: string) =>
-    coreFetch<Ticket[]>(`/v1/events/${encodeURIComponent(eventId)}/tickets`),
+  /** The Event's active Tickets; `status` reads the cancelled (or waitlisted) ones instead. */
+  listByEvent: (eventId: string, status?: Exclude<TicketStatus, 'active'>) =>
+    coreFetch<Ticket[]>(
+      `/v1/events/${encodeURIComponent(eventId)}/tickets${status ? `?status=${status}` : ''}`,
+    ),
   list: (query: { email?: string; userId?: string }) => {
     const params = new URLSearchParams();
     if (query.email?.trim()) params.set('email', query.email.trim());
@@ -201,6 +211,19 @@ export const ticketsApi = {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+  /**
+   * An operator cancels the Ticket (core docs/ticket-cancellation.md): the door refuses it.
+   * 409 `event_ended`, `ticket_checked_in`, `ticket_in_competition`; 403 for who may not edit
+   * the Event. A cancelled Ticket answers 200 as it is.
+   */
+  cancel: (ticketId: string, reason?: string) =>
+    coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    }),
+  /** Takes the cancellation back: active again with a new link and QR. 409 `event_ended`. */
+  restore: (ticketId: string) =>
+    coreFetch<Ticket>(`/v1/tickets/${encodeURIComponent(ticketId)}/restore`, { method: 'POST' }),
   /** Live: the door page asks every few seconds, never from the kept reads. */
   doorActivity: (sessionId: string) =>
     coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {

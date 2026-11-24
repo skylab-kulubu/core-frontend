@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, MenuItem, Timeline, type DescriptionItem } from '@skylab-kulubu/skylcn-ui';
-import { CheckCircle2, KeyRound, Mail, Undo2, UserRound } from 'lucide-react';
+import { Ban, CheckCircle2, KeyRound, Mail, RotateCcw, Undo2, UserRound } from 'lucide-react';
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import {
@@ -14,6 +14,12 @@ import { EmptyState } from '@/components/chrome/PageState';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
+import {
+  cancelShut,
+  EVENT_OVER,
+  eventHasEnded,
+  ticketCancelQuestions,
+} from '@/components/scheduling/roster/ticket-cancel';
 import { ticketTimeline } from '@/components/scheduling/roster/TicketPanel';
 import { TicketDetailView } from '@/components/scheduling/TicketDetailView';
 import { useAuth } from '@/context/AuthContext';
@@ -41,8 +47,10 @@ import { useNotify } from '@/lib/ui/use-notify';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import {
   canAssignEventTicket,
+  canCancelEventTicket,
   canDeskCheckIn,
   canListEventTickets,
+  isTicketCancelled,
   ticketApplicantEmail,
   ticketApplicantName,
   ticketCrumbName,
@@ -155,6 +163,27 @@ export default function TicketDetailPage({
       'door.checkIn',
       canDeskCheckIn(groups, event.ownerTeam),
     );
+  // Exactly who may edit the event cancels a ticket and takes it back (core)
+  const canCancel = teamDecision(
+    capabilities,
+    event.ownerTeam,
+    'event.update',
+    canCancelEventTicket(groups, event.ownerTeam),
+  );
+  const cancelled = isTicketCancelled(ticket);
+  // core refuses both once the event is over (`event_ended`): shown, but shut
+  const ended = eventHasEnded(event);
+  const shut = cancelShut(ticket, ended);
+  const { askCancel, askRestore } = ticketCancelQuestions({
+    confirm,
+    people: personById,
+    notify,
+    onChanged: (saved) => {
+      // core answers the ticket without its form answers and entries: keep the page's
+      setTicket((shown) => (shown ? { ...shown, ...saved } : saved));
+      void reloadTicket();
+    },
+  });
   const canReadPeople =
     capabilities.status === 'ready' && Boolean(capabilities.data.can?.['user.read']);
   const name = ticketApplicantName(ticket, personById);
@@ -253,10 +282,18 @@ export default function TicketDetailPage({
     },
   ];
   if (email) essentials.splice(1, 0, { label: 'E-posta', value: email });
+  if (cancelled) {
+    essentials.push({
+      label: 'İptal',
+      value: ticket.cancelledAt ? formatClock(ticket.cancelledAt) : 'Evet',
+    });
+    if (ticket.cancelReason) essentials.push({ label: 'Gerekçe', value: ticket.cancelReason });
+  }
 
   const unentered = sessions.filter((session) => !session.cancelled && !entered.has(session.id));
   const attendCommand =
-    !canDesk || !sessions.length ? null : attendSession && !entered.has(attendSession.id) ? (
+    !canDesk || !sessions.length || cancelled ? null : attendSession &&
+      !entered.has(attendSession.id) ? (
       <Command
         primary
         icon={CheckCircle2}
@@ -291,7 +328,11 @@ export default function TicketDetailPage({
             badges={
               <>
                 <StatusChip kind={ticketTypeStatus(ticket.ticketType)} />
-                <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
+                {cancelled ? (
+                  <StatusChip kind="cancelled" />
+                ) : (
+                  <StatusChip kind={ticketCheckInStatus(hasCheckIn(ticket))} />
+                )}
               </>
             }
           />
@@ -299,11 +340,30 @@ export default function TicketDetailPage({
         commands={
           <CommandBar label="Kayıt komutları">
             {attendCommand}
-            {canAssign ? (
+            {canCancel && cancelled ? (
+              <Command
+                primary
+                icon={RotateCcw}
+                label="Geri al"
+                title={ended ? EVENT_OVER : 'İptali geri al'}
+                disabled={ended}
+                onClick={() => askRestore(ticket)}
+              />
+            ) : null}
+            {canAssign && !cancelled ? (
               <Command icon={Mail} label="Bileti yeniden gönder" onClick={askResend} />
             ) : null}
-            {canAssign ? (
+            {canAssign && !cancelled ? (
               <Command icon={KeyRound} label="Bağlantıyı yenile" onClick={askRenew} />
+            ) : null}
+            {canCancel && !cancelled ? (
+              <Command
+                icon={Ban}
+                label="Bileti iptal et"
+                disabled={shut !== null}
+                title={shut ?? undefined}
+                onClick={() => askCancel(ticket)}
+              />
             ) : null}
             {ticket.ownerId && canReadPeople ? (
               <Command
