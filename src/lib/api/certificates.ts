@@ -108,8 +108,10 @@ export type CertificateBatch = {
   eventId: string;
   templateVersionId: string;
   templateSource: string;
-  reason: 'finalization' | 'manual' | 'reissue';
+  reason: 'finalization' | 'manual' | 'reissue' | 'rescan';
   status: 'queued' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+  /** Why a manual issue was given; required below the rule's threshold. */
+  justification?: string;
   totalCount: number;
   queuedCount: number;
   issuedCount: number;
@@ -128,7 +130,52 @@ export type CertificateEventSummary = {
   queuedCount: number;
   failedCount: number;
   resolution: ResolvedCertificateTemplate;
+  /**
+   * Core's attendance list (sertifika-oturum tickets 02 and 03); an older core
+   * sends none of these. `belowCount`: the Tickets under the threshold.
+   */
+  countedTotal?: number;
+  effectiveMin?: number;
+  belowCount?: number;
+  /** When the attendance closes by itself; left out once closed or when it will not. */
+  autoFinalizeAt?: string;
+  /** Who closed it, once closed. */
+  finalizedSource?: 'manual' | 'auto';
 };
+
+/** A Ticket's place in the list, first that holds: issued > queued > failed > revoked > eligible > below. */
+export type CertificateAttendanceStatus =
+  | 'issued'
+  | 'queued'
+  | 'failed'
+  | 'revoked'
+  | 'eligible'
+  | 'below';
+
+export type CertificateAttendanceRow = {
+  ticketId: string;
+  name: string;
+  ticketType: string;
+  /** Check-ins on the live counted Sessions. */
+  attended: number;
+  /** Live required Sessions without a check-in, in program order. */
+  missingRequired: { id: string; title: string }[];
+  status: CertificateAttendanceStatus;
+  /** The active certificate, else the latest revoked one, else null. */
+  certificate: { serial: string; issuedAt: string; revokedAt?: string } | null;
+};
+
+/** GET /v1/events/{id}/certificates/attendance (core docs/certificate-rule.md): no e-mail, by name. */
+export type CertificateAttendance = {
+  countedTotal: number;
+  effectiveMin: number;
+  rule: CertificateRule['rule'];
+  required: { id: string; title: string }[];
+  rows: CertificateAttendanceRow[];
+};
+
+/** POST /v1/events/{id}/certificates/rescan: no batch when no one was queued. */
+export type CertificateRescan = { queued: number; batch?: CertificateBatch };
 
 export type IssuedCertificate = {
   id: string;
@@ -143,6 +190,49 @@ export type IssuedCertificate = {
   templateSource: string;
   revokedAt?: string;
   issuedAt: string;
+};
+
+/** One of the Event's current Sessions as the rule editor shows it, cancelled ones too. */
+export type CertificateRuleSession = {
+  id: string;
+  dayId: string;
+  title: string;
+  sessionType: string;
+  startTime?: string;
+  endTime?: string;
+  cancelled: boolean;
+  /** One of the N; a cancelled Session counts for nothing whatever this says. */
+  counted: boolean;
+  /** Missing it refuses the certificate; always counted. */
+  required: boolean;
+};
+
+/**
+ * GET /v1/events/{id}/certificate-rule (core docs/certificate-rule.md): the
+ * rule, its threshold as stored (`minCount`, null for the default ⌈3N/4⌉) and
+ * as it applies now over `countedTotal`, and the Sessions in program order.
+ */
+export type CertificateRule = {
+  rule: 'none' | 'once' | 'count' | 'ratio';
+  /** An older Event's `ratio` rule alone; a write may not choose it. */
+  ratio?: number;
+  minCount: number | null;
+  effectiveMin: number;
+  countedTotal: number;
+  sessions: CertificateRuleSession[];
+  /**
+   * Close attendance an hour after the last Session ends (ticket 03). Not in
+   * core's answer yet: the panel shows the switch only once core sends it.
+   */
+  autoFinalize?: boolean;
+};
+
+/** PUT /v1/events/{id}/certificate-rule: one transaction; a Session left out keeps its marks. */
+export type CertificateRuleBody = {
+  rule: 'none' | 'once' | 'count';
+  minCount: number | null;
+  sessions: { id: string; counted: boolean; required: boolean }[];
+  autoFinalize?: boolean;
 };
 
 const eventPath = (eventId: string) => `/v1/events/${encodeURIComponent(eventId)}`;
@@ -189,6 +279,13 @@ export const certificatesApi = {
     coreFetch<ResolvedCertificateTemplate>(`${eventPath(eventId)}/certificates/template`),
   summary: (eventId: string) =>
     coreFetch<CertificateEventSummary>(`${eventPath(eventId)}/certificates/summary`),
+  /** An older core has no such call and answers 404: the rule stays on the edit page. */
+  rule: (eventId: string) => coreFetch<CertificateRule>(`${eventPath(eventId)}/certificate-rule`),
+  setRule: (eventId: string, body: CertificateRuleBody) =>
+    coreFetch<CertificateRule>(`${eventPath(eventId)}/certificate-rule`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   previewEvent: (eventId: string) =>
     coreFetchBlob(`${eventPath(eventId)}/certificates/preview`, { method: 'POST' }),
   listIssued: (eventId: string) =>
@@ -197,11 +294,20 @@ export const certificatesApi = {
     coreFetch<CertificateBatch[]>(`${eventPath(eventId)}/certificate-batches`),
   finalize: (eventId: string) =>
     coreFetch<CertificateBatch>(`${eventPath(eventId)}/certificates/finalize`, { method: 'POST' }),
-  issue: (eventId: string, ticketId: string) =>
+  /** An older core has no such call and answers 404: the tab keeps the person picker. */
+  attendance: (eventId: string) =>
+    coreFetch<CertificateAttendance>(`${eventPath(eventId)}/certificates/attendance`),
+  /**
+   * Below the threshold core wants a justification (400 `justification_required`,
+   * over 500 characters `justification_too_long`); an eligible Ticket needs none.
+   */
+  issue: (eventId: string, ticketId: string, justification?: string) =>
     coreFetch<CertificateBatch>(`${eventPath(eventId)}/certificates/issue`, {
       method: 'POST',
-      body: JSON.stringify({ ticketId }),
+      body: JSON.stringify(justification ? { ticketId, justification } : { ticketId }),
     }),
+  rescan: (eventId: string) =>
+    coreFetch<CertificateRescan>(`${eventPath(eventId)}/certificates/rescan`, { method: 'POST' }),
   revoke: (serial: string) =>
     coreFetch<void>(`/v1/certificates/${encodeURIComponent(serial)}/revoke`, { method: 'POST' }),
   reissue: (serial: string) =>

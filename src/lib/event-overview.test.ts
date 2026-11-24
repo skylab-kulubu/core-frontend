@@ -156,6 +156,10 @@ it('names the certificate rule as the edit page does', () => {
   expect(certificateRuleLabel({ attendanceRule: 'ratio', attendanceRatio: 0.75 })).toBe(
     "Oturumların %75'i",
   );
+  expect(certificateRuleLabel({ attendanceRule: 'count' })).toBe("Oturumların %75'i");
+  expect(certificateRuleLabel({ attendanceRule: 'count', attendanceMinCount: 6 })).toBe(
+    'En az 6 oturum',
+  );
 });
 
 it('writes the date in full, the end clock alone on the same day', () => {

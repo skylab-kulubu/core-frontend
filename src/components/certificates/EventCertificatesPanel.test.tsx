@@ -19,6 +19,15 @@ jest.mock('@/lib/api/certificates', () => ({
     revoke: jest.fn(),
     reissue: jest.fn(),
     issue: jest.fn(),
+    // An older core: no rule editor
+    rule: jest.fn(() => Promise.reject(new Error('404'))),
+    setRule: jest.fn(),
+    // An older core: no attendance list
+    attendance: jest.fn(() => {
+      const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+      return Promise.reject(new Problem(404, 'Not Found'));
+    }),
+    rescan: jest.fn(),
   },
 }));
 
@@ -208,13 +217,11 @@ describe('EventCertificatesPanel failed batches', () => {
     api.finalize.mockResolvedValue(batch('b-new', 0, '2026-10-12T10:00:00Z'));
     renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Katılımı kapat ve üret' }));
-    const confirm = await screen.findByRole('alertdialog', {
-      name: 'Katılım kapatılıp sertifikalar üretilsin mi?',
-    });
-    expect(confirm).toHaveTextContent('7 kişiye sertifika üretilir ve e-postayla gönderilir');
-    expect(confirm).toHaveTextContent('Geri alınamaz');
+    const confirm = await screen.findByRole('alertdialog', { name: 'Katılım kapatılsın mı?' });
+    expect(confirm).toHaveTextContent('7 kişiye sertifika üretilip e-postayla gönderilecek');
+    expect(confirm).toHaveTextContent('Katılım yeniden açılmaz');
     expect(api.finalize).not.toHaveBeenCalled();
-    await user.click(within(confirm).getByRole('button', { name: 'Katılımı kapat ve üret' }));
+    await user.click(within(confirm).getByRole('button', { name: 'Kapat ve üret' }));
     await waitFor(() => expect(api.finalize).toHaveBeenCalledWith('e1'));
   });
 
@@ -387,5 +394,352 @@ describe('EventCertificatesPanel issued certificates', () => {
     expect(within(drawer).queryByText('Ada Lovelace')).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: /Grace Hopper/ }));
     await waitFor(() => expect(api.issue).toHaveBeenCalledWith('e1', 't2'));
+  });
+});
+
+describe('EventCertificatesPanel rule card', () => {
+  const sessions = [
+    { id: 's1', title: 'Açılış', required: true },
+    { id: 's2', title: 'Atölye 1' },
+    { id: 's3', title: 'Atölye 2' },
+    { id: 's4', title: 'Networking', counted: false, sessionType: 'NETWORKING' },
+  ].map((row) => ({
+    dayId: 'd1',
+    sessionType: 'WORKSHOP',
+    cancelled: false,
+    counted: true,
+    required: false,
+    ...row,
+  }));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue({ ...summary(0), attendanceFinalizedAt: undefined });
+    api.templates.mockResolvedValue([]);
+    api.listIssued.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+  });
+
+  function renderRule(ruleHref?: string) {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="count"
+        finalizeOpen
+        tickets={[]}
+        canIssue={false}
+        canBind={false}
+        canRevoke={false}
+        canReadIssued={false}
+        ruleHref={ruleHref}
+        days={[{ id: 'd1', eventId: 'e1', name: '1. gün' }]}
+      />,
+    );
+  }
+
+  it('says the rule as N of M with the required and uncounted Sessions', async () => {
+    api.rule.mockResolvedValueOnce({
+      rule: 'count',
+      minCount: null,
+      effectiveMin: 3,
+      countedTotal: 3,
+      sessions,
+    });
+    renderRule();
+    expect(
+      await screen.findByText('3 oturumdan en az 3 (%100) · Zorunlu: Açılış · 1 oturum sayılmıyor'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kuralı düzenle' })).not.toBeInTheDocument();
+  });
+
+  it('opens the rule editor here for who may edit the event', async () => {
+    const user = userEvent.setup();
+    api.rule.mockResolvedValueOnce({
+      rule: 'count',
+      minCount: 2,
+      effectiveMin: 2,
+      countedTotal: 3,
+      sessions,
+    });
+    renderRule('/events/e1/edit#sertifika');
+    await user.click(await screen.findByRole('button', { name: 'Kuralı düzenle' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Sertifika kuralı' });
+    expect(within(sheet).getByRole('spinbutton', { name: 'En az kaç oturum' })).toHaveValue(2);
+    expect(within(sheet).getByText('(%67)')).toBeInTheDocument();
+  });
+
+  it('keeps the link to the edit page on an older core', async () => {
+    renderRule('/events/e1/edit#sertifika');
+    expect(await screen.findByRole('link', { name: 'Kuralı değiştir' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#sertifika',
+    );
+    expect(screen.getByText('Oturum sayısı')).toBeInTheDocument();
+  });
+});
+
+describe('EventCertificatesPanel attendance list', () => {
+  const year = new Date().getFullYear();
+  const opening = { id: 's1', title: 'Açılış' };
+  const row = (
+    ticketId: string,
+    name: string,
+    status: string,
+    attended: number,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    ticketId,
+    name,
+    ticketType: 'REGISTERED',
+    attended,
+    missingRequired: [],
+    status,
+    certificate: null,
+    ...extra,
+  });
+  const people = {
+    countedTotal: 8,
+    effectiveMin: 6,
+    rule: 'count',
+    required: [opening],
+    rows: [
+      row('t1', 'Ayşe Yılmaz', 'eligible', 7),
+      row('t2', 'Burak Demir', 'below', 4),
+      row('t3', 'Can Aydın', 'issued', 8, {
+        certificate: { serial: 'S1', issuedAt: `${year}-11-20T10:00:00Z` },
+      }),
+      row('t4', 'Deniz Kaya', 'below', 7, { missingRequired: [opening] }),
+      row('t5', 'Ece Şahin', 'queued', 6),
+    ],
+  };
+  const open = {
+    ...summary(0),
+    attendanceFinalizedAt: undefined,
+    eligibleCount: 1,
+    countedTotal: 8,
+    effectiveMin: 6,
+    belowCount: 2,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.summary.mockResolvedValue(open);
+    api.templates.mockResolvedValue([]);
+    api.listIssued.mockResolvedValue([]);
+    api.listBatches.mockResolvedValue([]);
+    api.attendance.mockResolvedValue(people);
+  });
+
+  function renderList(props: { finalizeOpen?: boolean; lastSessionEnded?: boolean } = {}) {
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="count"
+        finalizeOpen={props.finalizeOpen ?? true}
+        lastSessionEnded={props.lastSessionEnded}
+        tickets={[]}
+        canIssue
+        canBind={false}
+        canRevoke={false}
+        canReadIssued={false}
+      />,
+    );
+  }
+
+  const list = () => screen.findByRole('region', { name: 'Katılımcılar' });
+
+  it('lists who attended how much, what required Session they missed and where they stand', async () => {
+    renderList();
+    const section = await list();
+    expect(within(section).getAllByText('7/8').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('Açılış').length).toBeGreaterThan(0);
+    expect(within(section).getByText('Sırada')).toBeInTheDocument();
+    // The person picker is gone: giving by hand is in the row menu
+    expect(screen.queryByRole('button', { name: 'Elle ver' })).not.toBeInTheDocument();
+  });
+
+  it('narrows to a view and searches by name', async () => {
+    const user = userEvent.setup();
+    renderList();
+    const section = await list();
+    await user.click(within(section).getByRole('button', { name: /^Eşik altı/ }));
+    expect(within(section).queryByText('Ayşe Yılmaz')).not.toBeInTheDocument();
+    expect(within(section).getByText('Burak Demir')).toBeInTheDocument();
+    expect(within(section).getByText('Deniz Kaya')).toBeInTheDocument();
+    await user.type(within(section).getByRole('searchbox', { name: 'Katılımcı ara' }), 'deniz');
+    expect(within(section).queryByText('Burak Demir')).not.toBeInTheDocument();
+    expect(within(section).getByText('Deniz Kaya')).toBeInTheDocument();
+  });
+
+  it('asks why below the threshold and sends nothing without it', async () => {
+    const user = userEvent.setup();
+    api.issue.mockResolvedValue(batch('b1', 0, `${year}-11-24T10:00:00Z`));
+    renderList();
+    await list();
+    await user.click(screen.getByRole('button', { name: 'Burak Demir: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Elle ver' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Elle sertifika ver' });
+    await user.click(within(dialog).getByRole('button', { name: 'Ver' }));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Gerekçe yaz.');
+    expect(api.issue).not.toHaveBeenCalled();
+    await user.type(within(dialog).getByRole('textbox', { name: 'Gerekçe' }), 'Raporlu');
+    expect(within(dialog).getByText('7/500')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Ver' }));
+    await waitFor(() => expect(api.issue).toHaveBeenCalledWith('e1', 't2', 'Raporlu'));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Elle sertifika ver' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('gives an eligible row without asking why', async () => {
+    const user = userEvent.setup();
+    api.issue.mockResolvedValue(batch('b1', 0, `${year}-11-24T10:00:00Z`));
+    renderList();
+    await list();
+    await user.click(screen.getByRole('button', { name: 'Ayşe Yılmaz: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Elle ver' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Elle sertifika ver' });
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Ver' }));
+    await waitFor(() => expect(api.issue).toHaveBeenCalledWith('e1', 't1', undefined));
+  });
+
+  it("shows core's justification refusal under the field", async () => {
+    const user = userEvent.setup();
+    api.issue.mockRejectedValue(
+      new ProblemError(400, 'Bad Request', { code: 'justification_too_long' }),
+    );
+    renderList();
+    await list();
+    await user.click(screen.getByRole('button', { name: 'Deniz Kaya: eylemler' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Elle ver' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Elle sertifika ver' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Gerekçe' }), 'Uzun');
+    await user.click(within(dialog).getByRole('button', { name: 'Ver' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Gerekçe en çok 500 karakter olabilir.',
+    );
+  });
+
+  it('counts as eligible and closes for only who has no certificate yet', async () => {
+    const user = userEvent.setup();
+    // Core counts Can's issued certificate in eligibleCount; closing queues Ayşe and Ece
+    api.summary.mockResolvedValue({ ...open, eligibleCount: 3 });
+    renderList();
+    await list();
+    const [card] = screen.getAllByRole('button', { name: /^Uygun/ });
+    expect(card).toHaveTextContent('2');
+    expect(card).not.toHaveTextContent('3');
+    await user.click(screen.getByRole('button', { name: 'Katılımı kapat ve üret' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Katılım kapatılsın mı?' });
+    expect(confirm).toHaveTextContent('2 kişiye sertifika üretilip e-postayla gönderilecek');
+  });
+
+  it('counts the below threshold beside the eligible, a filter of the list', async () => {
+    const user = userEvent.setup();
+    renderList();
+    const section = await list();
+    // The summary card comes first, the view chip under it
+    const [card] = screen.getAllByRole('button', { name: /Eşik altı/ });
+    expect(card).toHaveTextContent('2');
+    await user.click(card);
+    expect(within(section).queryByText('Ayşe Yılmaz')).not.toBeInTheDocument();
+    expect(within(section).getByText('Burak Demir')).toBeInTheDocument();
+  });
+
+  describe('closing line', () => {
+    it('says when attendance closes by itself, with Şimdi kapat beside it', async () => {
+      api.summary.mockResolvedValue({ ...open, autoFinalizeAt: `${year}-11-24T16:00:00Z` });
+      renderList();
+      expect(
+        await screen.findByText("Katılım 24 Kasım 19:00'da kendiliğinden kapanacak"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Şimdi kapat ve üret' })).toBeEnabled();
+    });
+
+    it('shows the button alone without a time', async () => {
+      renderList();
+      expect(await screen.findByRole('button', { name: 'Katılımı kapat ve üret' })).toBeEnabled();
+      expect(screen.queryByText(/kendiliğinden kapanacak/)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ['auto', 'kendiliğinden'],
+      ['manual', 'elle'],
+    ])('says it closed (%s) and offers the rescan', async (source, word) => {
+      api.summary.mockResolvedValue({
+        ...open,
+        attendanceFinalizedAt: `${year}-11-24T16:01:00Z`,
+        finalizedSource: source,
+      });
+      renderList();
+      expect(
+        await screen.findByText(`Katılım kapandı · ${word} · 24 Kasım 19:01`),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /kapat ve üret/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Uygunları yeniden tara' })).toBeEnabled();
+    });
+
+    it('opens finalization once the last Session is over, before the Event ends', async () => {
+      renderList({ finalizeOpen: false, lastSessionEnded: true });
+      expect(await screen.findByRole('button', { name: 'Katılımı kapat ve üret' })).toBeEnabled();
+    });
+
+    it('keeps it closed on an older core until the Event ends', async () => {
+      api.attendance.mockRejectedValue(new ProblemError(404, 'Not Found'));
+      renderList({ finalizeOpen: false, lastSessionEnded: true });
+      expect(await screen.findByRole('button', { name: 'Katılımı kapat ve üret' })).toBeDisabled();
+      // and the person picker stays
+      expect(screen.getByRole('button', { name: 'Elle ver' })).toBeInTheDocument();
+    });
+  });
+
+  describe('rescan', () => {
+    const closed = {
+      ...open,
+      attendanceFinalizedAt: `${year}-11-24T16:01:00Z`,
+      finalizedSource: 'auto',
+    };
+
+    it('says how many get a certificate, counted from the list, and queues them', async () => {
+      const user = userEvent.setup();
+      api.summary.mockResolvedValue(closed);
+      api.rescan.mockResolvedValue({ queued: 1 });
+      renderList();
+      await user.click(await screen.findByRole('button', { name: 'Uygunları yeniden tara' }));
+      const confirm = await screen.findByRole('alertdialog', {
+        name: 'Uygunlar yeniden taransın mı?',
+      });
+      // Ayşe alone: Can has one, Ece is queued, Burak and Deniz are below
+      expect(confirm).toHaveTextContent('1 kişiye sertifika üretilip e-postayla gönderilecek');
+      await user.click(within(confirm).getByRole('button', { name: 'Yeniden tara' }));
+      await waitFor(() => expect(api.rescan).toHaveBeenCalledWith('e1'));
+      expect(await screen.findByText('1 sertifika üretim kuyruğuna alındı.')).toBeInTheDocument();
+    });
+
+    it('is off when no one is left', async () => {
+      api.summary.mockResolvedValue(closed);
+      api.attendance.mockResolvedValue({ ...people, rows: people.rows.slice(1) });
+      renderList();
+      expect(await screen.findByRole('button', { name: 'Uygunları yeniden tara' })).toBeDisabled();
+    });
+  });
+
+  it('pages the list 25 at a time', async () => {
+    const user = userEvent.setup();
+    api.attendance.mockResolvedValue({
+      ...people,
+      rows: Array.from({ length: 30 }, (_, i) =>
+        row(`t${i}`, `Kişi ${String(i + 1).padStart(2, '0')}`, 'below', 2),
+      ),
+    });
+    renderList();
+    const section = await list();
+    expect(within(section).getAllByText('1–25 / 30').length).toBeGreaterThan(0);
+    expect(within(section).queryByText('Kişi 26')).not.toBeInTheDocument();
+    await user.click(within(section).getAllByRole('button', { name: /^(Sayfa|Page) 2$/ })[0]);
+    expect(within(section).getByText('Kişi 26')).toBeInTheDocument();
   });
 });

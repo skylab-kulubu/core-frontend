@@ -138,6 +138,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     imageIds: (ev.images ?? []).map((image) => image.id),
     attendanceRule: ev.attendanceRule ?? 'none',
     attendanceRatio: ev.attendanceRatio,
+    attendanceMinCount: ev.attendanceMinCount ?? null,
     doorStaffIds: ev.doorStaffIds ?? [],
     registrationClosesAt: toDatetimeLocal(ev.registrationClosesAt),
     reservedId: ev.id,
