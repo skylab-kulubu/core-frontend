@@ -64,7 +64,7 @@ describe('Event Katılımcılar tab', () => {
 
     await waitFor(() => expect(eventsApi.syncMailList).toHaveBeenCalledWith('e1', ['t-guest']));
     expect(open).toHaveBeenCalledWith(
-      'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://notify.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       '_blank',
       'noopener,noreferrer',
     );
