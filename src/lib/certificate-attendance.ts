@@ -115,9 +115,9 @@ export function mailReason(
 ): string | null {
   const code = mail.errorCode ?? '';
   if (!code || mail.status === 'sent') return null;
-  if (code === 'skymail_unreachable') return "SkyMail'e ulaşılamadı";
-  if (code === 'skymail_400' || code === 'skymail_422') return 'SkyMail reddetti';
-  if (code.startsWith('skymail_')) return 'SkyMail hata verdi';
+  if (code === 'skynotify_unreachable') return "SkyNotify'a ulaşılamadı";
+  if (code === 'skynotify_400' || code === 'skynotify_422') return 'SkyNotify reddetti';
+  if (code.startsWith('skynotify_')) return 'SkyNotify hata verdi';
   if (code === 'mail_unconfigured') return 'Posta ayarı yok';
   if (code === 'no_recipient') return 'Adres yok';
   if (code === 'expired') return 'Süresi doldu';
