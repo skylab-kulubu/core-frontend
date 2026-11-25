@@ -21,6 +21,7 @@ import { CheckboxRow } from '@/components/scheduling/use-event-status-actions';
 import { eventsApi, type CoreEvent, type EventCopy } from '@/lib/api/events';
 import { teamsApi } from '@/lib/api/teams';
 import { useCapabilities } from '@/lib/capabilities-context';
+import { ProblemError } from '@/lib/api/core';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { formatDatetimeLabel } from '@/lib/date-picker';
 import { toRfc3339 } from '@/lib/datetime-local';
@@ -69,6 +70,7 @@ export function EventCopyDialog({
   const [withCompetitions, setWithCompetitions] = useState(false);
   const [withExternalRegistration, setWithExternalRegistration] = useState(true);
   const [withAttendeeNote, setWithAttendeeNote] = useState(true);
+  const [withCoOrganizerPeople, setWithCoOrganizerPeople] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A second click before the first answer is the same request
@@ -111,6 +113,10 @@ export function EventCopyDialog({
   const end = copyEnd(source, start);
   const offersExternalRegistration = Boolean(source.externalRegistrationUrl);
   const offersAttendeeNote = Boolean(source.attendeeNote);
+  // Only who may change the list carries its people (core docs/co-organizers.md, Copy)
+  const coOrganizerPeopleCount = source.coOrganizerIds?.length ?? 0;
+  const offersCoOrganizerPeople =
+    coOrganizerPeopleCount > 0 && Boolean(source.viewer?.can['event.manageOrganizers']);
 
   async function submit() {
     if (running.current) return;
@@ -131,17 +137,21 @@ export function EventCopyDialog({
         includeCompetitions: competitionCount > 0 && withCompetitions,
         includeExternalRegistration: offersExternalRegistration && withExternalRegistration,
         includeAttendeeNote: offersAttendeeNote && withAttendeeNote,
+        ...(offersCoOrganizerPeople ? { includeCoOrganizerPeople: withCoOrganizerPeople } : {}),
         ...(target !== source.ownerTeam ? { ownerTeam: target } : {}),
       });
       onOpenChange(false);
       onCopied(copy);
     } catch (err) {
       setError(
-        coreProblemMessage(err, 'Etkinlik kopyalanamadı', {
-          403: 'Bu ekipte etkinlik oluşturma yetkin yok.',
-          404: 'Kaynak etkinlik bulunamadı; silinmiş olabilir.',
-          409: 'Bu kopya başka bir ekipte açılmış. Diyaloğu kapatıp yeniden aç.',
-        }),
+        // The Co-organizers it carries are recorded first: without the record, no copy
+        err instanceof ProblemError && err.code === 'audit_unavailable'
+          ? 'Kayıt açılamadı; kopya oluşturulmadı. Biraz sonra tekrar dene.'
+          : coreProblemMessage(err, 'Etkinlik kopyalanamadı', {
+              403: 'Bu ekipte etkinlik oluşturma yetkin yok.',
+              404: 'Kaynak etkinlik bulunamadı; silinmiş olabilir.',
+              409: 'Bu kopya başka bir ekipte açılmış. Diyaloğu kapatıp yeniden aç.',
+            }),
       );
     } finally {
       running.current = false;
@@ -226,6 +236,13 @@ export function EventCopyDialog({
                 label="Katılımcı notunu da kopyala"
                 defaultChecked={withAttendeeNote}
                 onChange={setWithAttendeeNote}
+              />
+            ) : null}
+            {offersCoOrganizerPeople ? (
+              <CheckboxRow
+                label={`Ortak kişileri de kopyala (${coOrganizerPeopleCount} kişi)`}
+                defaultChecked={withCoOrganizerPeople}
+                onChange={setWithCoOrganizerPeople}
               />
             ) : null}
           </DialogBody>

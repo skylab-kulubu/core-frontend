@@ -166,6 +166,65 @@ describe('Kopya diyaloğu', () => {
     );
   });
 
+  it('offers the Co-organizer people to who may change the list, off by default', async () => {
+    capabilities(LEADER);
+    const user = userEvent.setup();
+    render(
+      <Harness
+        event={{
+          ...source,
+          coOrganizerIds: ['u7', 'u8'],
+          viewer: { via: 'owner', can: { 'event.manageOrganizers': true } },
+        }}
+      />,
+    );
+    const dialog = await openDialog(user);
+    const box = within(dialog).getByRole('checkbox', {
+      name: 'Ortak kişileri de kopyala (2 kişi)',
+    });
+    expect(box).not.toBeChecked();
+    await user.click(box);
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(eventsApi.copy).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ includeCoOrganizerPeople: true }),
+    );
+  });
+
+  it('keeps the Co-organizer people box from a Co-organizer, and sends no such field', async () => {
+    capabilities(LEADER);
+    const user = userEvent.setup();
+    render(
+      <Harness
+        event={{
+          ...source,
+          coOrganizerIds: ['u7'],
+          viewer: { via: 'coTeam', can: { 'event.manageOrganizers': false } },
+        }}
+      />,
+    );
+    const dialog = await openDialog(user);
+    expect(within(dialog).queryByText(/Ortak kişileri/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect((eventsApi.copy as jest.Mock).mock.calls[0][1]).not.toHaveProperty(
+      'includeCoOrganizerPeople',
+    );
+  });
+
+  it('says no copy was made when its record could not be opened (503)', async () => {
+    capabilities(LEADER);
+    (eventsApi.copy as jest.Mock).mockRejectedValue(
+      new ProblemError(503, 'Service Unavailable', { code: 'audit_unavailable' }),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openDialog(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Kayıt açılamadı; kopya oluşturulmadı. Biraz sonra tekrar dene.',
+    );
+  });
+
   it('hides the door staff box from who may not assign them', async () => {
     capabilities([{ team: 'GECEKODU', can: { 'event.create': true, 'event.update': true } }]);
     const user = userEvent.setup();

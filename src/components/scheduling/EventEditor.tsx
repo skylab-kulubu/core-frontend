@@ -83,6 +83,8 @@ type EventEditorProps = {
   activeTickets?: number;
   /** The saved Event's certificate template row; a new Event chooses one once saved. */
   certificateTemplate?: ReactNode;
+  /** The saved Event's Co-organizers, saved on their own; a new Event adds them once saved. */
+  organizers?: ReactNode;
 };
 
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
@@ -110,6 +112,7 @@ export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: stri
 /** The editor's sections in page order, for the jump list beside the form. */
 export const EVENT_EDITOR_SECTIONS = [
   { id: 'temel', title: 'Temel bilgiler' },
+  { id: 'duzenleyenler', title: 'Düzenleyenler' },
   { id: 'zaman', title: 'Zaman ve yer' },
   { id: 'basvuru', title: 'Başvuru ve form' },
   { id: 'bilet', title: 'Bilet ve kapı' },
@@ -257,6 +260,7 @@ export function EventEditor({
   storedRatio,
   activeTickets,
   certificateTemplate,
+  organizers,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -333,6 +337,13 @@ export function EventEditor({
           onCover={(id) => patch({ coverImageId: id })}
           onGallery={(ids) => patch({ imageIds: ids })}
         />
+      </EditorSection>
+      <EditorSection id="duzenleyenler" title="Düzenleyenler">
+        {organizers ?? (
+          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+            Ortak düzenleyenler kaydettikten sonra eklenir
+          </p>
+        )}
       </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
         {notices.zaman}

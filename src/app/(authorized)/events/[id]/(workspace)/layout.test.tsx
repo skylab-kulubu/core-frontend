@@ -50,6 +50,16 @@ jest.mock('@/lib/api/capabilities', () => ({
 jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
+// An older core without Co-organizers (404) unless a test sets core's answer
+jest.mock('@/lib/api/event-organizers', () => {
+  const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+  return {
+    eventOrganizersApi: {
+      get: jest.fn(() => Promise.reject(new Problem(404, 'Not Found'))),
+      put: jest.fn(),
+    },
+  };
+});
 // An older core without Event templates (404) unless a test sets core's answer
 jest.mock('@/lib/api/certificates', () => {
   const actual = jest.requireActual('@/lib/api/certificates');
@@ -280,6 +290,7 @@ describe('Event workspace layout', () => {
         .map((link) => link.textContent),
     ).toEqual([
       'Temel bilgiler',
+      'Düzenleyenler',
       'Zaman ve yer',
       'Başvuru ve form',
       'Bilet ve kapı',

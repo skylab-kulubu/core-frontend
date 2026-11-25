@@ -23,7 +23,8 @@ export type CopySkippedPart =
   | 'certificateTemplate'
   | 'doorStaff'
   | 'competitions'
-  | 'attendeeNote';
+  | 'attendeeNote'
+  | 'coOrganizerPeople';
 
 const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   cover: 'Kapak görseli kopyalanmadı.',
@@ -32,6 +33,8 @@ const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   doorStaff: 'Kapı görevlileri kopyalanmadı: bu ekipte görevli atama yetkin yok.',
   competitions: 'Yarışmalar kopyalanmadı: bu ekipte yarışma yönetme yetkin yok.',
   attendeeNote: 'Katılımcı notu kopyalanmadı: bu notu görme yetkin yok.',
+  coOrganizerPeople:
+    'Ortak kişiler kopyalanmadı: ortak düzenleyen listesini değiştirme yetkin yok.',
 };
 
 /** One line per part core left out, for the copy's page; an unknown part is named as it came. */

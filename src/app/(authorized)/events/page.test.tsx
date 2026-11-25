@@ -117,12 +117,57 @@ describe('Etkinlikler listesi', () => {
   it('asks core for the drafts too and shows each status as a chip', async () => {
     render(<EventsPage />);
     expect(await listed('Taslak Kodu')).toBeInTheDocument();
-    expect(eventsApi.list).toHaveBeenCalledWith(undefined, undefined, { drafts: true });
+    // Yönettiklerim by default: the Events the reader may edit
+    expect(eventsApi.list).toHaveBeenCalledWith(undefined, undefined, {
+      drafts: true,
+      managed: true,
+    });
     expect(within(rowOf('Taslak Kodu')).getAllByText('Taslak').length).toBeGreaterThan(0);
     expect(within(rowOf('Yakın Kodu')).getAllByText('Yaklaşıyor').length).toBeGreaterThan(0);
     expect(within(rowOf('Eski Kodu')).getAllByText('Bitti').length).toBeGreaterThan(0);
     expect(within(rowOf('İptal Kodu')).getAllByText('İptal').length).toBeGreaterThan(0);
     expect(screen.queryByText('Aktif')).not.toBeInTheDocument();
+  });
+
+  it('lists every Event on Bütün etkinlikler, and keeps the choice in the address', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<EventsPage />);
+    await listed('Taslak Kodu');
+    await user.click(screen.getByRole('button', { name: 'Bütün etkinlikler' }));
+    expect(window.location.search).toContain('managed=false');
+    // The page reads the address again (Next re-renders on the history change)
+    unmount();
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    expect(eventsApi.list).toHaveBeenLastCalledWith(undefined, undefined, { drafts: true });
+  });
+
+  it('lists a team’s Events with those it co-organizes, all of them, from ?team=', async () => {
+    at('team=WEBLAB');
+    render(<EventsPage />);
+    await listed('Taslak Kodu');
+    expect(eventsApi.list).toHaveBeenCalledWith(undefined, undefined, {
+      drafts: true,
+      team: 'WEBLAB',
+    });
+    expect(screen.getByRole('button', { name: 'Ekip süzgecini kaldır: WEBLAB' })).toHaveTextContent(
+      'Ekip: WEBLAB (ortak dahil)',
+    );
+  });
+
+  it('chips the Co-organizer teams and marks an Event managed as a Co-organizer', async () => {
+    (eventsApi.list as jest.Mock).mockResolvedValue([
+      {
+        ...rows[0],
+        ownerTeam: 'YK',
+        coOrganizerTeams: ['WEBLAB', 'ARTLAB'],
+        viewer: { via: 'coTeam', can: { 'event.update': true } },
+      },
+    ]);
+    render(<EventsPage />);
+    const row = rowOf((await listed(rows[0].name)).getAttribute('aria-label') ?? rows[0].name);
+    expect(within(row).getByText('Ortak')).toBeInTheDocument();
+    expect(within(row).getByText(/YK \+ 2 ekip/)).toBeInTheDocument();
   });
 
   it('counts each slice and keeps the chosen one in the address', async () => {

@@ -105,7 +105,7 @@ describe('Yeni etkinlik', () => {
     const user = userEvent.setup();
     render(<NewEventPage />);
     const sections = await screen.findByRole('navigation', { name: 'Bölümler' });
-    expect(within(sections).getAllByRole('link')).toHaveLength(6);
+    expect(within(sections).getAllByRole('link')).toHaveLength(7);
     await user.type(screen.getByLabelText('Ad'), 'Gece Kodu 2026');
     expect(screen.getByText('Kaydedilmemiş değişiklik var')).toBeInTheDocument();
 

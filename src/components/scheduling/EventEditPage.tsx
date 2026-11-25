@@ -6,6 +6,7 @@ import { useFormState, useWatch } from 'react-hook-form';
 import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditTemplate } from '@/components/scheduling/EventEditTemplate';
+import { EventOrganizers } from '@/components/scheduling/EventOrganizers';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
@@ -127,6 +128,7 @@ export function EventEditPage() {
             event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
           }
           certificateTemplate={<EventEditTemplate leave={guard.leave} />}
+          organizers={<EventOrganizers event={event} />}
           notices={{
             temel: editor.optionsFailed.teams ? (
               <LoadError title="Ekipler yüklenemedi" onRetry={editor.reloadOptions} />

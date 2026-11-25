@@ -1,4 +1,5 @@
 import type { EventStat } from './dashboard';
+import type { OrganizerManagement, OrganizerVisibility } from './event-organizers';
 import type { EventFile, EventVideo } from './uploads';
 import { coreFetch } from './core';
 import type { EntryMode } from './tickets';
@@ -102,6 +103,21 @@ export type CoreEvent = {
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
+  /**
+   * Co-organizers (core docs/co-organizers.md). `coOrganizerTeams` and
+   * `coOrganizerNames`: the teams named outside the panel, to anyone; the
+   * rest only to who may edit the Event. Each left out when none.
+   */
+  coOrganizerTeams?: string[];
+  coOrganizerNames?: string;
+  coOrganizers?: {
+    code: string;
+    management: OrganizerManagement;
+    visibility: OrganizerVisibility;
+  }[];
+  coOrganizerIds?: string[];
+  /** What the signed-in reader may do on this Event, decided by core; an older core sends none. */
+  viewer?: EventViewer;
   /** The Event's files and videos, in its detail only; lists carry the counts alone. */
   files?: EventFile[];
   videos?: EventVideo[];
@@ -112,6 +128,16 @@ export type CoreEvent = {
 };
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
+
+/**
+ * `via`: what the reader's right to edit rests on: `owner` (the Owner team),
+ * `coTeam` (a Co-organizer team), `coPerson`, `privileged`, or `none`.
+ * `can`: core's decision per action (`event.update`, `event.manageOrganizers`, …).
+ */
+export type EventViewer = {
+  via: 'privileged' | 'owner' | 'coTeam' | 'coPerson' | 'none';
+  can: Partial<Record<string, boolean>>;
+};
 
 /**
  * A place Events were held at (GET /v1/events/places, core
@@ -138,6 +164,8 @@ export type EventCopyBody = {
   includeExternalRegistration?: boolean;
   /** None: the attendee note is not copied. */
   includeAttendeeNote?: boolean;
+  /** Also the Co-organizer people, for who may change the copy's list; else `skipped`. */
+  includeCoOrganizerPeople?: boolean;
   /** None: the source's Owner team. */
   ownerTeam?: string;
 };
@@ -271,12 +299,20 @@ export const eventsApi = {
    * The current Events, or with `lifecycle` the archived (`inactive`) ones
    * or both (`all`); core returns only the archived Events the caller may
    * delete. `drafts` adds the drafts the caller may see (their editors, DK).
+   * `team`: the Events a team owns or is a named Co-organizer of (not with
+   * `ownerTeam`); `managed`: those the caller may edit (core docs/co-organizers.md).
    */
-  list: (ownerTeam?: string, lifecycle?: 'inactive' | 'all', options?: { drafts?: boolean }) => {
+  list: (
+    ownerTeam?: string,
+    lifecycle?: 'inactive' | 'all',
+    options?: { drafts?: boolean; team?: string; managed?: boolean },
+  ) => {
     const query = new URLSearchParams();
     if (ownerTeam) query.set('ownerTeam', ownerTeam);
     if (lifecycle) query.set('lifecycle', lifecycle);
     if (options?.drafts) query.set('drafts', 'include');
+    if (options?.team) query.set('team', options.team);
+    if (options?.managed) query.set('managed', 'true');
     const q = query.toString();
     return coreFetch<CoreEvent[]>(`/v1/events${q ? `?${q}` : ''}`);
   },
