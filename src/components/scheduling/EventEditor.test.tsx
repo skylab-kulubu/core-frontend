@@ -322,4 +322,35 @@ describe('EventEditor external registration link', () => {
     expect(field).toHaveAttribute('aria-invalid', 'false');
     expect(screen.getByText(/Katılımcılar → İçe aktar/)).toBeInTheDocument();
   });
+
+  it('warns on a Skyforms address and moves it to Başvuru formu', async () => {
+    const user = userEvent.setup();
+    let latest: EventFormState | null = null;
+    function Watched() {
+      const [value, setValue] = useState<EventFormState>(emptyEventForm('GECEKODU'));
+      return (
+        <EventEditor
+          value={value}
+          onChange={(next) => {
+            latest = next;
+            setValue(next);
+          }}
+          ownerOptions={['GECEKODU']}
+        />
+      );
+    }
+    render(<Watched />);
+    const id = '3f2b8c1e-5d4a-4e6f-9a1b-2c3d4e5f6a7b';
+    const field = screen.getByRole('textbox', { name: 'Dış kayıt bağlantısı' });
+    await user.type(field, `https://forms.yildizskylab.com/${id}`);
+    expect(field).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByText(/yanıtları bilete dönmez/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Başvuru formuna taşı' }));
+    expect(field).toHaveValue('');
+    expect(screen.queryByText(/yanıtları bilete dönmez/)).not.toBeInTheDocument();
+    expect(latest!.externalRegistrationUrl).toBe('');
+    expect(latest!.formUrl).toBe(`https://forms.yildizskylab.com/${id}`);
+    expect(latest!.formSlots[0]).toMatchObject({ key: 'apply', mode: 'skyforms' });
+  });
 });
