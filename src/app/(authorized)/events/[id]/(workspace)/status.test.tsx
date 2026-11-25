@@ -171,6 +171,39 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     expect(within(menu).queryByRole('menuitem', { name: 'İptal et…' })).not.toBeInTheDocument();
   });
 
+  it('follows core’s decision on the Event (viewer.can) for a Co-organizer team’s Leader', async () => {
+    const user = userEvent.setup();
+    // A WEBLAB Leader: the GECEKODU team's capabilities give nothing, the Event says edit
+    capabilities(false);
+    signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
+    opens({
+      status: 'draft',
+      active: false,
+      viewer: {
+        via: 'coTeam',
+        can: { 'event.update': true, 'event.delete': false, 'ticket.read': true },
+      },
+    });
+    await renderEventTab(<EventOverviewPage />);
+    const top = await header();
+    expect(await within(top).findByRole('button', { name: 'Yayınla' })).toBeInTheDocument();
+    expect(within(top).getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
+    const menu = await openMenu(user);
+    // Deleting stays the Owner team's
+    expect(within(menu).queryByRole('menuitem', { name: 'Sil…' })).not.toBeInTheDocument();
+  });
+
+  it('keeps today’s team decision when core sends no viewer', async () => {
+    capabilities(false);
+    signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
+    opens({ status: 'draft', active: false });
+    await renderEventTab(<EventOverviewPage />);
+    const top = await header();
+    await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+    expect(within(top).queryByRole('button', { name: 'Yayınla' })).not.toBeInTheDocument();
+    expect(within(top).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+  });
+
   it('shows a DK reader the draft with no action at all', async () => {
     capabilities(false);
     signInAs(['/UYELER/DK']);

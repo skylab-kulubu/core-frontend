@@ -105,7 +105,7 @@ export function EventCopyDialog({
     };
   }, [otherTeamsCreate]);
 
-  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams);
+  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams, source.viewer);
   const target = targets.includes(team) ? team : (targets[0] ?? source.ownerTeam);
   const doorStaffCount = source.doorStaffIds?.length ?? 0;
   const offersDoorStaff = doorStaffCount > 0 && canCopyDoorStaff(capabilities, target);
@@ -272,8 +272,8 @@ export function useEventCopy() {
   const [request, setRequest] = useState<{ source: CoreEvent; id: string } | null>(null);
   const [open, setOpen] = useState(false);
 
-  const canCopy = (event: Pick<CoreEvent, 'ownerTeam'>) =>
-    canCopyEvent(capabilities, event.ownerTeam);
+  const canCopy = (event: Pick<CoreEvent, 'ownerTeam' | 'viewer'>) =>
+    canCopyEvent(capabilities, event.ownerTeam, event.viewer);
 
   function askCopy(source: CoreEvent) {
     setRequest({ source, id: crypto.randomUUID() });

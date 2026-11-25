@@ -7,7 +7,10 @@ import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('@/lib/use-app-can', () => ({ useTeamCan: () => () => true }));
+jest.mock('@/lib/use-app-can', () => ({
+  ...jest.requireActual('@/lib/use-app-can'),
+  useTeamCan: () => () => true,
+}));
 jest.mock('@/lib/api/events', () => ({ eventsApi: { get: jest.fn() } }));
 jest.mock('@/lib/api/certificates', () => ({
   certificatesApi: { eventTemplate: jest.fn(), createEventTemplate: jest.fn(), resolve: jest.fn() },

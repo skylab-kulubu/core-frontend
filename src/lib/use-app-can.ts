@@ -1,5 +1,6 @@
 'use client';
 
+import type { EventViewer } from '@/lib/api/events';
 import { leaderOwnerTeams } from '@/lib/auth/groups';
 import { useCapabilities, type CapabilitiesState } from '@/lib/capabilities-context';
 
@@ -92,6 +93,36 @@ export function teamDecision(
     ? noOwnerTeam
     : (teams?.find((row) => row.team === ownerTeam) ?? otherTeams);
   return Boolean(scope?.can?.[key]);
+}
+
+/** The panel's team keys whose Event-by-Event decision core names otherwise (`viewer.can`). */
+const VIEWER_KEYS: Readonly<Record<string, string>> = {
+  'certificateTemplate.assign': 'certificate.template.assign',
+  'competitor.update': 'competition.manage',
+};
+
+/**
+ * core's decision on this one Event (`viewer.can`, core docs/co-organizers.md):
+ * it reads the Event's Co-organizers, which the Owner team's capabilities
+ * cannot. Undefined when core sends none (an older core, or a key it does not
+ * decide per Event, such as `door.checkIn` or `certificate.read`).
+ */
+export function viewerDecision(
+  event: { viewer?: EventViewer } | null | undefined,
+  key: string,
+): boolean | undefined {
+  const decided = event?.viewer?.can?.[VIEWER_KEYS[key] ?? key];
+  return typeof decided === 'boolean' ? decided : undefined;
+}
+
+/** The Event's own decision when core sends one; else teamDecision for its Owner team. */
+export function eventDecision(
+  state: CapabilitiesState,
+  event: { ownerTeam: string; viewer?: EventViewer },
+  key: string,
+  groupRule: boolean,
+): boolean {
+  return viewerDecision(event, key) ?? teamDecision(state, event.ownerTeam, key, groupRule);
 }
 
 /** teamDecision over the shared capabilities. */
