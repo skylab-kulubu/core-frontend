@@ -49,6 +49,8 @@ type EventFormSlotsProps = {
   onGateChange?: (slot: EventFormSlot, gate: FormGate) => void | Promise<void>;
   /** The form the last save was refused for (`409 form_in_use`): its slot says where it is. */
   inUse?: FormInUse | null;
+  /** Who may add attendees: the mapping offers to send Tickets to the form's respondents. */
+  canSendTickets?: boolean;
 };
 
 export function EventFormSlots({
@@ -63,6 +65,7 @@ export function EventFormSlots({
   addable = true,
   onGateChange,
   inUse,
+  canSendTickets = false,
 }: EventFormSlotsProps) {
   const [customLabel, setCustomLabel] = useState('');
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -347,6 +350,7 @@ export function EventFormSlots({
             <FormMappingPanel
               eventId={reservedEventId}
               formId={skyformsFormId(slot.url, origin) as string}
+              canSend={canSendTickets}
             />
           ) : null}
           {slot.alias ? (

@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { FormMappingPanel, TICKET_JOB_POLL_MS, bindQuestion } from './FormMappingPanel';
+import { newlyListedForms, respondentJobKey } from './use-bind-question';
 import { ProblemError } from '@/lib/api/core';
 import { formRespondentsApi } from '@/lib/api/form-respondents';
 import { readFormAnswerCounts } from '@/lib/api/skyforms';
@@ -142,7 +143,7 @@ describe('FormMappingPanel', () => {
         full: 0,
         skipped: 0,
       });
-      render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
+      render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
       await user.click(await screen.findByRole('button', { name: 'Eşlemeyi kaydet' }));
 
       expect(api.saveMapping).toHaveBeenCalledWith(EVENT, FORM, {
@@ -187,7 +188,7 @@ describe('FormMappingPanel', () => {
       email: 'q3',
     });
     api.saveMapping!.mockResolvedValue({});
-    render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
     await user.click(await screen.findByRole('button', { name: 'Eşlemeyi kaydet' }));
     expect(await screen.findByText('Eşleme kaydedildi.')).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -196,6 +197,67 @@ describe('FormMappingPanel', () => {
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: /Vazgeç|İptal/ }));
     expect(api.sendTickets).not.toHaveBeenCalled();
+  });
+  it('offers no sending to who may not add attendees, and asks nothing on the first save', async () => {
+    const user = userEvent.setup();
+    api.saveMapping!.mockResolvedValue({});
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
+    await user.click(await screen.findByRole('button', { name: 'Eşlemeyi kaydet' }));
+    expect(await screen.findByText('Eşleme kaydedildi.')).toBeInTheDocument();
+    expect(api.previewTickets).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'Yanıtlara bilet gönder' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('still offers sending to a viewer of the form in Forms', async () => {
+    api.questions!.mockRejectedValue(new ProblemError(403, 'x', { code: 'forms_access_denied' }));
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
+    expect(
+      await screen.findByText('Bu formun sahibi ya da düzenleyeni değilsin.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Yanıtlara bilet gönder' })).toBeInTheDocument();
+  });
+
+  it('keeps "Eşleme kaydedildi." when the counts cannot be read', async () => {
+    const user = userEvent.setup();
+    api.saveMapping!.mockResolvedValue({});
+    api.previewTickets!.mockRejectedValue(
+      new ProblemError(503, 'x', { code: 'forms_unavailable' }),
+    );
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
+    await user.click(await screen.findByRole('button', { name: 'Eşlemeyi kaydet' }));
+    expect(await screen.findByText('Forms yanıt vermedi. Biraz sonra dene.')).toBeInTheDocument();
+    expect(screen.getByText('Eşleme kaydedildi.')).toBeInTheDocument();
+  });
+
+  it('shows a job sent earlier from this tab again, and reads again after a failed read', async () => {
+    jest.useFakeTimers();
+    try {
+      window.sessionStorage.setItem(respondentJobKey(EVENT, FORM), 'job-7');
+      api.ticketJob!.mockRejectedValueOnce(new Error('ağ')).mockResolvedValueOnce({
+        jobId: 'job-7',
+        state: 'running',
+        recorded: 3,
+        waitlisted: 0,
+        full: 0,
+        skipped: 0,
+      });
+      render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
+      expect(await screen.findByText('Biletler gönderiliyor: 0 bilet.')).toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(TICKET_JOB_POLL_MS);
+      });
+      expect(await screen.findByText(/Durum okunamadı, yeniden deneniyor\./)).toBeInTheDocument();
+      expect(screen.queryByText(/Gönderim tamamlanamadı/)).not.toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(TICKET_JOB_POLL_MS);
+      });
+      expect(await screen.findByText('Biletler gönderiliyor: 3 bilet.')).toBeInTheDocument();
+    } finally {
+      window.sessionStorage.clear();
+      jest.useRealTimers();
+    }
   });
 });
 
@@ -206,11 +268,36 @@ describe('bindQuestion', () => {
     expect(bindQuestion({ accepted: 0, pending: 0 }, preview, false)).toBeNull();
   });
 
-  it('counts from the preview when Forms gave no counts, and says a gathering runs', () => {
-    expect(bindQuestion(null, { ...preview, tickets: 4, full: 1 }, true)).toEqual({
+  it('counts from the preview when Forms gave no counts', () => {
+    expect(bindQuestion(null, { ...preview, tickets: 4, full: 1 }, false)).toEqual({
       title:
         'Bu formu 5 kişi doldurdu. Hepsini katılımcı olarak ekleyip biletlerini gönderelim mi?',
-      description: '4 bilet, 1 yer yok. Yanıtlar hâlâ alınıyor; biletler alım bitince gider.',
+      description: '4 bilet, 1 yer yok.',
     });
+  });
+
+  it('hides the preview counts while the answers are gathered', () => {
+    expect(
+      bindQuestion({ accepted: 12, pending: 0 }, { ...preview, tickets: 2 }, true)?.description,
+    ).toBe('Yanıtlar alınıyor; biletler alım bitince gider.');
+  });
+});
+
+describe('newlyListedForms', () => {
+  const url = (id: string) => `https://forms.yildizskylab.com/${id}`;
+  it('names the Skyforms forms a save adds, not outside ones nor those listed before', () => {
+    expect(
+      newlyListedForms(
+        { formUrl: url(FORM), extraFormUrls: [] },
+        {
+          formUrl: url(FORM),
+          extraFormUrls: [
+            { url: url('33333333-3333-4333-8333-333333333333') },
+            { url: 'https://example.test/44444444-4444-4444-8444-444444444444' },
+          ],
+        },
+      ),
+    ).toEqual(['33333333-3333-4333-8333-333333333333']);
+    expect(newlyListedForms({ formUrl: '' }, { formUrl: url(FORM) })).toEqual([FORM]);
   });
 });
