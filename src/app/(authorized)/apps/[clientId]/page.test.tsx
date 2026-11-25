@@ -20,12 +20,12 @@ for (const method of ['pushState', 'replaceState'] as const) {
   };
 }
 jest.mock('next/navigation', () => ({
-  useParams: () => ({ clientId: 'skymail' }),
+  useParams: () => ({ clientId: 'skynotify' }),
   useRouter: () => ({
     push: (href: string) => window.history.pushState(null, '', href),
     replace: jest.fn(),
   }),
-  usePathname: () => '/apps/skymail',
+  usePathname: () => '/apps/skynotify',
   useSearchParams: () => {
     const { useSyncExternalStore } = jest.requireActual('react') as typeof import('react');
     const text = useSyncExternalStore(
@@ -38,7 +38,7 @@ jest.mock('next/navigation', () => ({
 }));
 
 function at(search = '') {
-  window.history.replaceState(null, '', `/apps/skymail${search ? `?${search}` : ''}`);
+  window.history.replaceState(null, '', `/apps/skynotify${search ? `?${search}` : ''}`);
 }
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
 jest.mock('@/lib/api/apps', () => ({
@@ -54,7 +54,7 @@ jest.mock('@/lib/api/apps', () => ({
 const team: AppAssignment = {
   type: 'group',
   id: 'g-web',
-  role: 'skymail:access',
+  role: 'skynotify:access',
   area: 'panel',
   path: '/UYELER/ARGE/WEBLAB',
   name: 'Web Lab',
@@ -66,7 +66,7 @@ const team: AppAssignment = {
 const board: AppAssignment = {
   type: 'group',
   id: 'g-yk',
-  role: 'skymail:access',
+  role: 'skynotify:access',
   area: 'code',
   reason: 'code_area',
   path: '/UYELER/YK',
@@ -79,7 +79,7 @@ const board: AppAssignment = {
 const person: AppAssignment = {
   type: 'user',
   id: 'u-ada',
-  role: 'skymail:templates:read',
+  role: 'skynotify:templates:read',
   area: 'panel',
   name: 'Ada L',
   email: 'ada@example.com',
@@ -92,11 +92,11 @@ const person: AppAssignment = {
 function answer(rows: AppAssignment[]): AppAssignments {
   return {
     app: {
-      clientId: 'skymail',
-      name: 'SkyMail',
+      clientId: 'skynotify',
+      name: 'SkyNotify',
       assignmentRequired: true,
-      roles: ['skymail:access', 'skymail:templates:read'],
-      suggestedRoles: ['skymail:access', 'skymail:templates:read'],
+      roles: ['skynotify:access', 'skynotify:templates:read'],
+      suggestedRoles: ['skynotify:access', 'skynotify:templates:read'],
       groups: 2,
       users: 1,
     },
@@ -120,7 +120,7 @@ beforeEach(() => {
   (appsApi.unassign as jest.Mock).mockResolvedValue(undefined);
 });
 
-describe('SkyMail · Kullanıcılar ve gruplar', () => {
+describe('SkyNotify · Kullanıcılar ve gruplar', () => {
   it('lists Groups and people, the code’s rows locked with the reason written, and filters to people', async () => {
     writer();
     const user = userEvent.setup();
@@ -156,12 +156,12 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
         targetId: 'g-web',
         path: '/UYELER/ARGE/WEBLAB',
         name: 'Web Lab',
-        role: 'skymail:access',
+        role: 'skynotify:access',
       },
     ]);
     const user = userEvent.setup();
     render(<AppAssignmentsPage />);
-    expect(await screen.findByText('skymail')).toBeInTheDocument();
+    expect(await screen.findByText('skynotify')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kimliği kopyala' })).toBeInTheDocument();
     const figures = screen.getByRole('group', { name: 'Atama sayıları' });
     expect(within(figures).getByRole('button', { name: /Grup ataması\s*2/ })).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     expect(window.location.search).toBe('?bolum=atamalar&view=user');
   });
 
-  it('opens Ekle on the Grup tab, suggests SkyMail’s pair and assigns each role, no note', async () => {
+  it('opens Ekle on the Grup tab, suggests SkyNotify’s pair and assigns each role, no note', async () => {
     writer();
     (appsApi.targets as jest.Mock).mockResolvedValue([
       {
@@ -192,23 +192,25 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
       'aria-selected',
       'true',
     );
-    await waitFor(() => expect(appsApi.targets).toHaveBeenCalledWith('skymail', 'group', ''));
+    await waitFor(() => expect(appsApi.targets).toHaveBeenCalledWith('skynotify', 'group', ''));
     await user.click(await within(drawer).findByRole('button', { name: /ALGOLAB/ }));
-    expect(within(drawer).getByRole('checkbox', { name: 'skymail:access' })).toBeChecked();
-    expect(within(drawer).getByRole('checkbox', { name: 'skymail:templates:read' })).toBeChecked();
+    expect(within(drawer).getByRole('checkbox', { name: 'skynotify:access' })).toBeChecked();
+    expect(
+      within(drawer).getByRole('checkbox', { name: 'skynotify:templates:read' }),
+    ).toBeChecked();
     // No free-text note: Entra's assignment has none, core keeps none.
     expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: 'Ata' }));
     await waitFor(() => expect(appsApi.assign).toHaveBeenCalledTimes(2));
-    expect(appsApi.assign).toHaveBeenNthCalledWith(1, 'skymail', {
+    expect(appsApi.assign).toHaveBeenNthCalledWith(1, 'skynotify', {
       type: 'group',
       id: 'g-algo',
-      role: 'skymail:access',
+      role: 'skynotify:access',
     });
-    expect(appsApi.assign).toHaveBeenNthCalledWith(2, 'skymail', {
+    expect(appsApi.assign).toHaveBeenNthCalledWith(2, 'skynotify', {
       type: 'group',
       id: 'g-algo',
-      role: 'skymail:templates:read',
+      role: 'skynotify:templates:read',
     });
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Ekle' })).not.toBeInTheDocument(),
@@ -248,13 +250,13 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     });
-    expect(appsApi.targets).not.toHaveBeenCalledWith('skymail', 'user', 'ce');
+    expect(appsApi.targets).not.toHaveBeenCalledWith('skynotify', 'user', 'ce');
     await user.type(within(drawer).getByRole('searchbox', { name: 'Kişi ara' }), 'm');
     await user.click(await within(drawer).findByRole('button', { name: /Cem D/ }));
-    await user.click(within(drawer).getByRole('checkbox', { name: 'skymail:templates:read' }));
+    await user.click(within(drawer).getByRole('checkbox', { name: 'skynotify:templates:read' }));
     await user.click(within(drawer).getByRole('button', { name: 'Ata' }));
     expect(await within(drawer).findByRole('alert')).toHaveTextContent(
-      'skymail:access: Servis hesaplarının rolleri kodda tanımlıdır.',
+      'skynotify:access: Servis hesaplarının rolleri kodda tanımlıdır.',
     );
     expect(drawer).not.toHaveTextContent('A service account');
   });
@@ -270,10 +272,10 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     expect(dialog).toHaveTextContent('Bu atama 23 kişinin erişimini kaldırır.');
     await user.click(within(dialog).getByRole('button', { name: 'Atamayı kaldır' }));
     await waitFor(() =>
-      expect(appsApi.unassign).toHaveBeenCalledWith('skymail', {
+      expect(appsApi.unassign).toHaveBeenCalledWith('skynotify', {
         type: 'group',
         id: 'g-web',
-        role: 'skymail:access',
+        role: 'skynotify:access',
       }),
     );
   });
@@ -292,7 +294,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
         type: 'group',
         targetId: 'g-web',
         path: '/UYELER/ARGE/WEBLAB',
-        role: 'skymail:access',
+        role: 'skynotify:access',
       },
     ]);
     const user = userEvent.setup();
@@ -303,7 +305,7 @@ describe('SkyMail · Kullanıcılar ve gruplar', () => {
     act(() => at('bolum=denetim'));
     expect(await screen.findByText('Yusuf A · Atama')).toBeInTheDocument();
     expect(
-      screen.getByText(/^\/UYELER\/ARGE\/WEBLAB · skymail:access · [^·]+$/),
+      screen.getByText(/^\/UYELER\/ARGE\/WEBLAB · skynotify:access · [^·]+$/),
     ).toBeInTheDocument();
   });
 

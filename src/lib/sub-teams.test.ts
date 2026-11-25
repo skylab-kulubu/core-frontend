@@ -97,12 +97,12 @@ describe('movePreviewRows', () => {
   it('names the roles gained and lost only when there are some', () => {
     const rows = movePreviewRows({
       ...preview,
-      rolesGained: ['forms:skyforms:access', 'skymail:skymail:access'],
+      rolesGained: ['forms:skyforms:access', 'skynotify:skynotify:access'],
       rolesLost: ['core:url:access'],
     });
     expect(rows).toContainEqual({
       label: 'Kazanılan roller',
-      value: 'forms:skyforms:access, skymail:skymail:access',
+      value: 'forms:skyforms:access, skynotify:skynotify:access',
     });
     expect(rows).toContainEqual({ label: 'Kaybedilen roller', value: 'core:url:access' });
   });

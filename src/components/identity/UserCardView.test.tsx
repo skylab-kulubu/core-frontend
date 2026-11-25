@@ -13,7 +13,7 @@ const card: UserCard = {
   department: 'Bilgisayar',
   phone: '555',
   groups: [{ id: 'g-web', name: 'WEBLAB', path: '/UYELER/ARGE/WEBLAB' }],
-  inheritedRoles: [{ clientId: 'skymail', role: 'send' }],
+  inheritedRoles: [{ clientId: 'skynotify', role: 'send' }],
   extraRoles: [{ clientId: 'core', role: 'events:write' }],
 };
 
