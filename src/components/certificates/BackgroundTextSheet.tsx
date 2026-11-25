@@ -71,6 +71,7 @@ export function keptLayers(
 export function BackgroundTextSheet({
   open,
   mediaId,
+  templateId,
   page,
   placement,
   elements,
@@ -80,6 +81,8 @@ export function BackgroundTextSheet({
   open: boolean;
   /** The PDF background's Media. */
   mediaId: string;
+  /** The saved template the draft is of: core matches its team's fonts too. */
+  templateId?: string;
   page: { width: number; height: number };
   /** The draft's own placement; left out for a layout without one. */
   placement?: BackgroundPlacement;
@@ -102,7 +105,7 @@ export function BackgroundTextSheet({
     setError(undefined);
     setFields({});
     certificatesApi
-      .assetText(mediaId)
+      .assetText(mediaId, templateId)
       .then((answer) => {
         if (cancelled) return;
         setList(answer);
@@ -114,7 +117,7 @@ export function BackgroundTextSheet({
     return () => {
       cancelled = true;
     };
-  }, [open, mediaId]);
+  }, [open, mediaId, templateId]);
 
   const spans = useMemo(() => list?.spans ?? [], [list]);
   const convertible = spans.filter((span) => span.convertible);
@@ -146,6 +149,7 @@ export function BackgroundTextSheet({
         page,
         ...(placement ? { placement } : {}),
         existingElements: existing,
+        ...(templateId ? { templateId } : {}),
       });
       onConverted({ result, replacedKinds });
     } catch (cause) {

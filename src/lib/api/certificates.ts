@@ -42,6 +42,27 @@ export type CertificateElement = {
   /** The PDF's font name of a converted text, at most 120 characters. */
   sourceFont?: string;
   fontStyle?: 'italic';
+  /**
+   * A team's or the club's certificate font (core docs/certificate-fonts.md):
+   * its checked WOFF2. `fontFamily` is then its family, `fontWeight` and
+   * `fontStyle` its face's.
+   */
+  fontMediaId?: string;
+};
+
+/** A team's (or, `ownerTeam` '', the club's) uploaded certificate font: one face. */
+export type CertificateFont = {
+  id: string;
+  ownerTeam: string;
+  family: string;
+  weight: number;
+  style: 'normal' | 'italic';
+  /** The checked WOFF2: an element's `fontMediaId`. */
+  mediaId: string;
+  /** The letters of ğĞıİşŞçÇöÖüÜ, A–Z, a–z, 0–9 it lacks; '' when none. */
+  missingTurkish: string;
+  uploadedBy?: string | null;
+  createdAt: string;
 };
 
 /** How the background sits on the page (core `Layout.backgroundPlacement`). */
@@ -105,6 +126,8 @@ export type BackgroundTextSpan = {
   fontWeight: number;
   fontStyle?: 'italic';
   fontSubstituted: boolean;
+  /** Set when `font` is a certificate font of the template's team or the club's. */
+  fontMediaId?: string;
   fontSizePt: number;
   convertible: boolean;
   reason?: BackgroundTextReason;
@@ -125,6 +148,8 @@ export type BackgroundTextConversionBody = {
   placement?: BackgroundPlacement;
   /** How many layers the draft keeps beside the new ones (at most 100 together). */
   existingElements: number;
+  /** The template the draft is of: its team's fonts are matched too (else the club's alone). */
+  templateId?: string;
 };
 
 export type BackgroundTextWarning = {
@@ -400,15 +425,40 @@ export const certificatesApi = {
   /** A PDF background's page as a PNG, its long side `max` px; an image as itself. */
   assetPreview: (id: string, max = 2000) =>
     coreFetchBlob(`/v1/certificate-assets/${encodeURIComponent(id)}/preview?max=${max}`),
-  /** A PDF background's text, one row per run; 503 `pdf_tools_unavailable` without pdf-tools. */
-  assetText: (id: string) =>
-    coreFetch<BackgroundTextList>(`/v1/certificate-assets/${encodeURIComponent(id)}/text`),
+  /**
+   * A PDF background's text, one row per run; 503 `pdf_tools_unavailable` without pdf-tools.
+   * With `templateId`, its team's certificate fonts are matched as well as the club's.
+   */
+  assetText: (id: string, templateId?: string) =>
+    coreFetch<BackgroundTextList>(
+      `/v1/certificate-assets/${encodeURIComponent(id)}/text` +
+        (templateId ? `?template=${encodeURIComponent(templateId)}` : ''),
+    ),
   /** The chosen texts as layers on a copy of the PDF without them. */
   convertAssetText: (id: string, body: BackgroundTextConversionBody) =>
     coreFetch<BackgroundTextConversion>(
       `/v1/certificate-assets/${encodeURIComponent(id)}/text-conversion`,
       { method: 'POST', body: JSON.stringify(body) },
     ),
+  /**
+   * The current certificate fonts of `team` and the club the caller may use
+   * (without `team`, the club's); 403 for a team the caller may not use.
+   */
+  fonts: (team?: string) =>
+    coreFetch<CertificateFont[]>(
+      '/v1/certificate-fonts' + (team ? `?team=${encodeURIComponent(team)}` : ''),
+    ),
+  /** An uploaded `certificate_font` Media, checked by pdf-tools, kept as the team's font. */
+  createFont: (mediaId: string, ownerTeam: string) =>
+    coreFetch<CertificateFont>('/v1/certificate-fonts', {
+      method: 'POST',
+      body: JSON.stringify({ mediaId, ownerTeam }),
+    }),
+  /** The font's checked WOFF2 (an archived font's too). */
+  fontFile: (id: string) => coreFetchBlob(`/v1/certificate-fonts/${encodeURIComponent(id)}/file`),
+  /** Archives it: drafts and published versions keep printing it; no new layer may take it. */
+  archiveFont: (id: string) =>
+    coreFetch<void>(`/v1/certificate-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   bindings: () => coreFetch<CertificateTemplateBinding[]>('/v1/certificate-template-bindings'),
   setBinding: (body: {
     scope: 'club' | 'ownerTeam' | 'event';

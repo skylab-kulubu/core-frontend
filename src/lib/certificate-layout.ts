@@ -93,3 +93,13 @@ export function certificateFontStack(font?: string) {
   }
   return "'Liberation Sans', Arial, sans-serif";
 }
+
+/**
+ * A layer's CSS font stack: an uploaded font first (`cf-<mediaId>`, as core's
+ * page sets it, loaded by certificate-user-fonts), then its family's stack,
+ * so a letter the font lacks draws in the fallback as it prints.
+ */
+export function elementFontStack(element: { fontFamily?: string; fontMediaId?: string }) {
+  const stack = certificateFontStack(element.fontFamily);
+  return element.fontMediaId ? `'cf-${element.fontMediaId}', ${stack}` : stack;
+}

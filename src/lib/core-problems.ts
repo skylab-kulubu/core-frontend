@@ -176,6 +176,15 @@ const CODE_MESSAGES: Record<string, string> = {
   background_text_selection_empty:
     'Dönüştürülecek metin seçilmedi ya da seçilenler artık dönüştürülemiyor; listeyi yeniden aç.',
   background_text_strip_failed: "Seçilen metinler PDF'ten silinemedi; PDF değişmedi.",
+  // Certificate fonts (core docs/certificate-fonts.md)
+  font_unreadable: 'Dosya okunamadı: TTF, OTF ya da WOFF2 bir yazı tipi olmalı.',
+  font_too_large: "Yazı tipi 10 MB'tan büyük.",
+  font_unsupported:
+    'Değişken yazı tipi ya da koleksiyon (TTC) yüklenmez; tek bir kalınlığın dosyasını yükle.',
+  font_embedding_restricted: 'Bu yazı tipinin lisansı gömmeye izin vermiyor.',
+  font_exists: 'Bu ekipte bu aile, kalınlık ve stilde bir yazı tipi zaten var.',
+  layout_font_out_of_scope:
+    'Bir katmanın yazı tipi bu şablonun ekibine ya da kulübe ait değil ya da arşivlenmiş; başka yazı tipi seç.',
   pdf_tools_unavailable: 'PDF araçlarına şu an ulaşılamıyor; biraz sonra tekrar dene.',
   renderer_unavailable: 'PDF oluşturucu kapalı; biraz sonra tekrar dene.',
   render_failed: 'PDF oluşturulamadı; sürerse yöneticiye haber ver.',

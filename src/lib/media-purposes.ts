@@ -8,6 +8,7 @@ export type MediaPurpose =
   | 'event_cover'
   | 'event_gallery'
   | 'certificate_asset'
+  | 'certificate_font'
   | 'cms_image'
   | 'cms_file'
   | 'answer_file'
@@ -35,6 +36,7 @@ export const MEDIA_PURPOSES: Record<MediaPurpose, MediaPurposeInfo> = {
   event_cover: { label: 'Etkinlik kapağı', roleName: 'etkinlik kapağı' },
   event_gallery: { label: 'Etkinlik galerisi', roleName: 'etkinlik galerisi görseli' },
   certificate_asset: { label: 'Sertifika şablon görseli', roleName: 'sertifika şablon görseli' },
+  certificate_font: { label: 'Sertifika yazı tipi' },
   cms_image: { label: 'CMS görseli' },
   cms_file: { label: 'CMS dosyası' },
   answer_file: { label: 'Yanıt dosyası' },
