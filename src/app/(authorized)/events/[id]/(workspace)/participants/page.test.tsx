@@ -24,6 +24,15 @@ jest.mock('@/lib/api/sessions', () =>
   jest.requireActual('@/test/event-workspace').sessionsModule(),
 );
 jest.mock('@/lib/api/tickets', () => jest.requireActual('@/test/event-workspace').ticketsModule);
+jest.mock('@/lib/api/form-respondents', () => {
+  const { ProblemError } = jest.requireActual('@/lib/api/core');
+  // A core without form respondents: no respondent view
+  return {
+    formRespondentsApi: {
+      list: jest.fn(() => Promise.reject(new ProblemError(404, 'Not Found'))),
+    },
+  };
+});
 jest.mock('@/lib/api/identity', () => jest.requireActual('@/test/event-workspace').identityModule);
 jest.mock(
   '@/lib/api/competitors',

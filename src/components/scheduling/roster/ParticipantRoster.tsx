@@ -58,6 +58,7 @@ import {
   type TicketMailRecipient,
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
+import type { RespondentView } from './RespondentList';
 import { CapacityStrip, RosterCharts, RosterTiles } from './RosterOverview';
 import { cancelShut, EVENT_OVER } from './ticket-cancel';
 import { TicketPanel } from './TicketPanel';
@@ -75,9 +76,12 @@ type Sort = keyof typeof SORTS;
  * The views of the active tickets, and the waiting list and the cancelled ones core lists
  * apart (`?status=waitlisted`, `?status=cancelled`).
  */
-type ListView = RosterView | 'waitlisted' | 'cancelled';
+type ListView = RosterView | 'waitlisted' | 'cancelled' | RespondentView;
 const WAITLIST_VIEW = { value: 'waitlisted', label: 'Bekleme listesi' } as const;
 const CANCELLED_VIEW = { value: 'cancelled', label: 'İptal edilenler' } as const;
+/** Form answers with no Ticket yet (core docs/form-respondents.md): not Tickets, listed apart. */
+const UNTICKETED_VIEW = { value: 'unticketed', label: 'Bilet gönderilmedi' } as const;
+const FORMS_PENDING_VIEW = { value: 'formsPending', label: 'Forms’ta onay bekliyor' } as const;
 type Saved = { query?: string; view?: RosterView; sort?: Sort; page?: number };
 
 export type ParticipantRosterProps = {
@@ -115,6 +119,10 @@ export type ParticipantRosterProps = {
   eventEnded?: boolean;
   /** The page's confirm dialog: inside the drawer while one is open, so it sits above it. */
   dialogs: ReactNode;
+  /** The Unticketed respondents' counts; absent for a core without them. */
+  respondentCounts?: { unticketed: number; formsPending: number };
+  /** Their list, in place of the Tickets', for the two respondent views. */
+  renderRespondents?: (view: RespondentView, query: string) => ReactNode;
 };
 
 /**
@@ -145,6 +153,8 @@ export function ParticipantRoster({
   onPromote,
   eventEnded = false,
   dialogs,
+  respondentCounts,
+  renderRespondents,
 }: ParticipantRosterProps) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<ListView>('all');
@@ -217,13 +227,19 @@ export function ParticipantRoster({
   const places = useMemo(() => waitlistPlaces(waitlistedTickets ?? []), [waitlistedTickets]);
   const cancelledView = view === CANCELLED_VIEW.value;
   const waitlistView = view === WAITLIST_VIEW.value;
-  const apartView = cancelledView || waitlistView;
+  const respondentView = view === UNTICKETED_VIEW.value || view === FORMS_PENDING_VIEW.value;
+  const apartView = cancelledView || waitlistView || respondentView;
   const counts = rosterViewCounts(searched);
+  const unticketed = respondentCounts?.unticketed ?? 0;
+  const formsPending = respondentCounts?.formsPending ?? 0;
   const anyTicket =
     tickets.length > 0 ||
     (cancelledTickets?.length ?? 0) > 0 ||
-    (waitlistedTickets?.length ?? 0) > 0;
+    (waitlistedTickets?.length ?? 0) > 0 ||
+    unticketed > 0 ||
+    formsPending > 0;
   const rows = useMemo(() => {
+    if (view === UNTICKETED_VIEW.value || view === FORMS_PENDING_VIEW.value) return [];
     // The waiting list is served in its own order
     if (view === WAITLIST_VIEW.value) return waitlistOrder(searchedWaitlisted);
     const kept =
@@ -407,10 +423,16 @@ export function ParticipantRoster({
                   ...(searchedCancelled.length > 0 || cancelledView
                     ? [{ ...CANCELLED_VIEW, count: searchedCancelled.length }]
                     : []),
+                  ...(respondentCounts && (unticketed > 0 || view === UNTICKETED_VIEW.value)
+                    ? [{ ...UNTICKETED_VIEW, count: unticketed }]
+                    : []),
+                  ...(respondentCounts && (formsPending > 0 || view === FORMS_PENDING_VIEW.value)
+                    ? [{ ...FORMS_PENDING_VIEW, count: formsPending }]
+                    : []),
                 ]}
               />
             </div>
-            {waitlistView ? null : (
+            {waitlistView || respondentView ? null : (
               <Select
                 aria-label="Sıralama"
                 className="ml-auto w-40"
@@ -429,45 +451,51 @@ export function ParticipantRoster({
             )}
           </div>
         ) : null}
-        {failed ? <LoadError title="Kayıtlar yüklenemedi" onRetry={onRetry} /> : null}
-        <ListPanel status={status}>
-          <ul className="divide-border-subtle divide-y">
-            {slice.map((ticket) => (
-              <RosterRow
-                key={ticket.id}
-                ticket={ticket}
-                eventId={eventId}
-                row={ticketRosterRow(ticket, people, event)}
-                current={openTicket?.id === ticket.id}
-                selected={selected.has(ticket.id)}
-                error={rowErrors[ticket.id]}
-                attendSession={attendSession}
-                canAttend={Boolean(onMarkAttended)}
-                onToggle={() => toggle(ticket.id)}
-                onOpen={open(ticket)}
-                onAttend={() => void attend(ticket)}
-                onResend={onResend}
-                onRenew={onRenew}
-                onCancel={onCancel}
-                onRestore={onRestore}
-                onPromote={onPromote}
-                place={places.get(ticket.id)}
-                eventEnded={eventEnded}
-              />
-            ))}
-          </ul>
-        </ListPanel>
-        {!failed && rows.length === 0 && emptyAction ? (
-          <div className="flex justify-center">{emptyAction}</div>
-        ) : null}
-        {rows.length ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-subtle-foreground text-xs tabular-nums">
-              {`${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} / ${rows.length}`}
-            </p>
-            <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
-          </div>
-        ) : null}
+        {respondentView && renderRespondents ? (
+          renderRespondents(view as RespondentView, query)
+        ) : (
+          <>
+            {failed ? <LoadError title="Kayıtlar yüklenemedi" onRetry={onRetry} /> : null}
+            <ListPanel status={status}>
+              <ul className="divide-border-subtle divide-y">
+                {slice.map((ticket) => (
+                  <RosterRow
+                    key={ticket.id}
+                    ticket={ticket}
+                    eventId={eventId}
+                    row={ticketRosterRow(ticket, people, event)}
+                    current={openTicket?.id === ticket.id}
+                    selected={selected.has(ticket.id)}
+                    error={rowErrors[ticket.id]}
+                    attendSession={attendSession}
+                    canAttend={Boolean(onMarkAttended)}
+                    onToggle={() => toggle(ticket.id)}
+                    onOpen={open(ticket)}
+                    onAttend={() => void attend(ticket)}
+                    onResend={onResend}
+                    onRenew={onRenew}
+                    onCancel={onCancel}
+                    onRestore={onRestore}
+                    onPromote={onPromote}
+                    place={places.get(ticket.id)}
+                    eventEnded={eventEnded}
+                  />
+                ))}
+              </ul>
+            </ListPanel>
+            {!failed && rows.length === 0 && emptyAction ? (
+              <div className="flex justify-center">{emptyAction}</div>
+            ) : null}
+            {rows.length ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-subtle-foreground text-xs tabular-nums">
+                  {`${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, rows.length)} / ${rows.length}`}
+                </p>
+                <Pagination current={safePage} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
       <Drawer
         open={openTicket !== null}
@@ -544,6 +572,9 @@ function RosterRow({
   const waited = waiting ? waitedFor(ticket.waitlistedAt ?? ticket.createdAt) : null;
   const waitLabel = waiting ? waitlistLabel(place, waited) : '';
   const shut = cancelShut(ticket, eventEnded);
+  // Forms declined the answer after the Ticket: kept until the organizer cancels it (K6)
+  const rejected = !apart && Boolean(ticket.formsRejectedAt || ticket.formsStatus === 'declined');
+  const formsPending = !apart && !rejected && ticket.formsStatus === 'pending';
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
   const entryTime = entry ? formatEntry(entry) : null;
@@ -584,6 +615,15 @@ function RosterRow({
           {cancelled && ticket.cancelReason ? (
             <span className="text-muted-foreground block truncate text-[13px]/5">
               Gerekçe: {ticket.cancelReason}
+            </span>
+          ) : null}
+          {rejected ? (
+            <span className="text-destructive block truncate text-[13px]/5">
+              Forms’ta reddedildi
+            </span>
+          ) : formsPending ? (
+            <span className="text-warning block truncate text-[13px]/5">
+              Forms’ta yeniden onay bekliyor
             </span>
           ) : null}
           {/* The status column gives way on phones: said under the name instead */}
@@ -634,6 +674,20 @@ function RosterRow({
         </span>
       </Link>
       <div className="flex shrink-0 items-center gap-1">
+        {rejected && onCancel ? (
+          <Button
+            className={BUTTON_TEXT}
+            size="xs"
+            variant="outline"
+            disabled={shut !== null}
+            title={shut ?? undefined}
+            onClick={() => onCancel(ticket)}
+            aria-label={`${row.name}: bileti iptal et`}
+          >
+            <Ban className="size-3.5" />
+            <span className="hidden sm:inline">İptal et</span>
+          </Button>
+        ) : null}
         {canAttend && !apart ? (
           <Button
             className={BUTTON_TEXT}
