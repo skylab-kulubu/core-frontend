@@ -100,6 +100,7 @@ const CODE_MESSAGES: Record<string, string> = {
     'Dış kayıt bağlantısı https:// ile başlayan tam bir adres olmalı.',
   import_empty: 'Listede satır yok.',
   import_no_email_column: 'Listede e-posta sütunu bulunamadı. Başlığa "E-posta" yaz.',
+  import_ambiguous_email_column: 'Birden fazla e-posta sütunu var. Birini silip yeniden yükle.',
   import_unreadable: 'Liste okunamadı. Dosyayı UTF-8 CSV olarak kaydet.',
   import_too_large: "Liste 2 MB'tan büyük.",
   import_too_many_rows: 'Liste 1000 satırdan uzun; böl ve ayrı ayrı içe aktar.',
@@ -380,6 +381,12 @@ export function coreProblemMessage(
       return missing.length
         ? `Yayınlamak için eksik: ${missing.join(', ')}.`
         : 'Yayınlamak için ad, konum ve başlangıç tarihi gerekli.';
+    }
+    case 'import_ambiguous_email_column': {
+      const columns = Array.isArray(fields.columns) ? fields.columns.map(text).filter(Boolean) : [];
+      return columns.length
+        ? `Birden fazla e-posta sütunu var: ${columns.join(', ')}. Birini silip yeniden yükle.`
+        : CODE_MESSAGES.import_ambiguous_email_column;
     }
     case 'form_in_use': {
       const name = formInUseOf(error)?.event?.name;

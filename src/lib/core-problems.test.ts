@@ -432,6 +432,24 @@ describe('groupWriteProblemMessage', () => {
       ),
     ).toBe('Yayınlamak için eksik: konum, başlangıç tarihi.');
   });
+
+  it('names the e-mail columns an import cannot choose between', () => {
+    expect(
+      coreProblemMessage(
+        new ProblemError(400, 'Bad Request', {
+          code: 'import_ambiguous_email_column',
+          fields: { columns: ['E-posta', 'Okul e-postası'] },
+        }),
+        'x',
+      ),
+    ).toBe('Birden fazla e-posta sütunu var: E-posta, Okul e-postası. Birini silip yeniden yükle.');
+    expect(
+      coreProblemMessage(
+        new ProblemError(400, 'Bad Request', { code: 'import_ambiguous_email_column' }),
+        'x',
+      ),
+    ).toBe('Birden fazla e-posta sütunu var. Birini silip yeniden yükle.');
+  });
 });
 
 describe('form_in_use (ADR 0069, 2026-11-22)', () => {
