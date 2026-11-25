@@ -160,6 +160,21 @@ export function eventPatchFromForm(form: EventFormState, base?: EventFormState):
   return changed;
 }
 
+/** The fields whose change a published Event's Ticket holders are told of (core event.updated). */
+export type TimeOrPlace = 'time' | 'place';
+
+/**
+ * Which of the Event's time (start, end) and place (the location's text) the edit changes since
+ * `base`: what core tells the Ticket holders of. The map point and address are not among them.
+ */
+export function timeOrPlaceChanges(form: EventFormState, base: EventFormState): TimeOrPlace[] {
+  const changed = eventPatchFromForm(form, base);
+  const out: TimeOrPlace[] = [];
+  if ('startDate' in changed || 'endDate' in changed) out.push('time');
+  if ('location' in changed) out.push('place');
+  return out;
+}
+
 /**
  * A new Event was created but a later step of its save (season, gallery)
  * failed. The next save must update `eventId` instead of creating it again.
@@ -176,12 +191,14 @@ export class EventSaveIncomplete extends Error {
 
 /**
  * Creates the Event (a draft), or updates `existingId` with the fields that
- * changed since `base`; then its season and gallery.
+ * changed since `base`; then its season and gallery. `notifyTicketHolders`
+ * answers whether a new time or place is told to the Ticket holders.
  */
 export async function saveEventWithSeason(
   form: EventFormState,
   existingId?: string,
   base?: EventFormState,
+  options?: { notifyTicketHolders?: boolean },
 ): Promise<string> {
   const slotted = await attachFormAliases(
     form.formSlots ?? [],
@@ -207,8 +224,12 @@ export async function saveEventWithSeason(
     ...(feedbackSlot ? { feedbackSlot } : {}),
   };
   // A new Event opens as a draft: nobody sees it until it is published (ADR 0066)
+  const notify =
+    options?.notifyTicketHolders === undefined
+      ? {}
+      : { notifyTicketHolders: options.notifyTicketHolders };
   const saved = existingId
-    ? await eventsApi.patch(existingId, eventPatchFromForm(slottedForm, base))
+    ? await eventsApi.patch(existingId, { ...eventPatchFromForm(slottedForm, base), ...notify })
     : await eventsApi.create({ ...eventBodyFromForm(slottedForm), status: 'draft' });
   try {
     await finishSave(form, saved, existingId);
