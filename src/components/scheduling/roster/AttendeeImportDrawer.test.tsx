@@ -150,4 +150,21 @@ describe('AttendeeImportDrawer', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('e-posta sütunu');
     expect(screen.getByRole('button', { name: 'Önizle' })).toBeInTheDocument();
   });
+
+  it('names the e-mail columns core cannot choose between', async () => {
+    const user = userEvent.setup();
+    (ticketsApi.previewImport as jest.Mock).mockRejectedValue(
+      new ProblemError(400, 'Bad Request', {
+        code: 'import_ambiguous_email_column',
+        fields: { columns: ['E-posta', 'Okul e-postası'] },
+      }),
+    );
+    render(<AttendeeImportDrawer open onClose={jest.fn()} eventId="e1" onImported={jest.fn()} />);
+    await user.click(screen.getByLabelText('Liste'));
+    await user.paste('E-posta;Okul e-postası\na@example.com;b@example.com');
+    await user.click(screen.getByRole('button', { name: 'Önizle' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Birden fazla e-posta sütunu var: E-posta, Okul e-postası. Birini silip yeniden yükle.',
+    );
+  });
 });
