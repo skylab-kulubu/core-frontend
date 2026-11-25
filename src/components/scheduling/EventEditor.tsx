@@ -75,7 +75,7 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
-  /** Who may add attendees: a form's mapping offers to send its respondents Tickets. */
+  /** Who may edit the Event or add attendees: a form's mapping offers to send Tickets. */
   canSendTickets?: boolean;
   /** Said at the top of a section, such as choices that could not be loaded. */
   notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
