@@ -18,7 +18,12 @@ import { sessionFeedbackSlotKey } from '@/lib/session-feedback';
 import { teamDecision } from '@/lib/use-app-can';
 
 /** The parts core may leave out of a copy (POST /v1/events/{id}/copy `skipped`). */
-export type CopySkippedPart = 'cover' | 'certificateTemplate' | 'doorStaff' | 'competitions';
+export type CopySkippedPart =
+  | 'cover'
+  | 'certificateTemplate'
+  | 'doorStaff'
+  | 'competitions'
+  | 'attendeeNote';
 
 const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   cover: 'Kapak görseli kopyalanmadı.',
@@ -26,6 +31,7 @@ const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
     'Sertifika şablonu bağlaması kopyalanmadı: bu ekipte şablon bağlama yetkin yok.',
   doorStaff: 'Kapı görevlileri kopyalanmadı: bu ekipte görevli atama yetkin yok.',
   competitions: 'Yarışmalar kopyalanmadı: bu ekipte yarışma yönetme yetkin yok.',
+  attendeeNote: 'Katılımcı notu kopyalanmadı: bu notu görme yetkin yok.',
 };
 
 /** One line per part core left out, for the copy's page; an unknown part is named as it came. */
