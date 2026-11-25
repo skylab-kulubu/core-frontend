@@ -136,7 +136,7 @@ describe('CertificateTemplateEditor', () => {
     expect(options.length).toBeGreaterThanOrEqual(18);
   });
 
-  it('lets the designer delete the verification QR, and keeps the names', async () => {
+  it('lets the designer delete the verification QR and the Event name, and keeps the recipient', async () => {
     const user = userEvent.setup();
     render(<CertificateTemplateEditor templateId="system-default" />);
 
@@ -165,6 +165,11 @@ describe('CertificateTemplateEditor', () => {
     await user.click(layer('Katılımcı adı')!);
     expect(screen.queryByRole('button', { name: /Katmanı sil/ })).not.toBeInTheDocument();
     expect(screen.getByText('Zorunlu katman')).toBeInTheDocument();
+
+    // The Event's name may go (ADR-0040 addendum 2026-11-25): a background may print it
+    await user.click(layer('Etkinlik adı')!);
+    await user.click(screen.getByRole('button', { name: /Katmanı sil/ }));
+    expect(layer('Etkinlik adı')).toBeUndefined();
   });
 
   it('accepts a one-page PDF as a vector certificate background', async () => {
