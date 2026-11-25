@@ -93,4 +93,29 @@ describe('ParticipantRoster form respondents', () => {
       screen.queryByRole('button', { name: 'Ali Kaya: bileti iptal et' }),
     ).not.toBeInTheDocument();
   });
+
+  it('warns on a waitlisted Ticket Forms declined too', async () => {
+    const user = userEvent.setup();
+    const onCancel = jest.fn();
+    const waiting = guest('w1', 'Vural', {
+      status: 'waitlisted',
+      waitlistedAt: '2026-11-23T10:00:00Z',
+      formsRejectedAt: '2026-11-24T10:00:00Z',
+    });
+    setup({ waitlistedTickets: [waiting], capacity: 1, onCancel });
+    const pills = within(screen.getByRole('group', { name: 'Görünüm' }));
+    await user.click(pills.getByText('Bekleme listesi'));
+    expect(screen.getByText('Forms’ta reddedildi')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Vural Kaya: bileti iptal et' }));
+    expect(onCancel).toHaveBeenCalledWith(waiting);
+  });
+
+  it('keeps the respondent views when they cannot be read now', () => {
+    setup({
+      respondentCounts: { unticketed: 0, formsPending: 0, failed: true },
+      renderRespondents: () => null,
+    });
+    const pills = within(screen.getByRole('group', { name: 'Görünüm' }));
+    expect(pills.getByText('Bilet gönderilmedi')).toBeInTheDocument();
+  });
 });

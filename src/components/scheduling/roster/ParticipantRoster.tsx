@@ -119,8 +119,11 @@ export type ParticipantRosterProps = {
   eventEnded?: boolean;
   /** The page's confirm dialog: inside the drawer while one is open, so it sits above it. */
   dialogs: ReactNode;
-  /** The Unticketed respondents' counts; absent for a core without them. */
-  respondentCounts?: { unticketed: number; formsPending: number };
+  /**
+   * The Unticketed respondents' counts; absent for a core without them. `failed`: unread now,
+   * the views stay so their list can say so and read again.
+   */
+  respondentCounts?: { unticketed: number; formsPending: number; failed?: boolean };
   /** Their list, in place of the Tickets', for the two respondent views. */
   renderRespondents?: (view: RespondentView, query: string) => ReactNode;
 };
@@ -423,11 +426,23 @@ export function ParticipantRoster({
                   ...(searchedCancelled.length > 0 || cancelledView
                     ? [{ ...CANCELLED_VIEW, count: searchedCancelled.length }]
                     : []),
-                  ...(respondentCounts && (unticketed > 0 || view === UNTICKETED_VIEW.value)
-                    ? [{ ...UNTICKETED_VIEW, count: unticketed }]
+                  ...(respondentCounts &&
+                  (unticketed > 0 || respondentCounts.failed || view === UNTICKETED_VIEW.value)
+                    ? [
+                        {
+                          ...UNTICKETED_VIEW,
+                          count: respondentCounts.failed ? undefined : unticketed,
+                        },
+                      ]
                     : []),
-                  ...(respondentCounts && (formsPending > 0 || view === FORMS_PENDING_VIEW.value)
-                    ? [{ ...FORMS_PENDING_VIEW, count: formsPending }]
+                  ...(respondentCounts &&
+                  (formsPending > 0 || respondentCounts.failed || view === FORMS_PENDING_VIEW.value)
+                    ? [
+                        {
+                          ...FORMS_PENDING_VIEW,
+                          count: respondentCounts.failed ? undefined : formsPending,
+                        },
+                      ]
                     : []),
                 ]}
               />
@@ -573,8 +588,10 @@ function RosterRow({
   const waitLabel = waiting ? waitlistLabel(place, waited) : '';
   const shut = cancelShut(ticket, eventEnded);
   // Forms declined the answer after the Ticket: kept until the organizer cancels it (K6)
-  const rejected = !apart && Boolean(ticket.formsRejectedAt || ticket.formsStatus === 'declined');
-  const formsPending = !apart && !rejected && ticket.formsStatus === 'pending';
+  // On the waiting list too: its place is the declined answer's
+  const rejected =
+    !cancelled && Boolean(ticket.formsRejectedAt || ticket.formsStatus === 'declined');
+  const formsPending = !cancelled && !rejected && ticket.formsStatus === 'pending';
   const href = `/events/${encodeURIComponent(eventId)}/tickets/${encodeURIComponent(ticket.id)}`;
   const entry = lastCheckInAt(ticket);
   const entryTime = entry ? formatEntry(entry) : null;

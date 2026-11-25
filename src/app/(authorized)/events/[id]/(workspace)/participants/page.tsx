@@ -41,6 +41,7 @@ export default function EventParticipantsPage() {
     canAssign,
     canDesk,
     canCancelTickets,
+    canMutate,
   } = useEventWorkspace();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -81,8 +82,8 @@ export default function EventParticipantsPage() {
     void readWaitlisted();
   }, [readWaitlisted]);
 
-  // Form answers with no Ticket yet: read by who may edit the Event (core docs/form-respondents.md)
-  const respondents = useRespondents(event.id, canTickets && canCancelTickets);
+  // Form answers with no Ticket yet: read by who may see the Tickets (core docs/form-respondents.md)
+  const respondents = useRespondents(event.id, canTickets);
 
   // The address decides, also when a link changes it while the page is open
   const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
@@ -223,7 +224,11 @@ export default function EventParticipantsPage() {
         dialogs={confirmDialog}
         respondentCounts={
           respondents.available
-            ? { unticketed: respondents.accepted.total, formsPending: respondents.pending.total }
+            ? {
+                unticketed: respondents.accepted.total,
+                formsPending: respondents.pending.total,
+                failed: respondents.failed,
+              }
             : undefined
         }
         renderRespondents={(view, query) => (
@@ -233,11 +238,13 @@ export default function EventParticipantsPage() {
             query={query}
             respondents={respondents}
             confirm={confirm}
-            canSend={canAssign}
+            // core: Update on the Event or Assign on its Tickets, as the attendee import
+            canSend={canMutate || canAssign}
             onSent={async (line) => {
               notify.success(line);
               await readAll();
             }}
+            onRefresh={readAll}
           />
         )}
       />

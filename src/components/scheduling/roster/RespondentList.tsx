@@ -2,13 +2,15 @@
 
 import { BulkBar, Button } from '@skylab-kulubu/skylcn-ui';
 import { ExternalLink, Send } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Avatar } from '@/components/chrome/Avatar';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { StatusChip } from '@/components/chrome/StatusChip';
+import { ProblemError } from '@/lib/api/core';
 import {
   formRespondentsApi,
   type FormRespondent,
+  type RespondentIncomplete,
   type RespondentSelection,
   type RespondentTicketJob,
   type RespondentTicketResult,
@@ -19,6 +21,11 @@ import { listStatus } from '@/lib/list-status';
 import { formatEntry } from '@/lib/roster-insights';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 import type { ConfirmRequest } from '@/lib/ui/use-confirm';
+import {
+  keepRespondentJob,
+  keptRespondentJob,
+  respondentJobKey,
+} from '@/components/scheduling/use-bind-question';
 
 /** The two views of the Unticketed respondents on Katılımcılar. */
 export type RespondentView = 'unticketed' | 'formsPending';
@@ -29,6 +36,7 @@ export const RESPONDENT_JOB_POLL_MS = 2000;
 
 type Part = { rows: FormRespondent[]; total: number; nextCursor: string | null };
 const EMPTY: Part = { rows: [], total: 0, nextCursor: null };
+const NO_INCOMPLETE: RespondentIncomplete = { missingName: 0, missingEmail: 0, noPerson: 0 };
 
 export type Respondents = {
   /** Accepted in Forms: "Bilet gönderilmedi". */
@@ -37,43 +45,63 @@ export type Respondents = {
   pending: Part;
   /** A gathering of the Event's forms waits or runs. */
   collecting: boolean;
-  /** Unread, or a core without the route. */
+  /** Answers the last gatherings kept no row for: no name, no e-mail, nobody. */
+  incomplete: RespondentIncomplete;
+  /** core has the route (a 404 says it does not). */
   available: boolean;
+  /** The last read failed for another reason: said with a retry, the views stay. */
+  failed: boolean;
 };
+
+/** How long a search waits for the typing to stop. */
+const SEARCH_WAIT_MS = 300;
 
 /**
  * The Event's Unticketed respondents (core `GET /v1/events/{id}/respondents`), accepted and
- * pending apart. A core without the route (404) or a refusal leaves `available` off: no view.
+ * pending apart, searched by core (`q`: a guest's name and e-mail). A core without the route
+ * (404) leaves `available` off: no view.
  */
 export function useRespondents(eventId: string, enabled: boolean) {
   const [state, setState] = useState<Respondents>({
     accepted: EMPTY,
     pending: EMPTY,
     collecting: false,
+    incomplete: NO_INCOMPLETE,
     available: false,
+    failed: false,
   });
+  const [query, setQuery] = useState('');
+  const q = query.trim().slice(0, 100);
 
   const reload = useCallback(async () => {
     if (!enabled) return;
     try {
       const [accepted, pending] = await Promise.all([
-        formRespondentsApi.list(eventId, { formsStatus: 'accepted', limit: PAGE }),
-        formRespondentsApi.list(eventId, { formsStatus: 'pending', limit: PAGE }),
+        formRespondentsApi.list(eventId, { formsStatus: 'accepted', limit: PAGE, q }),
+        formRespondentsApi.list(eventId, { formsStatus: 'pending', limit: PAGE, q }),
       ]);
       setState({
         accepted: { rows: accepted.items, total: accepted.total, nextCursor: accepted.nextCursor },
         pending: { rows: pending.items, total: pending.total, nextCursor: pending.nextCursor },
         collecting: accepted.collecting || pending.collecting,
+        incomplete: accepted.incomplete ?? NO_INCOMPLETE,
         available: true,
+        failed: false,
       });
-    } catch {
-      setState((current) => ({ ...current, available: false }));
+    } catch (err) {
+      const absent = err instanceof ProblemError && err.status === 404;
+      setState((current) => ({
+        ...current,
+        available: !absent,
+        failed: !absent,
+      }));
     }
-  }, [eventId, enabled]);
+  }, [eventId, enabled, q]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    const timer = setTimeout(() => void reload(), q ? SEARCH_WAIT_MS : 0);
+    return () => clearTimeout(timer);
+  }, [reload, q]);
 
   const more = useCallback(
     async (status: 'accepted' | 'pending') => {
@@ -83,6 +111,7 @@ export function useRespondents(eventId: string, enabled: boolean) {
         formsStatus: status,
         limit: PAGE,
         after: part.nextCursor,
+        q,
       });
       setState((current) => ({
         ...current,
@@ -96,10 +125,20 @@ export function useRespondents(eventId: string, enabled: boolean) {
         },
       }));
     },
-    [eventId, state],
+    [eventId, state, q],
   );
 
-  return { ...state, reload, more };
+  return { ...state, reload, more, setQuery };
+}
+
+/** "3 yanıtta ad eksik, 1 yanıtta e-posta eksik": what the gatherings could not keep. */
+export function incompleteLine(incomplete: RespondentIncomplete): string | null {
+  const parts = [
+    incomplete.missingName ? `${incomplete.missingName} yanıtta ad eksik` : '',
+    incomplete.missingEmail ? `${incomplete.missingEmail} yanıtta e-posta eksik` : '',
+    incomplete.noPerson ? `${incomplete.noPerson} yanıtta kişi yok` : '',
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : null;
 }
 
 export function respondentName(row: Pick<FormRespondent, 'firstName' | 'lastName' | 'email'>) {
@@ -112,13 +151,14 @@ export function formsResponseHref(row: Pick<FormRespondent, 'formId' | 'response
   return `${origin}/forms/${encodeURIComponent(row.formId)}/responses/${encodeURIComponent(row.responseId)}`;
 }
 
-function matches(row: FormRespondent, query: string): boolean {
-  const q = query.trim().toLocaleLowerCase('tr-TR');
-  if (!q) return true;
-  return [row.firstName, row.lastName, row.email]
-    .filter(Boolean)
-    .some((part) => part.toLocaleLowerCase('tr-TR').includes(q));
-}
+const queuedJob = (jobId: string): RespondentTicketJob => ({
+  jobId,
+  state: 'queued',
+  recorded: 0,
+  waitlisted: 0,
+  full: 0,
+  skipped: 0,
+});
 
 function resultLine(result: RespondentTicketResult): string {
   return previewLine(result);
@@ -137,6 +177,7 @@ export function RespondentList({
   respondents,
   confirm,
   onSent,
+  onRefresh,
   canSend,
 }: {
   eventId: string;
@@ -146,17 +187,32 @@ export function RespondentList({
   confirm: (request: ConfirmRequest) => void;
   /** After Tickets were written: the lists are read again. */
   onSent: (line: string) => void | Promise<void>;
+  /** After a send-all job failed: what it wrote is read again. */
+  onRefresh?: () => void | Promise<void>;
   canSend: boolean;
 }) {
   const part = view === 'unticketed' ? respondents.accepted : respondents.pending;
-  const rows = useMemo(() => part.rows.filter((row) => matches(row, query)), [part.rows, query]);
+  const rows = part.rows;
+  const jobKey = respondentJobKey(eventId);
+  const { setQuery } = respondents;
+  // core searches (`q`); the list shows what it answered
+  useEffect(() => {
+    setQuery(query);
+  }, [query, setQuery]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [job, setJob] = useState<RespondentTicketJob | null>(null);
+  // A send-all sent earlier from this tab shows its progress again
+  const [job, setJob] = useState<RespondentTicketJob | null>(() => {
+    const kept = typeof window === 'undefined' ? null : keptRespondentJob(jobKey);
+    return kept ? queuedJob(kept) : null;
+  });
+  const [readFailed, setReadFailed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const sendable = view === 'unticketed' && canSend;
-  // The page passes a new function each render; the job's timer must not restart for it
+  // The page passes new functions each render; the job's timer must not restart for them
   const sent = useRef(onSent);
   sent.current = onSent;
+  const refresh = useRef(onRefresh);
+  refresh.current = onRefresh;
 
   useEffect(() => {
     setSelected(new Set());
@@ -173,19 +229,28 @@ export function RespondentList({
         .then(async (next) => {
           if (cancelled) return;
           setJob(next);
+          setReadFailed(0);
+          if (next.state === 'done' || next.state === 'failed') keepRespondentJob(jobKey, null);
           if (next.state === 'done') await sent.current(`Gönderildi: ${resultLine(next)}`);
+          // Part may have gone through before it failed
+          if (next.state === 'failed') await refresh.current?.();
         })
         .catch((err) => {
           if (cancelled) return;
-          setError(formMappingProblem(err, 'Gönderim durumu okunamadı.'));
-          setJob((current) => (current ? { ...current, state: 'failed' } : current));
+          if (err instanceof ProblemError && err.code === 'ticket_job_not_found') {
+            keepRespondentJob(jobKey, null);
+            setJob(null);
+            return;
+          }
+          // One read that failed is no failed job: read again
+          setReadFailed((n) => n + 1);
         });
     }, RESPONDENT_JOB_POLL_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [eventId, jobId, running, job]);
+  }, [eventId, jobId, running, job, jobKey, readFailed]);
 
   async function ask(selection: RespondentSelection, count: number) {
     setError(null);
@@ -210,14 +275,8 @@ export function RespondentList({
       onConfirm: async () => {
         const res = await formRespondentsApi.sendTickets(eventId, selection);
         if ('jobId' in res) {
-          setJob({
-            jobId: res.jobId,
-            state: 'queued',
-            recorded: 0,
-            waitlisted: 0,
-            full: 0,
-            skipped: 0,
-          });
+          keepRespondentJob(jobKey, res.jobId);
+          setJob(queuedJob(res.jobId));
           return;
         }
         setSelected(new Set());
@@ -236,12 +295,28 @@ export function RespondentList({
         : 'Onay bekleyen yok',
   });
 
+  const incomplete = incompleteLine(respondents.incomplete);
+
   return (
     <div className="space-y-3">
       {respondents.collecting ? (
         <p role="status" className="text-muted-foreground text-[13px]/5">
           Form yanıtları alınıyor.
         </p>
+      ) : null}
+      {incomplete ? <p className="text-muted-foreground text-[13px]/5">{incomplete}</p> : null}
+      {respondents.failed ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2">
+          <p className="text-destructive text-[13px]/5">Liste yüklenemedi.</p>
+          <Button
+            className={BUTTON_TEXT}
+            size="xs"
+            variant="outline"
+            onClick={() => void respondents.reload()}
+          >
+            Yeniden dene
+          </Button>
+        </div>
       ) : null}
       {sendable ? (
         selected.size ? (
@@ -256,7 +331,7 @@ export function RespondentList({
               Bilet gönder
             </Button>
           </BulkBar>
-        ) : rows.length ? (
+        ) : rows.length && !query.trim() ? (
           <div className="flex justify-end">
             <Button
               className={BUTTON_TEXT}
@@ -278,6 +353,7 @@ export function RespondentList({
             : job.state === 'failed'
               ? `Gönderim tamamlanamadı: ${resultLine(job)}.`
               : `Biletler gönderiliyor: ${resultLine(job)}.`}
+          {readFailed && running ? ' Durum okunamadı, yeniden deneniyor.' : ''}
         </p>
       ) : null}
       {error ? (
@@ -337,6 +413,7 @@ function RespondentRow({
 }) {
   const name = respondentName(row);
   const pending = row.formsStatus === 'pending';
+  const why = useId();
   return (
     <li className="flex items-center gap-3 px-3 py-3">
       {sendable && !pending ? (
@@ -373,20 +450,24 @@ function RespondentRow({
               variant="outline"
               disabled
               aria-label={`${name}: bilet gönder`}
+              aria-describedby={why}
               title="Forms’ta onaylanınca gönderilir"
             >
               <Send className="size-3.5" />
               <span className="hidden sm:inline">Bilet gönder</span>
             </Button>
+            <span id={why} className="sr-only">
+              Forms’ta onaylanınca gönderilir
+            </span>
             <a
               href={formsResponseHref(row)}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label={`${name}: yanıtı Forms’ta aç (yeni sekmede açılır)`}
               className="text-skylab-300 hover:text-foreground inline-flex items-center gap-1 text-[13px]/5"
             >
               <ExternalLink className="size-3.5" aria-hidden />
               <span className="hidden sm:inline">Forms’ta aç</span>
-              <span className="sr-only"> (yeni sekmede açılır)</span>
             </a>
           </>
         ) : sendable ? (

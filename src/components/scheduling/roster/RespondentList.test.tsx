@@ -45,11 +45,15 @@ function page(items: FormRespondent[], extra = {}) {
 function Harness({
   view,
   onSent = jest.fn(),
+  onRefresh,
   canSend = true,
+  query = '',
 }: {
   view: RespondentView;
   onSent?: (line: string) => void;
+  onRefresh?: () => void;
   canSend?: boolean;
+  query?: string;
 }) {
   const respondents = useRespondents('e1', true);
   const [confirm, dialog] = useConfirm();
@@ -59,10 +63,11 @@ function Harness({
       <RespondentList
         eventId="e1"
         view={view}
-        query=""
+        query={query}
         respondents={respondents}
         confirm={confirm}
         onSent={onSent}
+        onRefresh={onRefresh}
         canSend={canSend}
       />
       {dialog}
@@ -95,7 +100,7 @@ describe('RespondentList', () => {
     api.sendTickets!.mockResolvedValue({ recorded: 1, waitlisted: 0, full: 0, skipped: 0 });
     render(<Harness view="unticketed" onSent={onSent} />);
     expect(await screen.findByText('Ada Demir')).toBeInTheDocument();
-    expect(api.list).toHaveBeenCalledWith('e1', { formsStatus: 'accepted', limit: 200 });
+    expect(api.list).toHaveBeenCalledWith('e1', { formsStatus: 'accepted', limit: 200, q: '' });
     expect(screen.getAllByText('Kabul edildi').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Gönderilmedi').length).toBeGreaterThan(0);
 
@@ -156,13 +161,16 @@ describe('RespondentList', () => {
   it('keeps a pending one’s button off and links to its answer in Forms', async () => {
     render(<Harness view="formsPending" />);
     expect(await screen.findByText('Cem Demir')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cem Demir: bilet gönder' })).toBeDisabled();
+    const off = screen.getByRole('button', { name: 'Cem Demir: bilet gönder' });
+    expect(off).toBeDisabled();
+    expect(off).toHaveAccessibleDescription('Forms’ta onaylanınca gönderilir');
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hepsine gönder' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Forms’ta aç/ })).toHaveAttribute(
-      'href',
-      formsResponseHref({ formId: FORM, responseId: 'resp-r3' }),
-    );
+    expect(
+      screen.getByRole('link', {
+        name: 'Cem Demir: yanıtı Forms’ta aç (yeni sekmede açılır)',
+      }),
+    ).toHaveAttribute('href', formsResponseHref({ formId: FORM, responseId: 'resp-r3' }));
     // Both badges, said under the name on a phone and in a column on a wider screen
     expect(screen.getAllByText('Onay bekliyor').length).toBeGreaterThan(0);
   });
@@ -178,6 +186,76 @@ describe('RespondentList', () => {
     api.list!.mockRejectedValue(new ProblemError(404, 'Not Found'));
     render(<Harness view="unticketed" />);
     expect(await screen.findByText('yok')).toBeInTheDocument();
+  });
+
+  it('searches through core and offers no send-all while searching', async () => {
+    render(<Harness view="unticketed" query="ada" />);
+    await waitFor(() =>
+      expect(api.list).toHaveBeenCalledWith('e1', {
+        formsStatus: 'accepted',
+        limit: 200,
+        q: 'ada',
+      }),
+    );
+    expect(await screen.findByText('Ada Demir')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hepsine gönder' })).not.toBeInTheDocument();
+  });
+
+  it('says what the gatherings could not keep', async () => {
+    api.list!.mockResolvedValue(
+      page([], { incomplete: { missingName: 3, missingEmail: 1, noPerson: 0 } }),
+    );
+    render(<Harness view="unticketed" />);
+    expect(
+      await screen.findByText('3 yanıtta ad eksik, 1 yanıtta e-posta eksik.'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the view on another failure, says so and reads again', async () => {
+    const user = userEvent.setup();
+    api
+      .list!.mockRejectedValueOnce(new ProblemError(503, 'x'))
+      .mockRejectedValueOnce(new ProblemError(503, 'x'));
+    render(<Harness view="unticketed" />);
+    expect(await screen.findByText('Liste yüklenemedi.')).toBeInTheDocument();
+    expect(screen.getByText('hazır:0')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Yeniden dene' }));
+    expect(await screen.findByText('Ada Demir')).toBeInTheDocument();
+    expect(screen.queryByText('Liste yüklenemedi.')).not.toBeInTheDocument();
+  });
+
+  it('reads the lists again when a send-all job fails, and survives one failed read', async () => {
+    const user = userEvent.setup({ advanceTimers: (ms) => jest.advanceTimersByTime(ms) });
+    jest.useFakeTimers();
+    try {
+      const onRefresh = jest.fn();
+      api.sendTickets!.mockResolvedValue({ jobId: 'job-3' });
+      api.ticketJob!.mockRejectedValueOnce(new Error('ağ')).mockResolvedValueOnce({
+        jobId: 'job-3',
+        state: 'failed',
+        recorded: 1,
+        waitlisted: 0,
+        full: 0,
+        skipped: 0,
+      });
+      render(<Harness view="unticketed" onRefresh={onRefresh} />);
+      await user.click(await screen.findByRole('button', { name: 'Hepsine gönder' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Biletleri gönder' }));
+      expect(await screen.findByText('Biletler gönderiliyor: 0 bilet.')).toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(RESPONDENT_JOB_POLL_MS);
+      });
+      expect(await screen.findByText(/Durum okunamadı, yeniden deneniyor\./)).toBeInTheDocument();
+      await act(async () => {
+        jest.advanceTimersByTime(RESPONDENT_JOB_POLL_MS);
+      });
+      expect(await screen.findByText('Gönderim tamamlanamadı: 1 bilet.')).toBeInTheDocument();
+      expect(onRefresh).toHaveBeenCalled();
+    } finally {
+      window.sessionStorage.clear();
+      jest.useRealTimers();
+    }
   });
 
   it('offers no sending to who may not add participants', async () => {
