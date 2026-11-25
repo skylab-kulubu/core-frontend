@@ -150,6 +150,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendeeNote: '',
     attendanceWelcomeMail: true,
     attendanceRecordedMail: true,
+    formResponsesAutoTicket: true,
     name: '',
     description: '',
     location: '',
@@ -388,6 +389,19 @@ export function EventEditor({
           inUse={formInUse}
           onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
         />
+        {/* An older core sends none: not offered */}
+        {value.formResponsesAutoTicket !== undefined ? (
+          <Switch
+            checked={value.formResponsesAutoTicket}
+            onChange={(formResponsesAutoTicket) => patch({ formResponsesAutoTicket })}
+            label="Otomatik bilet gönder"
+            hint={
+              value.formResponsesAutoTicket
+                ? 'Formda kabul edilen yeni yanıta bilet gider.'
+                : 'Yeni yanıtlar Katılımcılar’da bilet bekler.'
+            }
+          />
+        ) : null}
         <ExternalRegistrationField
           value={value.externalRegistrationUrl ?? ''}
           onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}

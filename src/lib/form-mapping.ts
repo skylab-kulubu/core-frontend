@@ -1,0 +1,169 @@
+import { ProblemError } from '@/lib/api/core';
+import type {
+  FormMapping,
+  FormQuestion,
+  RespondentTicketPreview,
+  RespondentTicketResult,
+} from '@/lib/api/form-respondents';
+import { coreProblemMessage } from '@/lib/core-problems';
+
+export type MappingField = keyof FormMapping;
+
+/** The four boxes, in the order the panel shows them. */
+export const MAPPING_FIELDS: { field: MappingField; label: string }[] = [
+  { field: 'firstName', label: 'Ad' },
+  { field: 'lastName', label: 'Soyad' },
+  { field: 'fullName', label: 'Ad soyad' },
+  { field: 'email', label: 'E-posta' },
+];
+
+export const EMPTY_MAPPING: FormMapping = {
+  firstName: null,
+  lastName: null,
+  fullName: null,
+  email: null,
+};
+
+/** Lower case the Turkish way, accents dropped, punctuation to spaces. */
+export function foldQuestion(text: string): string {
+  return text
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Which box a question's text points to (SPEC §5.2 step 3), or null. */
+export function fieldFromText(text: string): MappingField | null {
+  const t = foldQuestion(text);
+  if (!t) return null;
+  if (/e-?posta|mail/.test(t)) return 'email';
+  if (/\b(ad|adi|adiniz) (ve )?(soyad|soyadi|soyadiniz)\b|\bad-soyad|isim soyisim/.test(t)) {
+    return 'fullName';
+  }
+  if (/soyad|soyisim/.test(t)) return 'lastName';
+  if (/^(ad|adi)$|^adiniz|^isim|^ismin/.test(t)) return 'firstName';
+  return null;
+}
+
+const IDENTITY: Record<string, MappingField> = {
+  firstName: 'firstName',
+  lastName: 'lastName',
+  email: 'email',
+};
+
+const INPUT_TYPE: Record<string, MappingField> = { email: 'email', name: 'fullName' };
+
+/**
+ * The panel's guess (SPEC §5.2): core's `suggestion` (the identity fields), then Forms' identity
+ * mark, then `inputType`, then the question's text. A box gets a question only when exactly one
+ * free question fits it; a question fills one box. `guessed` lists the boxes filled here.
+ */
+export function guessMapping(
+  questions: FormQuestion[],
+  suggestion: Partial<FormMapping> = {},
+): { mapping: FormMapping; guessed: MappingField[] } {
+  const ids = new Set(questions.map((q) => q.id));
+  const mapping: FormMapping = { ...EMPTY_MAPPING };
+  const used = new Set<string>();
+  const guessed: MappingField[] = [];
+  const take = (field: MappingField, id: string) => {
+    mapping[field] = id;
+    used.add(id);
+    guessed.push(field);
+  };
+  for (const { field } of MAPPING_FIELDS) {
+    const id = suggestion[field];
+    if (id && ids.has(id) && !used.has(id)) take(field, id);
+  }
+  const steps: ((q: FormQuestion) => MappingField | null)[] = [
+    (q) => (q.identity ? (IDENTITY[q.identity] ?? null) : null),
+    (q) => (q.inputType ? (INPUT_TYPE[q.inputType] ?? null) : null),
+    (q) => fieldFromText(q.question),
+  ];
+  for (const step of steps) {
+    const fits = new Map<MappingField, string[]>();
+    for (const q of questions) {
+      if (used.has(q.id)) continue;
+      const field = step(q);
+      if (!field || mapping[field]) continue;
+      fits.set(field, [...(fits.get(field) ?? []), q.id]);
+    }
+    for (const [field, found] of fits) {
+      if (found.length === 1) take(field, found[0]!);
+    }
+  }
+  return { mapping, guessed };
+}
+
+/** Why the mapping cannot be saved (core's rule), or null. */
+export function mappingIssue(mapping: FormMapping): string | null {
+  if (!mapping.email) return 'E-posta sorusunu seç.';
+  if (!mapping.fullName && !(mapping.firstName && mapping.lastName)) {
+    return 'Ad ve soyad ya da ad soyad sorusunu seç.';
+  }
+  const chosen = Object.values(mapping).filter(Boolean);
+  if (new Set(chosen).size !== chosen.length) return 'Bir soru iki kutuda seçili.';
+  return null;
+}
+
+/** Forms question types that cannot hold a name or an address: the boxes leave them out. */
+const NOT_TEXT = new Set([
+  'file',
+  'matrix',
+  'repeater',
+  'toggle',
+  'slider',
+  'date',
+  'time',
+  'multi_choice',
+]);
+
+/** Whether a question may hold a name or an e-mail. */
+export function mappableQuestion(q: FormQuestion): boolean {
+  return !NOT_TEXT.has(q.type);
+}
+
+/** The mapping, questions and send routes' refusals in the panel's words. */
+export function formMappingProblem(err: unknown, fallback: string): string {
+  if (err instanceof ProblemError) {
+    switch (err.code) {
+      case 'forms_pull_off':
+        return 'Forms bağlantısı kapalı.';
+      case 'forms_access_denied':
+        return 'Bu formun sahibi ya da düzenleyeni değilsin.';
+      case 'mapping_question_missing':
+        return 'Seçili bir soru artık formda yok.';
+      case 'mapping_invalid':
+        return 'Eşleme geçersiz: e-posta ile ad ve soyad ya da ad soyad gerekli.';
+      case 'form_not_listed':
+        return 'Etkinliği kaydet, sonra eşle.';
+      case 'form_not_found':
+        return 'Form Forms’ta bulunamadı.';
+      case 'forms_unavailable':
+        return 'Forms yanıt vermedi. Biraz sonra dene.';
+      case 'event_cancelled':
+        return 'Etkinlik iptal edildi; bilet yazılmaz.';
+      case 'event_ended':
+        return 'Etkinlik bitti; bilet yazılmaz.';
+      case 'ticket_job_not_found':
+        return 'Gönderim bulunamadı.';
+    }
+  }
+  return coreProblemMessage(err, fallback);
+}
+
+/** "3 bilet, 1 bekleme listesi, 2 yer yok": the parts that are not zero. */
+export function previewLine(p: Partial<RespondentTicketPreview & RespondentTicketResult>): string {
+  const parts: string[] = [];
+  const tickets = (p.tickets ?? 0) + (p.recorded ?? 0);
+  parts.push(`${tickets} bilet`);
+  if (p.waitlisted) parts.push(`${p.waitlisted} bekleme listesi`);
+  if (p.full) parts.push(`${p.full} yer yok`);
+  if (p.alreadyTicketed) parts.push(`${p.alreadyTicketed} zaten biletli`);
+  if (p.skipped) parts.push(`${p.skipped} atlandı`);
+  return parts.join(', ');
+}

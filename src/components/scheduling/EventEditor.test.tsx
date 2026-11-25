@@ -109,7 +109,7 @@ describe('EventEditor feedback form', () => {
       expect.objectContaining({ feedbackMode: 'event_with_sessions' }),
     );
 
-    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Yeni form' });
+    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'SkyForms' });
     await user.click(feedbackSkyforms!);
     // Skyforms brings the new form back to the feedback field
     const links = screen

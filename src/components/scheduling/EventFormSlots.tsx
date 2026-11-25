@@ -27,9 +27,12 @@ import {
   aliasYear,
   eventFormTitle,
   createSlotAlias,
+  skyformsPublicUrl,
   type EventFormMode,
   type EventFormSlot,
 } from '@/lib/event-forms';
+import { FormMappingPanel } from './FormMappingPanel';
+import { SkyformsFormPicker } from './SkyformsFormPicker';
 
 type EventFormSlotsProps = {
   slots: EventFormSlot[];
@@ -209,6 +212,26 @@ export function EventFormSlots({
     }
   }
 
+  const addressField = (slot: EventFormSlot) => (
+    <label className="block space-y-1">
+      <FieldLabel>Form adresi</FieldLabel>
+      <Field
+        type="url"
+        value={slot.url}
+        placeholder={slot.mode === 'skyforms' ? 'Form adresi' : 'https://'}
+        onChange={(e) => patchSlot(slot.key, { url: e.target.value })}
+        onBlur={() => {
+          if (slot.url.trim() && !slot.alias.trim() && !slot.urlId) {
+            void createShort({
+              ...slot,
+              alias: humanFormAlias(ownerTeam, eventName, aliasYear(startLocal), slotExtra(slot)),
+            });
+          }
+        }}
+      />
+    </label>
+  );
+
   return (
     <div className="space-y-4">
       {slots.map((slot) => (
@@ -251,12 +274,20 @@ export function EventFormSlots({
               name={`form-mode-${slot.key}`}
               value="skyforms"
               checked={slot.mode === 'skyforms'}
-              label="Yeni form"
+              label="SkyForms"
               onPick={() => patchSlot(slot.key, { mode: 'skyforms' })}
             />
           </div>
           {slot.mode === 'skyforms' ? (
             <div className="space-y-2">
+              {isFeedbackSlotKey(slot.key) ? null : (
+                <SkyformsFormPicker
+                  formId={skyformsFormId(slot.url, origin)}
+                  onPick={(form) =>
+                    patchSlot(slot.key, { url: skyformsPublicUrl(form.id, origin) })
+                  }
+                />
+              )}
               {bounceFor(slot) ? (
                 <a
                   href={bounceFor(slot) ?? undefined}
@@ -276,28 +307,17 @@ export function EventFormSlots({
               ) : null}
             </div>
           ) : null}
-          <label className="block space-y-1">
-            <FieldLabel>Form adresi</FieldLabel>
-            <Field
-              type="url"
-              value={slot.url}
-              placeholder={slot.mode === 'skyforms' ? 'Form adresi' : 'https://'}
-              onChange={(e) => patchSlot(slot.key, { url: e.target.value })}
-              onBlur={() => {
-                if (slot.url.trim() && !slot.alias.trim() && !slot.urlId) {
-                  void createShort({
-                    ...slot,
-                    alias: humanFormAlias(
-                      ownerTeam,
-                      eventName,
-                      aliasYear(startLocal),
-                      slotExtra(slot),
-                    ),
-                  });
-                }
-              }}
-            />
-          </label>
+          {slot.mode === 'skyforms' && !isFeedbackSlotKey(slot.key) ? (
+            // A Skyforms form is chosen above; an address by hand for an old Event
+            <details className="space-y-2">
+              <summary className="text-muted-foreground cursor-pointer text-[13px]/5">
+                Gelişmiş
+              </summary>
+              {addressField(slot)}
+            </details>
+          ) : (
+            addressField(slot)
+          )}
           <label className="block space-y-1">
             <FieldLabel>Kısa adres</FieldLabel>
             <Field
@@ -318,6 +338,15 @@ export function EventFormSlots({
                 skyformsFormId(slot.url, origin) ? newFormFrom(slot, inUse.formId) : null
               }
               onLeaveToSkyforms={onLeaveToSkyforms}
+            />
+          ) : null}
+          {slot.mode === 'skyforms' &&
+          !isFeedbackSlotKey(slot.key) &&
+          reservedEventId &&
+          skyformsFormId(slot.url, origin) ? (
+            <FormMappingPanel
+              eventId={reservedEventId}
+              formId={skyformsFormId(slot.url, origin) as string}
             />
           ) : null}
           {slot.alias ? (
