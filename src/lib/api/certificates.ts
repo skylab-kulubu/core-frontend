@@ -469,7 +469,8 @@ export const certificatesApi = {
       body: JSON.stringify({ mediaId, ownerTeam }),
     }),
   /** The font's checked WOFF2 (an archived font's too). */
-  fontFile: (id: string) => coreFetchBlob(`/v1/certificate-fonts/${encodeURIComponent(id)}/file`),
+  fontFile: (id: string, signal?: AbortSignal) =>
+    coreFetchBlob(`/v1/certificate-fonts/${encodeURIComponent(id)}/file`, { signal }),
   /** Archives it: drafts and published versions keep printing it; no new layer may take it. */
   archiveFont: (id: string) =>
     coreFetch<void>(`/v1/certificate-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' }),

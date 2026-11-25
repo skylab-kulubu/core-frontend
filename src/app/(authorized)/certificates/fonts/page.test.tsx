@@ -98,6 +98,25 @@ describe('Certificate fonts: the list', () => {
     expect(screen.getByText('400 italik')).toBeInTheDocument();
   });
 
+  it('drops a slower answer for a team no longer shown', async () => {
+    const user = userEvent.setup();
+    let answerClub: (rows: unknown[]) => void = () => {};
+    (certificatesApi.fonts as jest.Mock).mockImplementation((team?: string) =>
+      team === 'ARTLAB'
+        ? Promise.resolve([CLUB_FONT, TEAM_FONT])
+        : new Promise((resolve) => {
+            answerClub = resolve;
+          }),
+    );
+    render(<CertificateFontsPage />);
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Ekip' }), 'ARTLAB');
+    expect(await screen.findByText('Gotham')).toBeInTheDocument();
+    answerClub([]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByText('Gotham')).toBeInTheDocument();
+    expect(screen.queryByText('Henüz yazı tipi yok')).not.toBeInTheDocument();
+  });
+
   it('says when there is none yet', async () => {
     (certificatesApi.fonts as jest.Mock).mockResolvedValue([]);
     render(<CertificateFontsPage />);

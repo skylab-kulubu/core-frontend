@@ -3,7 +3,7 @@
 import { DataListTitle, MenuItem, cn, type DataListColumn } from '@skylab-kulubu/skylcn-ui';
 import { Archive, Check, RefreshCw, TriangleAlert, Upload } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { DataList } from '@/components/chrome/DataList';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListPage, RowMenu } from '@/components/chrome/ListPage';
@@ -130,13 +130,19 @@ export default function CertificateFontsPage() {
   const canArchive = (font: CertificateFont) =>
     canUpload && (font.ownerTeam ? uploadTeams.includes(font.ownerTeam) : clubUpload);
 
+  // Each read's number: an answer for a team no longer shown is dropped
+  const readId = useRef(0);
   const load = useCallback(() => {
+    const id = ++readId.current;
     setFailed(undefined);
     setFonts(null);
     certificatesApi
       .fonts(shownTeam || undefined)
-      .then(setFonts)
+      .then((rows) => {
+        if (id === readId.current) setFonts(rows);
+      })
       .catch((cause) => {
+        if (id !== readId.current) return;
         setFonts([]);
         setFailed(coreProblemMessage(cause, 'Yazı tipleri yüklenemedi'));
       });

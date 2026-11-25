@@ -41,25 +41,28 @@ export function missingLettersWarning(missing: string, recipientName = false) {
   return recipientName ? `${line}; adlarda başka yazı tipine düşebilir.` : `${line}.`;
 }
 
-// One load per file for the page's life; a failed one may be tried again
+// One load per file for the page's life; a failed or cancelled one may be tried again
 const loads = new Map<string, Promise<boolean>>();
 
 /**
  * Loads `font`'s file as `cf-<mediaId>` into `document.fonts`; true once the
- * browser can draw it. Without the FontFace API (jsdom) it resolves false.
+ * browser can draw it. The face covers every weight (`1 1000`), as core's page
+ * declares it, so the browser never draws a made-up bold of it. `signal`
+ * cancels the download (a page left before it came); a load already under way
+ * for another page is shared. Without the FontFace API (jsdom) it resolves false.
  */
-export function loadCertificateFont(font: CertificateFont): Promise<boolean> {
+export function loadCertificateFont(font: CertificateFont, signal?: AbortSignal): Promise<boolean> {
   const known = loads.get(font.mediaId);
   if (known) return known;
   if (typeof FontFace === 'undefined' || typeof document === 'undefined' || !document.fonts) {
     return Promise.resolve(false);
   }
   const load = certificatesApi
-    .fontFile(font.id)
+    .fontFile(font.id, signal)
     .then((blob) => blob.arrayBuffer())
     .then((buffer) => {
       const face = new FontFace(userFontName(font.mediaId), buffer, {
-        weight: String(font.weight),
+        weight: '1 1000',
         style: font.style,
       });
       return face.load();
@@ -78,24 +81,22 @@ export function loadCertificateFont(font: CertificateFont): Promise<boolean> {
 
 /**
  * Loads each of `fonts` and answers the Media ids loaded so far, so a page
- * draws again once a face is in.
+ * draws again once a face is in. Leaving the page cancels its downloads.
  */
 export function useLoadedCertificateFonts(fonts: readonly CertificateFont[]) {
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
   const key = fonts.map((font) => `${font.id}:${font.mediaId}`).join(',');
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     for (const font of fonts) {
-      void loadCertificateFont(font).then((ok) => {
-        if (!ok || cancelled) return;
+      void loadCertificateFont(font, controller.signal).then((ok) => {
+        if (!ok || controller.signal.aborted) return;
         setLoaded((current) =>
           current.has(font.mediaId) ? current : new Set([...current, font.mediaId]),
         );
       });
     }
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
     // `key` names the fonts; the array itself is a new one each render
   }, [key]);
   return loaded;

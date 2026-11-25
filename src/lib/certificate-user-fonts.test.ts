@@ -58,8 +58,31 @@ describe('certificate user fonts', () => {
     await expect(loadCertificateFont(FONT)).resolves.toBe(true);
     await expect(loadCertificateFont(FONT)).resolves.toBe(true);
     expect(certificatesApi.fontFile).toHaveBeenCalledTimes(1);
-    expect(certificatesApi.fontFile).toHaveBeenCalledWith('f-1');
-    expect(FontFaceMock).toHaveBeenCalledWith('cf-m-1', bytes, { weight: '700', style: 'italic' });
+    expect(certificatesApi.fontFile).toHaveBeenCalledWith('f-1', undefined);
+    expect(FontFaceMock).toHaveBeenCalledWith('cf-m-1', bytes, {
+      weight: '1 1000',
+      style: 'italic',
+    });
     expect(faces).toHaveLength(1);
+  });
+
+  it('cancels a download when its page goes, and lets a later page load it again', async () => {
+    const font = { ...FONT, id: 'f-2', mediaId: 'm-2' };
+    const fontFile = certificatesApi.fontFile as jest.Mock;
+    fontFile.mockReset();
+    fontFile.mockImplementationOnce(
+      (_id: string, signal: AbortSignal) =>
+        new Promise((_, reject) =>
+          signal.addEventListener('abort', () => reject(new Error('abort'))),
+        ),
+    );
+    const controller = new AbortController();
+    const first = loadCertificateFont(font, controller.signal);
+    controller.abort();
+    await expect(first).resolves.toBe(false);
+    expect(fontFile.mock.calls[0][1].aborted).toBe(true);
+    fontFile.mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(4)) });
+    await expect(loadCertificateFont(font)).resolves.toBe(true);
+    expect(fontFile).toHaveBeenCalledTimes(2);
   });
 });
