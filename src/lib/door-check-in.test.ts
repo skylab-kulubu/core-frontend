@@ -282,4 +282,22 @@ describe('doorConflict', () => {
     expect(doorConflict(new ProblemError(404, 'Not Found'))).toBeNull();
     expect(doorConflict(new Error('boom'))).toBeNull();
   });
+
+  it('reads the codes core gives its bare 409s (core docs/problem-codes.md)', () => {
+    expect(doorConflict(new ProblemError(409, 'Conflict', { code: 'already_checked_in' }))).toEqual({
+      kind: 'already',
+      title: 'Zaten girmiş',
+      text: 'Bu kişi bu oturuma zaten girmiş.',
+    });
+    expect(
+      doorConflict(new ProblemError(409, 'Ambiguous Match', { code: 'ambiguous_match' })),
+    ).toEqual({
+      kind: 'refused',
+      title: 'Birden fazla kişi',
+      text: 'Bu adla birden fazla kayıt var; e-posta ile dene.',
+    });
+    expect(
+      scanRefusal(new ProblemError(409, 'Conflict', { code: 'already_checked_in' })),
+    ).toMatchObject({ kind: 'already', title: 'Zaten girmiş' });
+  });
 });
