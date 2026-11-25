@@ -111,6 +111,9 @@ const PLACEMENT_DROPPED = 'Yerleşim kaydedilmedi; core güncel değil.';
 
 const PDF_PREVIEW_UNAVAILABLE = 'PDF önizlemesi şu an üretilemiyor.';
 
+/** How long a PDF pdf-tools could not draw waits before it is read again. */
+const PDF_RETRY_MS = 30_000;
+
 /**
  * A PDF background's size and text count from core (`/v1/certificate-assets/{id}/info`).
  * `legacy`: core without the asset routes (404); the PDF is drawn in a frame, as
@@ -374,6 +377,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     : backgroundIsImage
       ? backgroundUrl
       : undefined;
+  // The PDF in a frame, as before core drew it: an older core, or pdf-tools down
+  const pdfFramed = pdfLegacy || Boolean(pdfProblem?.unavailable && !backgroundSrc);
   const backgroundBox = backgroundSize
     ? placeBackground(
         draft.layout.width,
@@ -444,6 +449,27 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       });
     // loadPdfInfo only sets state; the maps say what is read already
   }, [backgroundIsPDF, backgroundId, pdfInfos, pdfPreviews]);
+
+  /** Forgets what pdf-tools could not draw (503) for a PDF: the effect above asks core anew. */
+  function retryUnavailablePdf(id: string | undefined) {
+    if (!id) return;
+    const drop = <T extends PdfInfo | PdfPreview>(current: Record<string, T>) => {
+      const entry = current[id];
+      if (entry?.state !== 'failed' || !entry.unavailable) return current;
+      const { [id]: _gone, ...rest } = current;
+      return rest;
+    };
+    setPdfInfos(drop);
+    setPdfPreviews(drop);
+  }
+
+  // pdf-tools down: try again every 30 s while the editor is open
+  const pdfUnavailable = Boolean(pdfProblem?.unavailable);
+  useEffect(() => {
+    if (!pdfUnavailable || !backgroundId) return;
+    const timer = window.setTimeout(() => retryUnavailablePdf(backgroundId), PDF_RETRY_MS);
+    return () => window.clearTimeout(timer);
+  }, [pdfUnavailable, backgroundId]);
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -933,6 +959,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   async function preview() {
+    retryUnavailablePdf(backgroundId);
     const id = canEdit ? (await save())?.id : savedId;
     if (!id) return;
     setBusy(true);
@@ -1240,8 +1267,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 className="pointer-events-none absolute inset-0 z-0 bg-black/10 motion-safe:animate-pulse"
               />
             ) : null}
-            {backgroundIsPDF && pdfLegacy && backgroundUrl ? (
-              // A frame, not an <object>: the panel's CSP allows no objects (object-src 'none')
+            {backgroundIsPDF && pdfFramed && backgroundUrl ? (
+              // A frame, not an <object>: the panel's CSP allows no objects (object-src 'none').
+              // Also while pdf-tools is down: core then prints a layout without a placement
+              // the old way, and the designer still sees the PDF
               <iframe
                 title="PDF arka plan önizlemesi"
                 src={`${backgroundUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}

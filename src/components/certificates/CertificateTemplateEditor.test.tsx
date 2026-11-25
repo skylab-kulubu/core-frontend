@@ -411,6 +411,11 @@ describe('CertificateTemplateEditor', () => {
     await screen.findByDisplayValue('PDF şablon');
     expect(await screen.findByText('PDF önizlemesi şu an üretilemiyor.')).toBeInTheDocument();
     expect(document.querySelector('[data-background-skeleton]')).toBeNull();
+    // The PDF is still seen, in a frame as before
+    expect(screen.getByTitle('PDF arka plan önizlemesi')).toHaveAttribute(
+      'src',
+      expect.stringContaining('sertifika.pdf#page=1'),
+    );
     expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /PDF önizle/ })).toBeEnabled();
 
@@ -419,6 +424,31 @@ describe('CertificateTemplateEditor', () => {
     expect(
       (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout.backgroundPlacement,
     ).toEqual({ fit: 'contain', x: 0.5, y: 0.5, scale: 1 });
+  });
+
+  it('reads a PDF again on PDF önizle once pdf-tools is back', async () => {
+    const user = userEvent.setup();
+    const down = new ProblemError(503, 'Service Unavailable', { code: 'pdf_tools_unavailable' });
+    (certificatesApi.assetInfo as jest.Mock).mockRejectedValueOnce(down);
+    (certificatesApi.assetPreview as jest.Mock).mockRejectedValueOnce(down);
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    (certificatesApi.previewTemplate as jest.Mock).mockResolvedValue(new Blob(['%PDF']));
+    const open = jest.spyOn(window, 'open').mockImplementation(() => null);
+    withPdfBackground();
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    expect(await screen.findByText('PDF önizlemesi şu an üretilemiyor.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /PDF önizle/ }));
+
+    await waitFor(() => expect(backgroundImage()).toHaveAttribute('src', 'blob:pdf-onizleme'));
+    expect(certificatesApi.assetInfo).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('PDF önizlemesi şu an üretilemiyor.')).toBeNull();
+    expect(screen.queryByTitle('PDF arka plan önizlemesi')).toBeNull();
+    expect(screen.getByLabelText('Yerleşim')).toHaveValue('fitHeight');
+    open.mockRestore();
   });
 
   it('says why core cannot read an encrypted PDF', async () => {
