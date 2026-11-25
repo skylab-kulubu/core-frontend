@@ -11,6 +11,7 @@ import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
+import { eventOrganizersApi } from '@/lib/api/event-organizers';
 import { ticketsApi } from '@/lib/api/tickets';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import {
@@ -439,6 +440,37 @@ describe('Event workspace layout', () => {
     expect([...owner.options].map((option) => option.value)).toEqual(
       expect.arrayContaining(['MOBIL', 'WEBLAB']),
     );
+  });
+
+  it('holds the event’s Kaydet while a Düzenleyenler change is unsaved', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    (eventOrganizersApi.get as jest.Mock).mockResolvedValueOnce({
+      ownerTeam: 'GECEKODU',
+      ownerRule: 'members',
+      teams: [
+        { code: 'WEBLAB', name: 'WEBLAB', management: 'members', visibility: 'co_organizer' },
+      ],
+      people: [],
+      canManage: true,
+    });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const section = document.getElementById('duzenleyenler') as HTMLElement;
+    await user.selectOptions(
+      await within(section).findByRole('combobox', { name: 'Görünüm' }),
+      'helper',
+    );
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+
+    expect(
+      await screen.findByText('Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.'),
+    ).toBeInTheDocument();
+    expect(saveEventWithSeason).not.toHaveBeenCalled();
+    // Dropping the change lets the event save again
+    await user.click(within(section).getByRole('button', { name: 'Vazgeç' }));
+    expect(
+      screen.queryByText('Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.'),
+    ).not.toBeInTheDocument();
   });
 
   it('says the event was saved from the edit page and goes back to the event', async () => {

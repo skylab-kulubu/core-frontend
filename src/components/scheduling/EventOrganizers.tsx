@@ -67,8 +67,11 @@ function teamName(team: PublicTeam): string {
  */
 export function EventOrganizers({
   event,
+  onDirtyChange,
 }: {
   event: Pick<CoreEvent, 'id' | 'ownerTeam' | 'startDate' | 'endDate'>;
+  /** Whether a change waits for "Düzenleyenleri kaydet": the event's Kaydet holds meanwhile. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
   const [draft, setDraft] = useState<Draft>({ teams: [], people: [] });
@@ -123,6 +126,9 @@ export function EventOrganizers({
       : draft;
   const dirty = loaded.status === 'ready' && !sameDraft(draft, saved);
   const guard = useUnsavedChanges(dirty && !saving);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const teamOptions = useMemo(() => {
     const taken = new Set(draft.teams.map((row) => row.code));

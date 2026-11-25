@@ -113,9 +113,13 @@ function EventsPageContent() {
   const ownerFilter = searchParams.get('ownerTeam')?.trim() || '';
   // `team`: the Events a team owns or is a named Co-organizer of (core docs/co-organizers.md)
   const teamFilter = ownerFilter ? '' : searchParams.get('team')?.trim() || '';
-  // Yönettiklerim (the Events the reader may edit) unless Tümü is chosen; a team's list shows it whole
+  // Yönettiklerim (the Events the reader may edit) unless Bütün etkinlikler is chosen; a team's
+  // list shows it whole
   const managedParam = searchParams.get('managed');
-  const managed = managedParam ? managedParam === 'true' : !ownerFilter && !teamFilter;
+  const managedAsked = managedParam ? managedParam === 'true' : !ownerFilter && !teamFilter;
+  // Who manages none (a DK member) gets every Event by default, not an empty list
+  const [managesNone, setManagesNone] = useState(false);
+  const managed = managedAsked && !(managesNone && !managedParam);
   const [params, setParams] = useListParams({ view: 'list' });
   const calendar = params.view === 'calendar';
   const statusFilter = eventStatusFilterFrom(searchParams.get('status'));
@@ -160,20 +164,24 @@ function EventsPageContent() {
     setLoading(true);
     try {
       // Drafts too: core adds the ones the reader may see (their editors, DK)
-      setEvents(
-        await eventsApi.list(ownerFilter || undefined, undefined, {
+      const read = (onlyManaged: boolean) =>
+        eventsApi.list(ownerFilter || undefined, undefined, {
           drafts: true,
           ...(teamFilter ? { team: teamFilter } : {}),
-          ...(managed ? { managed: true } : {}),
-        }),
-      );
+          ...(onlyManaged ? { managed: true } : {}),
+        });
+      let rows = await read(managedAsked);
+      const none = managedAsked && !managedParam && rows.length === 0;
+      if (none) rows = await read(false);
+      setManagesNone(none);
+      setEvents(rows);
       setError(null);
     } catch (err) {
       setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi'));
     } finally {
       setLoading(false);
     }
-  }, [ownerFilter, teamFilter, managed]);
+  }, [ownerFilter, teamFilter, managedAsked, managedParam]);
 
   useEffect(() => {
     void load();

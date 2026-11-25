@@ -142,6 +142,23 @@ describe('Etkinlikler listesi', () => {
     expect(eventsApi.list).toHaveBeenLastCalledWith(undefined, undefined, { drafts: true });
   });
 
+  it('lists every Event by default to who manages none (a DK member), not an empty list', async () => {
+    (eventsApi.list as jest.Mock).mockImplementation((_owner, _life, options) =>
+      Promise.resolve(options?.managed ? [] : rows),
+    );
+    render(<EventsPage />);
+    expect(await listed('Taslak Kodu')).toBeInTheDocument();
+    expect(eventsApi.list).toHaveBeenNthCalledWith(1, undefined, undefined, {
+      drafts: true,
+      managed: true,
+    });
+    expect(eventsApi.list).toHaveBeenLastCalledWith(undefined, undefined, { drafts: true });
+    expect(screen.getByRole('button', { name: 'Bütün etkinlikler' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   it('lists a team’s Events with those it co-organizes, all of them, from ?team=', async () => {
     at('team=WEBLAB');
     render(<EventsPage />);
