@@ -55,6 +55,7 @@ jest.mock('@/lib/api/certificates', () => ({
     assetText: jest.fn(),
     convertAssetText: jest.fn(),
     fonts: jest.fn(),
+    templateFonts: jest.fn(),
     fontFile: jest.fn(),
   },
 }));
@@ -145,6 +146,7 @@ describe('CertificateTemplateEditor', () => {
       groups: ['/ADMIN'],
     };
     (certificatesApi.fonts as jest.Mock).mockResolvedValue([]);
+    (certificatesApi.templateFonts as jest.Mock).mockResolvedValue([]);
     (certificatesApi.assetInfo as jest.Mock).mockResolvedValue(A4_PORTRAIT_PDF);
     (certificatesApi.assetPreview as jest.Mock).mockResolvedValue(
       new Blob(['png'], { type: 'image/png' }),
@@ -246,7 +248,7 @@ describe('CertificateTemplateEditor', () => {
       ...over,
     });
 
-    function withTeamTemplate(elements?: object[]) {
+    function withTeamTemplate(elements?: object[], extra: object[] = []) {
       const draft = emptyCertificateDraft();
       (certificatesApi.template as jest.Mock).mockResolvedValue({
         id: 'tpl-art',
@@ -258,7 +260,8 @@ describe('CertificateTemplateEditor', () => {
         draftLayout: { ...draft.layout, elements: elements ?? draft.layout.elements },
         system: false,
       });
-      (certificatesApi.fonts as jest.Mock).mockResolvedValue([
+      (certificatesApi.templateFonts as jest.Mock).mockResolvedValue([
+        ...extra,
         font({ id: 'f-club', mediaId: 'm-club' }),
         font({
           id: 'f-art',
@@ -287,7 +290,7 @@ describe('CertificateTemplateEditor', () => {
       withTeamTemplate();
       render(<CertificateTemplateEditor templateId="tpl-art" />);
       await screen.findByDisplayValue('ARTLAB şablonu');
-      await waitFor(() => expect(certificatesApi.fonts).toHaveBeenCalledWith('ARTLAB'));
+      await waitFor(() => expect(certificatesApi.templateFonts).toHaveBeenCalledWith('tpl-art'));
       await user.click(recipientLayer());
       const group = await screen.findByRole('group', { name: 'Ekip yazı tipleri' });
       expect(
@@ -318,13 +321,54 @@ describe('CertificateTemplateEditor', () => {
       expect(screen.getByLabelText('Kalınlık')).toBeEnabled();
     });
 
-    it('warns of a layer whose font is archived or not the team’s', async () => {
+    it('shows a used archived font apart, not to be chosen again, and warns', async () => {
       const user = userEvent.setup();
       const draft = emptyCertificateDraft();
       withTeamTemplate(
         draft.layout.elements.map((element) =>
           element.kind === 'recipientName'
             ? { ...element, fontFamily: 'Eski Yazı', fontMediaId: 'm-archived' }
+            : element,
+        ),
+        [
+          font({
+            id: 'f-old',
+            ownerTeam: 'ARTLAB',
+            family: 'Eski Yazı',
+            mediaId: 'm-archived',
+            archivedAt: '2026-11-24T10:00:00Z',
+            selectable: false,
+          }),
+        ],
+      );
+      render(<CertificateTemplateEditor templateId="tpl-art" />);
+      await screen.findByDisplayValue('ARTLAB şablonu');
+      await user.click(recipientLayer());
+      const option = await screen.findByRole('option', { name: 'Eski Yazı 700 · arşivlendi' });
+      expect(option.closest('optgroup')).toHaveAttribute('label', 'Bu şablonda kullanılan');
+      expect(option).toBeDisabled();
+      expect(
+        within(screen.getByRole('group', { name: 'Ekip yazı tipleri' }))
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).not.toContain('Eski Yazı 700 · arşivlendi');
+      expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-archived');
+      expect(
+        screen.getByText(
+          'Yazı tipi arşivlenmiş ya da bu ekibin değil; değiştirirsen geri seçilemez.',
+        ),
+      ).toBeInTheDocument();
+      // Drawn in its own file: the box names it first
+      expect(recipientBox().style.fontFamily).toMatch(/cf-m-archived/);
+    });
+
+    it('warns of a layer whose font the list does not name at all', async () => {
+      const user = userEvent.setup();
+      const draft = emptyCertificateDraft();
+      withTeamTemplate(
+        draft.layout.elements.map((element) =>
+          element.kind === 'recipientName'
+            ? { ...element, fontFamily: 'Bilinmeyen', fontMediaId: 'm-gone' }
             : element,
         ),
       );
@@ -336,7 +380,14 @@ describe('CertificateTemplateEditor', () => {
           'Yazı tipi arşivlenmiş ya da bu ekibin değil; değiştirirsen geri seçilemez.',
         ),
       ).toBeInTheDocument();
-      expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-archived');
+      expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-gone');
+    });
+
+    it("reads a new template's fonts by its team", async () => {
+      (certificatesApi.fonts as jest.Mock).mockResolvedValue([]);
+      render(<CertificateTemplateEditor />);
+      await waitFor(() => expect(certificatesApi.fonts).toHaveBeenCalledWith(undefined));
+      expect(certificatesApi.templateFonts).not.toHaveBeenCalled();
     });
   });
 

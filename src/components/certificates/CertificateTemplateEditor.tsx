@@ -449,15 +449,18 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     : undefined;
   const fittedPage = backgroundSize ? pageForBackground(backgroundSize) : null;
 
-  // The fonts the template may set text in: its team's and the club's, read
-  // again when the team is changed (after a pause, since it is typed)
+  // The fonts the template may set text in: its team's and the club's (a saved
+  // template's also those its layers use, marked), read again when the team is
+  // changed (after a pause, since it is typed)
   const fontTeam = draft.ownerTeam.trim();
   useEffect(() => {
     if (loading) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      certificatesApi
-        .fonts(fontTeam || undefined)
+      (savedId
+        ? certificatesApi.templateFonts(savedId)
+        : certificatesApi.fonts(fontTeam || undefined)
+      )
         .then((rows) => {
           if (!cancelled) setFonts(rows);
         })
@@ -470,24 +473,30 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [loading, fontTeam]);
-  const teamFonts = useMemo(
-    () => (fonts ?? []).filter((font) => font.ownerTeam === '' || font.ownerTeam === fontTeam),
-    [fonts, fontTeam],
-  );
+  }, [loading, fontTeam, savedId]);
+  // A new layer may take a current font of the template's team or the club's
+  const offered = (font: CertificateFont) =>
+    !font.archivedAt &&
+    font.selectable !== false &&
+    (font.ownerTeam === '' || font.ownerTeam === fontTeam);
+  const teamFonts = (fonts ?? []).filter(offered);
   const fontsByMedia = useMemo(
-    () => new Map(teamFonts.map((font) => [font.mediaId, font])),
-    [teamFonts],
+    () => new Map((fonts ?? []).map((font) => [font.mediaId, font])),
+    [fonts],
   );
-  // The canvas draws a layer in its uploaded font once the file is in
+  // The canvas draws a layer in its uploaded font once the file is in (an archived one too)
   const usedFonts = useMemo(
-    () => teamFonts.filter((font) => elements.some((el) => el.fontMediaId === font.mediaId)),
-    [teamFonts, elements],
+    () => (fonts ?? []).filter((font) => elements.some((el) => el.fontMediaId === font.mediaId)),
+    [fonts, elements],
   );
   useLoadedCertificateFonts(usedFonts);
+  // Listed because a layer uses it, but no new layer may take it
+  const keptFonts = usedFonts.filter((font) => !offered(font));
   const selectedFont = selected?.fontMediaId ? fontsByMedia.get(selected.fontMediaId) : undefined;
   // A layer's uploaded font the list no longer offers: archived, or not the team's
-  const selectedFontGone = Boolean(selected?.fontMediaId && fonts && !selectedFont);
+  const selectedFontGone = Boolean(
+    selected?.fontMediaId && fonts && (!selectedFont || !offered(selectedFont)),
+  );
 
   useEffect(() => {
     if (
@@ -1630,7 +1639,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                           return;
                         }
                         const font = fontsByMedia.get(value.slice(3));
-                        if (!font) return;
+                        if (!font || !offered(font)) return;
                         updateElement(selected.id, {
                           fontFamily: font.family,
                           fontMediaId: font.mediaId,
@@ -1639,7 +1648,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                         });
                       }}
                     >
-                      {teamFonts.length || selected.fontMediaId ? (
+                      {teamFonts.length ? (
                         <optgroup label="Ekip yazı tipleri">
                           {teamFonts.map((font) => (
                             <option
@@ -1653,6 +1662,15 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                               }}
                             >
                               {`${font.family} ${fontFaceLabel(font)} · ${font.ownerTeam || 'Kulüp'}`}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {keptFonts.length || (selected.fontMediaId && !selectedFont) ? (
+                        <optgroup label="Bu şablonda kullanılan">
+                          {keptFonts.map((font) => (
+                            <option key={font.mediaId} value={`cf:${font.mediaId}`} disabled>
+                              {`${font.family} ${fontFaceLabel(font)} · ${font.archivedAt ? 'arşivlendi' : font.ownerTeam || 'Kulüp'}`}
                             </option>
                           ))}
                           {selected.fontMediaId && !selectedFont ? (

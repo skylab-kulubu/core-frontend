@@ -53,6 +53,13 @@ const teamLabel = (ownerTeam: string) => ownerTeam || 'Kulüp geneli';
 
 /** A refused upload in a short line; core's `font_exists` names the font already there. */
 function uploadProblem(cause: unknown) {
+  // pdf-tools checks every font: without it nothing can be added for now
+  if (
+    cause instanceof ProblemError &&
+    (cause.code === 'pdf_tools_unavailable' || (cause.status === 503 && !cause.code))
+  ) {
+    return 'Yazı tipi şu an denetlenemiyor; biraz sonra tekrar dene.';
+  }
   return coreProblemMessage(cause, 'Yazı tipi yüklenemedi');
 }
 

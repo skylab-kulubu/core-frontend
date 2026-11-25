@@ -63,6 +63,13 @@ export type CertificateFont = {
   missingTurkish: string;
   uploadedBy?: string | null;
   createdAt: string;
+  /**
+   * `?template=` also lists the fonts the template's layers use that it may no
+   * longer take (archived, another team's), marked: set when archived.
+   */
+  archivedAt?: string;
+  /** false: listed only because the template uses it; no new layer may take it. */
+  selectable?: boolean;
 };
 
 /** How the background sits on the page (core `Layout.backgroundPlacement`). */
@@ -447,6 +454,14 @@ export const certificatesApi = {
   fonts: (team?: string) =>
     coreFetch<CertificateFont[]>(
       '/v1/certificate-fonts' + (team ? `?team=${encodeURIComponent(team)}` : ''),
+    ),
+  /**
+   * The fonts a saved template's editor offers: its team's and the club's
+   * current ones, and those its layers use that it may no longer take, marked.
+   */
+  templateFonts: (templateId: string) =>
+    coreFetch<CertificateFont[]>(
+      `/v1/certificate-fonts?template=${encodeURIComponent(templateId)}`,
     ),
   /** An uploaded `certificate_font` Media, checked by pdf-tools, kept as the team's font. */
   createFont: (mediaId: string, ownerTeam: string) =>
