@@ -297,7 +297,7 @@ export const COMPETITOR_CONFLICT = {
 const TITLE_MESSAGES: Record<string, string> = {
   'Ambiguous Match': 'Bu adla birden fazla kayıt var; e-posta ile dene.',
   'No mail recipients': 'Mail gönderilecek alıcı yok.',
-  'Skymail is not configured': 'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
+  'SkyNotify is not configured': 'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
 };
 
 const SERVER_FAILED = 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.';
