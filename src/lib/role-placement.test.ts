@@ -15,9 +15,9 @@ describe('rolePlacement (core authz.RolePlacement)', () => {
     ['/UYELER/YK/SEKRETER', false, 'privileged_subgroup'],
     // Role groups: a leaf right under /ROLLER
     ['/ROLLER', true, 'roles_root'],
-    ['/ROLLER/SKYMAIL-OKUR', false, null],
-    ['/ROLLER/SKYMAIL-OKUR', true, 'roles_group_not_leaf'],
-    ['/ROLLER/SKYMAIL-OKUR/ALT', false, 'roles_nested'],
+    ['/ROLLER/SKYNOTIFY-OKUR', false, null],
+    ['/ROLLER/SKYNOTIFY-OKUR', true, 'roles_group_not_leaf'],
+    ['/ROLLER/SKYNOTIFY-OKUR/ALT', false, 'roles_nested'],
     // The members' tree
     ['/UYELER', true, 'members_root'],
     ['/UYELER/ARGE', true, 'area'],
