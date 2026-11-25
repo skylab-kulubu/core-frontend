@@ -210,6 +210,7 @@ describe('Event workspace layout', () => {
         'e1',
         // the Event as read: only what Skyforms changed is sent
         expect.objectContaining({ formUrl: '' }),
+        { notifyTicketHolders: false },
       ),
     );
     expect(await screen.findByText('Form bağlandı.')).toBeInTheDocument();
@@ -399,7 +400,107 @@ describe('Event workspace layout', () => {
       expect.objectContaining({ name: 'GeceKodu' }),
       'e1',
       expect.objectContaining({ name: 'GeceKodu', location: 'YTÜ' }),
+      // Nothing asked: the answer still goes, so core tells nobody
+      { notifyTicketHolders: false },
     );
+  });
+
+  describe('a new time or place of a published event (core event.updated)', () => {
+    // jsdom has no PointerEvent; base-ui's Checkbox sends one to its hidden input on a click
+    beforeAll(() => {
+      if (!('PointerEvent' in window)) {
+        Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+      }
+    });
+
+    async function moveTheEvent(user: ReturnType<typeof userEvent.setup>) {
+      await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+      await screen.findByRole('heading', { name: 'GeceKodu' });
+      const place = await screen.findByRole('combobox', { name: 'Konum' });
+      await user.clear(place);
+      await user.type(place, 'Oditoryum');
+      await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+      return screen.findByRole('alertdialog', { name: 'Etkinliğin yeri değişti' });
+    }
+
+    beforeEach(() => {
+      signInAs(['/UYELER/YK']);
+      (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, ticketCount: 3 });
+      (saveEventWithSeason as jest.Mock).mockResolvedValue('e1');
+    });
+
+    it('asks whether the ticket holders are told, ticked, and saves with the answer', async () => {
+      const user = userEvent.setup();
+      const question = await moveTheEvent(user);
+      const box = within(question).getByRole('checkbox', {
+        name: 'Bilet sahiplerine bildir (3 kişi)',
+      });
+      expect(box).toBeChecked();
+      expect(saveEventWithSeason).not.toHaveBeenCalled();
+
+      await user.click(within(question).getByRole('button', { name: 'Kaydet' }));
+
+      await waitFor(() =>
+        expect(saveEventWithSeason).toHaveBeenCalledWith(
+          expect.objectContaining({ location: 'Oditoryum' }),
+          'e1',
+          expect.objectContaining({ location: 'YTÜ' }),
+          { notifyTicketHolders: true },
+        ),
+      );
+      expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1');
+    });
+
+    it('saves without telling when the box is cleared', async () => {
+      const user = userEvent.setup();
+      const question = await moveTheEvent(user);
+      await user.click(within(question).getByRole('checkbox'));
+      await user.click(within(question).getByRole('button', { name: 'Kaydet' }));
+
+      await waitFor(() =>
+        expect(saveEventWithSeason).toHaveBeenCalledWith(
+          expect.anything(),
+          'e1',
+          expect.anything(),
+          { notifyTicketHolders: false },
+        ),
+      );
+    });
+
+    it('saves nothing when the question is left', async () => {
+      const user = userEvent.setup();
+      const question = await moveTheEvent(user);
+      await user.click(within(question).getByRole('button', { name: 'Vazgeç' }));
+
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+      expect(saveEventWithSeason).not.toHaveBeenCalled();
+      expect(workspaceRouter.push).not.toHaveBeenCalledWith('/events/e1');
+    });
+
+    it('does not ask for a draft', async () => {
+      const user = userEvent.setup();
+      (eventsApi.get as jest.Mock).mockResolvedValue({
+        ...workspaceEvent,
+        status: 'draft',
+        ticketCount: 3,
+      });
+      await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+      await screen.findByRole('heading', { name: 'GeceKodu' });
+      const place = await screen.findByRole('combobox', { name: 'Konum' });
+      await user.clear(place);
+      await user.type(place, 'Oditoryum');
+      await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+
+      await waitFor(() =>
+        expect(saveEventWithSeason).toHaveBeenCalledWith(
+          expect.objectContaining({ location: 'Oditoryum' }),
+          'e1',
+          expect.anything(),
+          { notifyTicketHolders: false },
+        ),
+      );
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
   });
 
   it('asks before deleting a draft, then offers Geri al that reopens it', async () => {

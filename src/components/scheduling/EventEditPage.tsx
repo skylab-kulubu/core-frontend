@@ -8,6 +8,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-notice-question';
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
@@ -56,6 +57,7 @@ export function EventEditPage() {
   const guard = useUnsavedChanges(dirty && !saving);
   const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
+  const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);
@@ -83,7 +85,11 @@ export function EventEditPage() {
         error={editor.error ?? issue}
         onSubmit={form.handleSubmit(
           async ({ event: values }) => {
-            if (await editor.save(values)) {
+            // A new time or place of a published event: ask whether its ticket holders are told
+            const notice = editor.changeNotice(values);
+            const notifyTicketHolders = notice ? await askChangeNotice(notice) : false;
+            if (notifyTicketHolders === null) return;
+            if (await editor.save(values, { notifyTicketHolders })) {
               guard.allowLeave();
               router.push(overview);
             }
@@ -130,6 +136,7 @@ export function EventEditPage() {
         />
       </EventFormLayout>
       {guard.dialog}
+      {changeNoticeDialog}
     </>
   );
 }
