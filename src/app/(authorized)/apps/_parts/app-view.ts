@@ -12,7 +12,7 @@ export function assignmentCount(app: Pick<AppSummary, 'groups' | 'users'>): stri
   return `${app.groups} grup · ${app.users} kişi`;
 }
 
-/** Two letters for the app's mark: "SkyMail" → "SM", "Hesap merkezi" → "HM". */
+/** Two letters for the app's mark: "SkyNotify" → "SN", "Hesap merkezi" → "HM". */
 export function appInitials(name: string): string {
   const words = name
     .trim()

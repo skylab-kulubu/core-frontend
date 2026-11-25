@@ -264,11 +264,13 @@ describe('certificate mail', () => {
   });
 
   it('says why a mail waits or failed, never its code', () => {
-    expect(mailReason({ status: 'failed', errorCode: 'skymail_unreachable' })).toBe(
-      "SkyMail'e ulaşılamadı",
+    expect(mailReason({ status: 'failed', errorCode: 'skynotify_unreachable' })).toBe(
+      "SkyNotify'a ulaşılamadı",
     );
-    expect(mailReason({ status: 'queued', errorCode: 'skymail_503' })).toBe('SkyMail hata verdi');
-    expect(mailReason({ status: 'failed', errorCode: 'skymail_400' })).toBe('SkyMail reddetti');
+    expect(mailReason({ status: 'queued', errorCode: 'skynotify_503' })).toBe(
+      'SkyNotify hata verdi',
+    );
+    expect(mailReason({ status: 'failed', errorCode: 'skynotify_400' })).toBe('SkyNotify reddetti');
     expect(mailReason({ status: 'failed', errorCode: 'expired' })).toBe('Süresi doldu');
     expect(mailReason({ status: 'failed', errorCode: 'new_code' })).toBe('Gönderilemedi');
     expect(mailReason({ status: 'sent' })).toBeNull();
