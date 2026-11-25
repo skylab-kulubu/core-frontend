@@ -40,6 +40,7 @@ import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
+import { EventTicketImageFields } from './EventTicketImageFields';
 
 export type EventFormState = EventBody & {
   seasonId: string;
@@ -564,6 +565,11 @@ export function EventEditor({
             />
           </div>
         ) : null}
+        <EventTicketImageFields
+          eventId={value.reservedId}
+          coverImageId={value.coverImageId ?? ''}
+          knownMedia={knownMedia}
+        />
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
         {notices.sertifika}
