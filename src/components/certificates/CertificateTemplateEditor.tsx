@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import './certificate-fonts.css';
 import {
   ArrowDown,
   ArrowUp,
