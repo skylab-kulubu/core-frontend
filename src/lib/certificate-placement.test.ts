@@ -215,6 +215,14 @@ describe('svgNaturalSize (core-backend svgSize)', () => {
     expect(svgNaturalSize('<svg viewBox="0 0 0x10 5.">')).toBeNull();
   });
 
+  it('reads only the head of a large file for the root', () => {
+    const late = `<!--${'x'.repeat(70 * 1024)}--><svg width="10" height="10">`;
+    expect(svgNaturalSize(late)).toBeNull();
+    const started = Date.now();
+    expect(svgNaturalSize(`<!--${'<!--'.repeat(200_000)}`)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it('has no size without either, or when the root is not an svg', () => {
     expect(svgNaturalSize('<svg width="50%" height="2em">')).toBeNull();
     expect(svgNaturalSize('<html><svg width="10" height="10"></svg></html>')).toBeNull();

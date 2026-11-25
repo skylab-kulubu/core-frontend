@@ -201,6 +201,9 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   // Image backgrounds' natural sizes by address, which the placement needs
   const [backgroundSizes, setBackgroundSizes] = useState<Record<string, Size>>({});
+  // Image backgrounds whose size could not be read (core: background_size_unknown), apart
+  // from those still being read: they keep no placement and show no placement controls
+  const [unsizedBackgrounds, setUnsizedBackgrounds] = useState<Record<string, true>>({});
   const [fitNote, setFitNote] = useState<FitNote>();
   // Core dropped the placement on save: it predates it (core-backend #446)
   const [placementDropped, setPlacementDropped] = useState(false);
@@ -234,6 +237,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const backgroundIsPDF = backgroundType === 'application/pdf';
   const backgroundIsImage = Boolean(backgroundUrl) && Boolean(backgroundType?.startsWith('image/'));
   const backgroundSize = backgroundUrl ? backgroundSizes[backgroundUrl] : undefined;
+  const backgroundUnsized = Boolean(backgroundUrl && unsizedBackgrounds[backgroundUrl]);
   const storedPlacement = draft.layout.backgroundPlacement ?? LEGACY_IMAGE_PLACEMENT;
   const placement = normalizePlacement(placementDropped ? LEGACY_IMAGE_PLACEMENT : storedPlacement);
   const backgroundBox = backgroundSize
@@ -248,7 +252,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const fittedPage = backgroundSize ? pageForBackground(backgroundSize) : null;
 
   useEffect(() => {
-    if (!backgroundUrl || !backgroundType?.startsWith('image/') || backgroundSizes[backgroundUrl]) {
+    if (
+      !backgroundUrl ||
+      !backgroundType?.startsWith('image/') ||
+      backgroundSizes[backgroundUrl] ||
+      unsizedBackgrounds[backgroundUrl]
+    ) {
       return;
     }
     let cancelled = false;
@@ -256,11 +265,13 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       .then((size) => {
         if (!cancelled) setBackgroundSizes((current) => ({ ...current, [backgroundUrl]: size }));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setUnsizedBackgrounds((current) => ({ ...current, [backgroundUrl]: true }));
+      });
     return () => {
       cancelled = true;
     };
-  }, [backgroundUrl, backgroundType, backgroundSizes]);
+  }, [backgroundUrl, backgroundType, backgroundSizes, unsizedBackgrounds]);
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -404,6 +415,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   function updatePlacement(patch: Partial<BackgroundPlacement>) {
+    if (backgroundUnsized) return;
     updateLayout({ backgroundPlacement: { ...storedPlacement, ...patch } });
   }
 
@@ -519,18 +531,22 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       const url = publicMediaUrl(media.url);
       const pdf = media.type === 'application/pdf';
       // The natural size, read before the page is fitted (K1)
-      const size = media.type?.startsWith('image/')
+      const image = Boolean(media.type?.startsWith('image/'));
+      const size = image
         ? await backgroundNaturalSize(url, media.type, file).catch(() => undefined)
         : undefined;
       if (size) setBackgroundSizes((current) => ({ ...current, [url]: size }));
+      if (image && !size) setUnsizedBackgrounds((current) => ({ ...current, [url]: true }));
       setBackgroundUrl(url);
       setBackgroundType(media.type);
       setFitNote(undefined);
-      // A PDF is placed by ticket 07; until then it keeps no placement
+      // A PDF is placed by ticket 07; until then it keeps no placement. Nor does an
+      // image of unknown size: core prints it the old way (cover) and refuses a placement
       const before: CertificateLayout = {
         ...latestDraft.current.layout,
         backgroundMediaId: media.id,
-        backgroundPlacement: pdf ? undefined : latestDraft.current.layout.backgroundPlacement,
+        backgroundPlacement:
+          pdf || (image && !size) ? undefined : latestDraft.current.layout.backgroundPlacement,
       };
       // A background of another ratio than the page's fits the page to it (K1)
       const after = size
@@ -575,12 +591,17 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
   /**
    * The draft as core takes it: the placement in range, and none for a PDF
-   * background (ticket 07 places those) or once core dropped it.
+   * background (ticket 07 places those), an image of unknown size, or once core
+   * dropped it.
    */
   function draftToSave(): CertificateTemplateDraft {
     const { backgroundPlacement, ...layout } = draft.layout;
     const keep =
-      backgroundPlacement && layout.backgroundMediaId && !backgroundIsPDF && !placementDropped;
+      backgroundPlacement &&
+      layout.backgroundMediaId &&
+      !backgroundIsPDF &&
+      !backgroundUnsized &&
+      !placementDropped;
     return {
       ...draft,
       layout: keep
@@ -1345,7 +1366,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               {backgroundIsPDF ? (
                 <p className="text-subtle-foreground text-[13px]/5">PDF yerleşimi yakında</p>
               ) : null}
-              {backgroundIsImage && !placementDropped ? (
+              {backgroundIsImage && backgroundUnsized ? (
+                <p className="text-subtle-foreground text-[13px]/5">Görselin boyutu okunamadı.</p>
+              ) : null}
+              {backgroundIsImage && !backgroundUnsized && !placementDropped ? (
                 <>
                   <label className="block space-y-1">
                     <FieldLabel>Yerleşim</FieldLabel>
@@ -1366,7 +1390,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   <div className="space-y-1">
                     <FieldLabel>Konum</FieldLabel>
                     <div className="flex items-center gap-2">
-                      <div className="grid grid-cols-3 gap-1">
+                      <div role="group" aria-label="Konum" className="grid grid-cols-3 gap-1">
                         {POSITIONS.map(([x, y, label]) => (
                           <button
                             key={label}
@@ -1374,7 +1398,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                             aria-label={label}
                             aria-pressed={placement.x === x && placement.y === y}
                             disabled={!canEdit || placement.fit === 'fill'}
-                            className="border-border hover:bg-accent aria-pressed:bg-skylab-500/25 aria-pressed:border-skylab-400 size-6 rounded border disabled:opacity-40"
+                            className="border-border-strong hover:bg-accent aria-pressed:bg-skylab-500/30 aria-pressed:border-skylab-400 focus-visible:ring-skylab-500/60 size-6 rounded border outline-none focus-visible:ring-2 disabled:opacity-40"
                             onClick={() => updatePlacement({ x, y })}
                           />
                         ))}
@@ -1410,7 +1434,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   </label>
                 </>
               ) : null}
-              {backgroundIsImage ? (
+              {backgroundIsImage && !backgroundUnsized ? (
                 <>
                   <button
                     type="button"

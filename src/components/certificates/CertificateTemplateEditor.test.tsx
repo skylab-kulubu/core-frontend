@@ -71,6 +71,10 @@ function withImageBackground(placement?: object) {
 }
 
 const backgroundImage = () => document.querySelector('img[data-background]') as HTMLElement;
+/** A layer's button in the layer list (not its box on the canvas). */
+const layerButton = (name: string) =>
+  screen.getAllByRole('button', { name }).find((button) => button.className.includes('truncate'))!;
+
 /** A side of the background's box on the canvas, in % of the page. */
 const bgBox = (side: 'left' | 'top' | 'width' | 'height') =>
   Number.parseFloat(backgroundImage().style[side]);
@@ -404,6 +408,83 @@ describe('CertificateTemplateEditor', () => {
     expect(screen.getByLabelText('Sayfa ölçüsü')).toHaveValue('a4Landscape');
     expect(screen.getByLabelText('Yerleşim')).toHaveValue('cover');
     expect(backgroundImage()).toHaveAttribute('src', IMAGE_BACKGROUND.url);
+    // The layers are back where they were on the A4 page
+    await user.click(layerButton('Katılımcı adı'));
+    expect(screen.getByLabelText('X')).toHaveValue(140);
+    expect(screen.getByLabelText('Y')).toHaveValue(285);
+    expect(screen.getByLabelText('WIDTH')).toHaveValue(843);
+  });
+
+  it('offers Geri al only until the next edit', async () => {
+    const user = userEvent.setup();
+    (mediaApi.upload as jest.Mock).mockResolvedValue(IMAGE_BACKGROUND);
+    (backgroundNaturalSize as jest.Mock).mockResolvedValue({ width: 1600, height: 900 });
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.upload(
+      screen.getByLabelText('Arka plan görseli yükle'),
+      new File(['png'], 'arka-plan.png', { type: 'image/png' }),
+    );
+    expect(await screen.findByRole('button', { name: 'Geri al' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Yerleşim'), 'contain');
+
+    expect(screen.queryByRole('button', { name: 'Geri al' })).toBeNull();
+    expect(screen.getByText(/Sayfa arka plana uyduruldu/)).toBeInTheDocument();
+  });
+
+  it('keeps no placement for a background of unknown size, and hides the controls', async () => {
+    const user = userEvent.setup();
+    withImageBackground({ fit: 'contain', x: 0, y: 0, scale: 1 });
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    render(<CertificateTemplateEditor templateId="tpl-1" />);
+
+    await screen.findByDisplayValue('Görselli şablon');
+    await waitFor(() => expect(bgBox('top')).toBeCloseTo(0, 2));
+    expect(screen.getByLabelText('Yerleşim')).toHaveValue('contain');
+
+    // An SVG with width="100%" and no viewBox: core cannot size it either
+    const svg = {
+      ...IMAGE_BACKGROUND,
+      id: 'bg-svg',
+      type: 'image/svg+xml',
+      url: 'https://cdn.example.test/files/yuzde.svg',
+    };
+    (mediaApi.upload as jest.Mock).mockResolvedValue(svg);
+    (backgroundNaturalSize as jest.Mock).mockRejectedValue(new Error('background size unknown'));
+    await user.upload(
+      screen.getByLabelText('Arka plan görseli yükle'),
+      new File(['<svg width="100%"/>'], 'yuzde.svg', { type: 'image/svg+xml' }),
+    );
+
+    expect(await screen.findByText('Görselin boyutu okunamadı.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Konum' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sayfayı arka plana uydur' })).toBeNull();
+    // Drawn as core prints it without a placement: covered, centred
+    expect(backgroundImage()).toHaveAttribute('src', svg.url);
+    expect(backgroundImage().style.objectFit).toBe('cover');
+
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+    await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+    const sent = (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout;
+    expect(sent.backgroundMediaId).toBe('bg-svg');
+    expect(sent).not.toHaveProperty('backgroundPlacement');
+  });
+
+  it('shows the placement controls while the size is still being read', async () => {
+    withImageBackground({ fit: 'contain', x: 0.5, y: 0.5, scale: 1 });
+    (backgroundNaturalSize as jest.Mock).mockReturnValue(new Promise(() => undefined));
+    render(<CertificateTemplateEditor templateId="tpl-1" />);
+
+    await screen.findByDisplayValue('Görselli şablon');
+    expect(await screen.findByLabelText('Yerleşim')).toHaveValue('contain');
+    const grid = screen.getByRole('group', { name: 'Konum' });
+    expect(within(grid).getAllByRole('button')).toHaveLength(9);
+    expect(screen.queryByText('Görselin boyutu okunamadı.')).toBeNull();
   });
 
   it('only stretches a background of the page ratio, and cannot fit a 20:1 one', async () => {

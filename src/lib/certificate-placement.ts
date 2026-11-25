@@ -194,6 +194,9 @@ export function placeableSize(size: Size | null | undefined): size is Size {
   );
 }
 
+/** How much of an SVG is read for its root element (64 KiB). */
+const SVG_HEAD = 64 * 1024;
+
 /** Absolute CSS units in px (96 per inch). */
 const SVG_UNITS: Record<string, number> = {
   px: 1,
@@ -228,22 +231,54 @@ function svgLength(value: string | null) {
 }
 
 /**
+ * The first element's name and attribute text, past the XML declaration,
+ * comments, DOCTYPE and CDATA; read with indexOf, in one pass over the head.
+ */
+function svgRoot(head: string): { name: string; attributes: string } | null {
+  const skips: [string, string][] = [
+    ['<!--', '-->'],
+    ['<?', '?>'],
+    ['<![CDATA[', ']]>'],
+    ['<!', '>'],
+  ];
+  let at = head.indexOf('<');
+  while (at >= 0) {
+    const skip = skips.find(([open]) => head.startsWith(open, at));
+    if (!skip) break;
+    const end = head.indexOf(skip[1], at + skip[0].length);
+    if (end < 0) return null;
+    at = head.indexOf('<', end + skip[1].length);
+  }
+  if (at < 0) return null;
+  const tag = /^<([A-Za-z_][\w.:-]*)/.exec(head.slice(at, at + 256));
+  if (!tag) return null;
+  // The attributes run to the first > outside quotes
+  let quote = '';
+  for (let i = at + tag[0].length; i < head.length; i++) {
+    const c = head[i];
+    if (quote) {
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '>') {
+      return { name: tag[1], attributes: head.slice(at + tag[0].length, i) };
+    }
+  }
+  return null;
+}
+
+/**
  * An SVG's natural size as core reads it (core-backend svgSize): the root
  * element's width and height in an absolute unit; when one is missing or in a
  * relative unit, the viewBox gives it, keeping the viewBox's ratio. Null when
  * the root is not an svg or neither gives a size.
  */
 export function svgNaturalSize(text: string): Size | null {
-  // The first element, past the XML declaration, comments, DOCTYPE and CDATA
-  const body = text.replace(
-    /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>/g,
-    '',
-  );
-  const root = /<([A-Za-z_][\w.:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/.exec(body);
-  if (!root || root[1].split(':').pop() !== 'svg') return null;
+  const root = svgRoot(text.slice(0, SVG_HEAD));
+  if (!root || root.name.split(':').pop() !== 'svg') return null;
   const attr = (name: string) => {
     const match = new RegExp(`(?:^|\\s)(?:[\\w.-]+:)?${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(
-      root[2],
+      root.attributes,
     );
     return match ? (match[1] ?? match[2] ?? '') : null;
   };
