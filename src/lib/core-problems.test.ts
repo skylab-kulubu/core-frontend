@@ -276,6 +276,9 @@ describe('coreProblemMessage for any core refusal', () => {
     expect(coreProblemMessage(new ProblemError(422, 'No mail recipients'), 'x')).toBe(
       'Mail gönderilecek alıcı yok.',
     );
+    expect(coreProblemMessage(new ProblemError(503, 'SkyNotify is not configured'), 'x')).toBe(
+      'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
+    );
   });
 
   it('lets the caller word a status for its own action', () => {
@@ -301,7 +304,7 @@ describe('coreProblemMessage for any core refusal', () => {
     expect(
       coreProblemMessage(
         new ProblemError(503, 'Service Unavailable', {
-          detail: 'mail: lists forbidden — grant skymail:lists:write on core SA',
+          detail: 'mail: lists forbidden — grant skynotify:lists:write on core SA',
         }),
         'x',
       ),

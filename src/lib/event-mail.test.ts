@@ -6,7 +6,7 @@ import {
   openEventMail,
 } from './event-mail';
 
-describe('event mail skymail links', () => {
+describe('event mail SkyNotify links', () => {
   const original = process.env.NEXT_PUBLIC_MAIL_URL;
   const listId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
@@ -15,7 +15,7 @@ describe('event mail skymail links', () => {
     else process.env.NEXT_PUBLIC_MAIL_URL = original;
   });
 
-  it('defaults the Skymail origin when the public env is empty', () => {
+  it('defaults the SkyNotify origin when the public env is empty', () => {
     expect(mailOrigin('')).toBe(DEFAULT_MAIL_ORIGIN);
     expect(mailOrigin('   ')).toBe(DEFAULT_MAIL_ORIGIN);
     expect(mailOrigin(undefined)).toBe('https://iletisim.yildizskylab.com');
@@ -25,13 +25,13 @@ describe('event mail skymail links', () => {
     );
   });
 
-  it('opens skymail compose with the Event mailing list', () => {
+  it('opens SkyNotify compose with the Event mailing list', () => {
     expect(eventMailComposeHref(listId)).toBe(
       'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
   });
 
-  it('opens the skymail list show page for that Event', () => {
+  it('opens the SkyNotify list show page for that Event', () => {
     expect(eventMailListHref(listId)).toBe(
       'https://iletisim.yildizskylab.com/mailing-lists/show/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     );
@@ -44,7 +44,7 @@ describe('event mail skymail links', () => {
     );
   });
 
-  it('syncs the Event list then opens Skymail compose for that list', async () => {
+  it('syncs the Event list then opens SkyNotify compose for that list', async () => {
     const opened: string[] = [];
     await openEventMail(
       'e1',

@@ -32,7 +32,7 @@ import type { UserDto } from '@/types/api';
  * name first (cut at about 16 characters), then a chevron, the avatar last against the corner
  * (as in Entra and the Azure portal), in a thin-bordered pill 36 px high;
  * on phones the avatar alone in a 36 px touch target. Hover, open and focus are drawn.
- * skymail-frontend's UserMenu carries the same classes; skylcn-ui's AccountMenu should too (Kaan).
+ * skynotify-frontend's UserMenu carries the same classes; skylcn-ui's AccountMenu should too (Kaan).
  */
 const ACCOUNT_BUTTON =
   'group text-foreground hover:bg-accent data-popup-open:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background flex size-9 shrink-0 items-center justify-center rounded-full border border-transparent outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 md:w-auto md:justify-start md:gap-2 md:border-border md:bg-muted/40 md:pr-px md:pl-2.5 md:hover:border-border-strong md:data-popup-open:border-border-strong';
