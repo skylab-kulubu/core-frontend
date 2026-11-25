@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Skeleton } from '@skylab-kulubu/skylcn-ui';
 import { useRouter } from 'next/navigation';
 import './certificate-fonts.css';
 import {
@@ -1234,10 +1233,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               />
             ) : null}
             {backgroundIsPDF && !pdfLegacy && !pdfProblem && !backgroundSrc ? (
-              <Skeleton
+              // The canvas is white in both themes: a pulse of its own, not the panel's shimmer
+              <div
                 data-background-skeleton=""
                 aria-hidden
-                className="pointer-events-none absolute inset-0 z-0 rounded-none"
+                className="pointer-events-none absolute inset-0 z-0 bg-black/10 motion-safe:animate-pulse"
               />
             ) : null}
             {backgroundIsPDF && pdfLegacy && backgroundUrl ? (
