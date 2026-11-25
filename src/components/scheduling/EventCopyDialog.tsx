@@ -150,7 +150,11 @@ export function EventCopyDialog({
         err instanceof ProblemError && err.code === 'audit_unavailable'
           ? 'Kayıt açılamadı; kopya oluşturulmadı. Biraz sonra tekrar dene.'
           : coreProblemMessage(err, 'Etkinlik kopyalanamadı', {
-              403: 'Bu ekipte etkinlik oluşturma yetkin yok.',
+              // A Co-organizer team's copy is refused while core's Co-organizer switch is off
+              403:
+                source.viewer?.via === 'coTeam'
+                  ? 'Ortak düzenleyen olarak kopyalama şu an kapalı.'
+                  : 'Bu ekipte etkinlik oluşturma yetkin yok.',
               404: 'Kaynak etkinlik bulunamadı; silinmiş olabilir.',
               409: 'Bu kopya başka bir ekipte açılmış. Diyaloğu kapatıp yeniden aç.',
             }),

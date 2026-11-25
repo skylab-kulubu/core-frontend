@@ -218,6 +218,30 @@ describe('viewer.can (the Event’s own decision)', () => {
     expect(viewerDecision({ viewer }, 'competitor.update')).toBe(false);
   });
 
+  it('reads certificate.read and door.checkIn once core sends them; issuing reads the certificates', () => {
+    expect(
+      viewerDecision(
+        { viewer: { via: 'coTeam', can: { 'certificate.read': false } } },
+        'certificate.read',
+      ),
+    ).toBe(false);
+    expect(
+      viewerDecision(
+        { viewer: { via: 'coTeam', can: { 'certificate.issue': true } } },
+        'certificate.read',
+      ),
+    ).toBe(true);
+    expect(
+      viewerDecision(
+        { viewer: { via: 'coTeam', can: { 'certificate.revoke': true } } },
+        'certificate.read',
+      ),
+    ).toBe(true);
+    expect(
+      viewerDecision({ viewer: { via: 'coTeam', can: { 'door.checkIn': true } } }, 'door.checkIn'),
+    ).toBe(true);
+  });
+
   it('falls back to the team’s decision without viewer or for a key core does not send', () => {
     expect(viewerDecision({}, 'event.update')).toBeUndefined();
     expect(viewerDecision({ viewer: { via: 'owner', can: {} } }, 'door.checkIn')).toBeUndefined();

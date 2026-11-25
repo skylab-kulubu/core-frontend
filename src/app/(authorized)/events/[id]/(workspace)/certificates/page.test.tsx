@@ -2,8 +2,15 @@ import { screen, within } from '@testing-library/react';
 import React from 'react';
 import EventCertificatesPage from '@/app/(authorized)/events/[id]/(workspace)/certificates/page';
 import { certificatesApi } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
+import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
-import { primeEventWorkspace, renderEventTab, signInAs } from '@/test/event-workspace';
+import {
+  primeEventWorkspace,
+  renderEventTab,
+  signInAs,
+  workspaceEvent,
+} from '@/test/event-workspace';
 
 jest.mock('next/navigation', () => jest.requireActual('@/test/event-workspace').navigationModule);
 jest.mock('@/context/AuthContext', () => jest.requireActual('@/test/event-workspace').authModule);
@@ -83,5 +90,37 @@ describe('Event Sertifikalar tab', () => {
     expect(screen.queryByRole('button', { name: 'Elle ver' })).not.toBeInTheDocument();
     expect(certificatesApi.summary).not.toHaveBeenCalled();
     expect(certificatesApi.attendance).not.toHaveBeenCalled();
+  });
+
+  it('keeps the rule and the template for an editor core lets bind but not read the figures', async () => {
+    // core #456: every editor of the Event binds its template; the figures stay with the roles
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      viewer: { via: 'owner', can: { 'event.update': true, 'certificate.template.assign': true } },
+    });
+    (certificatesApi.summary as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    (certificatesApi.attendance as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    (certificatesApi.eventTemplate as jest.Mock).mockResolvedValue({
+      resolution: {
+        source: 'ownerTeam',
+        template: {
+          id: 't-team',
+          name: 'GECEKODU sertifikası',
+          ownerTeam: 'GECEKODU',
+          system: false,
+        },
+        version: { version: 2 },
+      },
+      eventTemplate: null,
+      choices: [],
+    });
+    await renderEventTab(<EventCertificatesPage />, '/events/e1/certificates');
+
+    expect(await screen.findByRole('heading', { name: 'Kural' })).toBeInTheDocument();
+    expect(await screen.findByText('GECEKODU ekip şablonu · v2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ekip şablonlarından seç' })).toBeInTheDocument();
+    expect(screen.queryByText('Sertifika bilgileri yüklenemedi')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
   });
 });
