@@ -4,6 +4,7 @@ import {
   normalizePlacement,
   pageForBackground,
   placeBackground,
+  placeableSize,
   ratioDiffers,
   resizeCertificateLayout,
   svgNaturalSize,
@@ -37,7 +38,7 @@ const layout = (width: number, height: number): CertificateLayout => ({
 describe('placeBackground', () => {
   it('has the golden table core tests too', () => {
     expect(table.tolerance).toBe(0.01);
-    expect(table.cases.length).toBe(270);
+    expect(table.cases.length).toBe(600);
   });
 
   it.each(table.cases.map((c) => [c.name, c] as const))('%s', (_name, c) => {
@@ -118,6 +119,38 @@ describe('fitting the page to the background', () => {
     expect(fitPageToBackground(page, { width: 1123, height: 794 })?.elements).toBe(page.elements);
   });
 
+  it('keeps the QR square around its centre, on a fitted page and on a preset', () => {
+    const page = layout(1123, 794);
+    page.elements.push({
+      id: 'qr',
+      kind: 'verificationQr',
+      x: 910,
+      y: 610,
+      width: 130,
+      height: 130,
+    });
+    const centre = (
+      e: { x: number; y: number; width: number; height: number },
+      w: number,
+      h: number,
+    ) => [(e.x + e.width / 2) / w, (e.y + e.height / 2) / h];
+    const [cx, cy] = centre(page.elements[2], 1123, 794);
+    for (const size of [
+      { width: 1920, height: 1080 },
+      { width: 794, height: 1123 },
+      { width: 842, height: 1191 },
+    ]) {
+      const qr = fitPageToBackground(page, size)!.elements[2];
+      expect(qr.width).toBe(qr.height);
+      expect(qr.width).toBe(Math.round(130 * Math.min(size.width / 1123, size.height / 794)));
+      const [x, y] = centre(qr, size.width, size.height);
+      expect(Math.abs(x - cx) * size.width).toBeLessThanOrEqual(1);
+      expect(Math.abs(y - cy) * size.height).toBeLessThanOrEqual(1);
+    }
+    const portrait = resizeCertificateLayout(page, { width: 794, height: 1123 }).elements[2];
+    expect(portrait).toMatchObject({ width: 92, height: 92 });
+  });
+
   it('keeps a resized layer inside the page', () => {
     const resized = resizeCertificateLayout(layout(1123, 794), { width: 1056, height: 816 });
     for (const element of resized.elements) {
@@ -132,7 +165,7 @@ describe('fitting the page to the background', () => {
   });
 });
 
-describe('svgNaturalSize', () => {
+describe('svgNaturalSize (core-backend svgSize)', () => {
   it('reads width and height in px or without a unit', () => {
     expect(svgNaturalSize('<svg width="800px" height="600" viewBox="0 0 8 6"></svg>')).toEqual({
       width: 800,
@@ -143,9 +176,20 @@ describe('svgNaturalSize', () => {
   it('takes the size of an SVG with only a viewBox from the viewBox', () => {
     expect(
       svgNaturalSize(
-        '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0 1600 900">',
+        '<?xml version="1.0"?><!-- logo --><svg xmlns="http://www.w3.org/2000/svg" viewBox="0,0 1600 900">',
       ),
     ).toEqual({ width: 1600, height: 900 });
+  });
+
+  it('reads px, pt, pc, mm, cm and in', () => {
+    const side = (value: string) =>
+      svgNaturalSize(`<svg width="${value}" height="${value}">`)?.width;
+    expect(side('96px')).toBe(96);
+    expect(side('72pt')).toBeCloseTo(96, 9);
+    expect(side('6pc')).toBe(96);
+    expect(side('25.4mm')).toBeCloseTo(96, 9);
+    expect(side('2.54cm')).toBeCloseTo(96, 9);
+    expect(side('1IN')).toBe(96);
   });
 
   it('keeps the viewBox ratio when one side is missing or in a relative unit', () => {
@@ -159,16 +203,30 @@ describe('svgNaturalSize', () => {
     });
   });
 
-  it('reads absolute units as the browser does', () => {
-    expect(svgNaturalSize('<svg width="2in" height="72pt">')).toEqual({ width: 192, height: 96 });
-    expect(svgNaturalSize('<svg width="10 cm" height="5." viewBox="0 0 4 2">')).toEqual({
-      width: 4,
-      height: 2,
-    });
+  it('takes only a CSS number glued to its unit', () => {
+    // "10 cm", "0x1p4", "5." and "Inf" are no lengths: the viewBox gives the size
+    for (const bad of ['10 cm', '0x1p4', '5.', 'Inf', '1e400']) {
+      expect(svgNaturalSize(`<svg width="${bad}" height="${bad}" viewBox="0 0 4 2">`)).toEqual({
+        width: 4,
+        height: 2,
+      });
+    }
+    expect(svgNaturalSize('<svg width=".5e1" height="+3">')).toEqual({ width: 5, height: 3 });
+    expect(svgNaturalSize('<svg viewBox="0 0 0x10 5.">')).toBeNull();
   });
 
-  it('has no size without either', () => {
+  it('has no size without either, or when the root is not an svg', () => {
     expect(svgNaturalSize('<svg width="50%" height="2em">')).toBeNull();
-    expect(svgNaturalSize('<html></html>')).toBeNull();
+    expect(svgNaturalSize('<html><svg width="10" height="10"></svg></html>')).toBeNull();
+  });
+});
+
+describe('placeableSize', () => {
+  it('takes a side of 0.001 to 1e6 px, as core does', () => {
+    expect(placeableSize({ width: 0.001, height: 1e6 })).toBe(true);
+    expect(placeableSize({ width: 0.0009, height: 10 })).toBe(false);
+    expect(placeableSize({ width: 10, height: 1e6 + 1 })).toBe(false);
+    expect(placeableSize(svgNaturalSize('<svg width="0.0000001" height="10">'))).toBe(false);
+    expect(placeableSize(null)).toBe(false);
   });
 });

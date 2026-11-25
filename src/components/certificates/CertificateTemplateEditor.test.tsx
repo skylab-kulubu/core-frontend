@@ -456,4 +456,18 @@ describe('CertificateTemplateEditor', () => {
     expect(sent).not.toHaveProperty('backgroundPlacement');
     expect(sent.backgroundMediaId).toBeUndefined();
   });
+  it('keeps the QR square when the page size changes', async () => {
+    const user = userEvent.setup();
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.selectOptions(screen.getByLabelText('Sayfa ölçüsü'), 'a4Portrait');
+    const qr = screen
+      .getAllByRole('button', { name: 'Doğrulama QR' })
+      .find((button) => button.className.includes('truncate'));
+    await user.click(qr!);
+
+    expect(screen.getByLabelText('WIDTH')).toHaveValue(92);
+    expect(screen.getByLabelText('HEIGHT')).toHaveValue(92);
+  });
 });

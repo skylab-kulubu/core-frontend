@@ -113,7 +113,8 @@ export function pageForBackground(source: Size): Size | null {
 
 /**
  * The layout on a page of another size: every layer scaled with the page
- * (its font with the smaller of the two scales) and kept inside the page.
+ * (its font with the smaller of the two scales) and kept inside the page. The
+ * verification QR keeps its shape: scaled by the smaller scale around its centre.
  */
 export function resizeCertificateLayout(layout: CertificateLayout, size: Size): CertificateLayout {
   const scaleX = size.width / layout.width;
@@ -125,6 +126,20 @@ export function resizeCertificateLayout(layout: CertificateLayout, size: Size): 
     height: size.height,
     orientation: size.width >= size.height ? 'landscape' : 'portrait',
     elements: layout.elements.map((element) => {
+      if (element.kind === 'verificationQr') {
+        // A QR stays square: one scale for both sides, its centre where the page puts it
+        const width = Math.max(1, Math.min(size.width, Math.round(element.width * fontScale)));
+        const height = Math.max(1, Math.min(size.height, Math.round(element.height * fontScale)));
+        const centreX = (element.x + element.width / 2) * scaleX;
+        const centreY = (element.y + element.height / 2) * scaleY;
+        return {
+          ...element,
+          x: Math.max(0, Math.min(size.width - width, Math.round(centreX - width / 2))),
+          y: Math.max(0, Math.min(size.height - height, Math.round(centreY - height / 2))),
+          width,
+          height,
+        };
+      }
       const x = Math.min(size.width - 1, Math.round(element.x * scaleX));
       const y = Math.min(size.height - 1, Math.round(element.y * scaleY));
       return {
@@ -159,6 +174,26 @@ export function fitPageToBackground(
   return { ...resized, backgroundPlacement: { fit: 'fill', x: 0.5, y: 0.5, scale: 1 } };
 }
 
+/**
+ * The smallest and largest natural side, in px, core places a background of
+ * (background_size_unknown outside); the same bounds as core-backend's.
+ */
+export const BACKGROUND_SIDE_MIN = 1e-3;
+export const BACKGROUND_SIDE_MAX = 1e6;
+
+/** A natural size core can place a background of. */
+export function placeableSize(size: Size | null | undefined): size is Size {
+  return Boolean(
+    size &&
+    Number.isFinite(size.width) &&
+    Number.isFinite(size.height) &&
+    size.width >= BACKGROUND_SIDE_MIN &&
+    size.height >= BACKGROUND_SIDE_MIN &&
+    size.width <= BACKGROUND_SIDE_MAX &&
+    size.height <= BACKGROUND_SIDE_MAX,
+  );
+}
+
 /** Absolute CSS units in px (96 per inch). */
 const SVG_UNITS: Record<string, number> = {
   px: 1,
@@ -170,21 +205,22 @@ const SVG_UNITS: Record<string, number> = {
 };
 const CSS_NUMBER = /^[+-]?(\d+(\.\d+)?|\.\d+)([eE][+-]?\d+)?$/;
 
-/** A CSS <number>, or NaN for what a browser does not take as one ("5.", "0x10", "Inf"). */
+/** A CSS <number>, or NaN for what a browser does not take as one ("5.", "0x1p4", "Inf"). */
 function cssNumber(value: string) {
-  return CSS_NUMBER.test(value) ? Number(value) : Number.NaN;
+  const n = CSS_NUMBER.test(value) ? Number(value) : Number.NaN;
+  return Number.isFinite(n) ? n : Number.NaN;
 }
 
 /**
  * An SVG width or height in px; 0 when it is missing, not a number or in a
- * relative unit (%, em). The unit follows the number with no space.
+ * relative unit (%, em). The unit follows the number with no space ("10 cm"
+ * is no length).
  */
 function svgLength(value: string | null) {
   let text = (value ?? '').trim().toLowerCase();
   let factor = 1;
-  const unit = SVG_UNITS[text.slice(-2)];
-  if (text.length > 2 && unit) {
-    factor = unit;
+  if (text.length > 2 && Object.hasOwn(SVG_UNITS, text.slice(-2))) {
+    factor = SVG_UNITS[text.slice(-2)];
     text = text.slice(0, -2);
   }
   const n = cssNumber(text);
@@ -192,24 +228,29 @@ function svgLength(value: string | null) {
 }
 
 /**
- * An SVG's natural size as core reads it: the root's width and height in an
- * absolute unit; when one is missing or in a relative unit, the viewBox gives
- * it, keeping the viewBox's ratio. Null when neither gives one.
+ * An SVG's natural size as core reads it (core-backend svgSize): the root
+ * element's width and height in an absolute unit; when one is missing or in a
+ * relative unit, the viewBox gives it, keeping the viewBox's ratio. Null when
+ * the root is not an svg or neither gives a size.
  */
 export function svgNaturalSize(text: string): Size | null {
-  const root = /<svg\b([^>]*)>/i.exec(text.replace(/<!--[\s\S]*?-->/g, ''));
-  if (!root) return null;
+  // The first element, past the XML declaration, comments, DOCTYPE and CDATA
+  const body = text.replace(
+    /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>/g,
+    '',
+  );
+  const root = /<([A-Za-z_][\w.:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/.exec(body);
+  if (!root || root[1].split(':').pop() !== 'svg') return null;
   const attr = (name: string) => {
-    const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(root[1]);
+    const match = new RegExp(`(?:^|\\s)(?:[\\w.-]+:)?${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(
+      root[2],
+    );
     return match ? (match[1] ?? match[2] ?? '') : null;
   };
   const w = svgLength(attr('width'));
   const h = svgLength(attr('height'));
-  const box = (attr('viewBox') ?? '')
-    .split(/[\s,]+/)
-    .filter(Boolean)
-    .map(cssNumber);
-  const [vw, vh] = box.length === 4 ? [box[2], box[3]] : [0, 0];
+  const box = (attr('viewBox') ?? '').split(/[ ,\t\n\r]+/).filter(Boolean);
+  const [vw, vh] = box.length === 4 ? [cssNumber(box[2]), cssNumber(box[3])] : [0, 0];
   if (w > 0 && h > 0) return { width: w, height: h };
   if (!(vw > 0 && vh > 0)) return null;
   if (w > 0) return { width: w, height: (w * vh) / vw };
