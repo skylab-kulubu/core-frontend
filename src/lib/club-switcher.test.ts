@@ -16,8 +16,8 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
-        href: 'https://iletisim.yildizskylab.com',
+        label: 'SkyNotify',
+        href: 'https://notify.yildizskylab.com',
       },
     ]);
   });
@@ -31,8 +31,8 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
-        href: 'https://iletisim.yildizskylab.com',
+        label: 'SkyNotify',
+        href: 'https://notify.yildizskylab.com',
       },
     ]);
   });
@@ -55,7 +55,7 @@ describe('clubSwitcherLinks', () => {
   it('defaults Mail when the public env is empty at build', () => {
     process.env.NEXT_PUBLIC_MAIL_URL = '';
     expect(clubSwitcherLinks('admin').find((link) => link.id === 'mail')?.href).toBe(
-      'https://iletisim.yildizskylab.com',
+      'https://notify.yildizskylab.com',
     );
   });
 
@@ -72,7 +72,7 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
+        label: 'SkyNotify',
         href: 'https://mail.example.test',
       },
     ]);
