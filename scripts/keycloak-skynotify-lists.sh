@@ -186,27 +186,27 @@ finish() {
 
 TOTAL_STAGES=3
 
-banner "Core → Skymail lists"
+banner "Core → SkyNotify lists"
 
-stage "SKYMAIL_URL already on core"
-say "Event mail lists use the same Skymail origin as welcome mail. No new SMTP secret."
+stage "SKYNOTIFY_URL already on core"
+say "Event mail lists use the same SkyNotify origin as welcome mail. No new SMTP secret."
 say "Core calls POST /v1/mailing_lists and recipients with the existing Keycloak client-credentials token."
-ask SKYMAIL_URL "Core SKYMAIL_URL (internal, e.g. http://skymail-app:3000):"
-write_env SKYMAIL_URL "$SKYMAIL_URL"
-pause "SKYMAIL_URL is set on the core process?"
+ask SKYNOTIFY_URL "Core SKYNOTIFY_URL (internal, e.g. http://skynotify-app:3000):"
+write_env SKYNOTIFY_URL "$SKYNOTIFY_URL"
+pause "SKYNOTIFY_URL is set on the core process?"
 
-stage "skymail list roles exist"
+stage "skynotify list roles exist"
 open_url "https://e.yildizskylab.com/admin/master/console/#/e-skylab/clients"
-step "Realm is e-skylab. Open the skymail client → Roles."
-step "Confirm skymail:access, skymail:lists:read, and skymail:lists:write exist."
+step "Realm is e-skylab. Open the skynotify client → Roles."
+step "Confirm skynotify:access, skynotify:lists:read, and skynotify:lists:write exist."
 step "Do not create a second IdP or a new confidential client."
-pause "List roles are on skymail?"
+pause "List roles are on skynotify?"
 
 stage "Core service account mapping"
 open_url "https://e.yildizskylab.com/admin/master/console/#/e-skylab/clients"
 step "Open the core client → Service accounts roles (or Users → service-account-core)."
-step "Assign client roles: Client = skymail, Roles = skymail:access, skymail:lists:read, skymail:lists:write."
-step "Keep skymail:mails:write if welcome or certificate mail already works."
+step "Assign client roles: Client = skynotify, Roles = skynotify:access, skynotify:lists:read, skynotify:lists:write."
+step "Keep skynotify:mails:write if welcome or certificate mail already works."
 step "Restart core if it caches the service token."
 pause "lists:read and lists:write assigned to core?"
 

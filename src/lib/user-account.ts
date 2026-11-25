@@ -43,7 +43,7 @@ const CLIENTS: Record<string, string> = {
   admin: 'Yönetim paneli',
   'account-center': 'Hesap merkezi',
   skyforms: 'Form',
-  skymail: 'SkyMail',
+  skynotify: 'SkyNotify',
   'frontend-main': 'Site',
   'frontend-arge': 'AR-GE sitesi',
   'sky-app': 'SkyApp',
