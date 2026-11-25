@@ -19,12 +19,12 @@ import { uploadMediaBatch } from '@/lib/media-upload-batch';
 import {
   BAND_HEIGHT_MM,
   BAND_WIDTH_MM,
-  MAX_ZOOM,
   centreOf,
   cropAt,
   cropFits,
   fullCrop,
   imagePlacement,
+  maxZoom,
   moveCrop,
   zoomOf,
 } from '@/lib/ticket-image-crop';
@@ -82,7 +82,11 @@ export function EventTicketImageFields({
 }: EventTicketImageFieldsProps) {
   const [saved, setSaved] = useState<TicketImage | null>(null);
   const [draft, setDraft] = useState<Draft>({ source: 'auto' });
-  const [state, setState] = useState<'loading' | 'ready' | 'unsaved' | 'failed'>('loading');
+  const [state, setState] = useState<'loading' | 'ready' | 'unsaved' | 'unsupported' | 'failed'>(
+    'loading',
+  );
+  // The image address that would not load, to say so instead of an empty band.
+  const [brokenSrc, setBrokenSrc] = useState('');
   const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -105,7 +109,13 @@ export function EventTicketImageFields({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setState(err instanceof ProblemError && err.status === 404 ? 'unsaved' : 'failed');
+        // core says event_not_found for an Event not saved yet; an older core without the
+        // route answers 404 without a code.
+        if (err instanceof ProblemError && err.status === 404) {
+          setState(err.code === 'event_not_found' ? 'unsaved' : 'unsupported');
+        } else {
+          setState('failed');
+        }
       });
     return () => {
       cancelled = true;
@@ -139,6 +149,9 @@ export function EventTicketImageFields({
   }
   if (state === 'unsaved') {
     return <Shell>Etkinlik kaydedilince seçilir.</Shell>;
+  }
+  if (state === 'unsupported') {
+    return <Shell>Bu özellik henüz sunucuda yok.</Shell>;
   }
   if (state === 'failed' || !eventId) {
     return <Shell>Bilet görseli yüklenemedi.</Shell>;
@@ -242,12 +255,17 @@ export function EventTicketImageFields({
           </button>
         </div>
       ) : null}
-      {src ? (
+      {src && brokenSrc === src ? (
+        <p role="alert" className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+          Görsel yüklenemedi.
+        </p>
+      ) : src ? (
         <BandCropper
           src={src}
           crop={crop}
           editable={draft.source !== 'auto'}
           onNatural={(w, h) => setNatural({ src, w, h })}
+          onError={() => setBrokenSrc(src)}
           onCrop={(next) => setDraft((prev) => ({ ...prev, crop: next }))}
           size={size}
         />
@@ -258,7 +276,7 @@ export function EventTicketImageFields({
             : 'Kapak yok: şerit etkinliğin rengini alır.'}
         </p>
       ) : null}
-      {saved?.coverChanged && draft.source === 'cover' && !dirty ? (
+      {saved?.coverChanged && draft.source === 'cover' ? (
         <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
           Kapak değişti: bilet yeni kapağın ortasını gösteriyor. Bölümü yeniden seçip kaydet.
         </p>
@@ -292,6 +310,7 @@ type BandCropperProps = {
   size: { w: number; h: number } | null;
   editable: boolean;
   onNatural: (w: number, h: number) => void;
+  onError: () => void;
   onCrop: (crop: TicketImageCrop) => void;
 };
 
@@ -299,7 +318,7 @@ type BandCropperProps = {
  * The band at its own shape showing the crop: drag to move it, the slider to zoom, the arrow keys
  * to nudge. What it shows is what the PDF prints.
  */
-function BandCropper({ src, crop, size, editable, onNatural, onCrop }: BandCropperProps) {
+function BandCropper({ src, crop, size, editable, onNatural, onError, onCrop }: BandCropperProps) {
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; crop: TicketImageCrop } | null>(null);
 
@@ -321,11 +340,12 @@ function BandCropper({ src, crop, size, editable, onNatural, onCrop }: BandCropp
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!editable || !crop) return;
     const step = 0.05;
+    // An arrow moves the picture as a drag does: right shows more of its left.
     const moves: Record<string, [number, number]> = {
-      ArrowLeft: [-step * crop.w, 0],
-      ArrowRight: [step * crop.w, 0],
-      ArrowUp: [0, -step * crop.h],
-      ArrowDown: [0, step * crop.h],
+      ArrowLeft: [step * crop.w, 0],
+      ArrowRight: [-step * crop.w, 0],
+      ArrowUp: [0, step * crop.h],
+      ArrowDown: [0, -step * crop.h],
     };
     const move = moves[e.key];
     if (!move) return;
@@ -345,8 +365,10 @@ function BandCropper({ src, crop, size, editable, onNatural, onCrop }: BandCropp
           editable ? 'Bilet şeridi: sürükleyerek ya da ok tuşlarıyla kaydır' : 'Bilet şeridi'
         }
         tabIndex={editable ? 0 : undefined}
-        className={`border-border bg-muted relative w-full touch-none overflow-hidden rounded-md border select-none ${
-          editable ? 'cursor-grab active:cursor-grabbing' : ''
+        className={`border-border bg-muted relative w-full overflow-hidden rounded-md border select-none ${
+          editable
+            ? 'focus-visible:ring-ring focus-visible:ring-offset-background cursor-grab touch-none outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 active:cursor-grabbing'
+            : ''
         }`}
         style={{ aspectRatio: `${BAND_WIDTH_MM} / ${BAND_HEIGHT_MM}` }}
         onPointerDown={onPointerDown}
@@ -360,6 +382,7 @@ function BandCropper({ src, crop, size, editable, onNatural, onCrop }: BandCropp
           alt=""
           draggable={false}
           onLoad={(e) => onNatural(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+          onError={onError}
           className="pointer-events-none absolute max-w-none"
           style={crop ? imagePlacement(crop) : { visibility: 'hidden' }}
         />
@@ -370,7 +393,7 @@ function BandCropper({ src, crop, size, editable, onNatural, onCrop }: BandCropp
           <input
             type="range"
             min={1}
-            max={MAX_ZOOM}
+            max={maxZoom(size.w, size.h)}
             step={0.01}
             value={zoom}
             className="w-48"

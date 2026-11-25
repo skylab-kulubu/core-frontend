@@ -5,8 +5,14 @@ export const BAND_WIDTH_MM = 182;
 export const BAND_HEIGHT_MM = 24;
 export const BAND_ASPECT = BAND_WIDTH_MM / BAND_HEIGHT_MM;
 
-/** How far the cropper zooms in: an eighth of the widest strip. */
+/** How far the cropper zooms in at most: an eighth of the widest strip. */
 export const MAX_ZOOM = 8;
+
+/** core's smallest region side (ticketimage minCropSide), in fractions of the image. */
+export const MIN_CROP_SIDE = 0.01;
+
+/** The narrowest region, in pixels: core's narrowest band (bandMinWidth). */
+export const MIN_CROP_PIXELS = 600;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -21,9 +27,25 @@ export function fullCrop(w: number, h: number): TicketImageCrop {
   return { x: 0, y: (1 - ch) / 2, w: 1, h: ch };
 }
 
-/** The crop's zoom against the widest strip, 1 to MAX_ZOOM. */
+/**
+ * How far an image of w × h pixels zooms in: up to MAX_ZOOM, while the region keeps each side at
+ * least MIN_CROP_SIDE of the image and is at least MIN_CROP_PIXELS wide. An image whose widest
+ * strip is narrower than that does not zoom.
+ */
+export function maxZoom(w: number, h: number): number {
+  const full = fullCrop(w, h);
+  const limit = Math.min(
+    MAX_ZOOM,
+    full.w / MIN_CROP_SIDE,
+    full.h / MIN_CROP_SIDE,
+    (full.w * w) / MIN_CROP_PIXELS,
+  );
+  return Math.max(1, limit);
+}
+
+/** The crop's zoom against the widest strip, 1 to maxZoom. */
 export function zoomOf(crop: TicketImageCrop, w: number, h: number): number {
-  return clamp(fullCrop(w, h).w / crop.w, 1, MAX_ZOOM);
+  return clamp(fullCrop(w, h).w / crop.w, 1, maxZoom(w, h));
 }
 
 /** The band-shaped region at zoom whose centre is (cx, cy), kept inside the image. */
@@ -35,7 +57,7 @@ export function cropAt(
   cy: number,
 ): TicketImageCrop {
   const full = fullCrop(w, h);
-  const z = clamp(zoom, 1, MAX_ZOOM);
+  const z = clamp(zoom, 1, maxZoom(w, h));
   const cw = full.w / z;
   const ch = full.h / z;
   return {

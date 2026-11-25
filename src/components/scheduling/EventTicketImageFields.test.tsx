@@ -37,9 +37,42 @@ beforeEach(() => {
 
 describe('EventTicketImageFields', () => {
   it('says a new Event chooses once it is saved', async () => {
-    get.mockRejectedValue(new ProblemError(404, 'Not Found'));
+    get.mockRejectedValue(new ProblemError(404, 'Not Found', { code: 'event_not_found' }));
     render(<EventTicketImageFields eventId="yeni" coverImageId="" />);
     expect(await screen.findByText('Etkinlik kaydedilince seçilir.')).toBeInTheDocument();
+  });
+
+  it('says an older core does not have it', async () => {
+    get.mockRejectedValue(new ProblemError(404, 'Cannot GET /v1/events/e1/ticket-image'));
+    render(<EventTicketImageFields eventId="e1" coverImageId="" />);
+    expect(await screen.findByText('Bu özellik henüz sunucuda yok.')).toBeInTheDocument();
+  });
+
+  it('says when the image does not load', async () => {
+    get.mockResolvedValue({ source: 'auto', coverChanged: false, band });
+    render(<EventTicketImageFields eventId="e1" coverImageId="kapak" knownMedia={[cover]} />);
+    await screen.findByLabelText('Bilet görseli kaynağı');
+    fireEvent.error(document.querySelector('[data-slot="ticket-band"] img') as HTMLImageElement);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Görsel yüklenemedi.');
+  });
+
+  it('moves the picture with the arrow keys as a drag does', async () => {
+    get.mockResolvedValue({ source: 'auto', coverChanged: false, band });
+    save.mockImplementation((_id, body) => Promise.resolve({ ...body, coverChanged: false, band }));
+    render(<EventTicketImageFields eventId="e1" coverImageId="kapak" knownMedia={[cover]} />);
+    await userEvent.selectOptions(await screen.findByLabelText('Bilet görseli kaynağı'), 'cover');
+    loadImage(2400, 3600);
+    const frame = document.querySelector('[data-slot="ticket-band"]') as HTMLElement;
+    const before = (document.querySelector('[data-slot="ticket-band"] img') as HTMLImageElement)
+      .style.top;
+    // Down moves the picture down: the region goes up the image
+    fireEvent.keyDown(frame, { key: 'ArrowDown' });
+    await userEvent.click(screen.getByRole('button', { name: 'Bilet görselini kaydet' }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const [, body] = save.mock.calls[0];
+    const full = (1 - body.crop.h) / 2;
+    expect(body.crop.y).toBeLessThan(full);
+    expect(before).not.toBe('');
   });
 
   it('shows the cover’s middle by default and saves a region of the cover', async () => {
@@ -47,12 +80,12 @@ describe('EventTicketImageFields', () => {
     save.mockImplementation((_id, body) => Promise.resolve({ ...body, coverChanged: false, band }));
     render(<EventTicketImageFields eventId="e1" coverImageId="kapak" knownMedia={[cover]} />);
     const select = await screen.findByLabelText('Bilet görseli kaynağı');
-    const img = loadImage(1000, 1500);
+    const img = loadImage(2400, 3600);
     expect(img.getAttribute('src')).toContain('images/kapak.jpg');
     expect(screen.getByRole('button', { name: 'Bilet görselini kaydet' })).toBeDisabled();
 
     await userEvent.selectOptions(select, 'cover');
-    loadImage(1000, 1500);
+    loadImage(2400, 3600);
     fireEvent.change(screen.getByLabelText('Yakınlaştır'), { target: { value: '2' } });
     await userEvent.click(screen.getByRole('button', { name: 'Bilet görselini kaydet' }));
 
@@ -62,7 +95,7 @@ describe('EventTicketImageFields', () => {
     expect(body.source).toBe('cover');
     expect(body.coverMediaId).toBe('kapak');
     expect(body.crop.w).toBeCloseTo(0.5, 6);
-    expect((body.crop.w * 1000) / (body.crop.h * 1500)).toBeCloseTo(182 / 24, 4);
+    expect((body.crop.w * 2400) / (body.crop.h * 3600)).toBeCloseTo(182 / 24, 4);
     expect(await screen.findByText('Kaydedildi.')).toBeInTheDocument();
   });
 
@@ -95,7 +128,10 @@ describe('EventTicketImageFields', () => {
       coverChanged: true,
       band,
     });
-    render(<EventTicketImageFields eventId="e1" coverImageId="eski" knownMedia={[cover]} />);
+    // The Event's cover is a new one now
+    render(<EventTicketImageFields eventId="e1" coverImageId="kapak" knownMedia={[cover]} />);
     expect(await screen.findByText(/Kapak değişti/)).toBeInTheDocument();
+    loadImage(2400, 3600);
+    expect(screen.getByRole('button', { name: 'Bilet görselini kaydet' })).toBeEnabled();
   });
 });
