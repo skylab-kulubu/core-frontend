@@ -138,6 +138,8 @@ export type EventCopyBody = {
   includeExternalRegistration?: boolean;
   /** None: the attendee note is not copied. */
   includeAttendeeNote?: boolean;
+  /** Left out or true: the certificate template comes along (its own one as the copy's own). */
+  includeCertificateTemplate?: boolean;
   /** None: the source's Owner team. */
   ownerTeam?: string;
 };

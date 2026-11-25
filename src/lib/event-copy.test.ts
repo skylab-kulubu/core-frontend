@@ -137,7 +137,7 @@ describe('copy rights from core', () => {
 describe('what the copy left out', () => {
   it('says each part in one line', () => {
     expect(copySkippedLines(['certificateTemplate', 'doorStaff', 'later'])).toEqual([
-      'Sertifika şablonu bağlaması kopyalanmadı: bu ekipte şablon bağlama yetkin yok.',
+      'Sertifika şablonu kopyalanmadı: seçilmedi, bu ekipte şablon bağlama yetkin yok ya da şablon bu ekibe uymuyor.',
       'Kapı görevlileri kopyalanmadı: bu ekipte görevli atama yetkin yok.',
       'Kopyalanmadı: later.',
     ]);
