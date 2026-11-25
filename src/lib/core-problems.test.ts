@@ -337,7 +337,13 @@ describe('coreProblemMessage for any core refusal', () => {
     ['background_pdf_pages', 400, 'PDF arka plan tek sayfa olmalı.'],
     ['layout_not_verifiable', 400, "Doğrulama QR'ı ya da sertifika kodundan biri gerekli."],
     ['layout_element_out_of_bounds', 400, 'Bir katman sayfanın dışına taşıyor.'],
-    ['render_failed', 400, 'PDF oluşturulamadı; biraz sonra tekrar dene.'],
+    ['render_failed', 400, 'PDF oluşturulamadı; sürerse yöneticiye haber ver.'],
+    ['renderer_unavailable', 503, 'PDF oluşturucu kapalı; biraz sonra tekrar dene.'],
+    [
+      'asset_type_unsupported',
+      400,
+      'Dosya türü desteklenmiyor: görseller PNG, JPEG, WebP ya da SVG olmalı; arka plan PDF de olabilir.',
+    ],
     [
       'event_attendee_note_invalid',
       400,

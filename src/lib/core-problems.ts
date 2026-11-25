@@ -155,13 +155,14 @@ const CODE_MESSAGES: Record<string, string> = {
   layout_not_verifiable: "Doğrulama QR'ı ya da sertifika kodundan biri gerekli.",
   asset_empty: 'Arka plan ya da görsel dosyası boş; yeniden yükle.',
   asset_too_large: 'Görseller çok büyük (tek görsel 20 MB, toplam 50 MB).',
-  asset_type_unsupported: 'Arka plan PNG, JPEG, WebP, SVG ya da PDF olmalı.',
-  asset_storage_unavailable: 'Dosya deposu kapalı; şablon şu an yayınlanamıyor.',
+  asset_type_unsupported:
+    'Dosya türü desteklenmiyor: görseller PNG, JPEG, WebP ya da SVG olmalı; arka plan PDF de olabilir.',
+  asset_storage_unavailable: 'Dosya deposuna şu an ulaşılamıyor; biraz sonra tekrar dene.',
   background_pdf_unreadable: "PDF arka plan okunamadı; PDF'i yeniden dışa aktar ya da PNG yükle.",
   background_pdf_too_large: "PDF arka plan 20 MB'tan büyük.",
   background_pdf_pages: 'PDF arka plan tek sayfa olmalı.',
   renderer_unavailable: 'PDF oluşturucu kapalı; biraz sonra tekrar dene.',
-  render_failed: 'PDF oluşturulamadı; biraz sonra tekrar dene.',
+  render_failed: 'PDF oluşturulamadı; sürerse yöneticiye haber ver.',
   name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',
   account_invalid: 'Hesap bilgisi kabul edilmedi.',
   // Group name refusals (core teamcode)
