@@ -11,9 +11,7 @@ import {
   type FormMapping,
   type FormQuestion,
   type RespondentTicketJob,
-  type RespondentTicketPreview,
 } from '@/lib/api/form-respondents';
-import { readFormAnswerCounts, type FormAnswerCounts } from '@/lib/api/skyforms';
 import {
   EMPTY_MAPPING,
   MAPPING_FIELDS,
@@ -25,16 +23,27 @@ import {
   type MappingField,
 } from '@/lib/form-mapping';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
-import { useConfirm } from '@/lib/ui/use-confirm';
+import {
+  keepRespondentJob,
+  keptRespondentJob,
+  respondentJobKey,
+  useBindQuestion,
+  type BindAnswer,
+} from './use-bind-question';
 
-/** How often a send-all job is read while it runs. */
+export { bindQuestion } from './use-bind-question';
+
+/** How often a send-all job is read while it runs (and again after a failed read). */
 export const TICKET_JOB_POLL_MS = 2000;
+
+/** Refusals after which the form is not the Event's (yet): nothing to send. */
+const NOT_LISTED = new Set(['form_not_listed', 'form_not_found']);
 
 type Load =
   | { state: 'loading' }
   /** No such Event yet (not saved) or a core without the routes: nothing to show. */
   | { state: 'hidden' }
-  | { state: 'blocked'; message: string }
+  | { state: 'blocked'; message: string; code?: string }
   | { state: 'ready'; questions: FormQuestion[]; saved: boolean };
 
 function questionLabel(q: FormQuestion): string {
@@ -42,27 +51,14 @@ function questionLabel(q: FormQuestion): string {
   return text.length > 80 ? `${text.slice(0, 79)}…` : text;
 }
 
-/** The bind question: N from Forms (accepted), the counts from core's preview. */
-export function bindQuestion(
-  counts: FormAnswerCounts | null,
-  preview: RespondentTicketPreview | null,
-  collecting: boolean,
-): { title: string; description: string } | null {
-  const fromPreview = preview
-    ? preview.tickets + preview.waitlisted + preview.full + preview.alreadyTicketed
-    : 0;
-  const filled = counts?.accepted ?? fromPreview;
-  const pending = counts?.pending ?? preview?.pendingSkipped ?? 0;
-  if (!filled && !pending && !collecting) return null;
-  const lines: string[] = [];
-  if (preview) lines.push(`${previewLine(preview)}.`);
-  if (pending) lines.push(`${pending} kişi Forms’ta onay bekliyor.`);
-  if (collecting) lines.push('Yanıtlar hâlâ alınıyor; biletler alım bitince gider.');
-  return {
-    title: `Bu formu ${filled} kişi doldurdu. Hepsini katılımcı olarak ekleyip biletlerini gönderelim mi?`,
-    description: lines.join(' '),
-  };
-}
+const queued = (jobId: string): RespondentTicketJob => ({
+  jobId,
+  state: 'queued',
+  recorded: 0,
+  waitlisted: 0,
+  full: 0,
+  skipped: 0,
+});
 
 export function jobLine(job: RespondentTicketJob): string {
   const counts = previewLine(job);
@@ -76,9 +72,19 @@ export function jobLine(job: RespondentTicketJob): string {
  * holds the guest's first name, last name, full name and e-mail. The boxes start from the panel's
  * guess (marked "tahmin") until a mapping is saved. The first save asks whether to send Tickets
  * to everyone who filled the form (core docs/form-respondents.md); "Yanıtlara bilet gönder" asks
- * again any time.
+ * again any time. Both only for who may add attendees (core's Assign on the Event's Tickets),
+ * also when Forms lets the reader only view the form.
  */
-export function FormMappingPanel({ eventId, formId }: { eventId: string; formId: string }) {
+export function FormMappingPanel({
+  eventId,
+  formId,
+  canSend = false,
+}: {
+  eventId: string;
+  formId: string;
+  /** Who may add attendees to the Event (core's Assign on its Tickets). */
+  canSend?: boolean;
+}) {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [mapping, setMapping] = useState<FormMapping>(EMPTY_MAPPING);
   const [guessed, setGuessed] = useState<MappingField[]>([]);
@@ -87,14 +93,18 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
   const [note, setNote] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [job, setJob] = useState<RespondentTicketJob | null>(null);
-  const [ask, dialog] = useConfirm();
+  const [readFailed, setReadFailed] = useState(0);
+  const [askBind, dialog] = useBindQuestion();
+  const jobKey = respondentJobKey(eventId, formId);
 
   useEffect(() => {
     let cancelled = false;
     setLoad({ state: 'loading' });
     setError(null);
     setNote(null);
-    setJob(null);
+    // A job sent earlier from this tab shows its progress again
+    const kept = keptRespondentJob(jobKey);
+    setJob(kept ? queued(kept) : null);
     void (async () => {
       try {
         const [read, saved] = await Promise.all([
@@ -126,13 +136,17 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
           setLoad({ state: 'hidden' });
           return;
         }
-        setLoad({ state: 'blocked', message: formMappingProblem(err, 'Sorular okunamadı.') });
+        setLoad({
+          state: 'blocked',
+          message: formMappingProblem(err, 'Sorular okunamadı.'),
+          code: err instanceof ProblemError ? err.code : undefined,
+        });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [eventId, formId]);
+  }, [eventId, formId, jobKey]);
 
   const jobId = job?.jobId;
   const jobRunning = job?.state === 'queued' || job?.state === 'running';
@@ -143,62 +157,41 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
       formRespondentsApi
         .ticketJob(eventId, jobId)
         .then((next) => {
-          if (!cancelled) setJob(next);
+          if (cancelled) return;
+          setJob(next);
+          setReadFailed(0);
+          if (next.state === 'done' || next.state === 'failed') keepRespondentJob(jobKey, null);
         })
         .catch((err) => {
           if (cancelled) return;
-          setError(formMappingProblem(err, 'Gönderim durumu okunamadı.'));
-          setJob((current) => (current ? { ...current, state: 'failed' } : current));
+          // Gone (30 days on, or another core): nothing left to follow
+          if (err instanceof ProblemError && err.code === 'ticket_job_not_found') {
+            keepRespondentJob(jobKey, null);
+            setJob(null);
+            return;
+          }
+          // One read that failed is no failed job: read again
+          setReadFailed((n) => n + 1);
         });
     }, TICKET_JOB_POLL_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [eventId, jobId, jobRunning, job]);
+  }, [eventId, jobId, jobRunning, job, jobKey, readFailed]);
 
-  async function askToSend() {
+  function took(answer: BindAnswer) {
+    if ('jobId' in answer) setJob(queued(answer.jobId));
+    else if ('error' in answer) setError(answer.error);
+    else if ('none' in answer) setNote('Bilet gönderilecek yanıt yok.');
+  }
+
+  async function askToSend(keepNote = false) {
     setAsking(true);
     setError(null);
-    setNote(null);
+    if (!keepNote) setNote(null);
     try {
-      const [counts, preview, page] = await Promise.allSettled([
-        readFormAnswerCounts(formId),
-        formRespondentsApi.previewTickets(eventId, { all: true, formId }),
-        formRespondentsApi.list(eventId, { formId, limit: 1 }),
-      ]);
-      if (preview.status === 'rejected') {
-        setError(formMappingProblem(preview.reason, 'Sayılar okunamadı.'));
-        return;
-      }
-      const question = bindQuestion(
-        counts.status === 'fulfilled' ? counts.value : null,
-        preview.value,
-        page.status === 'fulfilled' && page.value.collecting,
-      );
-      if (!question) {
-        setNote('Bilet gönderilecek yanıt yok.');
-        return;
-      }
-      ask({
-        ...question,
-        actionLabel: 'Biletleri gönder',
-        destructive: false,
-        failure: (err) => formMappingProblem(err, 'Biletler gönderilemedi.'),
-        onConfirm: async () => {
-          const res = await formRespondentsApi.sendTickets(eventId, { all: true, formId });
-          if ('jobId' in res) {
-            setJob({
-              jobId: res.jobId,
-              state: 'queued',
-              recorded: 0,
-              waitlisted: 0,
-              full: 0,
-              skipped: 0,
-            });
-          }
-        },
-      });
+      took(await askBind(eventId, formId));
     } finally {
       setAsking(false);
     }
@@ -215,7 +208,7 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
       setLoad({ ...load, saved: true });
       setGuessed([]);
       setNote('Eşleme kaydedildi.');
-      if (first) await askToSend();
+      if (first && canSend) await askToSend(true);
     } catch (err) {
       setError(formMappingProblem(err, 'Eşleme kaydedilemedi.'));
     } finally {
@@ -226,6 +219,20 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
   if (load.state === 'hidden') return null;
 
   const issue = load.state === 'ready' ? mappingIssue(mapping) : null;
+  // A viewer in Forms may still send: core decides by the Event's Ticket rights
+  const sendable =
+    canSend &&
+    (load.state === 'ready' || (load.state === 'blocked' && !NOT_LISTED.has(load.code ?? '')));
+  const sendButton = sendable ? (
+    <SaveButton
+      type="button"
+      variant="outline"
+      disabled={asking || jobRunning}
+      onClick={() => void askToSend()}
+    >
+      Yanıtlara bilet gönder
+    </SaveButton>
+  ) : null;
 
   return (
     <section aria-label="Soru eşleme" className="border-border space-y-3 border-t pt-3">
@@ -234,7 +241,10 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
         <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Sorular okunuyor…</p>
       ) : null}
       {load.state === 'blocked' ? (
-        <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>{load.message}</p>
+        <>
+          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>{load.message}</p>
+          {sendButton}
+        </>
       ) : null}
       {load.state === 'ready' ? (
         <>
@@ -271,20 +281,14 @@ export function FormMappingPanel({ eventId, formId }: { eventId: string; formId:
             >
               {saving ? 'Kaydediliyor…' : 'Eşlemeyi kaydet'}
             </SaveButton>
-            <SaveButton
-              type="button"
-              variant="outline"
-              disabled={asking || jobRunning}
-              onClick={() => void askToSend()}
-            >
-              Yanıtlara bilet gönder
-            </SaveButton>
+            {sendButton}
           </div>
         </>
       ) : null}
       {job ? (
         <p role="status" className={`text-muted-foreground ${TEXT_SECONDARY}`}>
           {jobLine(job)}
+          {readFailed && jobRunning ? ' Durum okunamadı, yeniden deneniyor.' : ''}
         </p>
       ) : null}
       {note ? (
