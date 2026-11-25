@@ -102,7 +102,7 @@ describe('BackgroundTextSheet', () => {
     expect(stroke).toBeDisabled();
     expect(stroke).not.toBeChecked();
     expect(screen.getByText('Dönüşmez: kontur yazı')).toBeInTheDocument();
-    expect(screen.getByText('En çok 98 metin daha')).toBeInTheDocument();
+    expect(screen.getByText('3 seçili · en çok 98')).toBeInTheDocument();
 
     await user.click(screen.getByRole('checkbox', { name: /gg\.aa\.yyyy/ }));
     await user.click(screen.getByRole('checkbox', { name: 'Katılımcı adı yap' }));
@@ -110,7 +110,7 @@ describe('BackgroundTextSheet', () => {
       screen.getByText('Şablondaki Katılımcı adı katmanının yerini alır.'),
     ).toBeInTheDocument();
     // The template's own name gives way to the PDF's: one more layer of room
-    expect(screen.getByText('En çok 99 metin daha')).toBeInTheDocument();
+    expect(screen.getByText('2 seçili · en çok 99')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dönüştür' }));
 
     await waitFor(() => expect(onConverted).toHaveBeenCalled());
@@ -122,6 +122,23 @@ describe('BackgroundTextSheet', () => {
       existingElements: 1,
     });
     expect(onConverted.mock.calls[0][0].replacedKinds).toEqual(['recipientName']);
+  });
+
+  it('turns one piece into a kind: choosing another unchooses the first', async () => {
+    const user = userEvent.setup();
+    assetText.mockResolvedValue({ spans: [span('15', 'Ad Soyad'), span('16', '[İsim]')] });
+    renderSheet();
+    await screen.findByRole('list', { name: 'PDF metinleri' });
+
+    const [first, second] = screen.getAllByRole('checkbox', { name: 'Katılımcı adı yap' });
+    await user.click(first);
+    expect(first).toBeChecked();
+    await user.click(second);
+    expect(second).toBeChecked();
+    expect(first).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Dönüştür' }));
+    await waitFor(() => expect(convert).toHaveBeenCalled());
+    expect(convert.mock.calls[0][1].kinds).toEqual({ '16': 'recipientName' });
   });
 
   it('chooses all and none', async () => {
@@ -142,7 +159,7 @@ describe('BackgroundTextSheet', () => {
     renderSheet(full);
     await screen.findByRole('list', { name: 'PDF metinleri' });
 
-    expect(screen.getByText('En çok 1 metin daha')).toBeInTheDocument();
+    expect(screen.getByText('3 seçili · en çok 1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dönüştür' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Hiçbirini' }));
     await user.click(screen.getByRole('checkbox', { name: /Katılım Belgesi/ }));

@@ -913,7 +913,7 @@ describe('CertificateTemplateEditor', () => {
       render(<CertificateTemplateEditor templateId="tpl-pdf" />);
 
       await screen.findByDisplayValue('PDF şablon');
-      expect(await screen.findByText("Bu PDF'te 12 metin var")).toBeInTheDocument();
+      expect(await screen.findByText("Bu PDF'te metin var")).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Metinleri düzenlenebilir yap' }));
       const sheet = await screen.findByRole('dialog', { name: 'Metinleri düzenlenebilir yap' });
       await within(sheet).findByRole('list', { name: 'PDF metinleri' });
@@ -965,6 +965,83 @@ describe('CertificateTemplateEditor', () => {
       });
     });
 
+    it('gives back the layers a conversion replaced, and converts the rest later', async () => {
+      const user = userEvent.setup();
+      withPdfBackground({ backgroundPlacement: { fit: 'fill', x: 0.5, y: 0.5, scale: 1 } });
+      render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+      await screen.findByDisplayValue('PDF şablon');
+      await user.click(await screen.findByRole('button', { name: 'Metinleri düzenlenebilir yap' }));
+      const sheet = await screen.findByRole('dialog', { name: 'Metinleri düzenlenebilir yap' });
+      await within(sheet).findByRole('list', { name: 'PDF metinleri' });
+      await user.click(within(sheet).getByRole('checkbox', { name: 'Katılımcı adı yap' }));
+      await user.click(within(sheet).getByRole('button', { name: 'Dönüştür' }));
+      await screen.findByText('2 metin katmana çevrildi; kaydetmeyi unutma.');
+
+      // The converted text is named by its content on the canvas
+      expect(
+        screen.getByRole('button', { name: 'Sabit metin: Katılım Belgesi' }),
+      ).toBeInTheDocument();
+      // The PDF converted still has text: a second conversion keeps the first original
+      expect(await screen.findByRole('button', { name: 'Kalan metinleri çevir' })).toBeEnabled();
+
+      await user.click(screen.getByRole('button', { name: 'Orijinale dön' }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Orijinale dön' }));
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+      await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+      const sent = (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout;
+      // The template's own recipient, with its place, is back
+      const own = emptyCertificateDraft().layout.elements[0];
+      expect(sent.elements.filter((e: { kind: string }) => e.kind === 'recipientName')).toEqual([
+        expect.objectContaining({ x: own.x, y: own.y, width: own.width }),
+      ]);
+    });
+
+    it('says why a PDF has no text', async () => {
+      (certificatesApi.assetInfo as jest.Mock).mockResolvedValue({
+        ...A4_PORTRAIT_PDF,
+        textCount: 0,
+      });
+      (certificatesApi.assetText as jest.Mock).mockResolvedValue({
+        spans: [],
+        textMissing: 'outlines',
+      });
+      withPdfBackground();
+      render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+      expect(
+        await screen.findByText('Yazılar çizgiye çevrilmiş; düzenlenemez.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Metinleri düzenlenebilir yap' })).toBeNull();
+    });
+
+    it('keeps converted layers as plain ones once the background is removed', async () => {
+      const user = userEvent.setup();
+      withPdfBackground({
+        backgroundMediaId: 'bg-pdf-metinsiz',
+        backgroundOriginalMediaId: 'bg-pdf',
+        backgroundPlacement: { fit: 'fill', x: 0.5, y: 0.5, scale: 1 },
+        elements: [...CONVERTED.elements, { ...emptyCertificateDraft().layout.elements[2] }],
+      });
+      render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+      await screen.findByDisplayValue('PDF şablon');
+      await user.click(await screen.findByRole('button', { name: /Arka planı kaldır/ }));
+      await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+      await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+      const sent = (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout;
+      // Left out of the JSON core gets
+      expect(sent.backgroundOriginalMediaId).toBeUndefined();
+      expect(sent.elements).toHaveLength(3);
+      expect(sent.elements.some((e: { origin?: string }) => e.origin)).toBe(false);
+      expect(sent.elements[0]).toMatchObject({
+        text: 'Katılım Belgesi',
+        sourceFont: 'Montserrat-Bold',
+      });
+    });
+
     it('goes back to the original PDF, the converted layers removed', async () => {
       const user = userEvent.setup();
       withPdfBackground({
@@ -982,7 +1059,7 @@ describe('CertificateTemplateEditor', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Orijinale dön' }));
       await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
 
-      expect(await screen.findByText("Bu PDF'te 12 metin var")).toBeInTheDocument();
+      expect(await screen.findByText("Bu PDF'te metin var")).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
       await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
       const sent = (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout;

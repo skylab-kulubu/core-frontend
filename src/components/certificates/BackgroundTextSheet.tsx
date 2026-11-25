@@ -202,7 +202,7 @@ export function BackgroundTextSheet({
                 TEXT_SECONDARY,
               )}
             >
-              En çok {room} metin daha
+              {picked.length} seçili · en çok {room}
             </span>
           </div>
           <ul aria-label="PDF metinleri" className="divide-border divide-y">
@@ -247,7 +247,10 @@ export function BackgroundTextSheet({
                         disabled={!on}
                         onChange={(event) =>
                           setFields((current) => {
-                            const next = { ...current };
+                            // One piece per kind: choosing it here unchooses it elsewhere
+                            const next = Object.fromEntries(
+                              Object.entries(current).filter(([, kind]) => kind !== suggestion),
+                            );
                             if (event.target.checked) next[span.id] = suggestion;
                             else delete next[span.id];
                             return next;

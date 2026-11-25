@@ -40,6 +40,7 @@ import {
   type CertificateElementKind,
   type CertificateLayout,
   type CertificateTemplateDraft,
+  type BackgroundTextList,
   type BackgroundTextWarning,
 } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
@@ -149,6 +150,25 @@ function pdfFailure(cause: unknown): { state: 'legacy' } | Extract<PdfInfo, { st
 
 /** A layer converted from the PDF background's text. */
 const fromBackgroundText = (element: CertificateElement) => element.origin === 'backgroundText';
+
+/**
+ * The layers with no tie to the background left: converted texts stay as the
+ * designer's own once the PDF they came from is replaced or removed.
+ */
+function detachedFromBackground(elements: CertificateElement[]) {
+  return elements.map((element) => {
+    if (!fromBackgroundText(element)) return element;
+    const { origin: _origin, ...rest } = element;
+    return rest;
+  });
+}
+
+/** Why a PDF has no text to convert, in a short line (core `textMissing`). */
+const TEXT_MISSING: Record<NonNullable<BackgroundTextList['textMissing']>, string> = {
+  outlines: 'Yazılar çizgiye çevrilmiş; düzenlenemez.',
+  image: 'PDF bir görsel; metin yok.',
+  unknown: "PDF'te düzenlenebilir metin yok.",
+};
 
 /** A conversion warning as the layer list and the properties show it. */
 function warningText(warning: BackgroundTextWarning) {
@@ -309,6 +329,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }, []);
   const [fitNote, setFitNote] = useState<FitNote>();
   const [textSheetOpen, setTextSheetOpen] = useState(false);
+  // Layers a conversion's fields took the place of, given back by Orijinale dön (this session)
+  const [replacedLayers, setReplacedLayers] = useState<CertificateElement[]>([]);
+  // Why a PDF without text has none, by Media id (null: not said)
+  const [textMissing, setTextMissing] = useState<
+    Record<string, BackgroundTextList['textMissing'] | null>
+  >({});
   // Conversion warnings by layer id, for this session (core does not keep them)
   const [textWarnings, setTextWarnings] = useState<Record<string, string[]>>({});
   const [confirm, confirmDialog] = useConfirm();
@@ -462,6 +488,29 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     setPdfInfos(drop);
     setPdfPreviews(drop);
   }
+
+  // A PDF without text says why (outlines, a picture): one read of its text list
+  const askWhyNoText =
+    canEdit &&
+    backgroundIsPDF &&
+    Boolean(backgroundId) &&
+    !draft.layout.backgroundOriginalMediaId &&
+    pdfInfo?.state === 'ready' &&
+    pdfInfo.textCount === 0;
+  useEffect(() => {
+    if (!askWhyNoText || !backgroundId || backgroundId in textMissing) return;
+    const id = backgroundId;
+    setTextMissing((current) => ({ ...current, [id]: null }));
+    certificatesApi
+      .assetText(id)
+      .then((list) => {
+        if (mounted.current && !list.spans.length) {
+          setTextMissing((current) => ({ ...current, [id]: list.textMissing ?? 'unknown' }));
+        }
+      })
+      // An older core (no text route): nothing to say
+      .catch(() => undefined);
+  }, [askWhyNoText, backgroundId, textMissing]);
 
   // pdf-tools down: try again every 30 s while the editor is open
   const pdfUnavailable = Boolean(pdfProblem?.unavailable);
@@ -671,6 +720,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
   function applyConversion({ result, replacedKinds }: AppliedConversion) {
     if (!canEdit) return;
+    const kept = new Set(keptLayers(draft.layout.elements, replacedKinds));
+    const replaced = draft.layout.elements.filter(
+      (element) => !kept.has(element) && !fromBackgroundText(element),
+    );
+    if (replaced.length) setReplacedLayers((current) => [...current, ...replaced]);
     setDraft((current) => ({
       ...current,
       layout: {
@@ -711,7 +765,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         setDraft((current) => {
           const { backgroundOriginalMediaId: _original, ...layout } = current.layout;
           const elements = layout.elements.filter((element) => !fromBackgroundText(element));
-          // A conversion may have turned the PDF's placeholder into the recipient's name
+          // The layers the conversion's fields took the place of come back
+          const ids = new Set(elements.map((element) => element.id));
+          elements.push(...replacedLayers.filter((element) => !ids.has(element.id)));
+          // A template opened converted has none kept: it gets a recipient's name back
           if (!elements.some((element) => element.kind === 'recipientName')) {
             const width = Math.round(layout.width * 0.75);
             elements.push({
@@ -723,6 +780,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           }
           return { ...current, layout: { ...layout, backgroundMediaId: original, elements } };
         });
+        setReplacedLayers([]);
         setSelectedId(undefined);
         setMessage(undefined);
       },
@@ -742,7 +800,9 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       backgroundMediaId: undefined,
       backgroundPlacement: undefined,
       backgroundOriginalMediaId: undefined,
+      elements: detachedFromBackground(draft.layout.elements),
     });
+    setReplacedLayers([]);
     setBackgroundUrl(undefined);
     setBackgroundType(undefined);
     setFitNote(undefined);
@@ -849,7 +909,9 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         backgroundPlacement: size ? latestDraft.current.layout.backgroundPlacement : undefined,
         // The original of an earlier conversion belongs to the background replaced
         backgroundOriginalMediaId: undefined,
+        elements: detachedFromBackground(latestDraft.current.layout.elements),
       };
+      setReplacedLayers([]);
       const uploaded = pdf
         ? 'PDF arka planı yüklendi.'
         : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.';
@@ -1308,7 +1370,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 <button
                   key={element.id}
                   type="button"
-                  aria-label={ELEMENT_LABELS[element.kind]}
+                  aria-label={
+                    fromBackgroundText(element) && element.kind === 'staticText' && element.text
+                      ? `${ELEMENT_LABELS.staticText}: ${element.text.split('\n')[0]}`
+                      : ELEMENT_LABELS[element.kind]
+                  }
                   onPointerDown={(event) => startDrag(event, element)}
                   style={style}
                   className={`absolute z-10 touch-none overflow-hidden ${paragraph ? 'block whitespace-pre-wrap' : `flex items-center ${justifyClass(element.align)} whitespace-nowrap`} ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
@@ -1806,6 +1872,17 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                       {draft.layout.elements.filter(fromBackgroundText).length} metin katmana
                       çevrildi
                     </p>
+                    {pdfInfo.textCount > 0 ? (
+                      // The PDF converted keeps the text not chosen: another conversion takes it
+                      <button
+                        type="button"
+                        disabled={!canEdit}
+                        className="border-border text-secondary-foreground hover:bg-accent flex h-8 w-full items-center justify-center rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => setTextSheetOpen(true)}
+                      >
+                        Kalan metinleri çevir
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       disabled={!canEdit}
@@ -1815,10 +1892,16 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                       Orijinale dön
                     </button>
                   </div>
-                ) : pdfInfo.textCount > 0 ? (
+                ) : pdfInfo.textCount === 0 ? (
+                  backgroundId && textMissing[backgroundId] ? (
+                    <p className="text-subtle-foreground text-[13px]/5">
+                      {TEXT_MISSING[textMissing[backgroundId]!]}
+                    </p>
+                  ) : null
+                ) : (
                   <div className="space-y-1.5">
                     <p className="text-secondary-foreground text-[13px]/5">
-                      Bu PDF&apos;te {pdfInfo.textCount} metin var
+                      Bu PDF&apos;te metin var
                     </p>
                     <button
                       type="button"
@@ -1829,7 +1912,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                       Metinleri düzenlenebilir yap
                     </button>
                   </div>
-                ) : null
+                )
               ) : null}
               {sizable ? (
                 <>
@@ -1849,7 +1932,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   ) : null}
                 </>
               ) : null}
-              {backgroundUrl ? (
+              {backgroundUrl || backgroundId ? (
+                // A converted PDF is private: no public address, still a background to remove
                 <button
                   type="button"
                   disabled={!canEdit}
