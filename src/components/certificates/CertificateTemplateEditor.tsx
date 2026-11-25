@@ -476,9 +476,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }, [loading, fontTeam, savedId]);
   // A new layer may take a current font of the template's team or the club's
   const offered = (font: CertificateFont) =>
-    !font.archivedAt &&
-    font.selectable !== false &&
-    (font.ownerTeam === '' || font.ownerTeam === fontTeam);
+    !font.draftOnly && (font.ownerTeam === '' || font.ownerTeam === fontTeam);
   const teamFonts = (fonts ?? []).filter(offered);
   const fontsByMedia = useMemo(
     () => new Map((fonts ?? []).map((font) => [font.mediaId, font])),
@@ -1670,7 +1668,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                         <optgroup label="Bu şablonda kullanılan">
                           {keptFonts.map((font) => (
                             <option key={font.mediaId} value={`cf:${font.mediaId}`} disabled>
-                              {`${font.family} ${fontFaceLabel(font)} · ${font.archivedAt ? 'arşivlendi' : font.ownerTeam || 'Kulüp'}`}
+                              {`${font.family} ${fontFaceLabel(font)} · ${font.ownerTeam || 'Kulüp'}`}
                             </option>
                           ))}
                           {selected.fontMediaId && !selectedFont ? (

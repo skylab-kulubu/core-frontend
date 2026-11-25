@@ -56,7 +56,8 @@ function uploadProblem(cause: unknown) {
   // pdf-tools checks every font: without it nothing can be added for now
   if (
     cause instanceof ProblemError &&
-    (cause.code === 'pdf_tools_unavailable' || (cause.status === 503 && !cause.code))
+    cause.status === 503 &&
+    (cause.code === 'pdf_tools_unavailable' || cause.code === 'busy' || !cause.code)
   ) {
     return 'Yazı tipi şu an denetlenemiyor; biraz sonra tekrar dene.';
   }

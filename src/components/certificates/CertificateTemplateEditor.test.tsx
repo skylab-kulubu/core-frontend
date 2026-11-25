@@ -336,22 +336,21 @@ describe('CertificateTemplateEditor', () => {
             ownerTeam: 'ARTLAB',
             family: 'Eski Yazı',
             mediaId: 'm-archived',
-            archivedAt: '2026-11-24T10:00:00Z',
-            selectable: false,
+            draftOnly: true,
           }),
         ],
       );
       render(<CertificateTemplateEditor templateId="tpl-art" />);
       await screen.findByDisplayValue('ARTLAB şablonu');
       await user.click(recipientLayer());
-      const option = await screen.findByRole('option', { name: 'Eski Yazı 700 · arşivlendi' });
+      const option = await screen.findByRole('option', { name: 'Eski Yazı 700 · ARTLAB' });
       expect(option.closest('optgroup')).toHaveAttribute('label', 'Bu şablonda kullanılan');
       expect(option).toBeDisabled();
       expect(
         within(screen.getByRole('group', { name: 'Ekip yazı tipleri' }))
           .getAllByRole('option')
           .map((o) => o.textContent),
-      ).not.toContain('Eski Yazı 700 · arşivlendi');
+      ).not.toContain('Eski Yazı 700 · ARTLAB');
       expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-archived');
       expect(
         screen.getByText(

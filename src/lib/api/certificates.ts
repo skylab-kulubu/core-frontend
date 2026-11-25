@@ -64,12 +64,11 @@ export type CertificateFont = {
   uploadedBy?: string | null;
   createdAt: string;
   /**
-   * `?template=` also lists the fonts the template's layers use that it may no
-   * longer take (archived, another team's), marked: set when archived.
+   * `?template=` only: a font the draft uses that is none of its team's or the
+   * club's current ones (archived, or another team's in a copy): kept, not
+   * offered for new text.
    */
-  archivedAt?: string;
-  /** false: listed only because the template uses it; no new layer may take it. */
-  selectable?: boolean;
+  draftOnly?: boolean;
 };
 
 /** How the background sits on the page (core `Layout.backgroundPlacement`). */

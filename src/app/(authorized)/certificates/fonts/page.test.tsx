@@ -168,6 +168,7 @@ describe('Certificate fonts: upload', () => {
     ['font_embedding_restricted', 400, 'Bu yazı tipinin lisansı gömmeye izin vermiyor.'],
     ['font_exists', 409, 'Bu ekipte bu aile, kalınlık ve stilde bir yazı tipi zaten var.'],
     ['pdf_tools_unavailable', 503, 'Yazı tipi şu an denetlenemiyor; biraz sonra tekrar dene.'],
+    ['busy', 503, 'Yazı tipi şu an denetlenemiyor; biraz sonra tekrar dene.'],
     ['', 503, 'Yazı tipi şu an denetlenemiyor; biraz sonra tekrar dene.'],
   ])('says %s in a short Turkish line', async (code, status, text) => {
     const user = userEvent.setup();
