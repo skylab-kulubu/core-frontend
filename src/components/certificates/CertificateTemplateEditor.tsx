@@ -591,17 +591,14 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
   /**
    * The draft as core takes it: the placement in range, and none for a PDF
-   * background (ticket 07 places those), an image of unknown size, or once core
-   * dropped it.
+   * background (ticket 07 places those) or once core dropped it. A saved
+   * placement whose image could not be sized now (a CDN hiccup) goes back as
+   * it was; an upload of unknown size has already cleared it.
    */
   function draftToSave(): CertificateTemplateDraft {
     const { backgroundPlacement, ...layout } = draft.layout;
     const keep =
-      backgroundPlacement &&
-      layout.backgroundMediaId &&
-      !backgroundIsPDF &&
-      !backgroundUnsized &&
-      !placementDropped;
+      backgroundPlacement && layout.backgroundMediaId && !backgroundIsPDF && !placementDropped;
     return {
       ...draft,
       layout: keep

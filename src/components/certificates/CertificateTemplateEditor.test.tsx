@@ -475,6 +475,30 @@ describe('CertificateTemplateEditor', () => {
     expect(sent).not.toHaveProperty('backgroundPlacement');
   });
 
+  it('keeps a saved placement when the opened background cannot be sized', async () => {
+    const user = userEvent.setup();
+    withImageBackground({ fit: 'contain', x: 0, y: 1, scale: 0.8 });
+    // The CDN did not answer this time: the saved placement is not the editor's to drop
+    (backgroundNaturalSize as jest.Mock).mockRejectedValue(new Error('background unreadable'));
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    render(<CertificateTemplateEditor templateId="tpl-1" />);
+
+    await screen.findByDisplayValue('Görselli şablon');
+    expect(await screen.findByText('Görselin boyutu okunamadı.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+    await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+    expect((certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout).toMatchObject({
+      backgroundMediaId: 'bg-1',
+      backgroundPlacement: { fit: 'contain', x: 0, y: 1, scale: 0.8 },
+    });
+    expect(screen.queryByText('Yerleşim kaydedilmedi; core güncel değil.')).toBeNull();
+  });
+
   it('shows the placement controls while the size is still being read', async () => {
     withImageBackground({ fit: 'contain', x: 0.5, y: 0.5, scale: 1 });
     (backgroundNaturalSize as jest.Mock).mockReturnValue(new Promise(() => undefined));
