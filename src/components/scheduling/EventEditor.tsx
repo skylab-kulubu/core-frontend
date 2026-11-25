@@ -81,6 +81,8 @@ type EventEditorProps = {
   storedRatio?: number;
   /** The saved Event's active Tickets (core `ticketCount`), for the lowered-capacity note. */
   activeTickets?: number;
+  /** The saved Event's certificate template row; a new Event chooses one once saved. */
+  certificateTemplate?: ReactNode;
 };
 
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
@@ -254,6 +256,7 @@ export function EventEditor({
   legacyRules,
   storedRatio,
   activeTickets,
+  certificateTemplate,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
@@ -620,6 +623,14 @@ export function EventEditor({
             />
           </label>
         ) : null}
+        <div className="space-y-1">
+          <FieldLabel>Şablon</FieldLabel>
+          {certificateTemplate ?? (
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              Kaydettikten sonra şablon seçilir
+            </p>
+          )}
+        </div>
       </EditorSection>
       <EditorSection id="yayin" title="Görünürlük ve yayın">
         {notices.yayin}

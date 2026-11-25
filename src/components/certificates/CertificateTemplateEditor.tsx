@@ -186,7 +186,20 @@ export const emptyCertificateDraft = (): CertificateTemplateDraft => ({
 
 type DragState = { id: string; startX: number; startY: number; x: number; y: number };
 
-export function CertificateTemplateEditor({ templateId }: { templateId?: string }) {
+export function CertificateTemplateEditor({
+  templateId,
+  eventId,
+  eventEditable = false,
+}: {
+  templateId?: string;
+  /**
+   * An Event template (core docs/certificate-event-templates.md): its Owner
+   * team is the Event's, so it has no team field, and who edits the Event
+   * edits it (`eventEditable`) besides the team's template rule.
+   */
+  eventId?: string;
+  eventEditable?: boolean;
+}) {
   const router = useRouter();
   const { user } = useAuth();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -221,11 +234,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   // The group rule narrowed by core's certificateTemplate.update/create (a DK member reads only)
   const teamCan = useTeamCan();
   const anyTeamCan = useAnyTeamCan();
-  const canEdit = templateId
+  const templateRule = templateId
     ? canEditCertificateTemplateForTeam(user?.groups ?? [], user?.roles ?? [], draft.ownerTeam) &&
       teamCan(draft.ownerTeam, 'certificateTemplate.update')
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
       anyTeamCan('certificateTemplate.create');
+  const canEdit = templateRule || (Boolean(eventId) && eventEditable);
 
   const elements = draft.layout.elements;
   const selected = useMemo(
@@ -652,7 +666,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     try {
       const version = await certificatesApi.publishTemplate(id);
       setMessage(undefined);
-      notify.success(`Sürüm ${version.version} yayınlandı; yeni işler bu sürümü kullanacak`);
+      notify.success(
+        eventId
+          ? `Sürüm ${version.version} yayınlandı; bu etkinliğin yeni sertifikaları bunu kullanır`
+          : `Sürüm ${version.version} yayınlandı; yeni işler bu sürümü kullanacak`,
+      );
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Şablon yayınlanamadı'));
     } finally {
@@ -732,7 +750,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           />
           <span className="text-foreground text-sm font-semibold">Şablon bilgileri</span>
           <span className="text-subtle-foreground min-w-0 truncate text-[13px]/5">
-            {[draft.ownerTeam || 'Kulüp geneli', SOURCE_LABELS[draft.sourceKind]].join(' · ')}
+            {[
+              eventId ? 'Etkinliğe özel' : draft.ownerTeam || 'Kulüp geneli',
+              SOURCE_LABELS[draft.sourceKind],
+            ].join(' · ')}
           </span>
         </summary>
         <div className="grid gap-3 px-4 pb-4 lg:grid-cols-4">
@@ -744,17 +765,19 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
             />
           </label>
-          <label className="space-y-1.5">
-            <FieldLabel>Sahip ekip</FieldLabel>
-            <Field
-              disabled={!canEdit}
-              value={draft.ownerTeam}
-              placeholder="Boşsa kulüp geneli"
-              onChange={(event) =>
-                setDraft({ ...draft, ownerTeam: event.target.value.toUpperCase() })
-              }
-            />
-          </label>
+          {eventId ? null : (
+            <label className="space-y-1.5">
+              <FieldLabel>Sahip ekip</FieldLabel>
+              <Field
+                disabled={!canEdit}
+                value={draft.ownerTeam}
+                placeholder="Boşsa kulüp geneli"
+                onChange={(event) =>
+                  setDraft({ ...draft, ownerTeam: event.target.value.toUpperCase() })
+                }
+              />
+            </label>
+          )}
           <label className="space-y-1.5">
             <FieldLabel>Tasarım kaynağı</FieldLabel>
             <Select
