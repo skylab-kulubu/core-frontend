@@ -17,6 +17,7 @@ import {
   Save,
   Send,
   Trash2,
+  TriangleAlert,
   Unlock,
 } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -26,6 +27,12 @@ import { Select } from '@/components/chrome/Select';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
+import { TextArea } from '@/components/chrome/TextArea';
+import {
+  BackgroundTextSheet,
+  keptLayers,
+  type AppliedConversion,
+} from '@/components/certificates/BackgroundTextSheet';
 import {
   certificatesApi,
   type BackgroundFit,
@@ -34,6 +41,7 @@ import {
   type CertificateElementKind,
   type CertificateLayout,
   type CertificateTemplateDraft,
+  type BackgroundTextWarning,
 } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
@@ -46,6 +54,7 @@ import {
 } from '@/lib/auth/groups';
 import { useAnyTeamCan, useTeamCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import {
   ELEMENT_LABELS,
@@ -58,12 +67,14 @@ import {
   LEGACY_IMAGE_PLACEMENT,
   fitPageToBackground,
   legacyPdfPlacement,
+  moveWithBackground,
   normalizePlacement,
   pageForBackground,
   placeBackground,
   placeableSize,
   ratioDiffers,
   resizeCertificateLayout,
+  type Rect,
   type Size,
 } from '@/lib/certificate-placement';
 import { backgroundNaturalSize } from '@/lib/background-size';
@@ -131,6 +142,43 @@ function pdfFailure(cause: unknown): { state: 'legacy' } | Extract<PdfInfo, { st
     message: unavailable
       ? PDF_PREVIEW_UNAVAILABLE
       : coreProblemMessage(cause, 'PDF arka plan okunamadı'),
+  };
+}
+
+/** A layer converted from the PDF background's text. */
+const fromBackgroundText = (element: CertificateElement) => element.origin === 'backgroundText';
+
+/** A conversion warning as the layer list and the properties show it. */
+function warningText(warning: BackgroundTextWarning) {
+  switch (warning.kind) {
+    case 'fontSubstituted':
+      return `Yazı tipi değişti: ${warning.from} → ${warning.to}`;
+    case 'fontSizeBounded':
+      return 'Punto 300 px ile sınırlandı';
+    case 'textCut':
+      return 'Metin 4000 baytta kesildi';
+    default:
+      return 'Sayfanın dışında kaldı';
+  }
+}
+
+/**
+ * `after`'s converted layers moved with the background from its box in
+ * `before` to its box in `after`, instead of with the page.
+ */
+function withBackgroundText(
+  before: CertificateLayout,
+  after: CertificateLayout,
+  from: Rect,
+  to: Rect,
+): CertificateLayout {
+  const was = new Map(before.elements.map((element) => [element.id, element]));
+  return {
+    ...after,
+    elements: after.elements.map((element) => {
+      const old = was.get(element.id);
+      return old && fromBackgroundText(old) ? moveWithBackground(old, from, to) : element;
+    }),
   };
 }
 
@@ -258,6 +306,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     };
   }, []);
   const [fitNote, setFitNote] = useState<FitNote>();
+  const [textSheetOpen, setTextSheetOpen] = useState(false);
+  // Conversion warnings by layer id, for this session (core does not keep them)
+  const [textWarnings, setTextWarnings] = useState<Record<string, string[]>>({});
+  const [confirm, confirmDialog] = useConfirm();
   // Core dropped the placement on save: it predates it (core-backend #446)
   const [placementDropped, setPlacementDropped] = useState(false);
   // The draft an upload, which awaits, fits: the one after the await
@@ -492,12 +544,21 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         const urls = Object.fromEntries(
           media.filter((item) => item !== null).map((item) => [item.id, publicMediaUrl(item.url)]),
         );
-        if (next.layout.backgroundMediaId) {
-          const background = media.find((item) => item?.id === next.layout.backgroundMediaId);
-          setBackgroundUrl(urls[next.layout.backgroundMediaId]);
-          setBackgroundType(background?.type);
-        }
         setImageUrls(urls);
+        const backgroundId = next.layout.backgroundMediaId;
+        if (backgroundId) {
+          const background = media.find((item) => item?.id === backgroundId);
+          setBackgroundUrl(urls[backgroundId]);
+          setBackgroundType(background?.type);
+          if (!background) {
+            // A text conversion's PDF is private: the Media route may not serve it to
+            // every editor, the asset route does and says what it is
+            const info = await certificatesApi.assetInfo(backgroundId).catch(() => undefined);
+            if (!cancelled && info?.contentType === 'application/pdf') {
+              setBackgroundType(info.contentType);
+            }
+          }
+        }
       })
       .catch((cause) => {
         if (!cancelled) setError(coreProblemMessage(cause, 'Şablon yüklenemedi'));
@@ -535,9 +596,32 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     }));
   }
 
+  /** The box the background takes on `layout`'s page with `p`. */
+  function boxFor(layout: CertificateLayout, p: BackgroundPlacement, size: Size): Rect {
+    return placeBackground(
+      layout.width,
+      layout.height,
+      size.width,
+      size.height,
+      normalizePlacement(p),
+    );
+  }
+
   function updatePlacement(patch: Partial<BackgroundPlacement>) {
     if (!sizable) return;
-    updateLayout({ backgroundPlacement: { ...storedPlacement, ...patch } });
+    const next = { ...storedPlacement, ...patch };
+    const from = backgroundSize ? boxFor(draft.layout, storedPlacement, backgroundSize) : undefined;
+    const to = backgroundSize ? boxFor(draft.layout, next, backgroundSize) : undefined;
+    updateLayout({
+      backgroundPlacement: next,
+      // The layers made from the PDF's text stay on the text they replace
+      elements:
+        from && to
+          ? draft.layout.elements.map((element) =>
+              fromBackgroundText(element) ? moveWithBackground(element, from, to) : element,
+            )
+          : draft.layout.elements,
+    });
   }
 
   /** Sets the fitted layout; a new page size is said inline with a way back. */
@@ -554,7 +638,70 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   function fitPage() {
     if (!canEdit || !backgroundSize) return;
     const after = fitPageToBackground(draft.layout, backgroundSize);
-    if (after) applyFit(draft.layout, after);
+    if (!after) return;
+    const from = boxFor(draft.layout, storedPlacement, backgroundSize);
+    const to = boxFor(after, after.backgroundPlacement ?? storedPlacement, backgroundSize);
+    applyFit(draft.layout, withBackgroundText(draft.layout, after, from, to));
+  }
+
+  function applyConversion({ result, replacedKinds }: AppliedConversion) {
+    if (!canEdit) return;
+    setDraft((current) => ({
+      ...current,
+      layout: {
+        ...current.layout,
+        backgroundMediaId: result.backgroundMediaId,
+        // A draft converted before keeps the PDF it started from
+        backgroundOriginalMediaId:
+          current.layout.backgroundOriginalMediaId ?? result.backgroundOriginalMediaId,
+        elements: [...keptLayers(current.layout.elements, replacedKinds), ...result.elements],
+      },
+    }));
+    const warnings: Record<string, string[]> = {};
+    for (const warning of result.warnings) {
+      if (!warning.elementId) continue;
+      (warnings[warning.elementId] ??= []).push(warningText(warning));
+    }
+    setTextWarnings((current) => ({ ...current, ...warnings }));
+    const outside = result.warnings.filter((warning) => warning.kind === 'outsidePage').length;
+    setTextSheetOpen(false);
+    setFitNote(undefined);
+    setSelectedId(undefined);
+    setMessage(
+      `${result.elements.length} metin katmana çevrildi; kaydetmeyi unutma.` +
+        (outside ? ` ${outside} metin sayfanın dışında kaldı.` : ''),
+    );
+  }
+
+  function revertToOriginal() {
+    const original = draft.layout.backgroundOriginalMediaId;
+    if (!canEdit || !original) return;
+    const converted = draft.layout.elements.filter(fromBackgroundText).length;
+    confirm({
+      title: "Orijinal PDF'e dönülsün mü?",
+      description: `Dönüştürülen ${converted} metin silinecek.`,
+      actionLabel: 'Orijinale dön',
+      destructive: true,
+      onConfirm: () => {
+        setDraft((current) => {
+          const { backgroundOriginalMediaId: _original, ...layout } = current.layout;
+          const elements = layout.elements.filter((element) => !fromBackgroundText(element));
+          // A conversion may have turned the PDF's placeholder into the recipient's name
+          if (!elements.some((element) => element.kind === 'recipientName')) {
+            const width = Math.round(layout.width * 0.75);
+            elements.push({
+              ...makeElement('recipientName'),
+              x: Math.round((layout.width - width) / 2),
+              y: Math.round(layout.height * 0.36),
+              width,
+            });
+          }
+          return { ...current, layout: { ...layout, backgroundMediaId: original, elements } };
+        });
+        setSelectedId(undefined);
+        setMessage(undefined);
+      },
+    });
   }
 
   function undoFit() {
@@ -566,7 +713,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
 
   function removeBackground() {
     if (!canEdit) return;
-    updateLayout({ backgroundMediaId: undefined, backgroundPlacement: undefined });
+    updateLayout({
+      backgroundMediaId: undefined,
+      backgroundPlacement: undefined,
+      backgroundOriginalMediaId: undefined,
+    });
     setBackgroundUrl(undefined);
     setBackgroundType(undefined);
     setFitNote(undefined);
@@ -671,6 +822,8 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         ...latestDraft.current.layout,
         backgroundMediaId: media.id,
         backgroundPlacement: size ? latestDraft.current.layout.backgroundPlacement : undefined,
+        // The original of an earlier conversion belongs to the background replaced
+        backgroundOriginalMediaId: undefined,
       };
       const uploaded = pdf
         ? 'PDF arka planı yüklendi.'
@@ -1019,7 +1172,19 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                     onClick={() => setSelectedId(element.id)}
                     className={`w-full truncate rounded-md px-2 py-1.5 text-left text-[13px]/5 ${selectedId === element.id ? 'bg-skylab-500/15 text-skylab-300' : 'text-subtle-foreground hover:bg-accent'}`}
                   >
-                    {ELEMENT_LABELS[element.kind]} {element.locked ? '· kilitli' : ''}
+                    {fromBackgroundText(element) && element.kind === 'staticText'
+                      ? element.text?.split('\n')[0]
+                      : ELEMENT_LABELS[element.kind]}{' '}
+                    {element.locked ? '· kilitli' : ''}
+                    {textWarnings[element.id] ? (
+                      <TriangleAlert
+                        role="img"
+                        aria-label={textWarnings[element.id].join('; ')}
+                        className="text-warning ml-1 inline size-3.5 align-[-2px]"
+                      >
+                        <title>{textWarnings[element.id].join('; ')}</title>
+                      </TriangleAlert>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -1094,6 +1259,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 fontFamily: certificateFontStack(element.fontFamily),
                 fontSize: `${((element.fontSize ?? 16) / draft.layout.width) * 100}cqw`,
                 fontWeight: element.fontWeight,
+                fontStyle: element.fontStyle,
                 textAlign: element.align,
                 opacity: element.opacity,
                 transform: `rotate(${element.rotation ?? 0}deg)`,
@@ -1104,6 +1270,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                 lineHeight: element.lineHeight,
                 letterSpacing: element.letterSpacing,
               } as React.CSSProperties;
+              // A paragraph (lines kept) wraps as core prints a box without shrink
+              const paragraph =
+                element.kind === 'staticText' &&
+                element.fit !== 'shrink' &&
+                Boolean(element.text?.includes('\n'));
               return (
                 <button
                   key={element.id}
@@ -1111,7 +1282,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   aria-label={ELEMENT_LABELS[element.kind]}
                   onPointerDown={(event) => startDrag(event, element)}
                   style={style}
-                  className={`absolute z-10 flex touch-none items-center ${justifyClass(element.align)} overflow-hidden whitespace-nowrap ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
+                  className={`absolute z-10 touch-none overflow-hidden ${paragraph ? 'block whitespace-pre-wrap' : `flex items-center ${justifyClass(element.align)} whitespace-nowrap`} ${element.locked ? 'cursor-not-allowed' : 'cursor-move'} ${selectedId === element.id ? 'ring-skylab-400/60 ring-2' : 'hover:ring-1 hover:ring-black/25'} ${element.kind === 'verificationQr' ? 'bg-[repeating-conic-gradient(#111_0_25%,#fff_0_50%)] bg-[length:18px_18px]' : ''}`}
                 >
                   {element.kind === 'image' && element.mediaId ? (
                     <img
@@ -1208,14 +1379,38 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   {selected.kind === 'staticText' ? (
                     <label className="block space-y-1">
                       <FieldLabel>Metin</FieldLabel>
-                      <Field
-                        disabled={!canEdit || selected.locked}
-                        value={selected.text ?? ''}
-                        onChange={(event) =>
-                          updateElement(selected.id, { text: event.target.value })
-                        }
-                      />
+                      {selected.text?.includes('\n') ? (
+                        <TextArea
+                          disabled={!canEdit || selected.locked}
+                          rows={3}
+                          value={selected.text}
+                          onChange={(event) =>
+                            updateElement(selected.id, { text: event.target.value })
+                          }
+                        />
+                      ) : (
+                        <Field
+                          disabled={!canEdit || selected.locked}
+                          value={selected.text ?? ''}
+                          onChange={(event) =>
+                            updateElement(selected.id, { text: event.target.value })
+                          }
+                        />
+                      )}
                     </label>
+                  ) : null}
+                  {textWarnings[selected.id]?.map((warning) => (
+                    <p
+                      key={warning}
+                      className="text-warning flex items-center gap-1.5 text-[13px]/5"
+                    >
+                      <TriangleAlert className="size-3.5 shrink-0" aria-hidden /> {warning}
+                    </p>
+                  ))}
+                  {selected.sourceFont ? (
+                    <p className="text-subtle-foreground text-[13px]/5">
+                      PDF&apos;teki yazı tipi: {selected.sourceFont}
+                    </p>
                   ) : null}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="space-y-1">
@@ -1265,6 +1460,20 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                         </optgroup>
                       ))}
                     </Select>
+                  </label>
+                  <label className="text-secondary-foreground flex items-center gap-2 text-[13px]/5">
+                    <input
+                      type="checkbox"
+                      className="accent-skylab-400 size-4 disabled:opacity-40"
+                      disabled={!canEdit || selected.locked}
+                      checked={selected.fontStyle === 'italic'}
+                      onChange={(event) =>
+                        updateElement(selected.id, {
+                          fontStyle: event.target.checked ? 'italic' : undefined,
+                        })
+                      }
+                    />
+                    İtalik
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="space-y-1">
@@ -1561,6 +1770,38 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   </label>
                 </>
               ) : null}
+              {backgroundIsPDF && backgroundId && pdfInfo?.state === 'ready' ? (
+                draft.layout.backgroundOriginalMediaId ? (
+                  <div className="space-y-1.5">
+                    <p className="text-secondary-foreground text-[13px]/5">
+                      {draft.layout.elements.filter(fromBackgroundText).length} metin katmana
+                      çevrildi
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!canEdit}
+                      className="border-border text-secondary-foreground hover:bg-accent flex h-8 w-full items-center justify-center rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={revertToOriginal}
+                    >
+                      Orijinale dön
+                    </button>
+                  </div>
+                ) : pdfInfo.textCount > 0 ? (
+                  <div className="space-y-1.5">
+                    <p className="text-secondary-foreground text-[13px]/5">
+                      Bu PDF&apos;te {pdfInfo.textCount} metin var
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!canEdit}
+                      className="border-border text-secondary-foreground hover:bg-accent flex h-8 w-full items-center justify-center rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => setTextSheetOpen(true)}
+                    >
+                      Metinleri düzenlenebilir yap
+                    </button>
+                  </div>
+                ) : null
+              ) : null}
               {sizable ? (
                 <>
                   <button
@@ -1659,6 +1900,22 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           </span>
         ) : null}
       </div>
+      {backgroundIsPDF && backgroundId && canEdit ? (
+        <BackgroundTextSheet
+          open={textSheetOpen}
+          mediaId={backgroundId}
+          page={{ width: draft.layout.width, height: draft.layout.height }}
+          placement={
+            draft.layout.backgroundPlacement
+              ? normalizePlacement(draft.layout.backgroundPlacement)
+              : undefined
+          }
+          elements={draft.layout.elements}
+          onClose={() => setTextSheetOpen(false)}
+          onConverted={applyConversion}
+        />
+      ) : null}
+      {confirmDialog}
     </div>
   );
 }

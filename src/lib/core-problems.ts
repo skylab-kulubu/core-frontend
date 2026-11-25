@@ -171,6 +171,11 @@ const CODE_MESSAGES: Record<string, string> = {
   background_pdf_too_large: "PDF arka plan 20 MB'tan büyük.",
   background_pdf_pages: 'PDF arka plan tek sayfa olmalı.',
   background_pdf_encrypted: 'PDF parolalı ya da şifreli; parolasız dışa aktarıp yeniden yükle.',
+  background_pdf_no_text:
+    "PDF'te düzenlenebilir metin yok: yazılar eğriye çevrilmiş ya da sayfa bir görsel.",
+  background_text_selection_empty:
+    'Dönüştürülecek metin seçilmedi ya da seçilenler artık dönüştürülemiyor; listeyi yeniden aç.',
+  background_text_strip_failed: "Seçilen metinler PDF'ten silinemedi; PDF değişmedi.",
   pdf_tools_unavailable: 'PDF araçlarına şu an ulaşılamıyor; biraz sonra tekrar dene.',
   renderer_unavailable: 'PDF oluşturucu kapalı; biraz sonra tekrar dene.',
   render_failed: 'PDF oluşturulamadı; sürerse yöneticiye haber ver.',

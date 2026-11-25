@@ -2,6 +2,7 @@ import type { CertificateLayout } from '@/lib/api/certificates';
 import {
   fitPageToBackground,
   legacyPdfPlacement,
+  moveWithBackground,
   normalizePlacement,
   pageForBackground,
   placeBackground,
@@ -83,6 +84,62 @@ describe('legacyPdfPlacement', () => {
     expect(box.height).toBeCloseTo(794, 2);
   });
 });
+
+describe('moveWithBackground', () => {
+  const text = {
+    id: 'bgtext-1',
+    kind: 'staticText' as const,
+    text: 'Katılım Belgesi',
+    x: 300,
+    y: 200,
+    width: 400,
+    height: 60,
+    fontSize: 40,
+    minFontSize: 34,
+    letterSpacing: 2,
+    rotation: -30,
+    origin: 'backgroundText' as const,
+  };
+
+  it('keeps a layer on its text when the box moves and scales', () => {
+    const from = { left: 100, top: 0, width: 800, height: 600 };
+    const to = { left: 0, top: 50, width: 400, height: 300 };
+    expect(moveWithBackground(text, from, to)).toEqual({
+      ...text,
+      x: 100,
+      y: 150,
+      width: 200,
+      height: 30,
+      fontSize: 20,
+      minFontSize: 17,
+      letterSpacing: 1,
+    });
+  });
+
+  it('stretches width and height apart for fill, the font with the height', () => {
+    const from = { left: 0, top: 0, width: 1000, height: 500 };
+    const to = { left: 0, top: 0, width: 2000, height: 750 };
+    const moved = moveWithBackground(text, from, to);
+    expect(moved).toMatchObject({ x: 600, y: 300, width: 800, height: 90, fontSize: 60 });
+    expect(moved.rotation).toBe(-30);
+  });
+
+  it('goes back where it was', () => {
+    const a = { left: 280.79, top: 0, width: 561.41, height: 794 };
+    const b = { left: 0, top: -120, width: 1123, height: 1588.21 };
+    const back = moveWithBackground(moveWithBackground(text, a, b), b, a);
+    expect(back.x).toBeCloseTo(text.x, 1);
+    expect(back.y).toBeCloseTo(text.y, 1);
+    expect(back.width).toBeCloseTo(text.width, 1);
+    expect(back.fontSize).toBeCloseTo(text.fontSize, 1);
+  });
+
+  it('leaves a layer alone for a box of no size', () => {
+    expect(moveWithBackground(text, { left: 0, top: 0, width: 0, height: 0 }, a4)).toBe(text);
+  });
+});
+
+const a4 = { left: 0, top: 0, width: 1123, height: 794 };
 
 describe('normalizePlacement', () => {
   it('sends scale 1 for fill and keeps the rest in range', () => {
