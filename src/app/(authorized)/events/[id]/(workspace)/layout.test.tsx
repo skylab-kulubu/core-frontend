@@ -406,6 +406,13 @@ describe('Event workspace layout', () => {
   });
 
   describe('a new time or place of a published event (core event.updated)', () => {
+    // jsdom has no PointerEvent; base-ui's Checkbox sends one to its hidden input on a click
+    beforeAll(() => {
+      if (!('PointerEvent' in window)) {
+        Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+      }
+    });
+
     async function moveTheEvent(user: ReturnType<typeof userEvent.setup>) {
       await renderEventTab(<EventEditRoute />, '/events/e1/edit');
       await screen.findByRole('heading', { name: 'GeceKodu' });
