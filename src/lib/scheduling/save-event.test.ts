@@ -10,6 +10,7 @@ import {
   eventPatchFromForm,
   EventSaveIncomplete,
   saveEventWithSeason,
+  timeOrPlaceChanges,
 } from '@/lib/scheduling/save-event';
 
 const form = {
@@ -123,6 +124,20 @@ describe('saveEventWithSeason', () => {
     expect(eventUpdate(calls)).not.toHaveProperty('active');
   });
 
+  it('sends the answer about telling the ticket holders with an update, and none without one', async () => {
+    const calls = coreWithTakenAliases(savedEvent, []);
+    const base = formStateFromEvent(savedEvent);
+
+    await saveEventWithSeason({ ...base, location: 'Oditoryum' }, savedEvent.id, base, {
+      notifyTicketHolders: false,
+    });
+    expect(eventUpdate(calls)).toEqual({ location: 'Oditoryum', notifyTicketHolders: false });
+
+    calls.length = 0;
+    await saveEventWithSeason({ ...base, location: 'Oditoryum' }, savedEvent.id, base);
+    expect(eventUpdate(calls)).not.toHaveProperty('notifyTicketHolders');
+  });
+
   it('creates every new Event as a draft, and never sends a status on update', async () => {
     const calls = coreWithTakenAliases(savedEvent, []);
 
@@ -187,6 +202,29 @@ describe('saveEventWithSeason', () => {
     expect(eventUpdate(calls)).toMatchObject({
       extraFormUrls: [{ url: 'https://ctf2.example.test', alias: 'skydays-ctf2026-2026' }],
     });
+  });
+});
+
+describe('timeOrPlaceChanges (what core tells the ticket holders of)', () => {
+  const base = formStateFromEvent(savedEvent);
+
+  it('names a new start or end as time and a new location text as place', () => {
+    expect(timeOrPlaceChanges({ ...base, startDate: '2026-05-01T14:00' }, base)).toEqual(['time']);
+    expect(timeOrPlaceChanges({ ...base, endDate: '2026-05-01T18:00' }, base)).toEqual(['time']);
+    expect(timeOrPlaceChanges({ ...base, location: 'Oditoryum' }, base)).toEqual(['place']);
+    expect(
+      timeOrPlaceChanges({ ...base, location: 'Oditoryum', startDate: '2026-05-02T09:00' }, base),
+    ).toEqual(['time', 'place']);
+  });
+
+  it('names nothing for another field, the map point or spaces around the location', () => {
+    expect(
+      timeOrPlaceChanges({ ...base, name: 'SkyDays 2026', description: 'Yeni' }, base),
+    ).toEqual([]);
+    expect(timeOrPlaceChanges({ ...base, locationLat: 41.02, locationLng: 28.89 }, base)).toEqual(
+      [],
+    );
+    expect(timeOrPlaceChanges({ ...base, location: ' YTÜ ' }, base)).toEqual([]);
   });
 });
 

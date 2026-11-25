@@ -68,6 +68,7 @@ import {
 } from '@/lib/event-workspace';
 import { eventDisplayStatus, eventFormIssue, eventStatusOf } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
+import { changeNoticeFor, type ChangeNotice } from '@/lib/scheduling/change-notice';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import { linkSessionFeedbackForm, sessionIdOfFeedbackSlot } from '@/lib/session-feedback';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -201,8 +202,16 @@ export type EventEditorState = {
   /** Owner teams or seasons that could not be read; `reloadOptions` reads them again. */
   optionsFailed: { teams: boolean; seasons: boolean };
   reloadOptions: () => Promise<void>;
-  /** Saves the changed fields; true once core took them (the event is then read again). */
-  save: (values: EventFormState) => Promise<boolean>;
+  /**
+   * Whether saving `values` asks to tell the Ticket holders of a new time or place; `null`
+   * saves without asking.
+   */
+  changeNotice: (values: EventFormState) => ChangeNotice | null;
+  /**
+   * Saves the changed fields; true once core took them (the event is then read again).
+   * `notifyTicketHolders` is the answer to `changeNotice` (no question: false).
+   */
+  save: (values: EventFormState, options?: { notifyTicketHolders: boolean }) => Promise<boolean>;
 };
 
 export type EventWorkspaceValue = EventPermissions & {
@@ -455,7 +464,7 @@ export function EventWorkspace({
         const editPage = eventEditHref(ev.id);
         try {
           // The return from Skyforms changed the form fields alone
-          await saveEventWithSeason(nextForm, ev.id, loaded);
+          await saveEventWithSeason(nextForm, ev.id, loaded, { notifyTicketHolders: false });
           router.replace(editPage);
           const saved = await eventsApi.get(id);
           setEvent(saved);
@@ -723,11 +732,16 @@ export function EventWorkspace({
       inUse: editInUse,
       optionsFailed,
       reloadOptions: () => loadOptions(current),
-      save: async (values) => {
+      changeNotice: (values) =>
+        editBase.current ? changeNoticeFor(current, values, editBase.current) : null,
+      save: async (values, options) => {
         setEditError(null);
         setEditInUse(null);
         try {
-          await saveEventWithSeason(values, current.id, editBase.current ?? undefined);
+          // Always said: core tells the holders of a new time or place when the body is silent
+          await saveEventWithSeason(values, current.id, editBase.current ?? undefined, {
+            notifyTicketHolders: options?.notifyTicketHolders ?? false,
+          });
         } catch (err) {
           setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
           setEditInUse(formInUseOf(err));

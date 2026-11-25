@@ -252,6 +252,11 @@ export type EventPatch = {
   registrationClosed?: boolean;
   registrationClosesAt?: string | null;
   cancelReason?: string | null;
+  /**
+   * Whether a published Event's new start, end or location is told to its Ticket holders
+   * (core docs/event-updated-notification.md); left out, core tells them. Takes no `null`.
+   */
+  notifyTicketHolders?: boolean;
 };
 
 /** GET /v1/dashboard/event-stats: one row per covered Event, undated ones last. */
