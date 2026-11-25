@@ -3,8 +3,10 @@ import React, { type ReactNode } from 'react';
 import { capabilitiesApi, type Capabilities } from '@/lib/api/capabilities';
 import { CapabilitiesProvider } from '@/lib/capabilities-context';
 import {
+  eventDecision,
   leaderTeamsOf,
   teamDecision,
+  viewerDecision,
   useAnyTeamCan,
   useAppCan,
   useAppCanSince,
@@ -190,5 +192,35 @@ describe('teamDecision and leaderTeamsOf (a Leader of a Team above, ticket 12)',
     expect(result.current.canCreate).toBe(true);
     expect(result.current.leaderTeams).toEqual(['MOBIL', 'WEBLAB']);
     expect(result.current.privilegedWriter).toBe(false);
+  });
+});
+
+describe('viewer.can (the Event’s own decision)', () => {
+  const owner = { status: 'ready' as const, data: DK_LEADER };
+
+  it('takes core’s decision on the Event over its Owner team’s', () => {
+    // A WEBLAB leader is a Co-organizer of a GECEKODU Event: core says yes on the Event
+    const event = {
+      ownerTeam: 'GECEKODU',
+      viewer: { via: 'coTeam' as const, can: { 'event.update': true, 'event.delete': false } },
+    };
+    expect(teamDecision(owner, 'GECEKODU', 'event.update', false)).toBe(false);
+    expect(eventDecision(owner, event, 'event.update', false)).toBe(true);
+    expect(eventDecision(owner, event, 'event.delete', true)).toBe(false);
+  });
+
+  it('names the template binding and competitor keys as core does', () => {
+    const viewer = {
+      via: 'owner' as const,
+      can: { 'certificate.template.assign': true, 'competition.manage': false },
+    };
+    expect(viewerDecision({ viewer }, 'certificateTemplate.assign')).toBe(true);
+    expect(viewerDecision({ viewer }, 'competitor.update')).toBe(false);
+  });
+
+  it('falls back to the team’s decision without viewer or for a key core does not send', () => {
+    expect(viewerDecision({}, 'event.update')).toBeUndefined();
+    expect(viewerDecision({ viewer: { via: 'owner', can: {} } }, 'door.checkIn')).toBeUndefined();
+    expect(eventDecision(owner, { ownerTeam: 'WEBLAB' }, 'event.update', false)).toBe(true);
   });
 });

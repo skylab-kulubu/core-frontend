@@ -166,6 +166,8 @@ export type EventCopyBody = {
   includeAttendeeNote?: boolean;
   /** Also the Co-organizer people, for who may change the copy's list; else `skipped`. */
   includeCoOrganizerPeople?: boolean;
+  /** Left out or true: the certificate template comes along (its own one as the copy's own). */
+  includeCertificateTemplate?: boolean;
   /** None: the source's Owner team. */
   ownerTeam?: string;
 };

@@ -225,6 +225,22 @@ describe('Kopya diyaloğu', () => {
     );
   });
 
+  it('copies the certificate template by default, and leaves it out when unticked', async () => {
+    capabilities(LEADER);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openDialog(user);
+    const box = within(dialog).getByRole('checkbox', { name: 'Sertifika şablonunu da kopyala' });
+    expect(box).toBeChecked();
+    expect(box).toHaveAccessibleDescription('Etkinliğe özel şablon kopyalanır.');
+    await user.click(box);
+    await user.click(within(dialog).getByRole('button', { name: 'Kopyala' }));
+    expect(eventsApi.copy).toHaveBeenCalledWith(
+      'e1',
+      expect.objectContaining({ includeCertificateTemplate: false }),
+    );
+  });
+
   it('hides the door staff box from who may not assign them', async () => {
     capabilities([{ team: 'GECEKODU', can: { 'event.create': true, 'event.update': true } }]);
     const user = userEvent.setup();

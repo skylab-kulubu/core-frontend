@@ -71,6 +71,7 @@ export function EventCopyDialog({
   const [withExternalRegistration, setWithExternalRegistration] = useState(true);
   const [withAttendeeNote, setWithAttendeeNote] = useState(true);
   const [withCoOrganizerPeople, setWithCoOrganizerPeople] = useState(false);
+  const [withCertificateTemplate, setWithCertificateTemplate] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A second click before the first answer is the same request
@@ -106,7 +107,7 @@ export function EventCopyDialog({
     };
   }, [otherTeamsCreate]);
 
-  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams);
+  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams, source.viewer);
   const target = targets.includes(team) ? team : (targets[0] ?? source.ownerTeam);
   const doorStaffCount = source.doorStaffIds?.length ?? 0;
   const offersDoorStaff = doorStaffCount > 0 && canCopyDoorStaff(capabilities, target);
@@ -138,6 +139,7 @@ export function EventCopyDialog({
         includeExternalRegistration: offersExternalRegistration && withExternalRegistration,
         includeAttendeeNote: offersAttendeeNote && withAttendeeNote,
         ...(offersCoOrganizerPeople ? { includeCoOrganizerPeople: withCoOrganizerPeople } : {}),
+        includeCertificateTemplate: withCertificateTemplate,
         ...(target !== source.ownerTeam ? { ownerTeam: target } : {}),
       });
       onOpenChange(false);
@@ -245,6 +247,18 @@ export function EventCopyDialog({
                 onChange={setWithCoOrganizerPeople}
               />
             ) : null}
+            {/* core copies the template unless told not to (docs/event-copy.md) */}
+            <div className="space-y-0.5">
+              <CheckboxRow
+                label="Sertifika şablonunu da kopyala"
+                defaultChecked={withCertificateTemplate}
+                onChange={setWithCertificateTemplate}
+                describedBy="kopya-sertifika-ipucu"
+              />
+              <p id="kopya-sertifika-ipucu" className="text-subtle-foreground pl-6 text-[13px]/5">
+                Etkinliğe özel şablon kopyalanır.
+              </p>
+            </div>
           </DialogBody>
           <DialogFooter className="mt-4">
             <DialogClose
@@ -275,8 +289,8 @@ export function useEventCopy() {
   const [request, setRequest] = useState<{ source: CoreEvent; id: string } | null>(null);
   const [open, setOpen] = useState(false);
 
-  const canCopy = (event: Pick<CoreEvent, 'ownerTeam'>) =>
-    canCopyEvent(capabilities, event.ownerTeam);
+  const canCopy = (event: Pick<CoreEvent, 'ownerTeam' | 'viewer'>) =>
+    canCopyEvent(capabilities, event.ownerTeam, event.viewer);
 
   function askCopy(source: CoreEvent) {
     setRequest({ source, id: crypto.randomUUID() });

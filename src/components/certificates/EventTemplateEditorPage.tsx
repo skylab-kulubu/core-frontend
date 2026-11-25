@@ -15,7 +15,7 @@ import {
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { eventEditHref, eventTabHref } from '@/lib/event-workspace';
-import { useTeamCan } from '@/lib/use-app-can';
+import { useTeamCan, viewerDecision } from '@/lib/use-app-can';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
@@ -56,7 +56,9 @@ export function EventTemplateEditorPage({
     from === 'certificates'
       ? eventTabHref(eventId, 'certificates')
       : `${eventEditHref(eventId)}#sertifika`;
-  const canEditEvent = event ? teamCan(event.ownerTeam, 'event.update') : false;
+  const canEditEvent = event
+    ? (viewerDecision(event, 'event.update') ?? teamCan(event.ownerTeam, 'event.update'))
+    : false;
 
   const shell = (body: ReactNode) => (
     <main className="mx-auto w-full max-w-[1440px] space-y-5 px-4 py-4 sm:px-6">
