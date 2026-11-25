@@ -48,7 +48,7 @@ beforeAll(() => {
 describe('Event Katılımcılar tab', () => {
   beforeEach(primeEventWorkspace);
 
-  it('opens Skymail with only the selected applicants', async () => {
+  it('opens SkyNotify with only the selected applicants', async () => {
     const user = userEvent.setup();
     const open = jest.spyOn(window, 'open').mockImplementation(() => null);
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
@@ -64,7 +64,7 @@ describe('Event Katılımcılar tab', () => {
 
     await waitFor(() => expect(eventsApi.syncMailList).toHaveBeenCalledWith('e1', ['t-guest']));
     expect(open).toHaveBeenCalledWith(
-      'https://iletisim.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'https://notify.yildizskylab.com/mail-tasks/create?mail_list_id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       '_blank',
       'noopener,noreferrer',
     );
