@@ -26,14 +26,14 @@ it('splits a path into its names', () => {
 it('groups roles by application, once each', () => {
   expect(
     rolesByApp([
-      { clientId: 'skymail', role: 'send' },
+      { clientId: 'skynotify', role: 'send' },
       { clientId: 'core', role: 'events:write' },
-      { clientId: 'skymail', role: 'approve' },
-      { clientId: 'skymail', role: 'send' },
+      { clientId: 'skynotify', role: 'approve' },
+      { clientId: 'skynotify', role: 'send' },
     ]),
   ).toEqual([
     { app: 'core', roles: ['events:write'] },
-    { app: 'skymail', roles: ['approve', 'send'] },
+    { app: 'skynotify', roles: ['approve', 'send'] },
   ]);
 });
 

@@ -22,7 +22,7 @@ function clubConsoles(): ClubSwitcherLink[] {
     },
     {
       id: 'mail',
-      label: 'İletişim',
+      label: 'SkyNotify',
       href: mailOrigin(),
     },
   ];

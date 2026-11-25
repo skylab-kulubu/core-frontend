@@ -801,7 +801,7 @@ describe('EventCertificatesPanel certificate mail', () => {
       certificate('S1', 'Ada Lovelace', {
         status: 'failed',
         attempts: 10,
-        errorCode: 'skymail_unreachable',
+        errorCode: 'skynotify_unreachable',
         updatedAt: '2026-11-24T21:00:00Z',
       }),
       certificate('S2', 'Grace Hopper', {
@@ -820,8 +820,8 @@ describe('EventCertificatesPanel certificate mail', () => {
     expect(within(list).getAllByText('Gönderilemedi').length).toBeGreaterThan(0);
     expect(within(list).getAllByText('Gönderildi').length).toBeGreaterThan(0);
     // Why, in words, never the code
-    expect(within(list).getAllByText("SkyMail'e ulaşılamadı").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/skymail_/)).not.toBeInTheDocument();
+    expect(within(list).getAllByText("SkyNotify'a ulaşılamadı").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/skynotify_/)).not.toBeInTheDocument();
     expect(screen.getByText('1 gönderilemedi')).toBeInTheDocument();
   });
 

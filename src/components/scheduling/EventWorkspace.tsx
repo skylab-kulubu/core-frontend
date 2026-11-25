@@ -237,7 +237,7 @@ export type EventWorkspaceValue = EventPermissions & {
   setError: (error: string | null) => void;
   /** Reads the event and everything its tabs show again. */
   reload: () => Promise<void>;
-  /** Fills the event's Skymail list (all tickets, or only these) and opens the composer. */
+  /** Fills the event's SkyNotify list (all tickets, or only these) and opens the composer. */
   mailApplicants: (ticketIds?: string[]) => Promise<void>;
   editor: EventEditorState;
 };

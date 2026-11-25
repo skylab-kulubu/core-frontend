@@ -169,10 +169,11 @@ export const ALREADY_ENTERED_TODAY = 'Bu kişi bugün etkinliğe zaten girmiş.'
 export type ScanRefusal = { kind: 'already' | 'refused'; title: string; text: string };
 
 /**
- * core's 409s on the door's ways in (core handlers ticketError): a bare 409 is the one that
- * means "already in"; `ticket_cancelled` and `ticket_waitlisted` refuse a Ticket that is not
- * active (core docs/ticket-cancellation.md); `Ambiguous Match` (resolve by name) found two
- * people. Null for any other answer, and for a 409 whose code the door does not know (a refusal).
+ * core's 409s on the door's ways in (core handlers ticketError): `already_checked_in` (a bare
+ * 409 from a core before that code) means "already in"; `ticket_cancelled` and
+ * `ticket_waitlisted` refuse a Ticket that is not active (core docs/ticket-cancellation.md);
+ * `ambiguous_match` (title `Ambiguous Match` before the code; resolve by name) found two people.
+ * Null for any other answer, and for a 409 whose code the door does not know (a refusal).
  */
 export function doorConflict(error: unknown): ScanRefusal | null {
   if (!(error instanceof ProblemError) || error.status !== 409) return null;
@@ -194,6 +195,9 @@ export function doorConflict(error: unknown): ScanRefusal | null {
         text: name ? `${name} bugün etkinliğe girdi.` : ALREADY_ENTERED_TODAY,
       };
     }
+    case 'ambiguous_match':
+      return { kind: 'refused', title: 'Birden fazla kişi', text: coreProblemMessage(error) };
+    case 'already_checked_in':
     case undefined:
       break;
     default:

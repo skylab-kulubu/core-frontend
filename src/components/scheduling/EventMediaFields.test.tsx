@@ -111,6 +111,46 @@ describe('EventMediaFields', () => {
     expect(upload).toHaveBeenCalledWith(expect.any(File), 'event_cover');
   });
 
+  it('says a cover has too many pixels when core refuses its resolution', async () => {
+    upload.mockRejectedValueOnce(
+      new ProblemError(413, 'Content Too Large', {
+        code: 'media_image_too_large',
+        detail: 'The image has more pixels than core decodes.',
+        fields: { purpose: 'event_cover', maxPixels: 50_000_000 },
+      }),
+    );
+    const { onCover } = renderFields();
+
+    await userEvent.upload(screen.getByLabelText('Kapak görseli seç'), photo('kapak.jpg'));
+
+    expect(
+      await screen.findByText(
+        'kapak.jpg: Görselin çözünürlüğü çok yüksek (en çok 50 milyon piksel). Daha küçük boyutta kaydedip yeniden yükle.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/20 MB/)).not.toBeInTheDocument();
+    expect(onCover).not.toHaveBeenCalled();
+  });
+
+  it("names the cover's own size limit when core refuses the file as too large", async () => {
+    upload.mockRejectedValueOnce(
+      new ProblemError(413, 'Content Too Large', {
+        code: 'media_too_large',
+        detail: 'The file is larger than this purpose allows.',
+        fields: { purpose: 'event_cover', maxBytes: 10 * 1024 * 1024 },
+      }),
+    );
+    renderFields();
+
+    await userEvent.upload(screen.getByLabelText('Kapak görseli seç'), photo('kapak.jpg'));
+
+    expect(
+      await screen.findByText(
+        'kapak.jpg: Dosya çok büyük: Etkinlik kapağı için en fazla 10 MB yüklenebilir.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('previews the cover whole, the way the event overview shows it', () => {
     renderFields({
       coverImageId: 'c1',
