@@ -13,7 +13,7 @@ export type AppSummary = {
   assignmentRequired: boolean;
   /** The app roles the panel assigns. */
   roles: string[];
-  /** The roles the add drawer selects first (SkyMail's "send for approval" pair). */
+  /** The roles the add drawer selects first (SkyNotify's "send for approval" pair). */
   suggestedRoles: string[];
   /** How many Groups and people one of the roles is mapped to directly. */
   groups: number;

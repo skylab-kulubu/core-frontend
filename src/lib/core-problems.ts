@@ -15,6 +15,12 @@ function formatBytes(bytes: number): string {
   return `${oneDecimal(bytes / MIB)} MB`;
 }
 
+/** A pixel count in Turkish: `50 milyon piksel`, `12,5 milyon piksel`, `800.000 piksel`. */
+function formatPixels(pixels: number): string {
+  if (pixels >= 1_000_000) return `${oneDecimal(pixels / 1_000_000)} milyon piksel`;
+  return `${pixels.toLocaleString('tr-TR')} piksel`;
+}
+
 /** Short names for the types the purposes superadmin uploads accept. */
 const TYPE_NAMES: Record<string, string> = {
   'image/jpeg': 'JPEG',
@@ -292,7 +298,7 @@ export const COMPETITOR_CONFLICT = {
 const TITLE_MESSAGES: Record<string, string> = {
   'Ambiguous Match': 'Bu adla birden fazla kayıt var; e-posta ile dene.',
   'No mail recipients': 'Mail gönderilecek alıcı yok.',
-  'Skymail is not configured': 'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
+  'SkyNotify is not configured': 'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
 };
 
 const SERVER_FAILED = 'Sunucu isteği tamamlayamadı. Biraz sonra tekrar dene.';
@@ -349,7 +355,14 @@ export function coreProblemMessage(
       return `${purposeOf(error)} büyük dosya yüklemesiyle gönderilir; buradan yüklenemez.`;
     case 'media_too_large': {
       const maxBytes = Number(fields.maxBytes);
-      return `Dosya çok büyük: ${purposeOf(error)} için en fazla ${formatBytes(maxBytes)} yüklenebilir.`;
+      return maxBytes > 0
+        ? `Dosya çok büyük: ${purposeOf(error)} için en fazla ${formatBytes(maxBytes)} yüklenebilir.`
+        : `Dosya ${purposeOf(error)} için çok büyük.`;
+    }
+    case 'media_image_too_large': {
+      const maxPixels = Number(fields.maxPixels);
+      const limit = maxPixels > 0 ? ` (en çok ${formatPixels(maxPixels)})` : '';
+      return `Görselin çözünürlüğü çok yüksek${limit}. Daha küçük boyutta kaydedip yeniden yükle.`;
     }
     case 'media_type_not_allowed': {
       const allowed = typeNames(fields.allowedTypes);
@@ -400,10 +413,14 @@ export function coreProblemMessage(
     case 'media_team_mismatch':
       return 'Bu fotoğraf başka bir ekibin etkinliğinde kullanılıyor. Yalnız kendi ekibinin fotoğraflarını kullanabilirsin.';
     default:
-      if (error.status === 413) {
-        return `Dosya çok büyük: sunucu tek seferde en fazla ${formatBytes(SINGLE_STEP_MAX_BYTES)} kabul ediyor.`;
-      }
       if (error.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code];
+      if (error.status === 413) {
+        // Only a bare 413 is the HTTP server's single-step ceiling; a coded
+        // one is some other limit this table does not know yet.
+        return error.code
+          ? 'Dosya çok büyük.'
+          : `Dosya çok büyük: sunucu tek seferde en fazla ${formatBytes(SINGLE_STEP_MAX_BYTES)} kabul ediyor.`;
+      }
       if (TITLE_MESSAGES[error.title]) return TITLE_MESSAGES[error.title];
       return (
         statusText[error.status] ??

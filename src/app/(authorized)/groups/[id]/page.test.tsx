@@ -699,7 +699,7 @@ describe('Group detail role mapping', () => {
     (identityApi.listGroups as jest.Mock).mockResolvedValue([]);
     (identityApi.listClientRoles as jest.Mock).mockResolvedValue([
       { clientId: 'forms', role: 'skyforms:access' },
-      { clientId: 'skymail', role: 'system-mails:read' },
+      { clientId: 'skynotify', role: 'system-mails:read' },
     ]);
   });
 
@@ -741,19 +741,19 @@ describe('Group detail role mapping', () => {
   });
 
   it('offers a new role on a role group under /ROLLER with nothing under it', async () => {
-    group('/ROLLER/SKYMAIL-OKUR');
+    group('/ROLLER/SKYNOTIFY-OKUR');
     (identityApi.listGroups as jest.Mock).mockResolvedValue([
-      { id: 'g1', name: 'SKYMAIL-OKUR', path: '/ROLLER/SKYMAIL-OKUR' },
+      { id: 'g1', name: 'SKYNOTIFY-OKUR', path: '/ROLLER/SKYNOTIFY-OKUR' },
     ]);
     render(<GroupPage />);
     expect(await screen.findByRole('button', { name: 'Rol ekle' })).toBeInTheDocument();
   });
 
   it('offers no new role on a role group with groups under it', async () => {
-    group('/ROLLER/SKYMAIL-OKUR');
+    group('/ROLLER/SKYNOTIFY-OKUR');
     (identityApi.listGroups as jest.Mock).mockResolvedValue([
-      { id: 'g1', name: 'SKYMAIL-OKUR', path: '/ROLLER/SKYMAIL-OKUR' },
-      { id: 'g2', name: 'ALT', path: '/ROLLER/SKYMAIL-OKUR/ALT' },
+      { id: 'g1', name: 'SKYNOTIFY-OKUR', path: '/ROLLER/SKYNOTIFY-OKUR' },
+      { id: 'g2', name: 'ALT', path: '/ROLLER/SKYNOTIFY-OKUR/ALT' },
     ]);
     render(<GroupPage />);
     expect(await screen.findByText(/Altında grup olan rol grubuna/)).toBeInTheDocument();
@@ -793,12 +793,12 @@ describe('Group detail role mapping', () => {
     expect(dialog).not.toHaveTextContent(/takes no role|realm-management/);
     expect(identityApi.setGroupRoles).toHaveBeenCalledWith('g1', [
       { clientId: 'forms', role: 'skyforms:access' },
-      { clientId: 'skymail', role: 'system-mails:read' },
+      { clientId: 'skynotify', role: 'system-mails:read' },
     ]);
   });
 
   it('shows no "Rol ekle" on a role group before its subgroups are known', async () => {
-    group('/ROLLER/SKYMAIL-OKUR');
+    group('/ROLLER/SKYNOTIFY-OKUR');
     let answer: (rows: unknown[]) => void = () => undefined;
     (identityApi.listGroups as jest.Mock).mockReturnValue(
       new Promise((resolve) => {
@@ -811,8 +811,8 @@ describe('Group detail role mapping', () => {
     expect(screen.queryByRole('button', { name: 'Rol ekle' })).not.toBeInTheDocument();
     await act(async () => {
       answer([
-        { id: 'g1', name: 'SKYMAIL-OKUR', path: '/ROLLER/SKYMAIL-OKUR' },
-        { id: 'g2', name: 'ALT', path: '/ROLLER/SKYMAIL-OKUR/ALT' },
+        { id: 'g1', name: 'SKYNOTIFY-OKUR', path: '/ROLLER/SKYNOTIFY-OKUR' },
+        { id: 'g2', name: 'ALT', path: '/ROLLER/SKYNOTIFY-OKUR/ALT' },
       ]);
     });
     expect(await screen.findByText(/Altında grup olan rol grubuna/)).toBeInTheDocument();

@@ -182,6 +182,55 @@ describe('coreProblemMessage for a bare 413', () => {
   });
 });
 
+describe('coreProblemMessage for a coded 413', () => {
+  it('says the image has too many pixels, with the limit core sent', () => {
+    expect(
+      coreProblemMessage(
+        problem(413, 'media_image_too_large', { purpose: 'event_cover', maxPixels: 50_000_000 }),
+      ),
+    ).toBe(
+      'Görselin çözünürlüğü çok yüksek (en çok 50 milyon piksel). Daha küçük boyutta kaydedip yeniden yükle.',
+    );
+    expect(
+      coreProblemMessage(
+        problem(413, 'media_image_too_large', { purpose: 'event_cover', maxPixels: 12_500_000 }),
+      ),
+    ).toBe(
+      'Görselin çözünürlüğü çok yüksek (en çok 12,5 milyon piksel). Daha küçük boyutta kaydedip yeniden yükle.',
+    );
+  });
+
+  it('says the image has too many pixels without a limit when core sent none', () => {
+    expect(
+      coreProblemMessage(problem(413, 'media_image_too_large', { purpose: 'event_cover' })),
+    ).toBe('Görselin çözünürlüğü çok yüksek. Daha küçük boyutta kaydedip yeniden yükle.');
+  });
+
+  it("names the purpose's own maximum, not the single-step limit", () => {
+    expect(
+      coreProblemMessage(
+        problem(413, 'media_too_large', { purpose: 'event_cover', maxBytes: 10 * 1024 * 1024 }),
+      ),
+    ).toBe('Dosya çok büyük: Etkinlik kapağı için en fazla 10 MB yüklenebilir.');
+    expect(coreProblemMessage(problem(413, 'media_too_large', { purpose: 'event_cover' }))).toBe(
+      'Dosya Etkinlik kapağı için çok büyük.',
+    );
+  });
+
+  it("uses the code's own message for other 413 codes", () => {
+    expect(
+      coreProblemMessage(problem(413, 'import_too_large', { maxBytes: 2 * 1024 * 1024 })),
+    ).toBe("Liste 2 MB'tan büyük.");
+    expect(coreProblemMessage(problem(413, 'import_too_many_rows', { maxRows: 1000 }))).toBe(
+      'Liste 1000 satırdan uzun; böl ve ayrı ayrı içe aktar.',
+    );
+  });
+
+  it('never names the single-step limit for a 413 code it does not know', () => {
+    expect(coreProblemMessage(problem(413, 'media_new_limit'))).toBe('Dosya çok büyük.');
+  });
+});
+
 describe('coreProblemMessage for any core refusal', () => {
   it.each([
     [400, 'Bad Request', 'İstek geçersiz. Girdiklerini denetleyip tekrar dene.'],
@@ -276,6 +325,9 @@ describe('coreProblemMessage for any core refusal', () => {
     expect(coreProblemMessage(new ProblemError(422, 'No mail recipients'), 'x')).toBe(
       'Mail gönderilecek alıcı yok.',
     );
+    expect(coreProblemMessage(new ProblemError(503, 'SkyNotify is not configured'), 'x')).toBe(
+      'Mail gönderimi şu an kullanılamıyor; yöneticiye haber ver.',
+    );
   });
 
   it('lets the caller word a status for its own action', () => {
@@ -301,7 +353,7 @@ describe('coreProblemMessage for any core refusal', () => {
     expect(
       coreProblemMessage(
         new ProblemError(503, 'Service Unavailable', {
-          detail: 'mail: lists forbidden — grant skymail:lists:write on core SA',
+          detail: 'mail: lists forbidden — grant skynotify:lists:write on core SA',
         }),
         'x',
       ),
