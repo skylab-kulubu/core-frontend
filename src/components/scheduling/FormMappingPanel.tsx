@@ -72,7 +72,7 @@ export function jobLine(job: RespondentTicketJob): string {
  * holds the guest's first name, last name, full name and e-mail. The boxes start from the panel's
  * guess (marked "tahmin") until a mapping is saved. The first save asks whether to send Tickets
  * to everyone who filled the form (core docs/form-respondents.md); "Yanıtlara bilet gönder" asks
- * again any time. Both only for who may add attendees (core's Assign on the Event's Tickets),
+ * again any time. Both only for who may edit the Event or add attendees (core: Update || Assign),
  * also when Forms lets the reader only view the form.
  */
 export function FormMappingPanel({
@@ -82,7 +82,7 @@ export function FormMappingPanel({
 }: {
   eventId: string;
   formId: string;
-  /** Who may add attendees to the Event (core's Assign on its Tickets). */
+  /** Who may edit the Event or add attendees to it (core: Update || Assign). */
   canSend?: boolean;
 }) {
   const [load, setLoad] = useState<Load>({ state: 'loading' });

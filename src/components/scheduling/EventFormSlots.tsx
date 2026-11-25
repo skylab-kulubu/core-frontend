@@ -49,7 +49,7 @@ type EventFormSlotsProps = {
   onGateChange?: (slot: EventFormSlot, gate: FormGate) => void | Promise<void>;
   /** The form the last save was refused for (`409 form_in_use`): its slot says where it is. */
   inUse?: FormInUse | null;
-  /** Who may add attendees: the mapping offers to send Tickets to the form's respondents. */
+  /** Who may edit the Event or add attendees: the mapping offers to send its respondents Tickets. */
   canSendTickets?: boolean;
 };
 
