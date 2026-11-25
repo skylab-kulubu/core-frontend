@@ -16,7 +16,7 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
+        label: 'SkyNotify',
         href: 'https://notify.yildizskylab.com',
       },
     ]);
@@ -31,7 +31,7 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
+        label: 'SkyNotify',
         href: 'https://notify.yildizskylab.com',
       },
     ]);
@@ -72,7 +72,7 @@ describe('clubSwitcherLinks', () => {
       },
       {
         id: 'mail',
-        label: 'İletişim',
+        label: 'SkyNotify',
         href: 'https://mail.example.test',
       },
     ]);
