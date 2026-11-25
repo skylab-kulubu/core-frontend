@@ -468,6 +468,18 @@ describe('Event workspace layout', () => {
       await screen.findByText('Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.'),
     ).toBeInTheDocument();
     expect(saveEventWithSeason).not.toHaveBeenCalled();
+    // Leaving asks once, for the whole page, though only Düzenleyenler changed
+    const barCancel = screen
+      .getAllByRole('button', { name: 'Vazgeç' })
+      .find((button) => !section.contains(button)) as HTMLElement;
+    await user.click(barCancel);
+    expect(
+      await screen.findAllByRole('alertdialog', {
+        name: 'Kaydedilmemiş değişiklikler silinsin mi?',
+      }),
+    ).toHaveLength(1);
+    expect(workspaceRouter.push).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
     // Dropping the change lets the event save again
     await user.click(within(section).getByRole('button', { name: 'Vazgeç' }));
     expect(

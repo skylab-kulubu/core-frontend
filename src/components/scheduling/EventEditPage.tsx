@@ -59,10 +59,11 @@ export function EventEditPage() {
   } = useFormState({
     control: form.control,
   });
-  const guard = useUnsavedChanges(dirty && !saving);
   // Düzenleyenler is saved on its own: the event's Kaydet waits until it is saved or dropped
   const [organizersDirty, setOrganizersDirty] = useState(false);
   const [organizersHeld, setOrganizersHeld] = useState(false);
+  // One question for the page, whichever part is unsaved
+  const guard = useUnsavedChanges((dirty || organizersDirty) && !saving);
   const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();

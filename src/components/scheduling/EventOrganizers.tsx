@@ -38,7 +38,6 @@ import { listStatus } from '@/lib/list-status';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useNotify } from '@/lib/ui/use-notify';
-import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 type Loaded =
   | { status: 'loading' }
@@ -69,7 +68,7 @@ export function EventOrganizers({
   event,
   onDirtyChange,
 }: {
-  event: Pick<CoreEvent, 'id' | 'ownerTeam' | 'startDate' | 'endDate'>;
+  event: Pick<CoreEvent, 'id' | 'ownerTeam' | 'startDate' | 'endDate' | 'viewer'>;
   /** Whether a change waits for "Düzenleyenleri kaydet": the event's Kaydet holds meanwhile. */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -125,7 +124,6 @@ export function EventOrganizers({
       ? { teams: loaded.organizers.teams, people: loaded.organizers.people }
       : draft;
   const dirty = loaded.status === 'ready' && !sameDraft(draft, saved);
-  const guard = useUnsavedChanges(dirty && !saving);
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
@@ -155,6 +153,9 @@ export function EventOrganizers({
 
   const { organizers } = loaded;
   const canManage = organizers.canManage;
+  // Who would manage the list (door staff assignment has the same rule, without core's switch) but
+  // may not: the switch is off
+  const switchedOff = !canManage && event.viewer?.can['event.assignDoorStaff'] === true;
   const ownerRule = organizers.ownerRule;
   const expiry = personExpiry(event);
 
@@ -250,7 +251,9 @@ export function EventOrganizers({
           </div>
         ) : null}
         <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
-          Listeyi sahip ekibin liderleri değiştirir.
+          {switchedOff
+            ? 'Ortak düzenleyen değişiklikleri şu an kapalı.'
+            : 'Listeyi sahip ekibin liderleri değiştirir.'}
         </p>
       </div>
     );
@@ -316,6 +319,7 @@ export function EventOrganizers({
                     <label className="block space-y-1">
                       <FieldLabel>Görünüm</FieldLabel>
                       <Select
+                        aria-describedby={`gorunum-ipucu-${row.code}`}
                         value={row.visibility}
                         onChange={(e) =>
                           patchTeam(row.code, {
@@ -330,7 +334,10 @@ export function EventOrganizers({
                         ))}
                       </Select>
                     </label>
-                    <span className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+                    <span
+                      id={`gorunum-ipucu-${row.code}`}
+                      className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
+                    >
                       {VISIBILITY_HINTS[row.visibility]}
                     </span>
                   </div>
@@ -480,7 +487,6 @@ export function EventOrganizers({
           setPersonOpen(false);
         }}
       />
-      {guard.dialog}
     </div>
   );
 }

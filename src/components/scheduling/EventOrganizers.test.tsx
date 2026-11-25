@@ -81,7 +81,9 @@ describe('EventOrganizers', () => {
     expect(
       within(row).getByRole('option', { name: 'Yalnız liderler (sahip ekip gibi)' }),
     ).toBeInTheDocument();
-    expect(within(row).getByText('Sitede, bilette ve doğrulamada görünür.')).toBeInTheDocument();
+    expect(within(row).getByRole('combobox', { name: 'Görünüm' })).toHaveAccessibleDescription(
+      'Sitede, bilette ve doğrulamada görünür.',
+    );
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText(/Etkinlik bitiminden 30 gün sonra düşer · /)).toBeInTheDocument();
     expect(
@@ -191,6 +193,21 @@ describe('EventOrganizers', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ekip ekle' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Kişi ekle' })).not.toBeInTheDocument();
+  });
+
+  it('tells the Owner team’s Leader the changes are off while core’s switch is off', async () => {
+    api.get.mockResolvedValue(organizers({ canManage: false }));
+    render(
+      <EventOrganizers
+        event={{ ...event, viewer: { via: 'owner', can: { 'event.assignDoorStaff': true } } }}
+      />,
+    );
+    expect(
+      await screen.findByText('Ortak düzenleyen değişiklikleri şu an kapalı.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Listeyi sahip ekibin liderleri değiştirir.'),
+    ).not.toBeInTheDocument();
   });
 
   it('says there is none to who may not change an empty list', async () => {
