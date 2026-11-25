@@ -48,7 +48,7 @@ beforeAll(() => {
 describe('Event Katılımcılar tab', () => {
   beforeEach(primeEventWorkspace);
 
-  it('opens Skymail with only the selected applicants', async () => {
+  it('opens SkyNotify with only the selected applicants', async () => {
     const user = userEvent.setup();
     const open = jest.spyOn(window, 'open').mockImplementation(() => null);
     signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);

@@ -45,7 +45,7 @@ describe('group pages', () => {
     expect(groupKind('/UYELER/ARGE/WEBLAB')).toBe('team');
     expect(groupKind('/UYELER/ARGE/WEBLAB/MOBIL')).toBe('subteam');
     expect(groupKind('/UYELER/ARGE/WEBLAB/LIDERLER')).toBe('leaders');
-    expect(groupKind('/ROLLER/SKYMAIL-OKUR')).toBe('roles');
+    expect(groupKind('/ROLLER/SKYNOTIFY-OKUR')).toBe('roles');
     expect(groupKind('/UYELER/ARGE')).toBe('area');
     expect(groupTitle({ name: 'WEBLAB', attributes: { display_name_tr: 'Web Lab' } })).toBe(
       'Web Lab',
