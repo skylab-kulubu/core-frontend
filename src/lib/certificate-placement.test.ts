@@ -1,6 +1,7 @@
 import type { CertificateLayout } from '@/lib/api/certificates';
 import {
   fitPageToBackground,
+  legacyPdfPlacement,
   normalizePlacement,
   pageForBackground,
   placeBackground,
@@ -52,6 +53,34 @@ describe('placeBackground', () => {
     for (const key of ['left', 'top', 'width', 'height'] as const) {
       expect(Math.abs(got[key] - c.want[key])).toBeLessThanOrEqual(table.tolerance);
     }
+  });
+});
+
+describe('legacyPdfPlacement', () => {
+  // core-backend TestLegacyPDFPlacementFollowsPdfcpu: the same cases
+  it('fits a landscape or square PDF to the width and a portrait one to the height', () => {
+    const centred = { x: 0.5, y: 0.5, scale: 1 };
+    expect(legacyPdfPlacement({ width: 842, height: 595 })).toEqual({
+      fit: 'fitWidth',
+      ...centred,
+    });
+    expect(legacyPdfPlacement({ width: 595, height: 842 })).toEqual({
+      fit: 'fitHeight',
+      ...centred,
+    });
+    expect(legacyPdfPlacement({ width: 600, height: 600 })).toEqual({
+      fit: 'fitWidth',
+      ...centred,
+    });
+  });
+
+  it('centres a portrait A4 PDF on an A4 landscape page, margins left and right', () => {
+    const pdf = { width: (595 * 96) / 72, height: (842 * 96) / 72 };
+    const box = placeBackground(1123, 794, pdf.width, pdf.height, legacyPdfPlacement(pdf));
+    expect(box.left).toBeCloseTo(280.9596, 2);
+    expect(box.top).toBe(0);
+    expect(box.width).toBeCloseTo(561.0808, 2);
+    expect(box.height).toBeCloseTo(794, 2);
   });
 });
 

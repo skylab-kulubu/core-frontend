@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Skeleton } from '@skylab-kulubu/skylcn-ui';
 import { useRouter } from 'next/navigation';
 import './certificate-fonts.css';
 import {
@@ -34,6 +35,7 @@ import {
   type CertificateLayout,
   type CertificateTemplateDraft,
 } from '@/lib/api/certificates';
+import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { publicMediaUrl } from '@/lib/event-media';
@@ -55,9 +57,11 @@ import {
   FIT_LABELS,
   LEGACY_IMAGE_PLACEMENT,
   fitPageToBackground,
+  legacyPdfPlacement,
   normalizePlacement,
   pageForBackground,
   placeBackground,
+  placeableSize,
   ratioDiffers,
   resizeCertificateLayout,
   type Size,
@@ -94,6 +98,41 @@ const POSITIONS = [
 ] as const;
 
 const PLACEMENT_DROPPED = 'Yerleşim kaydedilmedi; core güncel değil.';
+
+const PDF_PREVIEW_UNAVAILABLE = 'PDF önizlemesi şu an üretilemiyor.';
+
+/**
+ * A PDF background's size and text count from core (`/v1/certificate-assets/{id}/info`).
+ * `legacy`: core without the asset routes (404); the PDF is drawn in a frame, as
+ * before, and an upload keeps no placement. `failed`: pdf-tools is down
+ * (`unavailable`) or refused the PDF; a saved placement is kept as it is.
+ */
+type PdfInfo =
+  | { state: 'loading' }
+  | { state: 'ready'; size: Size; textCount: number }
+  | { state: 'legacy' }
+  | { state: 'failed'; unavailable: boolean; message: string };
+
+/** A PDF background's page as a PNG from core (`…/preview`), as an object URL. */
+type PdfPreview =
+  | { state: 'loading' }
+  | { state: 'ready'; url: string }
+  | { state: 'legacy' }
+  | { state: 'failed'; unavailable: boolean; message: string };
+
+function pdfFailure(cause: unknown): { state: 'legacy' } | Extract<PdfInfo, { state: 'failed' }> {
+  if (cause instanceof ProblemError && cause.status === 404) return { state: 'legacy' };
+  const unavailable =
+    cause instanceof ProblemError &&
+    (cause.code === 'pdf_tools_unavailable' || (cause.status === 503 && !cause.code));
+  return {
+    state: 'failed',
+    unavailable,
+    message: unavailable
+      ? PDF_PREVIEW_UNAVAILABLE
+      : coreProblemMessage(cause, 'PDF arka plan okunamadı'),
+  };
+}
 
 /** A page fitted to its background, kept so the designer can take it back. */
 type FitNote = { before: CertificateLayout; after: CertificateLayout };
@@ -205,6 +244,19 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   // Image backgrounds whose size could not be read (core: background_size_unknown), apart
   // from those still being read: they keep no placement and show no placement controls
   const [unsizedBackgrounds, setUnsizedBackgrounds] = useState<Record<string, true>>({});
+  // PDF backgrounds' size and PNG from core, by Media id
+  const [pdfInfos, setPdfInfos] = useState<Record<string, PdfInfo>>({});
+  const [pdfPreviews, setPdfPreviews] = useState<Record<string, PdfPreview>>({});
+  const previewUrls = useRef<string[]>([]);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const urls = previewUrls.current;
+    return () => {
+      mounted.current = false;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
   const [fitNote, setFitNote] = useState<FitNote>();
   // Core dropped the placement on save: it predates it (core-backend #446)
   const [placementDropped, setPlacementDropped] = useState(false);
@@ -235,12 +287,42 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   );
   const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
   const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
+  const backgroundId = draft.layout.backgroundMediaId;
   const backgroundIsPDF = backgroundType === 'application/pdf';
   const backgroundIsImage = Boolean(backgroundUrl) && Boolean(backgroundType?.startsWith('image/'));
-  const backgroundSize = backgroundUrl ? backgroundSizes[backgroundUrl] : undefined;
-  const backgroundUnsized = Boolean(backgroundUrl && unsizedBackgrounds[backgroundUrl]);
-  const storedPlacement = draft.layout.backgroundPlacement ?? LEGACY_IMAGE_PLACEMENT;
-  const placement = normalizePlacement(placementDropped ? LEGACY_IMAGE_PLACEMENT : storedPlacement);
+  const pdfInfo = backgroundIsPDF && backgroundId ? pdfInfos[backgroundId] : undefined;
+  const pdfPreview = backgroundIsPDF && backgroundId ? pdfPreviews[backgroundId] : undefined;
+  // An older core: the PDF in a frame, as before (no size, no placement controls)
+  const pdfLegacy = pdfInfo?.state === 'legacy' || pdfPreview?.state === 'legacy';
+  const pdfProblem =
+    pdfInfo?.state === 'failed' ? pdfInfo : pdfPreview?.state === 'failed' ? pdfPreview : undefined;
+  const backgroundSize = backgroundIsPDF
+    ? pdfInfo?.state === 'ready'
+      ? pdfInfo.size
+      : undefined
+    : backgroundUrl
+      ? backgroundSizes[backgroundUrl]
+      : undefined;
+  const backgroundUnsized =
+    !backgroundIsPDF && Boolean(backgroundUrl && unsizedBackgrounds[backgroundUrl]);
+  // The background can take a placement: an image unless its size could not be
+  // read (also while it is being read), a PDF once core gave its size
+  const sizable = backgroundIsPDF
+    ? pdfInfo?.state === 'ready'
+    : backgroundIsImage && !backgroundUnsized;
+  // How core prints the background of a layout without a placement
+  const legacyPlacement =
+    backgroundIsPDF && backgroundSize ? legacyPdfPlacement(backgroundSize) : LEGACY_IMAGE_PLACEMENT;
+  const storedPlacement = draft.layout.backgroundPlacement ?? legacyPlacement;
+  const placement = normalizePlacement(placementDropped ? legacyPlacement : storedPlacement);
+  // The picture the canvas draws: an image itself, a PDF's PNG from core
+  const backgroundSrc = backgroundIsPDF
+    ? pdfPreview?.state === 'ready'
+      ? pdfPreview.url
+      : undefined
+    : backgroundIsImage
+      ? backgroundUrl
+      : undefined;
   const backgroundBox = backgroundSize
     ? placeBackground(
         draft.layout.width,
@@ -273,6 +355,44 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       cancelled = true;
     };
   }, [backgroundUrl, backgroundType, backgroundSizes, unsizedBackgrounds]);
+
+  /** Reads a PDF background's size from core and keeps it by Media id. */
+  async function loadPdfInfo(id: string): Promise<PdfInfo> {
+    setPdfInfos((current) => ({ ...current, [id]: { state: 'loading' } }));
+    let info: PdfInfo;
+    try {
+      const answer = await certificatesApi.assetInfo(id);
+      const size = { width: answer.widthPx, height: answer.heightPx };
+      info = placeableSize(size)
+        ? { state: 'ready', size, textCount: answer.textCount ?? 0 }
+        : { state: 'failed', unavailable: false, message: 'PDF arka planın boyutu okunamadı.' };
+    } catch (cause) {
+      info = pdfFailure(cause);
+    }
+    if (mounted.current) setPdfInfos((current) => ({ ...current, [id]: info }));
+    return info;
+  }
+
+  useEffect(() => {
+    if (!backgroundIsPDF || !backgroundId) return;
+    if (!pdfInfos[backgroundId]) void loadPdfInfo(backgroundId);
+    if (pdfPreviews[backgroundId]) return;
+    setPdfPreviews((current) => ({ ...current, [backgroundId]: { state: 'loading' } }));
+    certificatesApi
+      .assetPreview(backgroundId)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        if (!mounted.current) return URL.revokeObjectURL(url);
+        previewUrls.current.push(url);
+        setPdfPreviews((current) => ({ ...current, [backgroundId]: { state: 'ready', url } }));
+      })
+      .catch((cause) => {
+        if (mounted.current) {
+          setPdfPreviews((current) => ({ ...current, [backgroundId]: pdfFailure(cause) }));
+        }
+      });
+    // loadPdfInfo only sets state; the maps say what is read already
+  }, [backgroundIsPDF, backgroundId, pdfInfos, pdfPreviews]);
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -416,7 +536,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   function updatePlacement(patch: Partial<BackgroundPlacement>) {
-    if (backgroundUnsized) return;
+    if (!sizable) return;
     updateLayout({ backgroundPlacement: { ...storedPlacement, ...patch } });
   }
 
@@ -531,24 +651,30 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       const media = await mediaApi.upload(file);
       const url = publicMediaUrl(media.url);
       const pdf = media.type === 'application/pdf';
-      // The natural size, read before the page is fitted (K1)
+      // The natural size, read before the page is fitted (K1): an image's in the
+      // browser, a PDF's from core
       const image = Boolean(media.type?.startsWith('image/'));
+      const info = pdf ? await loadPdfInfo(media.id) : undefined;
       const size = image
         ? await backgroundNaturalSize(url, media.type, file).catch(() => undefined)
-        : undefined;
-      if (size) setBackgroundSizes((current) => ({ ...current, [url]: size }));
+        : info?.state === 'ready'
+          ? info.size
+          : undefined;
+      if (image && size) setBackgroundSizes((current) => ({ ...current, [url]: size }));
       if (image && !size) setUnsizedBackgrounds((current) => ({ ...current, [url]: true }));
       setBackgroundUrl(url);
       setBackgroundType(media.type);
       setFitNote(undefined);
-      // A PDF is placed by ticket 07; until then it keeps no placement. Nor does an
-      // image of unknown size: core prints it the old way (cover) and refuses a placement
+      // A background of unknown size keeps no placement: core prints it the old way
+      // (an image covered, a PDF by its width or height) and refuses an image's placement
       const before: CertificateLayout = {
         ...latestDraft.current.layout,
         backgroundMediaId: media.id,
-        backgroundPlacement:
-          pdf || (image && !size) ? undefined : latestDraft.current.layout.backgroundPlacement,
+        backgroundPlacement: size ? latestDraft.current.layout.backgroundPlacement : undefined,
       };
+      const uploaded = pdf
+        ? 'PDF arka planı yüklendi.'
+        : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.';
       // A background of another ratio than the page's fits the page to it (K1)
       const after = size
         ? ratioDiffers(before, size)
@@ -557,17 +683,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
         : null;
       if (after) {
         applyFit(before, after);
-        if (after.width === before.width && after.height === before.height) {
-          setMessage('Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.');
-        }
+        if (after.width === before.width && after.height === before.height) setMessage(uploaded);
         return;
       }
       setDraft((current) => ({ ...current, layout: before }));
-      setMessage(
-        pdf
-          ? 'PDF arka planı yüklendi. Vektörel taban korunacak; dinamik katmanlar üstüne işlenecek.'
-          : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.',
-      );
+      setMessage(uploaded);
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Arka plan yüklenemedi'));
     } finally {
@@ -591,15 +711,14 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   /**
-   * The draft as core takes it: the placement in range, and none for a PDF
-   * background (ticket 07 places those) or once core dropped it. A saved
-   * placement whose image could not be sized now (a CDN hiccup) goes back as
-   * it was; an upload of unknown size has already cleared it.
+   * The draft as core takes it: the placement in range, and none once core
+   * dropped it. A saved placement whose background could not be sized now (a
+   * CDN hiccup, pdf-tools down) goes back as it was; an upload of unknown size
+   * has already cleared it.
    */
   function draftToSave(): CertificateTemplateDraft {
     const { backgroundPlacement, ...layout } = draft.layout;
-    const keep =
-      backgroundPlacement && layout.backgroundMediaId && !backgroundIsPDF && !placementDropped;
+    const keep = backgroundPlacement && layout.backgroundMediaId && !placementDropped;
     return {
       ...draft,
       layout: keep
@@ -921,11 +1040,12 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
             onPointerUp={() => (dragRef.current = null)}
             onPointerCancel={() => (dragRef.current = null)}
           >
-            {backgroundUrl && !backgroundIsPDF ? (
-              // The box core prints the background in (placeBackground); covered and
-              // centred, as a layout without a placement prints, until its size is read
+            {backgroundSrc ? (
+              // The box core prints the background in (placeBackground); until its size
+              // is read, an image covered and centred as a layout without a placement
+              // prints, a PDF's page whole
               <img
-                src={backgroundUrl}
+                src={backgroundSrc}
                 alt=""
                 aria-hidden
                 draggable={false}
@@ -939,11 +1059,23 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                         width: `${(backgroundBox.width / draft.layout.width) * 100}%`,
                         height: `${(backgroundBox.height / draft.layout.height) * 100}%`,
                       }
-                    : { inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
+                    : {
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: backgroundIsPDF ? 'contain' : 'cover',
+                      }
                 }
               />
             ) : null}
-            {backgroundIsPDF && backgroundUrl ? (
+            {backgroundIsPDF && !pdfLegacy && !pdfProblem && !backgroundSrc ? (
+              <Skeleton
+                data-background-skeleton=""
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-0 rounded-none"
+              />
+            ) : null}
+            {backgroundIsPDF && pdfLegacy && backgroundUrl ? (
               // A frame, not an <object>: the panel's CSP allows no objects (object-src 'none')
               <iframe
                 title="PDF arka plan önizlemesi"
@@ -1361,13 +1493,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
           ) : (
             <div role="group" aria-label="Arka plan" className="space-y-3">
               <p className="text-secondary-foreground text-[13px]/5 font-semibold">Arka plan</p>
-              {backgroundIsPDF ? (
-                <p className="text-subtle-foreground text-[13px]/5">PDF yerleşimi yakında</p>
-              ) : null}
               {backgroundIsImage && backgroundUnsized ? (
                 <p className="text-subtle-foreground text-[13px]/5">Görselin boyutu okunamadı.</p>
               ) : null}
-              {backgroundIsImage && !backgroundUnsized && !placementDropped ? (
+              {sizable && !placementDropped ? (
                 <>
                   <label className="block space-y-1">
                     <FieldLabel>Yerleşim</FieldLabel>
@@ -1432,7 +1561,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
                   </label>
                 </>
               ) : null}
-              {backgroundIsImage && !backgroundUnsized ? (
+              {sizable ? (
                 <>
                   <button
                     type="button"
@@ -1477,6 +1606,11 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}
+        </p>
+      ) : null}
+      {pdfProblem ? (
+        <p className="border-warning/30 bg-warning/5 text-warning rounded-md border px-3 py-2 text-[13px]/5">
+          {pdfProblem.message}
         </p>
       ) : null}
       {placementDropped ? (

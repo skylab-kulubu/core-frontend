@@ -9,6 +9,20 @@ import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
 import { backgroundNaturalSize } from '@/lib/background-size';
+// The same golden table as certificate-placement.test.ts (core-backend's copy)
+import golden from '@/lib/__fixtures__/background-placement.json';
+
+type GoldenCase = {
+  page: { width: number; height: number };
+  source: { width: number; height: number };
+  placement: {
+    fit: 'contain' | 'cover' | 'fill' | 'fitWidth' | 'fitHeight' | 'none';
+    x: number;
+    y: number;
+    scale: number;
+  };
+  want: { left: number; top: number; width: number; height: number };
+};
 
 const mockReplace = jest.fn();
 let mockCurrentUser = {
@@ -36,6 +50,8 @@ jest.mock('@/lib/api/certificates', () => ({
     createTemplate: jest.fn(),
     publishTemplate: jest.fn(),
     previewTemplate: jest.fn(),
+    assetInfo: jest.fn(),
+    assetPreview: jest.fn(),
   },
 }));
 
@@ -70,6 +86,39 @@ function withImageBackground(placement?: object) {
   (backgroundNaturalSize as jest.Mock).mockResolvedValue({ width: 1920, height: 1080 });
 }
 
+const PDF_BACKGROUND = {
+  id: 'bg-pdf',
+  name: 'sertifika.pdf',
+  type: 'application/pdf',
+  url: 'https://cdn.example.test/files/sertifika.pdf',
+  kind: 'FILE',
+};
+
+/** Canva's A4 portrait PDF, as core's /info reads it (pt × 96/72). */
+const A4_PORTRAIT_PDF = {
+  contentType: 'application/pdf',
+  widthPx: 793.701,
+  heightPx: 1122.52,
+  pages: 1,
+  textCount: 12,
+};
+
+/** The template's draft with a PDF background under its page. */
+function withPdfBackground(layout: object = {}) {
+  const draft = emptyCertificateDraft();
+  (certificatesApi.template as jest.Mock).mockResolvedValue({
+    id: 'tpl-pdf',
+    name: 'PDF şablon',
+    ownerTeam: '',
+    sourceKind: 'upload',
+    sourceRef: '',
+    sourceEditUrl: '',
+    draftLayout: { ...draft.layout, backgroundMediaId: 'bg-pdf', ...layout },
+    system: true,
+  });
+  (mediaApi.get as jest.Mock).mockResolvedValue(PDF_BACKGROUND);
+}
+
 const backgroundImage = () => document.querySelector('img[data-background]') as HTMLElement;
 /** A layer's button in the layer list (not its box on the canvas). */
 const layerButton = (name: string) =>
@@ -91,6 +140,12 @@ describe('CertificateTemplateEditor', () => {
       roles: [],
       groups: ['/ADMIN'],
     };
+    (certificatesApi.assetInfo as jest.Mock).mockResolvedValue(A4_PORTRAIT_PDF);
+    (certificatesApi.assetPreview as jest.Mock).mockResolvedValue(
+      new Blob(['png'], { type: 'image/png' }),
+    );
+    URL.createObjectURL = jest.fn(() => 'blob:pdf-onizleme');
+    URL.revokeObjectURL = jest.fn();
     const draft = emptyCertificateDraft();
     (certificatesApi.template as jest.Mock).mockResolvedValue({
       id: 'system-default',
@@ -209,15 +264,9 @@ describe('CertificateTemplateEditor', () => {
     expect(layer('Etkinlik adı')).toBeUndefined();
   });
 
-  it('accepts a one-page PDF as a vector certificate background', async () => {
+  it("draws an uploaded PDF from core's PNG and fits the page to it", async () => {
     const user = userEvent.setup();
-    (mediaApi.upload as jest.Mock).mockResolvedValue({
-      id: 'pdf-background',
-      name: 'certificate.pdf',
-      type: 'application/pdf',
-      url: 'https://cdn.example.test/files/certificate.pdf',
-      kind: 'FILE',
-    });
+    (mediaApi.upload as jest.Mock).mockResolvedValue(PDF_BACKGROUND);
     render(<CertificateTemplateEditor templateId="system-default" />);
 
     await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
@@ -225,19 +274,195 @@ describe('CertificateTemplateEditor', () => {
     const input = screen.getByLabelText('Canva dosyasını yükle');
     expect(input).toHaveAttribute('accept', expect.stringContaining('application/pdf'));
 
-    const pdf = new File(['%PDF-1.7 example'], 'certificate.pdf', {
-      type: 'application/pdf',
-    });
+    const pdf = new File(['%PDF-1.7 example'], 'sertifika.pdf', { type: 'application/pdf' });
     await user.upload(input, pdf);
 
     expect(mediaApi.upload).toHaveBeenCalledWith(pdf);
     expect(await screen.findByText('3 · Dosyayı yükle ✓')).toBeInTheDocument();
-    expect(screen.getByTitle('PDF arka plan önizlemesi')).toBeInTheDocument();
-    // A PDF is placed by ticket 07: no placement, no page fitting yet
-    expect(screen.getByText('PDF yerleşimi yakında')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Sayfayı arka plana uydur' })).toBeNull();
+    expect(certificatesApi.assetInfo).toHaveBeenCalledWith('bg-pdf');
+    // Canva's A4 portrait PDF under an A4 landscape page: the page turns to fit it (K1)
+    expect(
+      await screen.findByText(/Sayfa arka plana uyduruldu \(1123×794 → 794×1123\)/),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(backgroundImage()).toHaveAttribute('src', 'blob:pdf-onizleme'));
+    expect(certificatesApi.assetPreview).toHaveBeenCalledWith('bg-pdf');
+    expect(screen.queryByTitle('PDF arka plan önizlemesi')).toBeNull();
+    expect(screen.getByLabelText('Yerleşim')).toHaveValue('fill');
+    expect(bgBox('width')).toBeCloseTo(100, 2);
+    expect(bgBox('height')).toBeCloseTo(100, 2);
+    expect(screen.queryByText('PDF yerleşimi yakında')).toBeNull();
     expect(backgroundNaturalSize).not.toHaveBeenCalled();
+  });
+
+  it('says only that a PDF of the page ratio was uploaded', async () => {
+    const user = userEvent.setup();
+    (mediaApi.upload as jest.Mock).mockResolvedValue(PDF_BACKGROUND);
+    (certificatesApi.assetInfo as jest.Mock).mockResolvedValue({
+      ...A4_PORTRAIT_PDF,
+      widthPx: 1122.52,
+      heightPx: 793.701,
+    });
+    render(<CertificateTemplateEditor templateId="system-default" />);
+
+    await screen.findByDisplayValue('SKY LAB Varsayılan Sertifika');
+    await user.upload(
+      screen.getByLabelText('Arka plan görseli yükle'),
+      new File(['%PDF-1.7'], 'sertifika.pdf', { type: 'application/pdf' }),
+    );
+
+    expect(await screen.findByText('PDF arka planı yüklendi.')).toBeInTheDocument();
+    expect(screen.queryByText(/Sayfa arka plana uyduruldu/)).toBeNull();
+    expect(screen.getByLabelText('Yerleşim')).toHaveValue('fill');
+  });
+
+  it('draws an old PDF layout as core prints it: by its height, centred', async () => {
+    withPdfBackground();
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    await screen.findByDisplayValue('PDF şablon');
+    // A portrait PDF under a landscape page, no placement: pdfcpu's scale (fitHeight)
+    await waitFor(() => expect(screen.getByLabelText('Yerleşim')).toHaveValue('fitHeight'));
+    // 793.701×1122.52 px to 794 px high: 561.41 px wide, 280.79 px from the left
+    const width = (793.701 * 794) / 1122.52;
+    expect(bgBox('left')).toBeCloseTo(((1123 - width) / 2 / 1123) * 100, 2);
+    expect(bgBox('top')).toBeCloseTo(0, 2);
+    expect(bgBox('width')).toBeCloseTo((width / 1123) * 100, 2);
+    expect(bgBox('height')).toBeCloseTo(100, 2);
+  });
+
+  it("places a PDF in the golden table's box", async () => {
+    const cases = (golden as { cases: GoldenCase[] }).cases.filter((_c, i) => i % 50 === 7);
+    expect(cases.length).toBe(12);
+    for (const c of cases) {
+      withPdfBackground({
+        width: c.page.width,
+        height: c.page.height,
+        orientation: c.page.width >= c.page.height ? 'landscape' : 'portrait',
+        backgroundPlacement: c.placement,
+      });
+      (certificatesApi.assetInfo as jest.Mock).mockResolvedValue({
+        ...A4_PORTRAIT_PDF,
+        widthPx: c.source.width,
+        heightPx: c.source.height,
+      });
+      const { unmount } = render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+      await screen.findByDisplayValue('PDF şablon');
+      await waitFor(() => expect(screen.getByLabelText('Yerleşim')).toHaveValue(c.placement.fit));
+      const percent = (value: number, side: number) => (value / side) * 100;
+      expect(bgBox('left')).toBeCloseTo(percent(c.want.left, c.page.width), 2);
+      expect(bgBox('top')).toBeCloseTo(percent(c.want.top, c.page.height), 2);
+      expect(bgBox('width')).toBeCloseTo(percent(c.want.width, c.page.width), 2);
+      expect(bgBox('height')).toBeCloseTo(percent(c.want.height, c.page.height), 2);
+      unmount();
+    }
+  });
+
+  it("saves a PDF's placement and fits the page to the PDF", async () => {
+    const user = userEvent.setup();
+    withPdfBackground({ backgroundPlacement: { fit: 'contain', x: 0, y: 0.5, scale: 1 } });
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    await screen.findByDisplayValue('PDF şablon');
+    await user.click(await screen.findByRole('button', { name: 'Sayfayı arka plana uydur' }));
+    expect(
+      screen.getByText(/Sayfa arka plana uyduruldu \(1123×794 → 794×1123\)/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+
+    await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+    expect((certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout).toMatchObject({
+      width: 794,
+      height: 1123,
+      backgroundMediaId: 'bg-pdf',
+      backgroundPlacement: { fit: 'fill', x: 0.5, y: 0.5, scale: 1 },
+    });
+  });
+
+  it('shows a skeleton while core draws the PDF', async () => {
+    (certificatesApi.assetPreview as jest.Mock).mockReturnValue(new Promise(() => {}));
+    withPdfBackground();
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    await screen.findByDisplayValue('PDF şablon');
+    await waitFor(() =>
+      expect(document.querySelector('[data-background-skeleton]')).toBeInTheDocument(),
+    );
+    expect(backgroundImage()).toBeNull();
+  });
+
+  it('says so when pdf-tools is down, keeps the saved placement and the PDF preview', async () => {
+    const user = userEvent.setup();
+    const down = new ProblemError(503, 'Service Unavailable', { code: 'pdf_tools_unavailable' });
+    (certificatesApi.assetInfo as jest.Mock).mockRejectedValue(down);
+    (certificatesApi.assetPreview as jest.Mock).mockRejectedValue(down);
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    withPdfBackground({ backgroundPlacement: { fit: 'contain', x: 0.5, y: 0.5, scale: 1 } });
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    await screen.findByDisplayValue('PDF şablon');
+    expect(await screen.findByText('PDF önizlemesi şu an üretilemiyor.')).toBeInTheDocument();
+    expect(document.querySelector('[data-background-skeleton]')).toBeNull();
+    expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /PDF önizle/ })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+    await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+    expect(
+      (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout.backgroundPlacement,
+    ).toEqual({ fit: 'contain', x: 0.5, y: 0.5, scale: 1 });
+  });
+
+  it('says why core cannot read an encrypted PDF', async () => {
+    (certificatesApi.assetInfo as jest.Mock).mockRejectedValue(
+      new ProblemError(400, 'Bad Request', { code: 'background_pdf_encrypted' }),
+    );
+    withPdfBackground();
+    render(<CertificateTemplateEditor templateId="tpl-pdf" />);
+
+    expect(
+      await screen.findByText('PDF parolalı ya da şifreli; parolasız dışa aktarıp yeniden yükle.'),
+    ).toBeInTheDocument();
+  });
+
+  it('falls back to the frame on a core without the asset routes', async () => {
+    const user = userEvent.setup();
+    const missing = new ProblemError(404, 'Not Found');
+    (certificatesApi.assetInfo as jest.Mock).mockRejectedValue(missing);
+    (certificatesApi.assetPreview as jest.Mock).mockRejectedValue(missing);
+    (mediaApi.upload as jest.Mock).mockResolvedValue(PDF_BACKGROUND);
+    (certificatesApi.updateTemplate as jest.Mock).mockImplementation(async (id, body) => ({
+      id,
+      draftLayout: body.layout,
+    }));
+    withImageBackground({ fit: 'contain', x: 0.5, y: 0.5, scale: 1 });
+    render(<CertificateTemplateEditor templateId="tpl-1" />);
+
+    await screen.findByDisplayValue('Görselli şablon');
+    await user.upload(
+      screen.getByLabelText('Arka plan görseli yükle'),
+      new File(['%PDF-1.7'], 'sertifika.pdf', { type: 'application/pdf' }),
+    );
+
+    expect(await screen.findByTitle('PDF arka plan önizlemesi')).toHaveAttribute(
+      'src',
+      expect.stringContaining('sertifika.pdf#page=1&view=FitH'),
+    );
+    expect(backgroundImage()).toBeNull();
+    expect(screen.queryByLabelText('Yerleşim')).not.toBeInTheDocument();
+    expect(screen.queryByText('PDF önizlemesi şu an üretilemiyor.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
+    await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());
+    // That core prints the PDF the old way: no placement goes with it
+    expect(
+      (certificatesApi.updateTemplate as jest.Mock).mock.calls[0][1].layout,
+    ).not.toHaveProperty('backgroundPlacement');
   });
 
   it('explains a save core refused for its Media in Turkish', async () => {
