@@ -85,9 +85,10 @@ function justifyClass(align: CertificateElement['align']) {
 /**
  * Layers a template cannot lose: core refuses a layout without them. The
  * verification QR is optional (ADR-0040 addendum 2026-11-24): the default
- * keeps one, a designer may delete it.
+ * keeps one, a designer may delete it. So is the Event's name (addendum
+ * 2026-11-25): a background may print it already.
  */
-const REQUIRED_KINDS: readonly CertificateElementKind[] = ['recipientName', 'eventName'];
+const REQUIRED_KINDS: readonly CertificateElementKind[] = ['recipientName'];
 
 /** Core wants one of these so a paper certificate can be verified. */
 const VERIFY_KINDS: readonly CertificateElementKind[] = ['verificationQr', 'serial'];
