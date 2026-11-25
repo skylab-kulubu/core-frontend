@@ -100,6 +100,10 @@ describe('copy rights from core', () => {
     expect(canCopyEvent(weblab, 'GECEKODU', coTeam)).toBe(true);
     expect(copyTargetTeams(weblab, 'GECEKODU', [], coTeam)).toEqual(['GECEKODU']);
     expect(canCopyEvent(weblab, 'GECEKODU', coPerson)).toBe(false);
+    // core's switch off: its event.copy says no
+    expect(
+      canCopyEvent(weblab, 'GECEKODU', { ...coTeam, can: { ...coTeam.can, 'event.copy': false } }),
+    ).toBe(false);
   });
 
   it('copies into another team only for who may edit the source', () => {

@@ -899,3 +899,29 @@ describe('EventCertificatesPanel certificate mail', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('EventCertificatesPanel without the figures', () => {
+  it('shows the rule and the template when core refuses the figures (403)', async () => {
+    jest.clearAllMocks();
+    api.summary.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    api.listIssued.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    api.templates.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        finalizeOpen
+        tickets={[]}
+        canIssue={false}
+        canBind
+        canRevoke={false}
+        canReadIssued
+        canEditEvent
+      />,
+    );
+    expect(await screen.findByRole('heading', { name: 'Kural' })).toBeInTheDocument();
+    expect(screen.queryByText('Sertifika bilgileri yüklenemedi')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
+  });
+});

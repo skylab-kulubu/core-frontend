@@ -210,13 +210,16 @@ export function EventCertificatesPanel({
   const [view, setView] = useState<IssuedView>('all');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // core refused the figures (403): the tab shows the rule and the template alone
+  const [figuresRefused, setFiguresRefused] = useState(false);
   const [error, setError] = useState<string>();
   // A count the organizer reads stays on the tab; a plain "it went through" is a toast
   const [message, setMessage] = useState<string>();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
   // Who only edits the event reads no figures: core keeps them to the certificate roles
-  const workspace = canReadIssued || canIssue || canRevoke || canBind || !canEditEvent;
+  // Binding a template (every editor of the Event may) opens no figures: those take a certificate role
+  const workspace = canReadIssued || canIssue || canRevoke || !canEditEvent;
   const canPick = canBind || canEditEvent;
   const template = useEventTemplateState(eventId);
   /** A write went through: the earlier error and queue line are stale now. */
@@ -242,9 +245,21 @@ export function EventCertificatesPanel({
     setLoading(true);
     try {
       const [nextSummary, nextTemplates, nextIssued, nextRule, nextAttendance] = await Promise.all([
-        workspace ? certificatesApi.summary(eventId) : Promise.resolve(undefined),
-        canBind ? certificatesApi.templates() : Promise.resolve([]),
-        canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
+        // A refused figures read (403) is a reader without them: the rule and template stay
+        workspace
+          ? certificatesApi.summary(eventId).catch((cause: unknown) => {
+              if (cause instanceof ProblemError && cause.status === 403) return undefined;
+              throw cause;
+            })
+          : Promise.resolve(undefined),
+        // An older core's template list, for its picker; a refusal leaves it empty
+        canBind ? certificatesApi.templates().catch(() => []) : Promise.resolve([]),
+        canReadIssued
+          ? certificatesApi.listIssued(eventId).catch((cause: unknown) => {
+              if (cause instanceof ProblemError && cause.status === 403) return [];
+              throw cause;
+            })
+          : Promise.resolve([]),
         // An older core answers 404: the card says the rule as before
         certificatesApi.rule(eventId).catch(() => null),
         // An older core answers 404: the tab stays as it was; another failure says so
@@ -252,7 +267,9 @@ export function EventCertificatesPanel({
           ? certificatesApi
               .attendance(eventId)
               .catch((cause: unknown) =>
-                cause instanceof ProblemError && cause.status === 404 ? null : ('failed' as const),
+                cause instanceof ProblemError && (cause.status === 404 || cause.status === 403)
+                  ? null
+                  : ('failed' as const),
               )
           : null,
       ]);
@@ -263,6 +280,7 @@ export function EventCertificatesPanel({
           ? await certificatesApi.listBatches(eventId).catch(() => null)
           : [];
       setSummary(nextSummary);
+      setFiguresRefused(workspace && !nextSummary);
       setRule(nextRule);
       setAttendance(nextAttendance === 'failed' ? null : nextAttendance);
       setAttendanceFailed(nextAttendance === 'failed');
@@ -934,7 +952,7 @@ export function EventCertificatesPanel({
           </CommandBar>
         </>
       ) : null}
-      {summary || !workspace ? (
+      {summary || !workspace || figuresRefused ? (
         <ObjectCard
           title="Kural"
           action={

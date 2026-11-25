@@ -100,8 +100,9 @@ export function canCopyEvent(
   if (state.status !== 'ready') return false;
   if (teamDecision(state, sourceTeam, 'event.create', false)) return true;
   if (!sourceEditable(state, sourceTeam, viewer)) return false;
-  // A Co-organizer team copies into the Owner team (core docs/co-organizers.md, Copy); a person may not
-  if (viewer?.via === 'coTeam') return true;
+  // A Co-organizer team copies into the Owner team (core docs/co-organizers.md, Copy); a person may
+  // not. Its copy needs core's Co-organizer switch on: core's `event.copy` decides once it sends one
+  if (viewer?.via === 'coTeam') return viewerDecision({ viewer }, 'event.copy') ?? true;
   if (viewer?.via === 'coPerson') return false;
   const { teams, otherTeams } = state.data;
   return (

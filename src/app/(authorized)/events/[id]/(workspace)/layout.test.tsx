@@ -149,8 +149,10 @@ describe('Event workspace layout', () => {
         via: 'coTeam',
         can: {
           'event.update': true,
+          'event.delete': false,
           'ticket.read': true,
           'certificate.issue': true,
+          'certificate.template.assign': true,
           'competition.manage': true,
         },
       },
