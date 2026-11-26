@@ -44,7 +44,6 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
-import Link from 'next/link';
 import {
   certificatesApi,
   type CertificateAttendance,
@@ -151,16 +150,12 @@ export function EventCertificatesPanel({
   canRevoke,
   canReadIssued,
   canEditEvent = false,
-  ruleHref,
+  canEditRule = false,
   days = [],
   onRuleSaved,
 }: {
-  /**
-   * Who may edit the event: where an older core (no rule editor) changes the
-   * rule, the edit page's Sertifika section. With core's rule editor the card
-   * opens it here instead.
-   */
-  ruleHref?: string;
+  /** Who may edit the event changes the rule here, in core's rule editor. */
+  canEditRule?: boolean;
   /** The event's days, to group the Sessions in the rule editor. */
   days?: readonly EventDay[];
   /** The rule was saved: the event and its Sessions changed. */
@@ -967,7 +962,7 @@ export function EventCertificatesPanel({
         <ObjectCard
           title="Kural ve şablon"
           action={
-            rule && ruleHref ? (
+            rule && canEditRule ? (
               <button
                 type="button"
                 aria-label="Kuralı düzenle"
@@ -976,14 +971,6 @@ export function EventCertificatesPanel({
               >
                 Düzenle
               </button>
-            ) : ruleHref ? (
-              <Link
-                href={ruleHref}
-                aria-label="Kuralı değiştir"
-                className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
-              >
-                Düzenle
-              </Link>
             ) : undefined
           }
         >
@@ -1203,7 +1190,7 @@ export function EventCertificatesPanel({
         onPick={(id) => void issueTo(id)}
       />
 
-      {rule && ruleHref ? (
+      {rule && canEditRule ? (
         <CertificateRuleSheet
           open={ruleOpen}
           rule={rule}

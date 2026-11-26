@@ -56,11 +56,6 @@ describe('Event Program tab Katıldı', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
     );
-    expect(
-      within(screen.getByRole('group', { name: 'Etkinlik komutları' })).getByRole('link', {
-        name: 'Düzenle',
-      }),
-    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Açılış: eylemler' }));
@@ -382,7 +377,7 @@ describe('Program tab settings and QR', () => {
     await renderProgram();
     expect(await screen.findByRole('link', { name: 'Kapı görevlileri' })).toHaveAttribute(
       'href',
-      '/events/e1/edit#kapi-gorevlileri',
+      '/events/e1/checkin#kapi-gorevlileri',
     );
   });
 

@@ -1,3 +1,5 @@
+import { EVENT_SETTINGS_PAGES } from '@/lib/event-workspace';
+
 export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/dashboard': 'Özet',
   '/users': 'Kullanıcılar',
@@ -47,6 +49,8 @@ function formatSegment(part: string): string {
     content: 'Dosyalar',
     competition: 'Yarışma',
     door: 'Kapı',
+    checkin: 'Kapı',
+    emails: 'Postalar',
     members: 'Üyeler',
     leaders: 'Liderler ve alt ekipler',
     roles: 'Uygulama rolleri',
@@ -84,6 +88,18 @@ const RECORD_KINDS: Readonly<Record<string, string>> = {
 // A ticket's address sits under /events/[id]/tickets, which is the Katılımcılar tab
 const TICKETS = /^\/events\/([^/]+)\/tickets$/;
 
+// An event's settings: the group's own name (not the panel's Ayarlar), its pages, and a tab's own
+const EVENT_SETTINGS = /^\/events\/[^/]+\/settings$/;
+const EVENT_SETTINGS_PAGE = /^\/events\/[^/]+\/settings\/([^/]+)$/;
+const REGISTRATION_SETTINGS = /^\/events\/[^/]+\/participants\/settings$/;
+
+function eventCrumbLabel(path: string): string | undefined {
+  if (EVENT_SETTINGS.test(path)) return 'Etkinlik ayarları';
+  if (REGISTRATION_SETTINGS.test(path)) return 'Kayıt ayarları';
+  const page = path.match(EVENT_SETTINGS_PAGE)?.[1];
+  return EVENT_SETTINGS_PAGES.find((row) => row.key === page)?.label;
+}
+
 function trail(pathname: string, names: ChromeCrumbNames): TrailCrumb[] {
   const parts = (pathname || '/').split('/').filter(Boolean);
   if (parts.length === 0) {
@@ -105,7 +121,8 @@ function trail(pathname: string, names: ChromeCrumbNames): TrailCrumb[] {
     }
     const name = names[chromeCrumbKey(acc)];
     const kind = part === 'new' ? undefined : RECORD_KINDS[parts[index - 1]];
-    const label = name ?? CHROME_CRUMB_LABELS[acc] ?? kind ?? formatSegment(part);
+    const label =
+      name ?? CHROME_CRUMB_LABELS[acc] ?? eventCrumbLabel(acc) ?? kind ?? formatSegment(part);
     crumbs.push({ href: acc, label, named: Boolean(name), unnamed: !name && label === UNNAMED });
   }
   return crumbs;

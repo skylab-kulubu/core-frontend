@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -9,21 +10,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button, MenuItem, Notice } from '@skylab-kulubu/skylcn-ui';
 import { Ban, Copy, DoorClosed, DoorOpen, FileEdit, RotateCcw, Trash2 } from 'lucide-react';
-import { useForm, type UseFormReturn } from 'react-hook-form';
-import { z } from 'zod';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import {
-  EVENT_EDITOR_SECTIONS,
-  emptyEventForm,
-  type EventFormState,
-} from '@/components/scheduling/EventEditor';
+import type { EventFormState } from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventShell } from '@/components/scheduling/overview/EventShell';
 import {
@@ -56,6 +50,7 @@ import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-prob
 import { copySkippedLines, takeCopySkipped } from '@/lib/event-copy';
 import { clearEventDraft, formStateFromEvent, restoreEventEditor } from '@/lib/event-draft';
 import {
+  FEEDBACK_SLOT_KEY,
   formHandoffFromSearch,
   formsAdminOrigin,
   skyformsEditHref,
@@ -64,14 +59,16 @@ import {
 import { openEventMail } from '@/lib/event-mail';
 import { publicMediaUrl } from '@/lib/event-media';
 import {
-  eventEditHref,
+  EVENT_CARDS,
+  eventPageFromPath,
+  eventRegistrationSettingsHref,
   eventTabFromPath,
   eventTabHref,
-  isEventEditPath,
   legacyEventAnchorHref,
   showsCompetitionTab,
+  withCard,
 } from '@/lib/event-workspace';
-import { eventDisplayStatus, eventFormIssue, eventStatusOf } from '@/lib/events-view';
+import { eventDisplayStatus, eventStatusOf } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { changeNoticeFor, type ChangeNotice } from '@/lib/scheduling/change-notice';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
@@ -93,13 +90,7 @@ import {
   type TeamDecide,
 } from '@/lib/use-app-can';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
-
-export const eventEditSchema = z
-  .object({ event: z.custom<EventFormState>() })
-  .superRefine(({ event }, context) => {
-    const issue = eventFormIssue(event);
-    if (issue) context.addIssue({ code: 'custom', message: issue, path: ['event'] });
-  });
+import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 /** What the reader may do in this event; each tab shows or hides its parts by these. */
 export type EventPermissions = Readonly<{
@@ -203,18 +194,24 @@ function cancelledOn(at: string | undefined): string {
   }).format(date);
 }
 
-export type EventEditFormValues = z.infer<typeof eventEditSchema>;
-
-/** The event's edit form, kept by the workspace so a return from Skyforms lands in it. */
+/**
+ * The saved event as its settings cards read it, and how a card saves. Each card keeps what is
+ * typed in it and sends only its own fields (see EventSettingsCard).
+ */
 export type EventEditorState = {
-  form: UseFormReturn<EventEditFormValues>;
-  /** False until the event's fields are in the form. */
+  /** The saved event's fields; null until read. */
+  base: EventFormState | null;
+  /** False until the event's fields are read. */
   ready: boolean;
+  /**
+   * What came back from Skyforms but could not be saved: the card of that form starts with it,
+   * unsaved, so Kaydet tries again.
+   */
+  pending: EventFormState | null;
   ownerOptions: string[];
   seasons: Season[];
   privileged: boolean;
-  /** The last save core refused, said in the save bar. */
-  error: string | null;
+  /** The form the last refused save was about (`409 form_in_use`): its slot says where it is. */
   inUse: FormInUse | null;
   /** Owner teams or seasons that could not be read; `reloadOptions` reads them again. */
   optionsFailed: { teams: boolean; seasons: boolean };
@@ -225,14 +222,14 @@ export type EventEditorState = {
    */
   changeNotice: (values: EventFormState) => ChangeNotice | null;
   /**
-   * Saves the changed fields; true once core took them (the event is then read again).
-   * `notifyTicketHolders` is the answer to `changeNotice` (no question: false).
+   * Saves the fields of `values` changed since the saved event (the event is then read again);
+   * throws core's refusal. `notifyTicketHolders` is the answer to `changeNotice` (none: false).
    */
-  save: (values: EventFormState, options?: { notifyTicketHolders: boolean }) => Promise<boolean>;
-  /** The tab the edit page was opened from (the overview when opened directly): Vazgeç returns there. */
-  returnHref: string;
-  /** The section in view on the edit page, written as current in the event's menu. */
-  setSection: (section: string) => void;
+  save: (values: EventFormState, options?: { notifyTicketHolders: boolean }) => Promise<void>;
+  /** A card says whether it holds unsaved work: leaving the page asks first, Yayınla waits. */
+  markDirty: (card: string, dirty: boolean) => void;
+  /** Leaves for `href`, asking first while a card holds unsaved work. */
+  leave: (href: string) => void;
 };
 
 export type EventWorkspaceValue = EventPermissions & {
@@ -298,8 +295,8 @@ export function useEventWorkspace(): EventWorkspaceValue {
 }
 
 /**
- * Whether the edit page lists the door staff for this reader, as it decides (core's Assign on the
- * Owner team; the group rule if unread): Program and the overview link there only then.
+ * Whether the reader chooses the door staff (core's Assign on the Owner team; the group rule if
+ * unread): Kapı lists them, and Program, the door and the overview link there only then.
  */
 export function useEditsDoorStaff(): boolean {
   const { event, canMutate, editor } = useEventWorkspace();
@@ -375,17 +372,22 @@ export function EventWorkspace({
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [handoffNote, setHandoffNote] = useState<string | null>(null);
-  // A save the edit page refused, shown in its save bar where the organizer is.
-  const [editError, setEditError] = useState<string | null>(null);
+  // The form a refused save was about, shown at its slot
   const [editInUse, setEditInUse] = useState<FormInUse | null>(null);
   const [mailing, setMailing] = useState(false);
   const [doorAccess, setDoorAccess] = useState(false);
-  // The edit page's section in view, and the tab it was opened from
-  const [editSection, setEditSection] = useState<string | undefined>(undefined);
-  const [returnHref, setReturnHref] = useState(() => eventTabHref(id));
-  useEffect(() => {
-    if (pathname && eventTabFromPath(pathname)) setReturnHref(pathname);
-  }, [pathname]);
+  // The cards holding unsaved work: one question before leaving, whichever it is
+  const [dirtyCards, setDirtyCards] = useState<ReadonlySet<string>>(new Set());
+  const markDirty = useCallback((card: string, dirty: boolean) => {
+    setDirtyCards((current) => {
+      if (current.has(card) === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(card);
+      else next.delete(card);
+      return next;
+    });
+  }, []);
+  const guard = useUnsavedChanges(dirtyCards.size > 0);
   const notify = useNotify();
   const rightsFor = useEventStatusRights();
   const statusActions = useEventStatusActions({
@@ -413,16 +415,10 @@ export function EventWorkspace({
   useEffect(() => {
     setCopySkipped(typeof window === 'undefined' ? [] : takeCopySkipped(sessionStorage, id));
   }, [id]);
-  const eventEditForm = useForm<EventEditFormValues>({
-    resolver: zodResolver(eventEditSchema),
-    defaultValues: { event: emptyEventForm() },
-  });
-  // What the edit page opened with: a save sends only the fields changed since
-  const editBase = useRef<EventFormState | null>(null);
-  function resetEditor(next: EventFormState) {
-    editBase.current = next;
-    eventEditForm.reset({ event: next });
-  }
+  // The saved event's fields: a card sends only what it changed since
+  const [editBase, setEditBase] = useState<EventFormState | null>(null);
+  // What came back from Skyforms and could not be saved yet
+  const [pending, setPending] = useState<EventFormState | null>(null);
 
   async function load() {
     // Reads that need nothing from the event start with it: one round instead of one each
@@ -492,22 +488,25 @@ export function EventWorkspace({
       ).then(setCertificateSummary);
       const doorEvents = await doorRead;
       setDoorAccess(doorEvents.some((doorEvent) => doorEvent.id === ev.id));
-      resetEditor(nextForm);
+      setEditBase(handoff ? loaded : nextForm);
       setError(null);
       // A DK member who comes back from Skyforms gets no editor: the save would be refused
       if (
         handoff &&
         (await eventAllows(ev, 'event.update', canWriteEvent(groups, ev.ownerTeam, 'update')))
       ) {
-        // Skyforms comes back to the event; the edit page shows what was linked
-        const editPage = eventEditHref(ev.id);
+        // Skyforms comes back to the event; the page of the form's card shows what was linked
+        const formPage =
+          handoff.formSlot === FEEDBACK_SLOT_KEY
+            ? withCard(eventTabHref(ev.id, 'emails'), EVENT_CARDS.feedback)
+            : withCard(eventRegistrationSettingsHref(ev.id), EVENT_CARDS.registrationForm);
         try {
           // The return from Skyforms changed the form fields alone
           await saveEventWithSeason(nextForm, ev.id, loaded, { notifyTicketHolders: false });
-          router.replace(editPage);
+          router.replace(formPage);
           const saved = await eventsApi.get(id);
           setEvent(saved);
-          resetEditor({
+          setEditBase({
             ...formStateFromEvent(saved),
             formUrl: saved.formUrl ?? nextForm.formUrl,
             formAlias: saved.formAlias ?? nextForm.formAlias,
@@ -517,9 +516,11 @@ export function EventWorkspace({
           clearEventDraft(sessionStorage, window.location.href);
           setHandoffNote('Form bağlandı.');
         } catch (err) {
-          setEditError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
+          // The card starts with the form, unsaved: its Kaydet tries again
+          setPending(nextForm);
+          setError(coreProblemMessage(err, 'Form adresi kaydedilemedi'));
           setEditInUse(formInUseOf(err));
-          router.replace(`${editPage}${window.location.search}`);
+          router.replace(formPage);
         }
       }
       const { dayRows, sessionRows } = await programRead;
@@ -740,6 +741,38 @@ export function EventWorkspace({
     }
   }
 
+  const editor: EventEditorState = {
+    base: editBase,
+    ready: editBase !== null,
+    pending,
+    ownerOptions,
+    seasons,
+    privileged,
+    inUse: editInUse,
+    optionsFailed,
+    reloadOptions: () => loadOptions(current),
+    changeNotice: (values) => (editBase ? changeNoticeFor(current, values, editBase) : null),
+    save: async (values, options) => {
+      setEditInUse(null);
+      try {
+        // Always said: core tells the holders of a new time or place when the body is silent
+        await saveEventWithSeason(values, current.id, editBase ?? undefined, {
+          notifyTicketHolders: options?.notifyTicketHolders ?? false,
+        });
+      } catch (err) {
+        setEditInUse(formInUseOf(err));
+        throw err;
+      }
+      if (typeof window !== 'undefined') clearEventDraft(sessionStorage, window.location.href);
+      // The card shows what it saved until the event is read again
+      setEditBase(values);
+      setPending(null);
+      void load();
+    },
+    markDirty,
+    leave: guard.leave,
+  };
+
   const workspace: EventWorkspaceValue = {
     ...can,
     event,
@@ -757,51 +790,20 @@ export function EventWorkspace({
     certificateSummary,
     reload: load,
     mailApplicants,
-    editor: {
-      form: eventEditForm,
-      ready: editBase.current !== null,
-      ownerOptions,
-      seasons,
-      privileged,
-      error: editError,
-      inUse: editInUse,
-      optionsFailed,
-      reloadOptions: () => loadOptions(current),
-      changeNotice: (values) =>
-        editBase.current ? changeNoticeFor(current, values, editBase.current) : null,
-      save: async (values, options) => {
-        setEditError(null);
-        setEditInUse(null);
-        try {
-          // Always said: core tells the holders of a new time or place when the body is silent
-          await saveEventWithSeason(values, current.id, editBase.current ?? undefined, {
-            notifyTicketHolders: options?.notifyTicketHolders ?? false,
-          });
-        } catch (err) {
-          setEditError(coreProblemMessage(err, 'Kaydedilemedi'));
-          setEditInUse(formInUseOf(err));
-          return false;
-        }
-        if (typeof window !== 'undefined') clearEventDraft(sessionStorage, window.location.href);
-        notify.success('Etkinlik kaydedildi');
-        void load();
-        return true;
-      },
-      returnHref,
-      setSection: setEditSection,
-    },
+    editor,
   };
-  const onEditPage = isEventEditPath(pathname ?? '');
-  // Publishing from the edit page would publish the saved event, not what is typed
-  const unsavedEdit = onEditPage && eventEditForm.formState.isDirty;
+  // Publishing while a card holds unsaved work would publish the saved event, not what is typed
+  const unsavedEdit = dirtyCards.size > 0;
 
   const pages = {
     participants: can.canTickets,
     competition: showsCompetitionTab(can.canCompetitors, competitors.length),
     door: can.canDesk,
+    // Kapı: its layout and staff for who edits the event, its scanning and QR for the door
+    checkin: can.canDesk || can.canMutate,
     certificates: can.canCertificates,
     content: can.canMutate || Boolean(event.videos?.length || event.files?.length),
-    edit: can.canMutate,
+    settings: can.canMutate,
     counts: {
       participants: can.canTickets && ticketsLoaded ? tickets.length : undefined,
       program: sessions.length || undefined,
@@ -815,11 +817,8 @@ export function EventWorkspace({
       <EventShell
         event={event}
         coverSrc={event.coverImageUrl ? publicMediaUrl(event.coverImageUrl) : undefined}
-        active={onEditPage ? null : (eventTabFromPath(pathname ?? '') ?? 'overview')}
+        page={eventPageFromPath(pathname ?? '') ?? { kind: 'tab', tab: 'overview' }}
         pages={pages}
-        editSections={
-          onEditPage ? { sections: EVENT_EDITOR_SECTIONS, current: editSection } : undefined
-        }
         registrations={can.canTickets ? tickets.length : undefined}
         publish={
           rights.canUpdate && offers.publish ? (
@@ -900,6 +899,7 @@ export function EventWorkspace({
       </EventShell>
       {statusActions.dialog}
       {copy.dialog}
+      {guard.dialog}
     </EventWorkspaceContext.Provider>
   );
 }
