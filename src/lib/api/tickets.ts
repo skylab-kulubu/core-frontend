@@ -42,9 +42,28 @@ export type VenueEntry = {
   kind: 'entry';
   entryDate: string;
   eventDayId?: string;
-  source: 'scan' | 'desk' | 'attendance';
+  /** `walk_in`: written with a new Ticket at the door (Kapıda kayıt). */
+  source: 'scan' | 'desk' | 'attendance' | 'walk_in';
   name: string;
   createdAt: string;
+};
+
+/** Kapıda kayıt: who arrives without a Ticket; these three fields alone. */
+export type WalkInBody = { firstName: string; lastName: string; email: string };
+
+/**
+ * Core's answer to a walk-in: `created` wrote a Ticket (201; a cancelled one of the person's own
+ * opened again counts too), `existing` found the person's Ticket and opened none (200). `entry`
+ * is the day's venue entry on an event run with one entry a day, `null` per session.
+ */
+export type WalkInResult = {
+  result: 'created' | 'existing';
+  /** The Ticket's name; an account's own name for a member. */
+  name: string;
+  ticketCode: string;
+  /** The Ticket's mail was queued by this walk-in. */
+  ticketMail: boolean;
+  entry: VenueEntry | null;
 };
 
 /**
@@ -364,6 +383,17 @@ export const ticketsApi = {
     coreFetch<VenueEntry>(`/v1/events/${encodeURIComponent(eventId)}/entries/resolve`, {
       method: 'POST',
       body: JSON.stringify(target),
+    }),
+  /**
+   * Kapıda kayıt: a Ticket for who arrives without one and, on an event run with one entry a
+   * day, the day's venue entry. 400 `guest_fields_required`, `email_invalid`; 403 (not door
+   * staff), `event_closed`; 409 `event_full` (never the waitlist), `ticket_waitlisted`,
+   * `ticket_cancelled`, `already_entered`; 429 `walk_in_rate_limited`; 503 `audit_unavailable`.
+   */
+  walkIn: (eventId: string, body: WalkInBody) =>
+    coreFetch<WalkInResult>(`/v1/events/${encodeURIComponent(eventId)}/entries/walk-in`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   /** Takes a venue entry back (204); the day's session check-ins stay. */
   undoEntry: (eventId: string, entryId: string) =>

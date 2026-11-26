@@ -35,6 +35,7 @@ import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { DoorFlash, type DoorFlashResult } from '@/components/scheduling/DoorFlash';
 import { DoorLinks } from '@/components/scheduling/DoorLinks';
 import { DoorScanner, canScanWithCamera } from '@/components/scheduling/DoorScanner';
+import { DoorWalkIn } from '@/components/scheduling/DoorWalkIn';
 import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
 import { ProblemError } from '@/lib/api/core';
 import { coreProblemMessage } from '@/lib/core-problems';
@@ -912,6 +913,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
             </div>
           ) : null}
         </form>
+        <DoorWalkIn
+          eventId={eventId}
+          entryMode={event.effectiveEntryMode}
+          onDone={() => void refresh()}
+        />
         {cameraOpen && sessionId ? (
           <DoorScanner
             onScan={(value) => void scanned(value)}

@@ -130,6 +130,10 @@ const CODE_MESSAGES: Record<string, string> = {
   ticket_checked_in: 'Girişi olan bilet iptal edilemez; önce girişi geri al.',
   ticket_in_competition: 'Kişi yarışmada; önce yarışmadan çıkar.',
   audit_unavailable: 'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
+  // Kapıda kayıt (the door's walk-in): the three fields, a full event, too many at once
+  guest_fields_required: 'Ad, soyad ve e-posta gerekli.',
+  event_full: 'Kontenjan dolu.',
+  walk_in_rate_limited: 'Çok fazla kayıt; biraz sonra dene.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
   // Linking a form the person is not on the team of in Forms (core docs/form-respondents.md)
