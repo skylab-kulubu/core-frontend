@@ -10,6 +10,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
@@ -32,6 +33,9 @@ import { capacityBelowTickets } from '@/lib/capacity';
 import {
   externalRegistrationIssue,
   isExternalRegistrationIssue,
+  moveSkyformsLink,
+  skyformsLinkIn,
+  skyformsMoveTarget,
 } from '@/lib/external-registration';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
@@ -196,19 +200,34 @@ export async function closeFeedbackReminders(eventId: string | undefined, gate: 
   }
 }
 
+/** What the Skyforms note's button says, by where the form goes. */
+const SKYFORMS_MOVE_LABEL = {
+  apply: 'Başvuru formuna taşı',
+  extra: 'Ek form olarak taşı',
+  listed: 'Bağlantıyı sil',
+} as const;
+
 /**
  * "Dış kayıt bağlantısı": the form on another product (Microsoft Forms and
  * the like) where people register; anyone who reads the Event sees it.
- * Its registrations come in through Katılımcılar → İçe aktar.
+ * Its registrations come in through Katılımcılar → İçe aktar. A Skyforms
+ * address here writes no Ticket: the note offers to move it to the Form
+ * slots (`onMove` gets them with the form in; the link is emptied).
  */
 function ExternalRegistrationField({
   value,
   onChange,
+  slots,
+  onMove,
 }: {
   value: string;
   onChange: (next: string) => void;
+  slots: EventFormSlot[];
+  onMove: (slots: EventFormSlot[]) => void;
 }) {
   const issue = externalRegistrationIssue(value);
+  const skyforms = issue ? null : skyformsLinkIn(value);
+  const target = skyforms?.formUrl ? skyformsMoveTarget(slots, skyforms) : null;
   return (
     <div className="space-y-1">
       <label className="block space-y-1">
@@ -225,11 +244,20 @@ function ExternalRegistrationField({
       </label>
       <span
         id="dis-kayit-ipucu"
-        className={`${issue ? 'text-destructive' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
+        className={`${issue ? 'text-destructive' : skyforms ? 'text-warning' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
       >
         {issue ??
-          'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.'}
+          (skyforms
+            ? target === 'listed'
+              ? 'Bu SkyForms formu zaten Başvuru ve form’da; bu bağlantı gerekmez.'
+              : 'SkyForms formu: buradaki bağlantının yanıtları bilete dönmez. Formu yukarıdaki form alanına bağla.'
+            : 'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.')}
       </span>
+      {skyforms && target ? (
+        <SaveButton type="button" onClick={() => onMove(moveSkyformsLink(slots, skyforms))}>
+          {SKYFORMS_MOVE_LABEL[target]}
+        </SaveButton>
+      ) : null}
     </div>
   );
 }
@@ -370,6 +398,14 @@ export function EventEditor({
         <ExternalRegistrationField
           value={value.externalRegistrationUrl ?? ''}
           onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
+          slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
+          onMove={(formSlots) =>
+            patch({
+              externalRegistrationUrl: '',
+              formSlots,
+              ...persistableFormFields(formSlots),
+            })
+          }
         />
         <div className="space-y-2">
           <label className="block space-y-1">
