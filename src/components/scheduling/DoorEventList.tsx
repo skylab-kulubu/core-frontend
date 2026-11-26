@@ -47,16 +47,29 @@ export function hasEnded(event: Pick<DoorEvent, 'startDate' | 'endDate'>, now = 
   return end !== null && end <= now.getTime();
 }
 
-/** A running door: the session on now and how many came in. */
-type Live = { session: EventSession | null; next: EventSession | null; entered: number | null };
+/**
+ * A running door: the session on now and how many came in. An event run with one entry a day (or
+ * one without sessions; core docs/venue-entry.md) counts the day's venue entries, its door's
+ * "Alana giriş"; an event run per session counts the session's attendance.
+ */
+type Live = {
+  session: EventSession | null;
+  next: EventSession | null;
+  entered: number | null;
+  venue: boolean;
+};
 
 async function liveDoor(event: DoorEvent): Promise<Live> {
   const days = await eventDaysApi.listByEvent(event.id);
   const sessions = (await Promise.all(days.map((day) => eventDaysApi.listSessions(day.id)))).flat();
   const { current, next } = sessionNowAndNext(sessions);
-  if (!current) return { session: null, next, entered: null };
+  if (event.effectiveEntryMode === 'venue') {
+    const entries = await ticketsApi.venueEntries(event.id).catch(() => null);
+    return { session: current, next, entered: entries ? entries.length : null, venue: true };
+  }
+  if (!current) return { session: null, next, entered: null, venue: false };
   const activity = await ticketsApi.doorActivity(current.id).catch(() => null);
-  return { session: current, next, entered: activity ? activity.total : null };
+  return { session: current, next, entered: activity ? activity.total : null, venue: false };
 }
 
 function NowCard({ event, live }: { event: DoorEvent; live?: Live }) {
@@ -75,12 +88,14 @@ function NowCard({ event, live }: { event: DoorEvent; live?: Live }) {
                 : event.location}
         </p>
       </div>
-      {session && live?.entered !== null && live?.entered !== undefined ? (
+      {(session || live?.venue) && live?.entered !== null && live?.entered !== undefined ? (
         <div className="sm:text-right">
           <p className="text-foreground-strong text-3xl leading-none font-semibold tabular-nums">
             {live.entered}
           </p>
-          <p className={cn('text-muted-foreground', TEXT_SECONDARY)}>giren</p>
+          <p className={cn('text-muted-foreground', TEXT_SECONDARY)}>
+            {live.venue ? 'bugün alana giren' : 'giren'}
+          </p>
         </div>
       ) : null}
       <Link
