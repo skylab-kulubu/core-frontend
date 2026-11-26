@@ -39,12 +39,26 @@ export type CertificateElement = {
   locked?: boolean;
 };
 
+/** How the background sits on the page (core `Layout.backgroundPlacement`). */
+export type BackgroundFit = 'contain' | 'cover' | 'fill' | 'fitWidth' | 'fitHeight' | 'none';
+
+export type BackgroundPlacement = {
+  fit: BackgroundFit;
+  /** CSS object-position fractions: 0 left/top, 0.5 centre, 1 right/bottom. */
+  x: number;
+  y: number;
+  /** Multiplies the fit's scale, 0.1–10; fill ignores it. */
+  scale: number;
+};
+
 export type CertificateLayout = {
   width: number;
   height: number;
   orientation: 'landscape' | 'portrait';
   backgroundColor: string;
   backgroundMediaId?: string;
+  /** Absent on layouts written before it: printed as `LEGACY_IMAGE_PLACEMENT`. */
+  backgroundPlacement?: BackgroundPlacement;
   elements: CertificateElement[];
 };
 

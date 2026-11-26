@@ -26,6 +26,8 @@ import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { StateCard } from '@/components/chrome/StateCard';
 import {
   certificatesApi,
+  type BackgroundFit,
+  type BackgroundPlacement,
   type CertificateElement,
   type CertificateElementKind,
   type CertificateLayout,
@@ -48,6 +50,18 @@ import {
   SAMPLE,
   certificateFontStack,
 } from '@/lib/certificate-layout';
+import {
+  FIT_LABELS,
+  LEGACY_IMAGE_PLACEMENT,
+  fitPageToBackground,
+  normalizePlacement,
+  pageForBackground,
+  placeBackground,
+  ratioDiffers,
+  resizeCertificateLayout,
+  type Size,
+} from '@/lib/certificate-placement';
+import { backgroundNaturalSize } from '@/lib/background-size';
 
 const PAGE_PRESETS = {
   a4Landscape: { label: 'A4 yatay', width: 1123, height: 794, orientation: 'landscape' },
@@ -64,6 +78,26 @@ const SOURCE_LABELS: Record<CertificateTemplateDraft['sourceKind'], string> = {
 };
 
 const BACKGROUND_FILE_TYPES = 'image/png,image/jpeg,image/webp,image/svg+xml,application/pdf,.pdf';
+
+/** The 3×3 position grid: object-position fractions and what each cell is called. */
+const POSITIONS = [
+  [0, 0, 'Sol üst'],
+  [0.5, 0, 'Üst'],
+  [1, 0, 'Sağ üst'],
+  [0, 0.5, 'Sol'],
+  [0.5, 0.5, 'Orta'],
+  [1, 0.5, 'Sağ'],
+  [0, 1, 'Sol alt'],
+  [0.5, 1, 'Alt'],
+  [1, 1, 'Sağ alt'],
+] as const;
+
+const PLACEMENT_DROPPED = 'Yerleşim kaydedilmedi; core güncel değil.';
+
+/** A page fitted to its background, kept so the designer can take it back. */
+type FitNote = { before: CertificateLayout; after: CertificateLayout };
+
+const pageSize = (layout: { width: number; height: number }) => `${layout.width}×${layout.height}`;
 
 function currentPreset(layout: CertificateLayout) {
   return (
@@ -165,6 +199,19 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const [backgroundUrl, setBackgroundUrl] = useState<string>();
   const [backgroundType, setBackgroundType] = useState<string>();
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  // Image backgrounds' natural sizes by address, which the placement needs
+  const [backgroundSizes, setBackgroundSizes] = useState<Record<string, Size>>({});
+  // Image backgrounds whose size could not be read (core: background_size_unknown), apart
+  // from those still being read: they keep no placement and show no placement controls
+  const [unsizedBackgrounds, setUnsizedBackgrounds] = useState<Record<string, true>>({});
+  const [fitNote, setFitNote] = useState<FitNote>();
+  // Core dropped the placement on save: it predates it (core-backend #446)
+  const [placementDropped, setPlacementDropped] = useState(false);
+  // The draft an upload, which awaits, fits: the one after the await
+  const latestDraft = useRef(draft);
+  useEffect(() => {
+    latestDraft.current = draft;
+  }, [draft]);
   const [loading, setLoading] = useState(Boolean(templateId));
   const [busy, setBusy] = useState(false);
   // Lines the designer reads (an element already placed, the next step after a save or upload) stay inline
@@ -188,6 +235,43 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   const externalSource = draft.sourceKind === 'canva' || draft.sourceKind === 'figma';
   const sourceName = draft.sourceKind === 'canva' ? 'Canva' : 'Figma';
   const backgroundIsPDF = backgroundType === 'application/pdf';
+  const backgroundIsImage = Boolean(backgroundUrl) && Boolean(backgroundType?.startsWith('image/'));
+  const backgroundSize = backgroundUrl ? backgroundSizes[backgroundUrl] : undefined;
+  const backgroundUnsized = Boolean(backgroundUrl && unsizedBackgrounds[backgroundUrl]);
+  const storedPlacement = draft.layout.backgroundPlacement ?? LEGACY_IMAGE_PLACEMENT;
+  const placement = normalizePlacement(placementDropped ? LEGACY_IMAGE_PLACEMENT : storedPlacement);
+  const backgroundBox = backgroundSize
+    ? placeBackground(
+        draft.layout.width,
+        draft.layout.height,
+        backgroundSize.width,
+        backgroundSize.height,
+        placement,
+      )
+    : undefined;
+  const fittedPage = backgroundSize ? pageForBackground(backgroundSize) : null;
+
+  useEffect(() => {
+    if (
+      !backgroundUrl ||
+      !backgroundType?.startsWith('image/') ||
+      backgroundSizes[backgroundUrl] ||
+      unsizedBackgrounds[backgroundUrl]
+    ) {
+      return;
+    }
+    let cancelled = false;
+    backgroundNaturalSize(backgroundUrl, backgroundType)
+      .then((size) => {
+        if (!cancelled) setBackgroundSizes((current) => ({ ...current, [backgroundUrl]: size }));
+      })
+      .catch(() => {
+        if (!cancelled) setUnsizedBackgrounds((current) => ({ ...current, [backgroundUrl]: true }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backgroundUrl, backgroundType, backgroundSizes, unsizedBackgrounds]);
 
   useEffect(() => {
     if (!canEdit || !selectedId) return;
@@ -324,22 +408,48 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   function resizeLayout(presetKey: keyof typeof PAGE_PRESETS) {
     if (!canEdit) return;
     const preset = PAGE_PRESETS[presetKey];
-    const scaleX = preset.width / draft.layout.width;
-    const scaleY = preset.height / draft.layout.height;
-    const fontScale = Math.min(scaleX, scaleY);
-    updateLayout({
-      width: preset.width,
-      height: preset.height,
-      orientation: preset.orientation,
-      elements: draft.layout.elements.map((element) => ({
-        ...element,
-        x: Math.round(element.x * scaleX),
-        y: Math.round(element.y * scaleY),
-        width: Math.round(element.width * scaleX),
-        height: Math.round(element.height * scaleY),
-        fontSize: element.fontSize ? Math.max(1, Math.round(element.fontSize * fontScale)) : 0,
-      })),
-    });
+    setDraft((current) => ({
+      ...current,
+      layout: resizeCertificateLayout(current.layout, preset),
+    }));
+  }
+
+  function updatePlacement(patch: Partial<BackgroundPlacement>) {
+    if (backgroundUnsized) return;
+    updateLayout({ backgroundPlacement: { ...storedPlacement, ...patch } });
+  }
+
+  /** Sets the fitted layout; a new page size is said inline with a way back. */
+  function applyFit(before: CertificateLayout, after: CertificateLayout) {
+    setDraft((current) => ({ ...current, layout: after }));
+    setFitNote(
+      before.width !== after.width || before.height !== after.height
+        ? { before, after }
+        : undefined,
+    );
+    setMessage(undefined);
+  }
+
+  function fitPage() {
+    if (!canEdit || !backgroundSize) return;
+    const after = fitPageToBackground(draft.layout, backgroundSize);
+    if (after) applyFit(draft.layout, after);
+  }
+
+  function undoFit() {
+    if (!canEdit || !fitNote) return;
+    const { before } = fitNote;
+    setDraft((current) => ({ ...current, layout: before }));
+    setFitNote(undefined);
+  }
+
+  function removeBackground() {
+    if (!canEdit) return;
+    updateLayout({ backgroundMediaId: undefined, backgroundPlacement: undefined });
+    setBackgroundUrl(undefined);
+    setBackgroundType(undefined);
+    setFitNote(undefined);
+    setMessage(undefined);
   }
 
   function moveLayer(id: string, direction: -1 | 1) {
@@ -418,11 +528,42 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     setBusy(true);
     try {
       const media = await mediaApi.upload(file);
-      updateLayout({ backgroundMediaId: media.id });
-      setBackgroundUrl(publicMediaUrl(media.url));
+      const url = publicMediaUrl(media.url);
+      const pdf = media.type === 'application/pdf';
+      // The natural size, read before the page is fitted (K1)
+      const image = Boolean(media.type?.startsWith('image/'));
+      const size = image
+        ? await backgroundNaturalSize(url, media.type, file).catch(() => undefined)
+        : undefined;
+      if (size) setBackgroundSizes((current) => ({ ...current, [url]: size }));
+      if (image && !size) setUnsizedBackgrounds((current) => ({ ...current, [url]: true }));
+      setBackgroundUrl(url);
       setBackgroundType(media.type);
+      setFitNote(undefined);
+      // A PDF is placed by ticket 07; until then it keeps no placement. Nor does an
+      // image of unknown size: core prints it the old way (cover) and refuses a placement
+      const before: CertificateLayout = {
+        ...latestDraft.current.layout,
+        backgroundMediaId: media.id,
+        backgroundPlacement:
+          pdf || (image && !size) ? undefined : latestDraft.current.layout.backgroundPlacement,
+      };
+      // A background of another ratio than the page's fits the page to it (K1)
+      const after = size
+        ? ratioDiffers(before, size)
+          ? fitPageToBackground(before, size)
+          : { ...before, backgroundPlacement: { fit: 'fill' as const, x: 0.5, y: 0.5, scale: 1 } }
+        : null;
+      if (after) {
+        applyFit(before, after);
+        if (after.width === before.width && after.height === before.height) {
+          setMessage('Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.');
+        }
+        return;
+      }
+      setDraft((current) => ({ ...current, layout: before }));
       setMessage(
-        media.type === 'application/pdf'
+        pdf
           ? 'PDF arka planı yüklendi. Vektörel taban korunacak; dinamik katmanlar üstüne işlenecek.'
           : 'Arka plan yüklendi. Kaydettikten sonra yeni sürümü yayınlayabilirsin.',
       );
@@ -448,8 +589,30 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     }
   }
 
-  /** Saves the draft; `announce` is off when publishing says the outcome itself. */
-  async function save(announce = true) {
+  /**
+   * The draft as core takes it: the placement in range, and none for a PDF
+   * background (ticket 07 places those) or once core dropped it. A saved
+   * placement whose image could not be sized now (a CDN hiccup) goes back as
+   * it was; an upload of unknown size has already cleared it.
+   */
+  function draftToSave(): CertificateTemplateDraft {
+    const { backgroundPlacement, ...layout } = draft.layout;
+    const keep =
+      backgroundPlacement && layout.backgroundMediaId && !backgroundIsPDF && !placementDropped;
+    return {
+      ...draft,
+      layout: keep
+        ? { ...layout, backgroundPlacement: normalizePlacement(backgroundPlacement) }
+        : layout,
+    };
+  }
+
+  /**
+   * Saves the draft; `announce` is off when publishing says the outcome itself.
+   * `dropped` is a placement core did not keep: a core before the placement
+   * (core-backend #446) reads the draft without it.
+   */
+  async function save(announce = true): Promise<{ id: string; dropped: boolean } | undefined> {
     if (!canEdit) {
       setError('Bu şablonu düzenleme yetkin yok.');
       return undefined;
@@ -457,14 +620,21 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
     setBusy(true);
     setError(undefined);
     try {
+      const body = draftToSave();
       const template = savedId
-        ? await certificatesApi.updateTemplate(savedId, draft)
-        : await certificatesApi.createTemplate(draft);
+        ? await certificatesApi.updateTemplate(savedId, body)
+        : await certificatesApi.createTemplate(body);
+      const dropped = Boolean(
+        body.layout.backgroundPlacement &&
+        template.draftLayout &&
+        !template.draftLayout.backgroundPlacement,
+      );
+      if (dropped) setPlacementDropped(true);
       setSavedId(template.id);
       // It says the next step, which the designer reads: inline, not a toast (K5)
       if (announce) setMessage('Taslak kaydedildi. Verilen sertifikaları etkilemesi için yayınla.');
       if (!savedId) router.replace(`/certificates/templates/${template.id}`);
-      return template.id;
+      return { id: template.id, dropped };
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Şablon kaydedilemedi'));
       return undefined;
@@ -474,8 +644,10 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   async function publish() {
-    const id = await save(false);
-    if (!id) return;
+    const saved = await save(false);
+    // A version without the placement the editor shows is not published
+    if (!saved || saved.dropped) return;
+    const id = saved.id;
     setBusy(true);
     try {
       const version = await certificatesApi.publishTemplate(id);
@@ -489,7 +661,7 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
   }
 
   async function preview() {
-    const id = canEdit ? await save() : savedId;
+    const id = canEdit ? (await save())?.id : savedId;
     if (!id) return;
     setBusy(true);
     try {
@@ -743,15 +915,33 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               aspectRatio: `${draft.layout.width} / ${draft.layout.height}`,
               containerType: 'inline-size',
               backgroundColor: draft.layout.backgroundColor,
-              backgroundImage:
-                backgroundUrl && !backgroundIsPDF ? `url(${backgroundUrl})` : undefined,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
             }}
             onPointerMove={moveDrag}
             onPointerUp={() => (dragRef.current = null)}
             onPointerCancel={() => (dragRef.current = null)}
           >
+            {backgroundUrl && !backgroundIsPDF ? (
+              // The box core prints the background in (placeBackground); covered and
+              // centred, as a layout without a placement prints, until its size is read
+              <img
+                src={backgroundUrl}
+                alt=""
+                aria-hidden
+                draggable={false}
+                data-background=""
+                className="pointer-events-none absolute z-0 max-w-none select-none"
+                style={
+                  backgroundBox
+                    ? {
+                        left: `${(backgroundBox.left / draft.layout.width) * 100}%`,
+                        top: `${(backgroundBox.top / draft.layout.height) * 100}%`,
+                        width: `${(backgroundBox.width / draft.layout.width) * 100}%`,
+                        height: `${(backgroundBox.height / draft.layout.height) * 100}%`,
+                      }
+                    : { inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
+                }
+              />
+            ) : null}
             {backgroundIsPDF && backgroundUrl ? (
               // A frame, not an <object>: the panel's CSP allows no objects (object-src 'none')
               <iframe
@@ -1168,23 +1358,146 @@ export function CertificateTemplateEditor({ templateId }: { templateId?: string 
               )}
             </>
           ) : (
-            <p className="text-subtle-foreground text-[13px]/5">Katman seçilmedi</p>
+            <div role="group" aria-label="Arka plan" className="space-y-3">
+              <p className="text-secondary-foreground text-[13px]/5 font-semibold">Arka plan</p>
+              {backgroundIsPDF ? (
+                <p className="text-subtle-foreground text-[13px]/5">PDF yerleşimi yakında</p>
+              ) : null}
+              {backgroundIsImage && backgroundUnsized ? (
+                <p className="text-subtle-foreground text-[13px]/5">Görselin boyutu okunamadı.</p>
+              ) : null}
+              {backgroundIsImage && !backgroundUnsized && !placementDropped ? (
+                <>
+                  <label className="block space-y-1">
+                    <FieldLabel>Yerleşim</FieldLabel>
+                    <Select
+                      disabled={!canEdit}
+                      value={placement.fit}
+                      onChange={(event) =>
+                        updatePlacement({ fit: event.target.value as BackgroundFit })
+                      }
+                    >
+                      {(Object.keys(FIT_LABELS) as BackgroundFit[]).map((fit) => (
+                        <option key={fit} value={fit}>
+                          {FIT_LABELS[fit]}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <div className="space-y-1">
+                    <FieldLabel>Konum</FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <div role="group" aria-label="Konum" className="grid grid-cols-3 gap-1">
+                        {POSITIONS.map(([x, y, label]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            aria-label={label}
+                            aria-pressed={placement.x === x && placement.y === y}
+                            disabled={!canEdit || placement.fit === 'fill'}
+                            className="border-border-strong hover:bg-accent aria-pressed:bg-skylab-500/30 aria-pressed:border-skylab-400 focus-visible:ring-skylab-500/60 size-6 rounded border outline-none focus-visible:ring-2 disabled:opacity-40"
+                            onClick={() => updatePlacement({ x, y })}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!canEdit || placement.fit === 'fill'}
+                        className="border-border text-muted-foreground hover:bg-accent h-7 rounded border px-2 text-[13px] disabled:opacity-40"
+                        onClick={() => updatePlacement({ x: 0.5, y: 0.5 })}
+                      >
+                        Ortala
+                      </button>
+                    </div>
+                  </div>
+                  <label className="block space-y-1">
+                    <FieldLabel>Ölçek (%)</FieldLabel>
+                    <Field
+                      disabled={!canEdit || placement.fit === 'fill'}
+                      type="number"
+                      min={10}
+                      max={1000}
+                      step={5}
+                      value={
+                        placement.fit === 'fill'
+                          ? 100
+                          : Math.round(storedPlacement.scale * 1000) / 10
+                      }
+                      onChange={(event) =>
+                        updatePlacement({ scale: Number(event.target.value) / 100 })
+                      }
+                      onBlur={() => updatePlacement({ scale: placement.scale })}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {backgroundIsImage && !backgroundUnsized ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={!canEdit || !fittedPage}
+                    aria-describedby={backgroundSize && !fittedPage ? 'fit-page-note' : undefined}
+                    className="border-border text-secondary-foreground hover:bg-accent flex h-8 w-full items-center justify-center rounded-md border text-[13px]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={fitPage}
+                  >
+                    Sayfayı arka plana uydur
+                  </button>
+                  {backgroundSize && !fittedPage ? (
+                    <p id="fit-page-note" className="text-subtle-foreground text-[13px]/5">
+                      Oran 300–4000 px sınırına sığmıyor.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+              {backgroundUrl ? (
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  className="border-destructive/30 text-destructive hover:bg-destructive/10 flex h-8 w-full items-center justify-center gap-2 rounded-md border text-[13px]/5 disabled:opacity-50"
+                  onClick={removeBackground}
+                >
+                  <Trash2 className="h-4 w-4" /> Arka planı kaldır
+                </button>
+              ) : null}
+              <label className="block space-y-1">
+                <FieldLabel>Arka plan rengi</FieldLabel>
+                <Field
+                  disabled={!canEdit}
+                  type="color"
+                  value={draft.layout.backgroundColor}
+                  onChange={(event) => updateLayout({ backgroundColor: event.target.value })}
+                />
+              </label>
+            </div>
           )}
-          <label className="border-border block space-y-1 border-t pt-3">
-            <FieldLabel>Arka plan rengi</FieldLabel>
-            <Field
-              disabled={!canEdit}
-              type="color"
-              value={draft.layout.backgroundColor}
-              onChange={(event) => updateLayout({ backgroundColor: event.target.value })}
-            />
-          </label>
         </aside>
       </div>
 
       {error ? (
         <p role="alert" className="text-destructive text-sm">
           {error}
+        </p>
+      ) : null}
+      {placementDropped ? (
+        <p className="border-warning/30 bg-warning/5 text-warning rounded-md border px-3 py-2 text-[13px]/5">
+          {PLACEMENT_DROPPED}
+        </p>
+      ) : null}
+      {fitNote ? (
+        <p role="status" className="text-skylab-300 text-sm">
+          Sayfa arka plana uyduruldu ({pageSize(fitNote.before)} → {pageSize(fitNote.after)})
+          {draft.layout === fitNote.after ? (
+            <>
+              {' · '}
+              <button
+                type="button"
+                className="hover:text-foreground underline underline-offset-2"
+                onClick={undoFit}
+              >
+                Geri al
+              </button>
+            </>
+          ) : null}
         </p>
       ) : null}
       {message ? (
