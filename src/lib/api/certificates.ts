@@ -62,6 +62,16 @@ export type CertificateLayout = {
   elements: CertificateElement[];
 };
 
+/** `GET /v1/certificate-assets/{id}/info`: a PDF's visible box in pt × 96/72. */
+export type CertificateAssetInfo = {
+  contentType: string;
+  widthPx: number;
+  heightPx: number;
+  pages: number;
+  /** The texts pdf-tools found; 0 for an image. */
+  textCount: number;
+};
+
 export type CertificateTemplateDraft = {
   name: string;
   ownerTeam: string;
@@ -346,6 +356,16 @@ export const certificatesApi = {
     coreFetchBlob(`/v1/certificate-templates/${encodeURIComponent(id)}/preview`, {
       method: 'POST',
     }),
+  /**
+   * A background's natural size in layout px; a PDF's from pdf-tools (503
+   * `pdf_tools_unavailable` without it). An older core, and anyone who may
+   * not edit a template that links it, gets 404.
+   */
+  assetInfo: (id: string) =>
+    coreFetch<CertificateAssetInfo>(`/v1/certificate-assets/${encodeURIComponent(id)}/info`),
+  /** A PDF background's page as a PNG, its long side `max` px; an image as itself. */
+  assetPreview: (id: string, max = 2000) =>
+    coreFetchBlob(`/v1/certificate-assets/${encodeURIComponent(id)}/preview?max=${max}`),
   bindings: () => coreFetch<CertificateTemplateBinding[]>('/v1/certificate-template-bindings'),
   setBinding: (body: {
     scope: 'club' | 'ownerTeam' | 'event';

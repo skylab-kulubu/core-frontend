@@ -173,6 +173,8 @@ const CODE_MESSAGES: Record<string, string> = {
   background_pdf_unreadable: "PDF arka plan okunamadı; PDF'i yeniden dışa aktar ya da PNG yükle.",
   background_pdf_too_large: "PDF arka plan 20 MB'tan büyük.",
   background_pdf_pages: 'PDF arka plan tek sayfa olmalı.',
+  background_pdf_encrypted: 'PDF parolalı ya da şifreli; parolasız dışa aktarıp yeniden yükle.',
+  pdf_tools_unavailable: 'PDF araçlarına şu an ulaşılamıyor; biraz sonra tekrar dene.',
   renderer_unavailable: 'PDF oluşturucu kapalı; biraz sonra tekrar dene.',
   render_failed: 'PDF oluşturulamadı; sürerse yöneticiye haber ver.',
   name_invalid: 'Ad ya da soyad kabul edilmedi; izin verilmeyen bir karakter içeriyor olabilir.',

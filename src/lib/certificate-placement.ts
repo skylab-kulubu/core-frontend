@@ -22,6 +22,20 @@ export const LEGACY_IMAGE_PLACEMENT: BackgroundPlacement = {
   scale: 1,
 };
 
+/**
+ * How core prints a PDF background of a layout without a placement (core-backend
+ * `LegacyPDFPlacement`, pdfcpu's watermark scale in Gotenberg 8.37): a PDF wider
+ * than tall, or square, to the page's width; a taller one to its height; centred.
+ */
+export function legacyPdfPlacement(source: Size): BackgroundPlacement {
+  return {
+    fit: source.width >= source.height ? 'fitWidth' : 'fitHeight',
+    x: 0.5,
+    y: 0.5,
+    scale: 1,
+  };
+}
+
 export const FIT_LABELS: Record<BackgroundFit, string> = {
   contain: 'Sığdır',
   cover: 'Doldur (kırp)',
