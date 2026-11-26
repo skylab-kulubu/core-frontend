@@ -9,6 +9,7 @@ import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-notice-question';
+import { newlyListedForms, useBindQuestion } from '@/components/scheduling/use-bind-question';
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
@@ -43,7 +44,11 @@ export function useLegacyCertificateRules(eventId: string, enabled: boolean): bo
 /** /events/[id]/edit: the whole event on one page in sections, saved from the bar below. */
 export function EventEditPage() {
   const router = useRouter();
-  const { event, canMutate, editor } = useEventWorkspace();
+  const { event, canMutate, canAssign, editor } = useEventWorkspace();
+  // A save that links a Skyforms form asks whether its respondents get Tickets: core lets who
+  // may edit the Event or add attendees send them (Update || Assign, as the attendee import)
+  const [askBind, bindDialog] = useBindQuestion();
+  const canSendTickets = canMutate || canAssign;
   const { form } = editor;
   // Subscribed here, not in the workspace: the page must redraw when load() resets the form
   const value = useWatch({ control: form.control, name: 'event' });
@@ -99,6 +104,11 @@ export function EventEditPage() {
             if (notifyTicketHolders === null) return;
             if (await editor.save(values, { notifyTicketHolders })) {
               guard.allowLeave();
+              if (canSendTickets) {
+                for (const formId of newlyListedForms(event, values)) {
+                  await askBind(event.id, formId);
+                }
+              }
               router.push(overview);
             }
           },
@@ -127,6 +137,7 @@ export function EventEditPage() {
           ]}
           returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           formInUse={editor.inUse}
+          canSendTickets={canSendTickets}
           certificatesHref={eventTabHref(event.id, 'certificates')}
           legacyRules={legacyRules}
           activeTickets={event.ticketCount}
@@ -145,6 +156,7 @@ export function EventEditPage() {
       </EventFormLayout>
       {guard.dialog}
       {changeNoticeDialog}
+      {bindDialog}
     </>
   );
 }

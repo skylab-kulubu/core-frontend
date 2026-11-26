@@ -77,6 +77,8 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
+  /** Who may edit the Event or add attendees: a form's mapping offers to send Tickets. */
+  canSendTickets?: boolean;
   /** Said at the top of a section, such as choices that could not be loaded. */
   notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
   /** The Sertifikalar tab, where the threshold and the counted Sessions are chosen. */
@@ -155,6 +157,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendeeNote: '',
     attendanceWelcomeMail: true,
     attendanceRecordedMail: true,
+    formResponsesAutoTicket: true,
     name: '',
     description: '',
     location: '',
@@ -282,6 +285,7 @@ export function EventEditor({
   returnTo,
   onLeaveToSkyforms,
   formInUse,
+  canSendTickets,
   notices = {},
   certificatesHref,
   legacyRules,
@@ -393,8 +397,22 @@ export function EventEditor({
           returnTo={returnTo}
           onLeaveToSkyforms={onLeaveToSkyforms}
           inUse={formInUse}
+          canSendTickets={canSendTickets}
           onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
         />
+        {/* An older core sends none: not offered */}
+        {value.formResponsesAutoTicket !== undefined ? (
+          <Switch
+            checked={value.formResponsesAutoTicket}
+            onChange={(formResponsesAutoTicket) => patch({ formResponsesAutoTicket })}
+            label="Otomatik bilet gönder"
+            hint={
+              value.formResponsesAutoTicket
+                ? 'Formda kabul edilen yeni yanıta bilet gider.'
+                : 'Yeni yanıtlar Katılımcılar’da bilet bekler.'
+            }
+          />
+        ) : null}
         <ExternalRegistrationField
           value={value.externalRegistrationUrl ?? ''}
           onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
