@@ -85,11 +85,15 @@ export function eventEssentialItems({
   event,
   seasonName,
   registered,
+  doorStaffHref,
 }: {
   event: CoreEvent;
   seasonName?: string;
   registered?: number;
+  /** Where the door staff are chosen, for who may change them: the count links there. */
+  doorStaffHref?: string;
 }): DescriptionItem[] {
+  const doorStaff = event.doorStaffIds?.length ? `${event.doorStaffIds.length} kişi` : 'Yok';
   const status = eventDisplayStatus(event);
   const fill = registered === undefined ? null : capacityFill(registered, event.capacity);
   const registration =
@@ -129,11 +133,20 @@ export function eventEssentialItems({
             : `${event.capacity} kişi`
           : 'Sınırsız',
     },
-    { label: 'Başvuru', value: registration },
+    { label: 'Kayıt', value: registration },
     { label: 'Sertifika kuralı', value: certificateRuleLabel(event) },
     {
       label: 'Kapı görevlisi',
-      value: event.doorStaffIds?.length ? `${event.doorStaffIds.length} kişi` : 'Yok',
+      value: doorStaffHref ? (
+        <Link
+          href={doorStaffHref}
+          className="text-skylab-300 hover:text-foreground underline decoration-dotted underline-offset-4"
+        >
+          {doorStaff}
+        </Link>
+      ) : (
+        doorStaff
+      ),
     },
     ...(event.ranked
       ? [

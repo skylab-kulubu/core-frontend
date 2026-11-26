@@ -91,7 +91,13 @@ export function ObjectPage({
   header: ReactNode;
   commands?: ReactNode;
   notices?: ReactNode;
-  menu?: { label: string; sections: readonly SideNavSection[]; activeHref?: string };
+  menu?: {
+    label: string;
+    sections: readonly SideNavSection[];
+    activeHref?: string;
+    /** Extra classes on the wide-screen menu, such as an indent for an item's sub-items. */
+    className?: string;
+  };
   children: ReactNode;
 }) {
   return (
@@ -108,6 +114,7 @@ export function ObjectPage({
               aria-label={menu.label}
               sections={menu.sections}
               activeHref={menu.activeHref}
+              className={menu.className}
             />
           }
         >

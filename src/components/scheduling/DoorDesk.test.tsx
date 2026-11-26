@@ -29,6 +29,11 @@ jest.mock('@/lib/api/events', () => ({
   eventsApi: { list: jest.fn() },
 }));
 
+// core's capabilities unreadable: the group rule decides (YK edits every event)
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn(() => Promise.reject(new TypeError('Failed to fetch'))) },
+}));
+
 jest.mock('@/lib/api/eventDays', () => ({
   eventDaysApi: { listByEvent: jest.fn(), listSessions: jest.fn() },
 }));
@@ -141,6 +146,16 @@ describe('DoorDesk', () => {
     expect(eventDaysApi.listByEvent).toHaveBeenCalledWith('e1');
     await act(async () => doors([event]));
     await ready();
+  });
+
+  it('offers Oturum QR and, for who may choose them, the door staff beside the way back', async () => {
+    render(<DoorDesk eventId="e1" />);
+    await ready();
+    expect(screen.getByRole('button', { name: 'Oturum QR' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Kapı görevlileri' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#kapi-gorevlileri',
+    );
   });
 
   it('writes an entry from one box and says it large, with the way back', async () => {

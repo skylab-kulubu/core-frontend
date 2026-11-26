@@ -42,6 +42,7 @@ import {
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
+import { DOOR_STAFF_ANCHOR } from '@/lib/event-workspace';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
@@ -131,7 +132,7 @@ export const EVENT_EDITOR_SECTIONS = [
   { id: 'temel', title: 'Temel bilgiler' },
   { id: 'duzenleyenler', title: 'Düzenleyenler' },
   { id: 'zaman', title: 'Zaman ve yer' },
-  { id: 'basvuru', title: 'Başvuru ve form' },
+  { id: 'basvuru', title: 'Kayıt ve form' },
   { id: 'bilet', title: 'Bilet ve kapı' },
   { id: 'gorunum', title: 'Görünüm' },
   { id: 'sertifika', title: 'Sertifika' },
@@ -268,7 +269,7 @@ function ExternalRegistrationField({
         {issue ??
           (skyforms
             ? target === 'listed'
-              ? 'Bu SkyForms formu zaten Başvuru ve form’da; bu bağlantı gerekmez.'
+              ? 'Bu SkyForms formu zaten Kayıt ve form’da; bu bağlantı gerekmez.'
               : 'SkyForms formu: buradaki bağlantının yanıtları bilete dönmez. Formu yukarıdaki form alanına bağla.'
             : 'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.')}
       </span>
@@ -415,7 +416,7 @@ export function EventEditor({
         </div>
         <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
       </EditorSection>
-      <EditorSection id="basvuru" title="Başvuru ve form">
+      <EditorSection id="basvuru" title="Kayıt ve form">
         {notices.basvuru}
         <EventFormSlots
           slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
@@ -512,7 +513,7 @@ export function EventEditor({
             </span>
           </label>
           <DatePicker
-            label="Son başvuru"
+            label="Son kayıt"
             value={value.registrationClosesAt ?? ''}
             onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
           />
@@ -612,7 +613,7 @@ export function EventEditor({
           </label>
         ) : null}
         {assignDoorStaff ? (
-          <div className="space-y-2">
+          <div id={DOOR_STAFF_ANCHOR} className="scroll-mt-28 space-y-2 md:scroll-mt-16">
             <div className="flex items-center justify-between">
               <FieldLabel>Kapı görevlileri</FieldLabel>
               <ActionButton

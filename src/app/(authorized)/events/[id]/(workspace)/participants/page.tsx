@@ -6,6 +6,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { AttendeeImportDrawer } from '@/components/scheduling/roster/AttendeeImportDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { eventEditSectionHref } from '@/lib/event-workspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { RespondentList, useRespondents } from '@/components/scheduling/roster/RespondentList';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
@@ -207,6 +208,7 @@ export default function EventParticipantsPage() {
         onOpenTicket={show}
         onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
         onImport={canAssign ? () => setImportOpen(true) : undefined}
+        settingsHref={canMutate ? eventEditSectionHref(event.id, 'basvuru') : undefined}
         onMail={(recipients) =>
           void mailApplicants(recipients.map((recipient) => recipient.ticketId))
         }

@@ -19,7 +19,11 @@ import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { StateCard } from '@/components/chrome/StateCard';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
-import { emptyEventForm, type EventFormState } from '@/components/scheduling/EventEditor';
+import {
+  EVENT_EDITOR_SECTIONS,
+  emptyEventForm,
+  type EventFormState,
+} from '@/components/scheduling/EventEditor';
 import { useEventCopy } from '@/components/scheduling/EventCopyDialog';
 import { EventShell } from '@/components/scheduling/overview/EventShell';
 import {
@@ -62,6 +66,7 @@ import { publicMediaUrl } from '@/lib/event-media';
 import {
   eventEditHref,
   eventTabFromPath,
+  eventTabHref,
   isEventEditPath,
   legacyEventAnchorHref,
   showsCompetitionTab,
@@ -218,6 +223,10 @@ export type EventEditorState = {
    * `notifyTicketHolders` is the answer to `changeNotice` (no question: false).
    */
   save: (values: EventFormState, options?: { notifyTicketHolders: boolean }) => Promise<boolean>;
+  /** The tab the edit page was opened from (the overview when opened directly): Vazgeç returns there. */
+  returnHref: string;
+  /** The section in view on the edit page, written as current in the event's menu. */
+  setSection: (section: string) => void;
 };
 
 export type EventWorkspaceValue = EventPermissions & {
@@ -355,6 +364,12 @@ export function EventWorkspace({
   const [editInUse, setEditInUse] = useState<FormInUse | null>(null);
   const [mailing, setMailing] = useState(false);
   const [doorAccess, setDoorAccess] = useState(false);
+  // The edit page's section in view, and the tab it was opened from
+  const [editSection, setEditSection] = useState<string | undefined>(undefined);
+  const [returnHref, setReturnHref] = useState(() => eventTabHref(id));
+  useEffect(() => {
+    if (pathname && eventTabFromPath(pathname)) setReturnHref(pathname);
+  }, [pathname]);
   const notify = useNotify();
   const rightsFor = useEventStatusRights();
   const statusActions = useEventStatusActions({
@@ -658,7 +673,7 @@ export function EventWorkspace({
         icon={event.registrationClosed ? DoorOpen : DoorClosed}
         onClick={() => void statusActions.setRegistrationClosed(event, !event.registrationClosed)}
       >
-        {event.registrationClosed ? 'Başvuruyu aç' : 'Başvuruyu kapat'}
+        {event.registrationClosed ? 'Kayıtları aç' : 'Kayıtları kapat'}
       </MenuItem>
     ) : null,
     rights.canUpdate && offers.cancel ? (
@@ -756,6 +771,8 @@ export function EventWorkspace({
         void load();
         return true;
       },
+      returnHref,
+      setSection: setEditSection,
     },
   };
   const onEditPage = isEventEditPath(pathname ?? '');
@@ -784,6 +801,9 @@ export function EventWorkspace({
         coverSrc={event.coverImageUrl ? publicMediaUrl(event.coverImageUrl) : undefined}
         active={onEditPage ? null : (eventTabFromPath(pathname ?? '') ?? 'overview')}
         pages={pages}
+        editSections={
+          onEditPage ? { sections: EVENT_EDITOR_SECTIONS, current: editSection } : undefined
+        }
         registrations={can.canTickets ? tickets.length : undefined}
         publish={
           rights.canUpdate && offers.publish ? (

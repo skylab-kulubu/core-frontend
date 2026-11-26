@@ -9,7 +9,12 @@ import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList';
 import { eventReadiness } from '@/lib/event-overview';
-import { eventEditHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
+import {
+  eventDoorStaffHref,
+  eventEditHref,
+  eventTabHref,
+  type EventTab,
+} from '@/lib/event-workspace';
 import { attendanceFinalizeOpen, eventDisplayStatus } from '@/lib/events-view';
 import { recentRegistrations, registrationsByDay } from '@/lib/roster-insights';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
@@ -164,7 +169,7 @@ function AttendanceTiles({ o }: { o: Overview }) {
       </Tile>
       <Tile
         href={participants}
-        label="Bilet gitmedi"
+        label="Posta gitmedi"
         value={counts.unsent}
         hint={counts.unsent ? 'bekliyor' : 'hepsi gitti'}
         tone={counts.unsent ? 'warning' : undefined}
@@ -266,6 +271,7 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
           event,
           seasonName: o.seasonName,
           registered: ws.canTickets ? ws.tickets.length : undefined,
+          doorStaffHref: ws.canMutate ? eventDoorStaffHref(event.id) : undefined,
         })}
       />
       {ws.canTickets && o.status !== 'draft' ? (

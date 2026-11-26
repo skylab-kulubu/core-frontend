@@ -7,7 +7,13 @@ import { ObjectPage, ObjectPageHeader } from '@/components/chrome/object-page/Ob
 import { StatusChip } from '@/components/chrome/StatusChip';
 import type { CoreEvent } from '@/lib/api/events';
 import { eventInitials, eventWhenLong } from '@/lib/event-overview';
-import { eventDoorHref, eventEditHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
+import {
+  eventDoorHref,
+  eventEditHref,
+  eventEditSectionHref,
+  eventTabHref,
+  type EventTab,
+} from '@/lib/event-workspace';
 import { eventDisplayStatus } from '@/lib/events-view';
 
 /** The event's pages as its menu names them. */
@@ -31,12 +37,21 @@ export type EventShellPages = {
   counts: Partial<Record<EventTab, number>>;
 };
 
+/** Each section of the edit page opens under Düzenle in the menu while the page is open. */
+export type EventEditSections = {
+  sections: readonly { id: string; title: string }[];
+  /** The section in view, written as the current item. */
+  current?: string;
+};
+
 export type EventShellProps = {
   event: CoreEvent;
   coverSrc?: string;
-  /** The open page; null on the edit page, which has no menu. */
+  /** The open page; null on the edit page. */
   active: EventTab | null;
   pages: EventShellPages;
+  /** On the edit page: its sections, listed under Düzenle. */
+  editSections?: EventEditSections;
   /** How many applied, when the reader may see it; written among the badges. */
   registrations?: number;
   /** "Yayınla", when the event may be published now. */
@@ -44,7 +59,7 @@ export type EventShellProps = {
   /** Mails the registrations, when the reader may. */
   onMail?: () => void;
   mailing?: boolean;
-  /** Kopyala, Taslağa al, Başvuruyu kapat, İptal et, Sil… as menu items. */
+  /** Kopyala, Taslağa al, Kayıtları kapat, İptal et, Sil… as menu items. */
   menuItems: ReactNode[];
   /** Cancellation, copy and error bands under the header. */
   notices: ReactNode;
@@ -61,6 +76,7 @@ export function EventShell({
   coverSrc,
   active,
   pages,
+  editSections,
   registrations,
   publish,
   onMail,
@@ -76,6 +92,19 @@ export function EventShell({
     label: EVENT_TAB_LABELS[tab],
     badge: pages.counts[tab],
   });
+  const editHref = eventEditHref(event.id);
+  // Düzenle stays in the menu; on its page its sections open under it
+  const editItems = pages.edit
+    ? [
+        { href: editHref, label: 'Düzenle' },
+        ...(onEditPage && editSections
+          ? editSections.sections.map((section) => ({
+              href: eventEditSectionHref(event.id, section.id),
+              label: section.title,
+            }))
+          : []),
+      ]
+    : [];
   const sections = [
     { items: [item('overview')] },
     {
@@ -93,6 +122,7 @@ export function EventShell({
         ...(pages.content ? [item('content')] : []),
       ],
     },
+    { label: 'Ayarlar', items: editItems },
   ].filter((section): section is NonNullable<typeof section> => Boolean(section?.items.length));
   const facts = [event.location, eventWhenLong(event)].filter(Boolean).join(' · ');
 
@@ -110,13 +140,13 @@ export function EventShell({
             <>
               <StatusChip kind={status} />
               {event.active && event.registrationOpen === false ? (
-                <StatusChip kind="neutral" label="Başvuru kapalı" />
+                <StatusChip kind="neutral" label="Kayıt kapalı" />
               ) : null}
               {event.active && event.registrationOpen ? (
-                <StatusChip kind="active" label="Başvuru açık" />
+                <StatusChip kind="active" label="Kayıt açık" />
               ) : null}
               {registrations !== undefined ? (
-                <StatusChip kind="neutral" label={`${registrations} başvuru`} />
+                <StatusChip kind="neutral" label={`${registrations} kayıt`} />
               ) : null}
             </>
           }
@@ -142,15 +172,17 @@ export function EventShell({
         </CommandBar>
       }
       notices={notices}
-      menu={
-        onEditPage
-          ? undefined
-          : {
-              label: 'Etkinlik',
-              sections,
-              activeHref: eventTabHref(event.id, active),
-            }
-      }
+      menu={{
+        label: 'Etkinlik',
+        sections,
+        activeHref: onEditPage
+          ? editSections?.current
+            ? eventEditSectionHref(event.id, editSections.current)
+            : editHref
+          : eventTabHref(event.id, active),
+        // The edit page's sections sit indented under Düzenle
+        className: "[&_a[href*='/edit#']]:pl-5",
+      }}
     >
       {children}
     </ObjectPage>

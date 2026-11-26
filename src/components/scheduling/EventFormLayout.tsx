@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, cn } from '@skylab-kulubu/skylcn-ui';
-import { useEffect, useState, type FormEventHandler, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEventHandler, type ReactNode } from 'react';
 import { EVENT_EDITOR_SECTIONS, type EventEditorSectionId } from './EventEditor';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
@@ -16,6 +16,12 @@ type EventFormLayoutProps = {
   error?: ReactNode;
   /** Under the error, such as a link to an event the save created. */
   extra?: ReactNode;
+  /**
+   * `phone`: the jump list only below the wide layout, where the page's own menu lists the
+   * sections (the edit page, under Düzenle); `onSectionChange` hears the section in view.
+   */
+  sectionNav?: 'always' | 'phone';
+  onSectionChange?: (section: EventEditorSectionId) => void;
   children: ReactNode;
 };
 
@@ -55,18 +61,31 @@ export function EventFormLayout({
   onCancel,
   error,
   extra,
+  sectionNav = 'always',
+  onSectionChange,
   children,
 }: EventFormLayoutProps) {
   const current = useCurrentSection();
+  const sectionChanged = useRef(onSectionChange);
+  sectionChanged.current = onSectionChange;
+  useEffect(() => {
+    sectionChanged.current?.(current);
+  }, [current]);
+  const phoneOnly = sectionNav === 'phone';
   return (
     <form
       noValidate
       onSubmit={onSubmit}
-      className="lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:items-start lg:gap-10"
+      className={cn(
+        !phoneOnly && 'lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:items-start lg:gap-10',
+      )}
     >
       <nav
         aria-label="Bölümler"
-        className="bg-background/95 border-border-subtle sticky top-(--skylcn-sticky-top) z-20 -mx-4 mb-6 overflow-x-auto border-b px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:top-6 lg:mx-0 lg:mb-0 lg:overflow-visible lg:border-0 lg:bg-transparent lg:px-0 lg:backdrop-blur-none"
+        className={cn(
+          'bg-background/95 border-border-subtle sticky top-(--skylcn-sticky-top) z-20 -mx-4 mb-6 overflow-x-auto border-b px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:top-6 lg:mx-0 lg:mb-0 lg:overflow-visible lg:border-0 lg:bg-transparent lg:px-0 lg:backdrop-blur-none',
+          phoneOnly && 'lg:hidden',
+        )}
       >
         <ul className="flex gap-1 py-2 lg:flex-col lg:gap-0.5 lg:py-0">
           {EVENT_EDITOR_SECTIONS.map((section) => (

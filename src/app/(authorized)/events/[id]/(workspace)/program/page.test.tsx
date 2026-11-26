@@ -56,7 +56,11 @@ describe('Event Program tab Katıldı', () => {
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument(),
     );
-    expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Etkinlik komutları' })).getByRole('link', {
+        name: 'Düzenle',
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Açılış: eylemler' }));
@@ -352,6 +356,33 @@ describe('Event Program tab timeline', () => {
     expect(within(rows[0]).getByRole('link', { name: 'Kapıyı aç' })).toHaveAttribute(
       'href',
       '/events/e1/door',
+    );
+  });
+});
+
+describe('Program tab settings and QR', () => {
+  beforeEach(primeEventWorkspace);
+
+  it('opens Oturum QR from the top on the session running now', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    const hour = 3600_000;
+    const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+    (eventDaysApi.listSessions as jest.Mock).mockResolvedValue([
+      { ...workspaceSession, id: 's2', title: 'Panel', startTime: iso(-hour), endTime: iso(hour) },
+      { ...workspaceSession, startTime: iso(2 * hour), endTime: iso(3 * hour) },
+    ]);
+    await renderProgram();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Oturum QR' }));
+    expect(await screen.findByRole('dialog', { name: 'Panel QR' })).toBeInTheDocument();
+  });
+
+  it('links to the door staff for who edits the event', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    await renderProgram();
+    expect(await screen.findByRole('link', { name: 'Kapı görevlileri' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#kapi-gorevlileri',
     );
   });
 });

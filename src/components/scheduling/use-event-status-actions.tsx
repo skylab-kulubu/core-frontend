@@ -387,17 +387,17 @@ export function useEventStatusActions({
   const setRegistrationClosed = (event: CoreEvent, closed: boolean) =>
     run(
       () => eventsApi.patch(event.id, { registrationClosed: closed }),
-      closed ? 'Başvuru kapatıldı' : 'Başvuru açıldı',
-      closed ? 'Başvuru kapatılamadı' : 'Başvuru açılamadı',
+      closed ? 'Kayıtlar kapatıldı' : 'Kayıtlar açıldı',
+      closed ? 'Kayıtlar kapatılamadı' : 'Kayıtlar açılamadı',
     );
 
   async function copyApplyLink(event: CoreEvent) {
     if (!event.formAlias) return;
     try {
       await navigator.clipboard.writeText(publicShortUrl(event.formAlias));
-      notify.success('Başvuru linki kopyalandı');
+      notify.success('Kayıt linki kopyalandı');
     } catch {
-      onError('Başvuru linki kopyalanamadı');
+      onError('Kayıt linki kopyalanamadı');
     }
   }
 
@@ -449,7 +449,7 @@ export function eventRowMenuItems(
   if (event.formAlias) {
     items.push(
       <MenuItem key="link" icon={Link2} onClick={() => void actions.copyApplyLink(event)}>
-        Başvuru linkini kopyala
+        Kayıt linkini kopyala
       </MenuItem>,
     );
   }

@@ -66,6 +66,19 @@ describe('event object page', () => {
     );
   });
 
+  it('links the door staff count to where they are chosen', async () => {
+    signInAs(LEADER);
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      doorStaffIds: ['u1', 'u2'],
+    });
+    await renderEventTab(<EventOverviewPage />);
+    expect(await screen.findByRole('link', { name: '2 kişi' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#kapi-gorevlileri',
+    );
+  });
+
   it('names the open page beside the event', async () => {
     signInAs(LEADER);
     await renderEventTab(<EventProgramPage />, '/events/e1/program');

@@ -117,7 +117,7 @@ describe('Event Sertifikalar tab', () => {
     });
     await renderEventTab(<EventCertificatesPage />, '/events/e1/certificates');
 
-    expect(await screen.findByRole('heading', { name: 'Kural' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Kural ve şablon' })).toBeInTheDocument();
     expect(await screen.findByText('GECEKODU ekip şablonu · v2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ekip şablonlarından seç' })).toBeInTheDocument();
     expect(screen.queryByText('Sertifika bilgileri yüklenemedi')).not.toBeInTheDocument();

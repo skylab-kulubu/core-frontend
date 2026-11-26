@@ -107,7 +107,11 @@ describe('Event workspace layout', () => {
     await renderEventTab(<EventProgramPage />, '/events/e1/program');
 
     expect(await screen.findByRole('heading', { name: 'GeceKodu' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Etkinlik komutları' })).getByRole('link', {
+        name: 'Düzenle',
+      }),
+    ).toBeInTheDocument();
     expect(tab('Program')).toHaveAttribute('aria-current', 'page');
     expect(tab('Genel bakış')).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('heading', { name: 'Günler ve oturumlar' })).toBeInTheDocument();
@@ -173,10 +177,11 @@ describe('Event workspace layout', () => {
     await waitFor(() =>
       expect(tabNames()).toEqual(expect.arrayContaining(['Katılımcılar', 'Sertifikalar'])),
     );
-    expect(screen.getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
-      'href',
-      '/events/e1/edit',
-    );
+    expect(
+      within(screen.getByRole('group', { name: 'Etkinlik komutları' })).getByRole('link', {
+        name: 'Düzenle',
+      }),
+    ).toHaveAttribute('href', '/events/e1/edit');
   });
 
   it('shows door staff only the overview, the program and the door', async () => {
@@ -306,33 +311,68 @@ describe('Event workspace layout', () => {
   it('links Düzenle to the edit page, which opens when GET omits images, extra forms, and door staff', async () => {
     signInAs(['/UYELER/YK']);
     await renderEventTab(<EventOverviewPage />);
-    expect(await screen.findByRole('link', { name: 'Düzenle' })).toHaveAttribute(
-      'href',
-      '/events/e1/edit',
-    );
+    expect(
+      await within(await screen.findByRole('group', { name: 'Etkinlik komutları' })).findByRole(
+        'link',
+        { name: 'Düzenle' },
+      ),
+    ).toHaveAttribute('href', '/events/e1/edit');
   });
 
-  it('shows the edit page in sections, without the tabs, its jump list naming each', async () => {
+  it('keeps the event menu on the edit page, its sections opened under Düzenle', async () => {
     signInAs(['/UYELER/YK']);
     await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const sectionTitles = [
+      'Temel bilgiler',
+      'Düzenleyenler',
+      'Zaman ve yer',
+      'Kayıt ve form',
+      'Bilet ve kapı',
+      'Görünüm',
+      'Sertifika',
+      'Görünürlük ve yayın',
+    ];
+    // The phone's jump row above the form still names each
     const sections = await screen.findByRole('navigation', { name: 'Bölümler' });
     expect(
       within(sections)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual([
-      'Temel bilgiler',
-      'Düzenleyenler',
-      'Zaman ve yer',
-      'Başvuru ve form',
-      'Bilet ve kapı',
-      'Görünüm',
-      'Sertifika',
-      'Görünürlük ve yayın',
-    ]);
+    ).toEqual(sectionTitles);
+    // The event's menu stays, Düzenle and its sections last
+    expect(tabNames().slice(-9)).toEqual(['Düzenle', ...sectionTitles]);
+    expect(tab('Program')).toHaveAttribute('href', '/events/e1/program');
+    expect(within(menu()).getByRole('link', { name: 'Bilet ve kapı' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#bilet',
+    );
+    // The first section is the current one until the page scrolls
+    expect(within(menu()).getByRole('link', { name: 'Temel bilgiler' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     expect(screen.getByRole('heading', { name: 'Sertifika' })).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+    const commands = screen.getByRole('group', { name: 'Etkinlik komutları' });
+    expect(within(commands).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+  });
+
+  it('lists Düzenle in the menu of every tab, without its sections', async () => {
+    signInAs(['/UYELER/YK']);
+    await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'Günler ve oturumlar' });
+    expect(tab('Düzenle')).toHaveAttribute('href', '/events/e1/edit');
+    expect(within(menu()).queryByRole('link', { name: 'Temel bilgiler' })).toBeNull();
+  });
+
+  it('goes back to the tab the edit page was opened from on Vazgeç', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    const view = await renderEventTab(<EventProgramPage />, '/events/e1/program');
+    await screen.findByRole('heading', { name: 'Günler ve oturumlar' });
+    await view.openTab(<EventEditRoute />, '/events/e1/edit');
+    await user.click(await screen.findByRole('button', { name: 'Vazgeç' }));
+    expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1/program');
   });
 
   it('holds Yayınla on the edit page while a change is unsaved', async () => {
@@ -488,7 +528,7 @@ describe('Event workspace layout', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('says the event was saved from the edit page and goes back to the event', async () => {
+  it('says the event was saved from the edit page and stays on it', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockResolvedValueOnce('e1');
@@ -496,7 +536,7 @@ describe('Event workspace layout', () => {
     await screen.findByRole('heading', { name: 'GeceKodu' });
     await user.click(await screen.findByRole('button', { name: 'Kaydet' }));
     expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
-    expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1');
+    expect(workspaceRouter.push).not.toHaveBeenCalled();
     // The form it opened with goes along, so only the changed fields are written
     expect(saveEventWithSeason).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'GeceKodu' }),
@@ -550,7 +590,8 @@ describe('Event workspace layout', () => {
           { notifyTicketHolders: true },
         ),
       );
-      expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1');
+      // The save stays on the edit page
+      expect(workspaceRouter.push).not.toHaveBeenCalled();
     });
 
     it('saves without telling when the box is cleared', async () => {
