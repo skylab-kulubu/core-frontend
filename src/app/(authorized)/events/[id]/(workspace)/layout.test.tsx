@@ -137,6 +137,37 @@ describe('Event workspace layout', () => {
     expect(screen.queryByRole('button', { name: 'Hesabınla kaydol' })).not.toBeInTheDocument();
   });
 
+  it('opens the tabs a Co-organizer team’s Leader may use, by core’s decision on the Event', async () => {
+    signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [{ team: 'WEBLAB', can: { 'event.update': true } }],
+      otherTeams: { can: {} },
+    });
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      viewer: {
+        via: 'coTeam',
+        can: {
+          'event.update': true,
+          'event.delete': false,
+          'ticket.read': true,
+          'certificate.issue': true,
+          'certificate.template.assign': true,
+          'competition.manage': true,
+        },
+      },
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await waitFor(() =>
+      expect(tabNames()).toEqual(expect.arrayContaining(['Katılımcılar', 'Sertifikalar'])),
+    );
+    expect(screen.getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit',
+    );
+  });
+
   it('shows door staff only the overview, the program and the door', async () => {
     signInAs(['/UYELER/ARGE/WEBLAB']);
     (ticketsApi.listDoorEvents as jest.Mock).mockResolvedValue([

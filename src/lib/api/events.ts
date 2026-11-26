@@ -108,6 +108,8 @@ export type CoreEvent = {
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
+  /** What the signed-in reader may do on this Event, decided by core; an older core sends none. */
+  viewer?: EventViewer;
   /** The Event's files and videos, in its detail only; lists carry the counts alone. */
   files?: EventFile[];
   videos?: EventVideo[];
@@ -118,6 +120,16 @@ export type CoreEvent = {
 };
 
 export type EventStatus = 'draft' | 'published' | 'cancelled';
+
+/**
+ * `via`: what the reader's right to edit rests on: `owner` (the Owner team),
+ * `coTeam` (a Co-organizer team), `coPerson`, `privileged`, or `none`.
+ * `can`: core's decision per action (`event.update`, `event.manageOrganizers`, …).
+ */
+export type EventViewer = {
+  via: 'privileged' | 'owner' | 'coTeam' | 'coPerson' | 'none';
+  can: Partial<Record<string, boolean>>;
+};
 
 /**
  * A place Events were held at (GET /v1/events/places, core

@@ -87,6 +87,25 @@ describe('copy rights from core', () => {
     expect(copyTargetTeams(leader, 'GECEKODU')).toEqual(['GECEKODU', 'AIRLAB']);
   });
 
+  it('lets a Co-organizer team copy into the Owner team alone, and a person not at all', () => {
+    // A WEBLAB leader co-organizing a GECEKODU Event: creates in WEBLAB, edits the Event by viewer.can
+    const weblab = ready({
+      teams: [
+        { team: 'GECEKODU', can: { 'event.create': false, 'event.update': false } },
+        { team: 'WEBLAB', can: { 'event.create': true } },
+      ],
+    });
+    const coTeam = { via: 'coTeam' as const, can: { 'event.update': true } };
+    const coPerson = { via: 'coPerson' as const, can: { 'event.update': true } };
+    expect(canCopyEvent(weblab, 'GECEKODU', coTeam)).toBe(true);
+    expect(copyTargetTeams(weblab, 'GECEKODU', [], coTeam)).toEqual(['GECEKODU']);
+    expect(canCopyEvent(weblab, 'GECEKODU', coPerson)).toBe(false);
+    // core's switch off: its event.copy says no
+    expect(
+      canCopyEvent(weblab, 'GECEKODU', { ...coTeam, can: { ...coTeam.can, 'event.copy': false } }),
+    ).toBe(false);
+  });
+
   it('copies into another team only for who may edit the source', () => {
     // AIRLAB: creates there, but the source's team only reads
     const reader = ready({

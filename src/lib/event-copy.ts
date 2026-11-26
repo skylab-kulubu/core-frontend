@@ -15,7 +15,8 @@ import {
 } from '@/lib/event-forms';
 import type { EventSession } from '@/lib/api/sessions';
 import { sessionFeedbackSlotKey } from '@/lib/session-feedback';
-import { teamDecision } from '@/lib/use-app-can';
+import type { EventViewer } from '@/lib/api/events';
+import { teamDecision, viewerDecision } from '@/lib/use-app-can';
 
 /** The parts core may leave out of a copy (POST /v1/events/{id}/copy `skipped`). */
 export type CopySkippedPart =
@@ -91,10 +92,18 @@ export function copyEnd(
  * at all: create Events in its team, or edit it and create Events in another
  * team (ticket 16). Nothing until the answer is in; core decides the copy.
  */
-export function canCopyEvent(state: CapabilitiesState, sourceTeam: string): boolean {
+export function canCopyEvent(
+  state: CapabilitiesState,
+  sourceTeam: string,
+  viewer?: EventViewer,
+): boolean {
   if (state.status !== 'ready') return false;
   if (teamDecision(state, sourceTeam, 'event.create', false)) return true;
-  if (!teamDecision(state, sourceTeam, 'event.update', false)) return false;
+  if (!sourceEditable(state, sourceTeam, viewer)) return false;
+  // A Co-organizer team copies into the Owner team (core docs/co-organizers.md, Copy); a person may
+  // not. Its copy needs core's Co-organizer switch on: core's `event.copy` decides once it sends one
+  if (viewer?.via === 'coTeam') return viewerDecision({ viewer }, 'event.copy') ?? true;
+  if (viewer?.via === 'coPerson') return false;
   const { teams, otherTeams } = state.data;
   return (
     Boolean(otherTeams?.can?.['event.create']) ||
@@ -113,11 +122,16 @@ export function copyTargetTeams(
   state: CapabilitiesState,
   sourceTeam: string,
   allTeams: readonly string[] = [],
+  viewer?: EventViewer,
 ): string[] {
   if (state.status !== 'ready') return [];
   const out: string[] = [];
   if (teamDecision(state, sourceTeam, 'event.create', false)) out.push(sourceTeam);
-  if (teamDecision(state, sourceTeam, 'event.update', false)) {
+  // A Co-organizer team's copy stays in the Owner team, never their own
+  if (viewer?.via === 'coTeam' || viewer?.via === 'coPerson') {
+    return sourceEditable(state, sourceTeam, viewer) ? [sourceTeam] : out;
+  }
+  if (sourceEditable(state, sourceTeam, viewer)) {
     const own = state.data.teams ?? [];
     for (const row of own) {
       if (row.can?.['event.create']) out.push(row.team);
@@ -128,6 +142,14 @@ export function copyTargetTeams(
     }
   }
   return [...new Set(out)];
+}
+
+/** Whether the reader may edit the source: core's decision on it (viewer.can), else its team's. */
+function sourceEditable(state: CapabilitiesState, sourceTeam: string, viewer?: EventViewer) {
+  return (
+    viewerDecision({ viewer }, 'event.update') ??
+    teamDecision(state, sourceTeam, 'event.update', false)
+  );
 }
 
 /** Whether the reader may name `team` as the copy's door staff team (`event.assignDoorStaff`). */

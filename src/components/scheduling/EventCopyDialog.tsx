@@ -105,7 +105,7 @@ export function EventCopyDialog({
     };
   }, [otherTeamsCreate]);
 
-  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams);
+  const targets = copyTargetTeams(capabilities, source.ownerTeam, allTeams, source.viewer);
   const target = targets.includes(team) ? team : (targets[0] ?? source.ownerTeam);
   const doorStaffCount = source.doorStaffIds?.length ?? 0;
   const offersDoorStaff = doorStaffCount > 0 && canCopyDoorStaff(capabilities, target);
@@ -140,7 +140,11 @@ export function EventCopyDialog({
     } catch (err) {
       setError(
         coreProblemMessage(err, 'Etkinlik kopyalanamadı', {
-          403: 'Bu ekipte etkinlik oluşturma yetkin yok.',
+          // A Co-organizer team's copy is refused while core's Co-organizer switch is off
+          403:
+            source.viewer?.via === 'coTeam'
+              ? 'Ortak düzenleyen olarak kopyalama şu an kapalı.'
+              : 'Bu ekipte etkinlik oluşturma yetkin yok.',
           404: 'Kaynak etkinlik bulunamadı; silinmiş olabilir.',
           409: 'Bu kopya başka bir ekipte açılmış. Diyaloğu kapatıp yeniden aç.',
         }),
@@ -272,8 +276,8 @@ export function useEventCopy() {
   const [request, setRequest] = useState<{ source: CoreEvent; id: string } | null>(null);
   const [open, setOpen] = useState(false);
 
-  const canCopy = (event: Pick<CoreEvent, 'ownerTeam'>) =>
-    canCopyEvent(capabilities, event.ownerTeam);
+  const canCopy = (event: Pick<CoreEvent, 'ownerTeam' | 'viewer'>) =>
+    canCopyEvent(capabilities, event.ownerTeam, event.viewer);
 
   function askCopy(source: CoreEvent) {
     setRequest({ source, id: crypto.randomUUID() });

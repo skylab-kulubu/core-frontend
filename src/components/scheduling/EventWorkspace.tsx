@@ -31,7 +31,7 @@ import { useAuth } from '@/context/AuthContext';
 import { certificatesApi, type CertificateEventSummary } from '@/lib/api/certificates';
 import { competitorsApi, type Competitor } from '@/lib/api/competitors';
 import { eventDaysApi, type EventDay } from '@/lib/api/eventDays';
-import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { eventsApi, type CoreEvent, type EventViewer } from '@/lib/api/events';
 import type { Person } from '@/lib/api/identity';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { sessionsApi, type EventSession } from '@/lib/api/sessions';
@@ -80,7 +80,7 @@ import {
   ticketOwnerPeople,
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
-import { leaderTeamsOf, teamDecision, type TeamDecide } from '@/lib/use-app-can';
+import { leaderTeamsOf, teamDecision, viewerDecision, type TeamDecide } from '@/lib/use-app-can';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 export const eventEditSchema = z
@@ -144,8 +144,11 @@ export function withTeamCapabilities(
   ownerTeam: string,
   decide: TeamDecide,
   doorAccess: boolean,
+  viewer?: EventViewer,
 ): EventPermissions {
-  const team = (key: string, groupRule: boolean) => decide(ownerTeam, key, groupRule);
+  // core's decision on this Event (viewer.can: its Co-organizers too) first, the team's after
+  const team = (key: string, groupRule: boolean) =>
+    viewerDecision({ viewer }, key) ?? decide(ownerTeam, key, groupRule);
   return {
     canMutate: team('event.update', can.canMutate),
     canDelete: team('event.delete', can.canDelete),
@@ -320,9 +323,15 @@ export function EventWorkspace({
     });
   }
   /** core's decision for the event once the capabilities are in; `groupRule` if unreadable. */
-  async function teamAllows(ownerTeam: string, key: string, groupRule: boolean): Promise<boolean> {
+  async function eventAllows(
+    ev: Pick<CoreEvent, 'ownerTeam' | 'viewer'>,
+    key: string,
+    groupRule: boolean,
+  ): Promise<boolean> {
+    const decided = viewerDecision(ev, key);
+    if (decided !== undefined) return decided;
     await capabilitiesSettled();
-    return teamDecision(capabilitiesRef.current.state, ownerTeam, key, groupRule);
+    return teamDecision(capabilitiesRef.current.state, ev.ownerTeam, key, groupRule);
   }
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [days, setDays] = useState<EventDay[]>([]);
@@ -423,8 +432,8 @@ export function EventWorkspace({
       // Started now, read below: a reader who may not list them gets none, a refused read says so
       let ticketsRead = false;
       let ticketsRefused = false;
-      const ticketsReadAll = teamAllows(
-        ev.ownerTeam,
+      const ticketsReadAll = eventAllows(
+        ev,
         'ticket.read',
         canListEventTickets(groups, ev.ownerTeam, roles),
       ).then((allowed) =>
@@ -444,8 +453,8 @@ export function EventWorkspace({
       // Anyone else once the event names its team, beside the tickets; not awaited by the load
       void (
         summaryFirst ??
-        teamAllows(
-          ev.ownerTeam,
+        eventAllows(
+          ev,
           'certificate.read',
           canUseCertificateWorkspace(groups, roles, ev.ownerTeam),
         ).then((allowed) => (allowed ? readCertificateSummary(id) : NO_SUMMARY))
@@ -457,11 +466,7 @@ export function EventWorkspace({
       // A DK member who comes back from Skyforms gets no editor: the save would be refused
       if (
         handoff &&
-        (await teamAllows(
-          ev.ownerTeam,
-          'event.update',
-          canWriteEvent(groups, ev.ownerTeam, 'update'),
-        ))
+        (await eventAllows(ev, 'event.update', canWriteEvent(groups, ev.ownerTeam, 'update')))
       ) {
         // Skyforms comes back to the event; the edit page shows what was linked
         const editPage = eventEditHref(ev.id);
@@ -559,11 +564,7 @@ export function EventWorkspace({
     const session = rows.find((row) => row.id === sessionId);
     const refused = !session
       ? 'Oturum bulunamadı; form bağlanmadı.'
-      : !(await teamAllows(
-            ev.ownerTeam,
-            'event.update',
-            canWriteEvent(groups, ev.ownerTeam, 'update'),
-          ))
+      : !(await eventAllows(ev, 'event.update', canWriteEvent(groups, ev.ownerTeam, 'update')))
         ? 'Bu oturumu düzenleme yetkin yok; form bağlanmadı.'
         : null;
     if (!session || refused) {
@@ -612,7 +613,7 @@ export function EventWorkspace({
   // core's capabilities decide; the group rule stands in only when they cannot be read
   const readable = eventPermissions(groups, roles, event, doorAccess);
   const can = withEventStatus(
-    withTeamCapabilities(readable, event.ownerTeam, decide, doorAccess),
+    withTeamCapabilities(readable, event.ownerTeam, decide, doorAccess, event.viewer),
     event,
   );
   // Status actions follow core's capabilities for the Owner team alone (DK: none)
