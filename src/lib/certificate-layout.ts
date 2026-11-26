@@ -28,7 +28,11 @@ export const SAMPLE: Record<CertificateElementKind, string> = {
   shape: '',
 };
 
-/** The fonts core renders certificates with, grouped as the editor offers them. */
+/**
+ * The fonts core renders certificates with, grouped as the editor offers them. Montserrat to
+ * Dancing Script are core's catalog fonts: the renderer lacks them, so core embeds the files in
+ * the page and the panel serves the same files (certificate-fonts.css).
+ */
 export const FONT_GROUPS = [
   {
     label: 'Sans serif',
@@ -41,6 +45,12 @@ export const FONT_GROUPS = [
       ['DejaVu Sans', "'DejaVu Sans', 'Liberation Sans', sans-serif"],
       ['DejaVu Sans Condensed', "'DejaVu Sans Condensed', 'DejaVu Sans', sans-serif"],
       ['Liberation Sans', "'Liberation Sans', Arial, sans-serif"],
+      ['Montserrat', "Montserrat, 'Liberation Sans', sans-serif"],
+      ['Poppins', "Poppins, 'Liberation Sans', sans-serif"],
+      ['Open Sans', "'Open Sans', 'Liberation Sans', sans-serif"],
+      ['Roboto', "Roboto, 'Liberation Sans', sans-serif"],
+      ['Inter', "Inter, 'Liberation Sans', sans-serif"],
+      ['Raleway', "Raleway, 'Liberation Sans', sans-serif"],
     ],
   },
   {
@@ -54,6 +64,15 @@ export const FONT_GROUPS = [
       ['DejaVu Serif', "'DejaVu Serif', 'Liberation Serif', serif"],
       ['DejaVu Serif Condensed', "'DejaVu Serif Condensed', 'DejaVu Serif', serif"],
       ['Liberation Serif', "'Liberation Serif', 'Times New Roman', serif"],
+      ['Playfair Display', "'Playfair Display', 'Liberation Serif', serif"],
+      ['Merriweather', "Merriweather, 'Liberation Serif', serif"],
+    ],
+  },
+  {
+    label: 'El yazısı',
+    fonts: [
+      ['Great Vibes', "'Great Vibes', 'Liberation Serif', cursive"],
+      ['Dancing Script', "'Dancing Script', 'Liberation Serif', cursive"],
     ],
   },
   {
