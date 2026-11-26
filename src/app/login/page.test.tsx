@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import LoginPage from '@/app/login/page';
 import { loginErrorCode, loginErrorMessage, UNKNOWN_LOGIN_ERROR } from '@/app/login/login-errors';
+import { sceneAction, sceneTitle } from '@/test/error-scenes';
 
 let mockSearchParams = new URLSearchParams({ error: 'stale_authentication' });
 
@@ -10,21 +11,18 @@ jest.mock('next/navigation', () => ({
 }));
 
 describe('Giriş sayfası', () => {
-  it('says why a sign-in older than 8 hours was refused, and offers a new one', async () => {
+  it('shows the session scene for a sign-in older than 8 hours, and offers a new one', async () => {
     mockSearchParams = new URLSearchParams({ error: 'stale_authentication' });
     render(<LoginPage />);
 
     expect(
-      await screen.findByText(
-        'Panel en fazla 8 saat önceki bir girişi kabul eder. Yeniden giriş yap.',
-      ),
+      await screen.findByRole('heading', { level: 1, name: sceneTitle('sessionExpired') }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Tekrar giriş yap' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: sceneAction('sessionExpired') })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Hesap merkezi' })).toHaveAttribute(
       'href',
       expect.stringMatching(/^https:\/\//),
     );
-    expect(screen.getByText(/SKY LAB/)).toBeInTheDocument();
   });
 
   it('never shows the error code or the detail the callback passed along', async () => {

@@ -1,6 +1,11 @@
 'use client';
 
-import { Button, SkylabLoader, SkylabMark } from '@skylab-kulubu/skylcn-ui';
+import {
+  Button,
+  SessionExpiredScenePage,
+  SkylabLoader,
+  SkylabMark,
+} from '@skylab-kulubu/skylcn-ui';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { accountCenterUrl } from '@/lib/club-switcher';
@@ -8,6 +13,7 @@ import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { loginErrorMessage } from './login-errors';
 
 const LOGIN_START = '/api/auth/login';
+const STALE_AUTHENTICATION = 'stale_authentication';
 
 /** The page around every state: the mark and the product's name over a card, as in the sign-in. */
 function LoginShell({ children }: { children: ReactNode }) {
@@ -82,6 +88,17 @@ function LoginContent() {
     started.current = true;
     startLogin();
   }, [error, logout]);
+
+  // The sign-in is older than the panel accepts (8 hours, auth-age.ts): the session scene.
+  if (error === STALE_AUTHENTICATION) {
+    return (
+      <SessionExpiredScenePage onAction={startLogin}>
+        <Button variant="ghost" render={<a href={accountCenterUrl()} />}>
+          Hesap merkezi
+        </Button>
+      </SessionExpiredScenePage>
+    );
+  }
 
   if (error) {
     return (

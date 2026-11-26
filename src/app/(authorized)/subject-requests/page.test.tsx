@@ -6,6 +6,7 @@ import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 import { subjectRequestsApi, type SubjectRequest } from '@/lib/api/subject-requests';
 import { todayInTurkey } from '@/lib/subject-requests';
+import { sceneTitle } from '@/test/error-scenes';
 
 jest.mock('@/lib/api/capabilities', () => ({ capabilitiesApi: { get: jest.fn() } }));
 // The list's place, kept in state here as the address keeps it in the app
@@ -222,7 +223,9 @@ describe('KVKK başvuruları', () => {
       can: { 'subjectRequest.manage': false },
     });
     render(<SubjectRequestsPage />);
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
     expect(subjectRequestsApi.list).not.toHaveBeenCalled();
   });
 });

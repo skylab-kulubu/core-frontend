@@ -1,20 +1,16 @@
 'use client';
 
-import { Button } from '@skylab-kulubu/skylcn-ui';
 import {
-  CircleAlert,
-  FileQuestion,
-  Inbox,
-  RotateCw,
-  Search,
-  SearchX,
-  ShieldAlert,
-} from 'lucide-react';
+  Button,
+  ForbiddenScenePage,
+  NotFoundScenePage,
+  ServerErrorScenePage,
+} from '@skylab-kulubu/skylcn-ui';
+import { CircleAlert, Inbox, RotateCw, Search, SearchX, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { StateCard } from '@/components/chrome/StateCard';
 import { useOpenSearch } from '@/components/layout/search-context';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
@@ -27,9 +23,13 @@ import { BUTTON_TEXT } from '@/lib/ui/type-scale';
  * | `no-results`| "Bu süzgeçte sonuç yok"         | Süzgeci temizle |
  * | `failed`    | "Liste yüklenemedi"             | Tekrar dene     |
  * | Forbidden   | "Bu sayfaya erişimin yok"       | Özete dön       |
- * | NotFound    | "Sayfa bulunamadı"              | Özete dön, Ara  |
  *
- * No error codes or details; a forbidden page names no role.
+ * A whole page that cannot be shown (no access, not found, broke while drawing) takes the
+ * club's error scene instead (skylcn-ui ErrorScene), as `div` inside the chrome: the scene's
+ * title is the page's h1, so these pages draw no PageHeader of their own. A forbidden tab
+ * inside an object page keeps the card, under the object's own h1.
+ *
+ * No error details; a forbidden page names no role.
  */
 
 const HOME = '/dashboard';
@@ -39,16 +39,6 @@ function HomeButton() {
     <Button className={BUTTON_TEXT} size="sm" variant="outline" render={<Link href={HOME} />}>
       Özete dön
     </Button>
-  );
-}
-
-function WithTitle({ title, children }: { title?: string; children: ReactNode }) {
-  if (!title) return <>{children}</>;
-  return (
-    <div className="space-y-6">
-      <PageHeader title={title} />
-      {children}
-    </div>
   );
 }
 
@@ -99,57 +89,49 @@ export function EmptyState({
 }
 
 /**
- * The one "no access" state: the page's title, then the card. Pages do not write
- * their own; `note` is one short line when the reader must know whom to ask.
+ * The one "no access" state. A whole page (`pageTitle` given) takes the 403 scene, back to
+ * Özet; a tab inside an object page (no `pageTitle`) keeps the card under the object's h1.
+ * Pages do not write their own; `note` is one short line when the reader must know whom to ask.
  */
 export function Forbidden({ pageTitle, note }: { pageTitle?: string; note?: string }) {
+  if (pageTitle) {
+    return <ForbiddenScenePage as="div" href={HOME} description={note} />;
+  }
   return (
-    <WithTitle title={pageTitle}>
-      <StateCard
-        title="Bu sayfaya erişimin yok"
-        description={note}
-        Icon={ShieldAlert}
-        tone="warning"
-      >
-        <HomeButton />
-      </StateCard>
-    </WithTitle>
+    <StateCard title="Bu sayfaya erişimin yok" description={note} Icon={ShieldAlert} tone="warning">
+      <HomeButton />
+    </StateCard>
   );
 }
 
-/** The panel's not-found page, inside the chrome: back to Özet, or search. */
-export function NotFoundState() {
+/** "Ara" beside a missing page's way back, when the chrome's search is there. */
+export function SearchButton() {
   const openSearch = useOpenSearch();
+  if (!openSearch) return null;
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <StateCard title="Sayfa bulunamadı" Icon={FileQuestion}>
-        <div className="flex flex-wrap justify-center gap-2">
-          <HomeButton />
-          {openSearch ? (
-            <Button className={BUTTON_TEXT} size="sm" variant="ghost" onClick={openSearch}>
-              <Search className="size-4" aria-hidden />
-              Ara
-            </Button>
-          ) : null}
-        </div>
-      </StateCard>
-    </div>
+    <Button className={BUTTON_TEXT} variant="ghost" onClick={openSearch}>
+      <Search className="size-4" aria-hidden />
+      Ara
+    </Button>
   );
 }
 
-/** A page that broke while drawing (a route's error.tsx): try again, or back to Özet. */
+/** The panel's not-found page, inside the chrome: the 404 scene, back to Özet, or search. */
+export function NotFoundState() {
+  return (
+    <NotFoundScenePage as="div" href={HOME}>
+      <SearchButton />
+    </NotFoundScenePage>
+  );
+}
+
+/** A page that broke while drawing (a route's error.tsx): the 500 scene, try again, or back to Özet. */
 export function RouteErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <StateCard title="Sayfa açılamadı" Icon={CircleAlert} tone="danger">
-        <div className="flex flex-wrap justify-center gap-2">
-          <Button className={BUTTON_TEXT} size="sm" variant="outline" onClick={onRetry}>
-            <RotateCw className="size-4" aria-hidden />
-            Tekrar dene
-          </Button>
-          <HomeButton />
-        </div>
-      </StateCard>
-    </div>
+    <ServerErrorScenePage as="div" onAction={onRetry}>
+      <Button className={BUTTON_TEXT} variant="outline" render={<Link href={HOME} />}>
+        Özete dön
+      </Button>
+    </ServerErrorScenePage>
   );
 }
