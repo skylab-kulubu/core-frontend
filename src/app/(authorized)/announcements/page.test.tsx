@@ -4,6 +4,7 @@ import React from 'react';
 import AnnouncementsPage from '@/app/(authorized)/announcements/page';
 import { newsApi } from '@/lib/api/cms';
 import { ProblemError } from '@/lib/api/core';
+import { sceneTitle } from '@/test/error-scenes';
 
 const replace = jest.fn();
 let search = '';
@@ -115,7 +116,7 @@ describe('Duyurular', () => {
   it('says no access the one way', () => {
     groups = ['/UYELER/ARGE/WEBLAB'];
     render(<AnnouncementsPage />);
-    expect(screen.getByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: sceneTitle('forbidden') })).toBeInTheDocument();
     expect(newsApi.list).not.toHaveBeenCalled();
   });
 

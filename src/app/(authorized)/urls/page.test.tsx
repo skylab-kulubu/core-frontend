@@ -7,6 +7,7 @@ import { urlsApi, type AliasAvailability, type ShortUrl, type ShortUrlStats } fr
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { useAuth } from '@/context/AuthContext';
 import type { UserDto } from '@/types/api';
+import { sceneTitle } from '@/test/error-scenes';
 
 // The address is the list's state: the hook writes history, and this reads it back
 const mockListeners = new Set<() => void>();
@@ -242,7 +243,7 @@ describe('Kısa link list', () => {
   it('says no access the one way', () => {
     (useAuth as jest.Mock).mockReturnValue({ user: user({ roles: [], groups: [] }) });
     render(<UrlsPage />);
-    expect(screen.getByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: sceneTitle('forbidden') })).toBeInTheDocument();
     expect(urlsApi.listMine).not.toHaveBeenCalled();
   });
 });
