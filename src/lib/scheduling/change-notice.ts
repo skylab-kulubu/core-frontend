@@ -68,6 +68,14 @@ export function changeNoticeFor(
   return { changes, holders };
 }
 
+/**
+ * The box's default: ticked when the save gives a new time or place (as before), unticked for
+ * other details alone (core docs/event-updated-notification.md#other-details).
+ */
+export function noticeTickedByDefault(changes: readonly NoticeChange[]): boolean {
+  return changes.some((change) => change === 'time' || change === 'place');
+}
+
 const changeLabels: Record<NoticeChange, string> = {
   time: 'saat',
   place: 'yer',

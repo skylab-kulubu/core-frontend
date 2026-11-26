@@ -2,7 +2,12 @@
 
 import type { CoreEvent } from '@/lib/api/events';
 import { formStateFromEvent } from '@/lib/event-draft';
-import { changeNoticeFor, changeNoticeTitle, detailChanges } from '@/lib/scheduling/change-notice';
+import {
+  changeNoticeFor,
+  changeNoticeTitle,
+  detailChanges,
+  noticeTickedByDefault,
+} from '@/lib/scheduling/change-notice';
 
 const now = new Date('2026-11-25T12:00:00Z');
 
@@ -85,6 +90,14 @@ describe('changeNoticeFor (the save asks whether the ticket holders are told)', 
     expect(changeNoticeTitle(['time', 'attendeeNote', 'links'])).toBe(
       'Saat, katılımcı notu ve bağlantılar değişti',
     );
+  });
+});
+
+describe('noticeTickedByDefault', () => {
+  it('ticks for a new time or place, not for other details alone', () => {
+    expect(noticeTickedByDefault(['time'])).toBe(true);
+    expect(noticeTickedByDefault(['place', 'name'])).toBe(true);
+    expect(noticeTickedByDefault(['name', 'description'])).toBe(false);
   });
 });
 
