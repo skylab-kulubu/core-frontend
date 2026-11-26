@@ -9,22 +9,53 @@ import { staticQrFailure, staticQrWindowText, svgDataUrl } from '@/lib/door-qr';
 import { qrPngBlob, saveBlob } from '@/lib/qr-png';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
+/** A static QR and the session it belongs to. */
+type Shown = { qr: DoorQr; sessionId: string; title: string };
+
 /**
  * The session's static attendance QR, the fallback when no screen can show the rotating one: the
- * same QR every time, read with a phone's camera, valid in the session window. Shown only when
- * asked for, full screen or saved as a PNG for printing.
+ * same QR every time, read with a phone's camera, valid in the session window. Fetched only once
+ * asked for, full screen or saved as a PNG for printing. Once shown it follows `sessionId`: a new
+ * session's QR replaces the old in place, full screen included, so it can follow the screen's
+ * session; the title shown is always that of the QR's own session.
  */
 export function StaticSessionQr({ sessionId, title }: { sessionId: string; title: string }) {
-  const [qr, setQr] = useState<DoorQr | null>(null);
+  const [wanted, setWanted] = useState(false);
+  const [shown, setShown] = useState<Shown | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
   const screenRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef(title);
+  titleRef.current = title;
 
   useEffect(() => {
-    setQr(null);
-    setMessage(null);
-  }, [sessionId]);
+    if (!wanted) {
+      setShown(null);
+      return;
+    }
+    let cancelled = false;
+    setBusy(true);
+    ticketsApi
+      .createDoorQr(sessionId, 'static')
+      .then((qr) => {
+        if (cancelled) return;
+        setShown({ qr, sessionId, title: titleRef.current });
+        setMessage(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setShown(null);
+        setWanted(false);
+        setMessage(staticQrFailure(err));
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wanted, sessionId]);
 
   useEffect(() => {
     // Before the QR is shown the ref is null, as is fullscreenElement once another screen
@@ -37,28 +68,19 @@ export function StaticSessionQr({ sessionId, title }: { sessionId: string; title
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  const show = async () => {
-    setBusy(true);
-    try {
-      setQr(await ticketsApi.createDoorQr(sessionId, 'static'));
-      setMessage(null);
-    } catch (err) {
-      setMessage(staticQrFailure(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const download = async () => {
-    if (!qr) return;
+    if (!shown) return;
     try {
-      saveBlob(await qrPngBlob(qr.svg, title), sessionQrFileName(sessionId, `${title} sabit`));
+      saveBlob(
+        await qrPngBlob(shown.qr.svg, shown.title),
+        sessionQrFileName(shown.sessionId, `${shown.title} sabit`),
+      );
     } catch {
       setMessage('PNG hazırlanamadı.');
     }
   };
 
-  const validity = qr ? staticQrWindowText(qr.validFrom, qr.validUntil) : '';
+  const validity = shown ? staticQrWindowText(shown.qr.validFrom, shown.qr.validUntil) : '';
 
   return (
     <section aria-label="Sabit QR" className="space-y-3">
@@ -67,8 +89,9 @@ export function StaticSessionQr({ sessionId, title }: { sessionId: string; title
         <p className="text-secondary-foreground text-sm">
           Dönen QR gösterilemezse: oturumun tek, değişmeyen QR&apos;ı. Telefon kamerasıyla okunur.
         </p>
+        <p className="text-sm">Oturum: {shown?.title ?? title}</p>
       </div>
-      {qr ? (
+      {shown ? (
         <>
           <div
             ref={screenRef}
@@ -78,9 +101,9 @@ export function StaticSessionQr({ sessionId, title }: { sessionId: string; title
                 : 'space-y-2',
             )}
           >
-            {full ? <p className="text-4xl font-semibold">{title}</p> : null}
+            {full ? <p className="text-4xl font-semibold">{shown.title}</p> : null}
             <img
-              src={svgDataUrl(qr.svg)}
+              src={svgDataUrl(shown.qr.svg)}
               alt="Oturumun sabit yoklama QR'ı"
               className={cn(
                 'aspect-square rounded-md bg-white',
@@ -113,7 +136,7 @@ export function StaticSessionQr({ sessionId, title }: { sessionId: string; title
           variant="outline"
           className={BUTTON_TEXT}
           disabled={busy}
-          onClick={() => void show()}
+          onClick={() => setWanted(true)}
         >
           {busy ? 'Hazırlanıyor…' : 'Sabit QR’ı göster'}
         </Button>

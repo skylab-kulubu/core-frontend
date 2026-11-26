@@ -88,6 +88,36 @@ describe('StaticSessionQr', () => {
     expect(screen.queryByText('Yoklama için telefonunun kamerasıyla okut')).toBeNull();
   });
 
+  it('names its session, and once shown follows a new session in place', async () => {
+    createDoorQr.mockImplementation(async (id: string) => ({
+      ...staticQr,
+      sessionId: id,
+      svg: `<svg id="${id}"/>`,
+    }));
+    const user = userEvent.setup();
+    const { rerender } = render(<StaticSessionQr sessionId="s1" title="Açılış" />);
+    expect(screen.getByText('Oturum: Açılış')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sabit QR’ı göster' }));
+    expect(
+      (await screen.findByAltText("Oturumun sabit yoklama QR'ı")).getAttribute('src'),
+    ).toContain(encodeURIComponent('<svg id="s1"/>'));
+
+    rerender(<StaticSessionQr sessionId="s2" title="1. Oturum" />);
+    expect(await screen.findByText('Oturum: 1. Oturum')).toBeInTheDocument();
+    expect(createDoorQr).toHaveBeenLastCalledWith('s2', 'static');
+    expect(screen.getByAltText("Oturumun sabit yoklama QR'ı").getAttribute('src')).toContain(
+      encodeURIComponent('<svg id="s2"/>'),
+    );
+    expect(screen.queryByRole('button', { name: 'Sabit QR’ı göster' })).toBeNull();
+  });
+
+  it('does not fetch for a new session until asked', () => {
+    const { rerender } = render(<StaticSessionQr sessionId="s1" title="Açılış" />);
+    rerender(<StaticSessionQr sessionId="s2" title="1. Oturum" />);
+    expect(createDoorQr).not.toHaveBeenCalled();
+    expect(screen.getByText('Oturum: 1. Oturum')).toBeInTheDocument();
+  });
+
   it('says why core gave none', async () => {
     createDoorQr.mockRejectedValue(
       new ProblemError(400, 'Bad Request', { code: 'session_times_required' }),
