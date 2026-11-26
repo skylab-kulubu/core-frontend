@@ -134,7 +134,7 @@ export function formMappingProblem(err: unknown, fallback: string): string {
       case 'forms_pull_off':
         return 'Forms bağlantısı kapalı.';
       case 'forms_access_denied':
-        return 'Bu formun sahibi ya da düzenleyeni değilsin.';
+        return 'Bu forma erişimin yok.';
       case 'mapping_question_missing':
         return 'Seçili bir soru artık formda yok.';
       case 'mapping_invalid':

@@ -504,6 +504,17 @@ describe('groupWriteProblemMessage', () => {
   });
 });
 
+describe('forms_access_denied (core docs/form-respondents.md)', () => {
+  it('says the person may not use a form they are not on the team of in Forms', () => {
+    expect(coreProblemMessage(problem(403, 'forms_access_denied'), 'x')).toBe(
+      'Bu forma erişimin yok.',
+    );
+    expect(coreProblemMessage(problem(503, 'forms_unavailable'), 'x')).toBe(
+      'Forms yanıt vermedi. Biraz sonra dene.',
+    );
+  });
+});
+
 describe('form_in_use (ADR 0069, 2026-11-22)', () => {
   const formId = '0b6f1c1e-6a39-4d0f-9d0c-3a8c5d1e2f00';
   const named = problem(409, 'form_in_use', {

@@ -115,7 +115,7 @@ describe('mappingIssue (core’s rule)', () => {
 describe('formMappingProblem', () => {
   it.each([
     [503, 'forms_pull_off', 'Forms bağlantısı kapalı.'],
-    [403, 'forms_access_denied', 'Bu formun sahibi ya da düzenleyeni değilsin.'],
+    [403, 'forms_access_denied', 'Bu forma erişimin yok.'],
     [422, 'mapping_question_missing', 'Seçili bir soru artık formda yok.'],
     [404, 'form_not_listed', 'Etkinliği kaydet, sonra eşle.'],
   ])('%i %s', (status, code, text) => {

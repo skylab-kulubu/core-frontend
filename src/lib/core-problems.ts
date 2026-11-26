@@ -126,6 +126,9 @@ const CODE_MESSAGES: Record<string, string> = {
   audit_unavailable: 'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
+  // Linking a form the person is not on the team of in Forms (core docs/form-respondents.md)
+  forms_access_denied: 'Bu forma erişimin yok.',
+  forms_unavailable: 'Forms yanıt vermedi. Biraz sonra dene.',
   feedback_form_missing: 'Geri bildirim formu bağlı değil.',
   feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',
