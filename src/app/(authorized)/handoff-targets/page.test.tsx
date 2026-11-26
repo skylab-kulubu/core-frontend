@@ -4,6 +4,7 @@ import React from 'react';
 import HandoffTargetsPage from '@/app/(authorized)/handoff-targets/page';
 import { HandoffProblemError, handoffTargetsApi } from '@/lib/api/handoff-targets';
 import type { HandoffTarget } from '@/lib/handoff/targets';
+import { sceneTitle } from '@/test/error-scenes';
 
 jest.mock('@/lib/api/handoff-targets', () => {
   const actual = jest.requireActual('@/lib/api/handoff-targets');
@@ -128,7 +129,9 @@ describe("SkyApp'ten geçiş page", () => {
 
     render(<HandoffTargetsPage />);
 
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
@@ -344,7 +347,9 @@ describe("SkyApp'ten geçiş page", () => {
     await user.click(within(panel).getByRole('switch'));
     await user.click(within(panel).getByRole('button', { name: 'Kaydet' }));
 
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 });

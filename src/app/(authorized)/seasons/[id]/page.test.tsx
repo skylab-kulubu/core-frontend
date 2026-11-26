@@ -5,6 +5,7 @@ import SeasonPage from '@/app/(authorized)/seasons/[id]/page';
 import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { seasonsApi } from '@/lib/api/seasons';
+import { sceneTitle } from '@/test/error-scenes';
 
 let mockSearch = '';
 const mockPush = jest.fn();
@@ -116,7 +117,9 @@ describe('Sezon sayfası', () => {
   it('says a season that is not there as a missing page', async () => {
     (seasonsApi.get as jest.Mock).mockRejectedValue(new ProblemError(404, 'Not Found', {}));
     render(<SeasonPage />);
-    expect(await screen.findByText('Sayfa bulunamadı')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('notFound') }),
+    ).toBeInTheDocument();
   });
 
   it('lists the season’s events and takes one out after asking', async () => {

@@ -100,7 +100,8 @@ const tab = (name: string) => within(menu()).getByRole('link', { name: new RegEx
 const tabNames = () =>
   within(menu())
     .getAllByRole('link')
-    .map((link) => link.textContent?.replace(/\d+$/, ''));
+    // skylcn-ui 0.3.0 writes a count of 0 too, after the label
+    .map((link) => link.textContent?.replace(/\s*\d+$/, ''));
 /** A menu item by its whole name ("Genel", not "Genel bakış"). */
 const item = (name: string) => within(menu()).getByRole('link', { name });
 const SETTINGS = ['Genel', 'Zaman ve yer', 'Ekip', 'Görünüm', 'Görünürlük ve yayın'];
