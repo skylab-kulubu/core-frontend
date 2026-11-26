@@ -7,12 +7,17 @@ import {
   FEEDBACK_MODES,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
 
 jest.mock('@/lib/api/identity', () => ({
   identityApi: { listUsers: jest.fn(), getUser: jest.fn() },
 }));
 jest.mock('@/lib/api/media', () => ({ mediaApi: { upload: jest.fn() } }));
+// core's capabilities: unread unless a test answers them
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn(() => Promise.reject(new Error('unread'))) },
+}));
 jest.mock('@/lib/api/events', () => ({
   eventsApi: { list: jest.fn().mockResolvedValue([]) },
 }));
@@ -274,6 +279,20 @@ describe('EventEditor capacity and waiting list', () => {
     expect(onValue).toHaveBeenLastCalledWith(
       expect.objectContaining({ attendanceRecordedMail: false }),
     );
+  });
+
+  it('greys the door’s mails out while core sends none (ATTENDANCE_MAIL off)', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValueOnce({
+      features: { attendanceWelcomeMail: false, attendanceRecordedMail: true },
+    });
+    render(<CapacityEditor start={{ capacity: 0 }} />);
+    const welcome = screen.getByRole('switch', { name: /Hoş geldin postası/ });
+    await waitFor(() => expect(welcome).toHaveAttribute('aria-disabled', 'true'));
+    expect(welcome).not.toBeChecked();
+    expect(screen.getByText('Bu posta şu an kapalı.')).toBeInTheDocument();
+    const recorded = screen.getByRole('switch', { name: /Katılım postası/ });
+    expect(recorded).not.toHaveAttribute('aria-disabled', 'true');
+    expect(recorded).toBeChecked();
   });
 
   it('hides the door’s mail switches when core sends none (an older core)', () => {

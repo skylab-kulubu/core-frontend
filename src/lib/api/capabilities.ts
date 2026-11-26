@@ -49,6 +49,12 @@ export type Capabilities = {
     endsAt: string | null;
     expiredAt: string | null;
   }>;
+  /**
+   * What core sends now, whatever an Event asks for: whether a scan queues
+   * the door's welcome and receipt mails (ATTENDANCE_MAIL, SkyNotify, the
+   * template keys). An older core leaves it out.
+   */
+  features?: { attendanceWelcomeMail?: boolean; attendanceRecordedMail?: boolean };
 };
 
 export const capabilitiesApi = {
