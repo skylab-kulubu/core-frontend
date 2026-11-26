@@ -326,6 +326,7 @@ describe('Event workspace layout', () => {
       'Zaman ve yer',
       'Başvuru ve form',
       'Bilet ve kapı',
+      'Görünüm',
       'Sertifika',
       'Görünürlük ve yayın',
     ]);

@@ -25,6 +25,7 @@ import {
   emptyApplySlot,
   emptyFeedbackSlot,
   persistableFormFields,
+  skyformsFormId,
   type EventFormSlot,
 } from '@/lib/event-forms';
 import type { FormInUse } from '@/lib/core-problems';
@@ -46,6 +47,7 @@ import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
+import { EventThemeFields } from './EventThemeFields';
 import { EventTicketImageFields } from './EventTicketImageFields';
 
 export type EventFormState = EventBody & {
@@ -131,6 +133,7 @@ export const EVENT_EDITOR_SECTIONS = [
   { id: 'zaman', title: 'Zaman ve yer' },
   { id: 'basvuru', title: 'Başvuru ve form' },
   { id: 'bilet', title: 'Bilet ve kapı' },
+  { id: 'gorunum', title: 'Görünüm' },
   { id: 'sertifika', title: 'Sertifika' },
   { id: 'yayin', title: 'Görünürlük ve yayın' },
 ] as const;
@@ -141,6 +144,7 @@ export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
 export function sectionOfIssue(issue: string): EventEditorSectionId {
   if (isExternalRegistrationIssue(issue)) return 'basvuru';
   if (/adı/i.test(issue)) return 'temel';
+  if (/vurgu/i.test(issue)) return 'gorunum';
   return 'zaman';
 }
 
@@ -315,6 +319,10 @@ export function EventEditor({
   const mailOn = useAttendanceMailOn();
 
   const staffIds = value.doorStaffIds ?? [];
+  // The linked Skyforms forms, the application form first: whose theme the editor offers
+  const formIds = (value.formSlots ?? [])
+    .map((slot) => skyformsFormId(slot.url.trim()))
+    .filter((id): id is string => Boolean(id));
   const staffKey = staffIds.join(',');
 
   useEffect(() => {
@@ -677,10 +685,20 @@ export function EventEditor({
             />
           </div>
         ) : null}
+      </EditorSection>
+      <EditorSection id="gorunum" title="Görünüm">
+        {notices.gorunum}
+        <EventThemeFields
+          theme={value.theme}
+          ticketAccentColor={value.ticketAccentColor}
+          onChange={patch}
+          formIds={formIds}
+        />
         <EventTicketImageFields
           eventId={value.reservedId}
           coverImageId={value.coverImageId ?? ''}
           knownMedia={knownMedia}
+          theme={value.theme}
         />
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
@@ -722,7 +740,9 @@ export function EventEditor({
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           ) : (
-            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Varsayılan eşik %75</p>
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              Eşik, etkinlik oluşturulduktan sonra Sertifikalar sekmesinde seçilir.
+            </p>
           )
         ) : null}
         {/* An older core sends no switch: it is not offered */}

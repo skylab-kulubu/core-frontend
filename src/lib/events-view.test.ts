@@ -45,6 +45,15 @@ describe('eventFormIssue', () => {
       }),
     ).toBeNull();
   });
+
+  it('asks for the accent as #RRGGBB; empty is the theme’s', () => {
+    const base = { name: 'ARTLAB', location: 'Hamam' };
+    expect(eventFormIssue({ ...base, ticketAccentColor: '#F5B8' })).toBe(
+      'Vurgu rengi #RRGGBB biçiminde olmalı.',
+    );
+    expect(eventFormIssue({ ...base, ticketAccentColor: ' #f5b82e ' })).toBeNull();
+    expect(eventFormIssue({ ...base, ticketAccentColor: null })).toBeNull();
+  });
 });
 
 describe('event list labels', () => {

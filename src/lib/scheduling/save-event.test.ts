@@ -608,3 +608,27 @@ describe('"Otomatik bilet gönder" (formResponsesAutoTicket)', () => {
     expect(eventPatchFromForm(older)).not.toHaveProperty('formResponsesAutoTicket');
   });
 });
+
+describe('Görünüm (theme, ticketAccentColor)', () => {
+  it('a new Event sends only what was chosen; an edit sends a change; an older core gets none', () => {
+    const fresh = emptyEventForm('ARTLAB');
+    expect(eventBodyFromForm(fresh)).not.toHaveProperty('theme');
+    expect(eventBodyFromForm({ ...fresh, theme: null, ticketAccentColor: ' ' })).not.toHaveProperty(
+      'ticketAccentColor',
+    );
+    expect(
+      eventBodyFromForm({ ...fresh, theme: 'artlab', ticketAccentColor: ' #f5b82e ' }),
+    ).toMatchObject({ theme: 'artlab', ticketAccentColor: '#F5B82E' });
+
+    const loaded = formStateFromEvent({ ...savedEvent, theme: 'artlab' });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, theme: null }, loaded)).toEqual({ theme: null });
+    expect(eventPatchFromForm({ ...loaded, ticketAccentColor: '' }, loaded)).toEqual({
+      ticketAccentColor: null,
+    });
+
+    const older = formStateFromEvent(savedEvent);
+    expect(eventPatchFromForm(older)).not.toHaveProperty('theme');
+    expect(eventPatchFromForm(older)).not.toHaveProperty('ticketAccentColor');
+  });
+});

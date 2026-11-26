@@ -120,6 +120,57 @@ describe('EventTicketImageFields', () => {
     expect(body.crop.w).toBe(1);
   });
 
+  it('under ARTLAB asks for the whole poster and shows it whole, keeping a band region', async () => {
+    get.mockResolvedValue({
+      source: 'upload',
+      mediaId: 'afis',
+      mediaUrl: 'images/afis.jpg',
+      crop: { x: 0, y: 0.2, w: 1, h: 0.4 },
+      coverChanged: false,
+      band,
+    });
+    save.mockImplementation((_id, body) =>
+      Promise.resolve({ ...body, mediaUrl: 'images/afis.jpg', coverChanged: false, band }),
+    );
+    render(<EventTicketImageFields eventId="e1" coverImageId="" theme="artlab" />);
+    expect(
+      await screen.findByText(/Afişin tamamını yükle \(3:1, ör\. 3000 × 1000\)\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/PDF biletin üstündeki afiş\./)).toBeInTheDocument();
+    // The poster, not the band cropper
+    expect(document.querySelector('[data-slot="ticket-band"]')).toBeNull();
+    expect(screen.queryByLabelText('Yakınlaştır')).not.toBeInTheDocument();
+    const img = document.querySelector('[data-slot="ticket-poster"] img') as HTMLImageElement;
+    expect(img.getAttribute('src')).toContain('images/afis.jpg');
+  });
+
+  it('under ARTLAB says Otomatik is the theme’s band, not the cover', async () => {
+    get.mockResolvedValue({ source: 'auto', coverChanged: false, band });
+    render(
+      <EventTicketImageFields
+        eventId="e1"
+        coverImageId="kapak"
+        knownMedia={[cover]}
+        theme="artlab"
+      />,
+    );
+    expect(await screen.findByText(/Temanın bandı\./)).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="ticket-band"]')).toBeNull();
+  });
+
+  it('keeps the band and its hint under Kurumsal', async () => {
+    get.mockResolvedValue({
+      source: 'upload',
+      mediaId: 'logo',
+      mediaUrl: 'images/logo.png',
+      coverChanged: false,
+      band,
+    });
+    render(<EventTicketImageFields eventId="e1" coverImageId="" theme={null} />);
+    expect(await screen.findByText(/Logo ya da afiş yükle, bölümünü seç\./)).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="ticket-band"]')).not.toBeNull();
+  });
+
   it('says when the cover changed under a cover region', async () => {
     get.mockResolvedValue({
       source: 'cover',

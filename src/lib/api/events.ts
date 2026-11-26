@@ -76,6 +76,13 @@ export type CoreEvent = {
    * form respondents.
    */
   formResponsesAutoTicket?: boolean;
+  /**
+   * The Event's theme (core docs/event-theme.md), a key from `GET /v1/event-themes`; `null` or
+   * left out for Kurumsal. `ticketAccentColor` (`#RRGGBB`) overrides the theme's colour. Absent
+   * before core's event themes.
+   */
+  theme?: string | null;
+  ticketAccentColor?: string | null;
   /** `capacity > 0` and the active Tickets fill it. */
   full?: boolean;
   /** The active Tickets; only for who may edit the Event. */
@@ -239,6 +246,10 @@ export type EventBody = {
   ticketNote?: string;
   /** Left out: core's default (on). */
   formResponsesAutoTicket?: boolean;
+  /** Left out or `null`: Kurumsal; a key outside the catalog is refused (`400 event_theme_unknown`). */
+  theme?: string | null;
+  /** Left out or `null`: the theme's colour. */
+  ticketAccentColor?: string | null;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -296,6 +307,10 @@ export type EventPatch = {
   ticketNote?: string | null;
   /** Takes no `null` (400). */
   formResponsesAutoTicket?: boolean;
+  /** `null` back to Kurumsal. */
+  theme?: string | null;
+  /** `null` back to the theme's colour. */
+  ticketAccentColor?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;
