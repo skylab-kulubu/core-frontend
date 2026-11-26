@@ -151,3 +151,18 @@ export function leaderTeamsOf(state: CapabilitiesState, groups: readonly string[
     .filter((row) => row.levels?.includes('LEADER'))
     .map((row) => row.team);
 }
+
+/**
+ * Whether core sends the door's mails now (capabilities `features`): `false`
+ * only when core's answer says so. Until it arrives, when it cannot be read
+ * and from an older core without `features`, the Event's switches are offered
+ * as before.
+ */
+export function useAttendanceMailOn(): { welcome: boolean; recorded: boolean } {
+  const state = useCapabilities();
+  const features = state.status === 'ready' ? state.data.features : undefined;
+  return {
+    welcome: features?.attendanceWelcomeMail !== false,
+    recorded: features?.attendanceRecordedMail !== false,
+  };
+}
