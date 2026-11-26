@@ -17,6 +17,16 @@ function feedbackBody(form: EventFormState): Partial<EventBody> {
   };
 }
 
+/**
+ * "Sertifikaları otomatik gönder": left out until it was read or set (an older core reads none).
+ * A new Event always sends it, so an older core's default (on) does not apply.
+ */
+function autoSendBody(form: EventFormState): Pick<EventPatch, 'attendanceAutoFinalize'> {
+  return typeof form.attendanceAutoFinalize === 'boolean'
+    ? { attendanceAutoFinalize: form.attendanceAutoFinalize }
+    : {};
+}
+
 /** A new Event's point and address; left out while empty. */
 function locationBody(form: EventFormState): Partial<EventBody> {
   const point = pointOf(form);
@@ -71,16 +81,6 @@ function autoTicketBody(
   return typeof form.formResponsesAutoTicket === 'boolean' &&
     (!create || !form.formResponsesAutoTicket)
     ? { formResponsesAutoTicket: form.formResponsesAutoTicket }
-    : {};
-}
-
-/**
- * "Sertifikaları otomatik gönder": left out until it was read or set (an older core reads none).
- * A new Event always sends it, so an older core's default (on) does not apply.
- */
-function autoSendBody(form: EventFormState): Pick<EventPatch, 'attendanceAutoFinalize'> {
-  return typeof form.attendanceAutoFinalize === 'boolean'
-    ? { attendanceAutoFinalize: form.attendanceAutoFinalize }
     : {};
 }
 
