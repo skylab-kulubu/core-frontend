@@ -42,7 +42,7 @@ import {
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
-import { DOOR_STAFF_ANCHOR } from '@/lib/event-workspace';
+import { EVENT_CARDS } from '@/lib/event-workspace';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
@@ -58,6 +58,8 @@ export type EventFormState = EventBody & {
   /** The feedback form, saved as `feedbackFormUrl`/`feedbackFormAlias`. */
   feedbackSlot: EventFormSlot;
   reservedId?: string;
+  /** Applying closed by hand (a saved event's Kayıt açık); a new event opens it. */
+  registrationClosed?: boolean;
 };
 
 /** Where the feedback questions are (SPEC §2.1); "Oturum başına form" puts a form on each Session in Program. */
@@ -289,6 +291,549 @@ export function parseDoorStaffIds(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** Jumps to the section a form problem is in, so the reader sees the field (the create page). */
+export function showIssueSection(issue: string | undefined) {
+  if (!issue || typeof document === 'undefined') return;
+  document.getElementById(sectionOfIssue(issue))?.scrollIntoView({ block: 'start' });
+}
+
+/** What every group of the event's fields gets: the form's value and a way to change part of it. */
+export type EventFieldsProps = {
+  value: EventFormState;
+  patch: (partial: Partial<EventFormState>) => void;
+};
+
+/** Ad, Sahip ekip, Açıklama. */
+export function EventIdentityFields({
+  value,
+  patch,
+  ownerOptions,
+  lockOwner,
+  ownerOptional,
+}: EventFieldsProps & {
+  ownerOptions: string[];
+  lockOwner?: boolean;
+  ownerOptional?: boolean;
+}) {
+  return (
+    <>
+      <label className="block space-y-1">
+        <FieldLabel>Ad</FieldLabel>
+        <Field
+          value={value.name}
+          onChange={(e) => patch({ name: e.target.value })}
+          required
+          placeholder="Etkinlik adı"
+        />
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>Sahip ekip</FieldLabel>
+        {ownerOptions.length > 0 ? (
+          <Select
+            value={value.ownerTeam}
+            disabled={lockOwner}
+            onChange={(e) => patch({ ownerTeam: e.target.value })}
+            required={!ownerOptional}
+          >
+            <option value="">{ownerOptional ? 'Yok' : 'Seçiniz'}</option>
+            {ownerOptions.map((team) => (
+              <option key={team} value={team}>
+                {team}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Field
+            value={value.ownerTeam}
+            onChange={(e) => patch({ ownerTeam: e.target.value })}
+            required={!ownerOptional}
+            placeholder="WEBLAB"
+            disabled={lockOwner}
+          />
+        )}
+      </label>
+      <label className="block space-y-1">
+        <FieldLabel>Açıklama</FieldLabel>
+        <TextArea
+          rows={4}
+          value={value.description}
+          onChange={(e) => patch({ description: e.target.value })}
+        />
+      </label>
+    </>
+  );
+}
+
+/** Kapak and Galeri. */
+export function EventCoverFields({
+  value,
+  patch,
+  knownMedia = [],
+}: EventFieldsProps & { knownMedia?: EventMediaHint[] }) {
+  return (
+    <EventMediaFields
+      ownerTeam={value.ownerTeam}
+      coverImageId={value.coverImageId ?? ''}
+      imageIds={value.imageIds ?? []}
+      knownMedia={knownMedia}
+      onCover={(id) => patch({ coverImageId: id })}
+      onGallery={(ids) => patch({ imageIds: ids })}
+    />
+  );
+}
+
+/** Başlangıç, Bitiş and the place. */
+export function EventScheduleFields({ value, patch }: EventFieldsProps) {
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <DatePicker
+          label="Başlangıç"
+          value={value.startDate ?? ''}
+          onChange={(startDate) => patch({ startDate })}
+        />
+        <DatePicker
+          label="Bitiş"
+          value={value.endDate ?? ''}
+          onChange={(endDate) => patch({ endDate })}
+        />
+      </div>
+      <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
+    </>
+  );
+}
+
+/** Where the Skyforms editor goes from a form slot and comes back to. */
+type SkyformsTrip = {
+  returnTo?: string;
+  onLeaveToSkyforms?: () => void;
+  /** The form the last save was refused for (`409 form_in_use`). */
+  formInUse?: FormInUse | null;
+};
+
+/** The registration form slots, "Otomatik bilet gönder" and the external registration link. */
+export function EventRegistrationFormFields({
+  value,
+  patch,
+  returnTo,
+  onLeaveToSkyforms,
+  formInUse,
+  canSendTickets,
+}: EventFieldsProps & SkyformsTrip & { canSendTickets?: boolean }) {
+  const slots = value.formSlots?.length ? value.formSlots : [emptyApplySlot()];
+  return (
+    <>
+      <EventFormSlots
+        slots={slots}
+        eventName={value.name}
+        ownerTeam={value.ownerTeam}
+        startLocal={value.startDate ?? ''}
+        reservedEventId={value.reservedId}
+        returnTo={returnTo}
+        onLeaveToSkyforms={onLeaveToSkyforms}
+        inUse={formInUse}
+        canSendTickets={canSendTickets}
+        onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
+      />
+      {/* An older core sends none: not offered */}
+      {value.formResponsesAutoTicket !== undefined ? (
+        <Switch
+          checked={value.formResponsesAutoTicket}
+          onChange={(formResponsesAutoTicket) => patch({ formResponsesAutoTicket })}
+          label="Otomatik bilet gönder"
+          hint={
+            value.formResponsesAutoTicket
+              ? 'Formda kabul edilen yeni yanıta bilet gider.'
+              : 'Yeni yanıtlar Katılımcılar’da bilet bekler.'
+          }
+        />
+      ) : null}
+      <ExternalRegistrationField
+        value={value.externalRegistrationUrl ?? ''}
+        onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
+        slots={slots}
+        onMove={(formSlots) =>
+          patch({
+            externalRegistrationUrl: '',
+            formSlots,
+            ...persistableFormFields(formSlots),
+          })
+        }
+      />
+    </>
+  );
+}
+
+/** "Etkinlik bitince gönder": the feedback mail's switch. */
+export function FeedbackAutoSendSwitch({ value, patch }: EventFieldsProps) {
+  return (
+    <Switch
+      checked={value.feedbackAutoSend ?? true}
+      onChange={(checked) => patch({ feedbackAutoSend: checked })}
+      label="Etkinlik bitince gönder"
+      hint="Bitişten 2 saat sonra katılanlara e-postayla gider."
+    />
+  );
+}
+
+/** Geri bildirim: where the questions are, and the feedback form. */
+export function EventFeedbackFormFields({
+  value,
+  patch,
+  returnTo,
+  onLeaveToSkyforms,
+  formInUse,
+}: EventFieldsProps & SkyformsTrip) {
+  return (
+    <>
+      <label className="block space-y-1">
+        <FieldLabel>Geri bildirim</FieldLabel>
+        <Select
+          value={value.feedbackMode ?? 'event'}
+          onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
+        >
+          {FEEDBACK_MODES.map((mode) => (
+            <option key={mode.value} value={mode.value}>
+              {mode.label}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <EventFormSlots
+        slots={[value.feedbackSlot ?? emptyFeedbackSlot()]}
+        eventName={value.name}
+        ownerTeam={value.ownerTeam}
+        startLocal={value.startDate ?? ''}
+        reservedEventId={value.reservedId}
+        returnTo={returnTo}
+        onLeaveToSkyforms={onLeaveToSkyforms}
+        addable={false}
+        inUse={formInUse}
+        onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
+        onChange={([feedbackSlot]) => patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })}
+      />
+    </>
+  );
+}
+
+/** Kontenjan, Son kayıt and the waiting list. */
+export function EventCapacityFields({
+  value,
+  patch,
+  activeTickets,
+}: EventFieldsProps & { activeTickets?: number }) {
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block space-y-1">
+          <FieldLabel>Kontenjan</FieldLabel>
+          <Field
+            type="number"
+            min={0}
+            value={Number.isFinite(value.capacity) ? value.capacity : 0}
+            onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
+            aria-describedby="kontenjan-ipucu"
+          />
+          <span id="kontenjan-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+            {capacityBelowTickets(value.capacity, activeTickets)
+              ? `${activeTickets} kayıt var. Kimse çıkarılmaz; yeni kayıt ${
+                  (value.waitlistEnabled ?? true) ? 'sıraya girer' : 'alınmaz'
+                }.`
+              : '0 = sınırsız'}
+          </span>
+        </label>
+        <DatePicker
+          label="Son kayıt"
+          value={value.registrationClosesAt ?? ''}
+          onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
+        />
+      </div>
+      {value.capacity > 0 ? (
+        <Switch
+          checked={value.waitlistEnabled ?? true}
+          onChange={(waitlistEnabled) => patch({ waitlistEnabled })}
+          label="Bekleme listesi açık"
+          hint={
+            (value.waitlistEnabled ?? true)
+              ? 'Dolunca yeni kayıt sıraya girer; yer açılınca sıradaki bilet alır.'
+              : 'Dolunca kayıt alınmaz.'
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** Bilet duyurusu, when core sends it. */
+export function TicketNoteField({ value, patch }: EventFieldsProps) {
+  if (value.ticketNote === undefined) return null;
+  return (
+    <div className="space-y-1">
+      <label className="block space-y-1">
+        <FieldLabel>Bilet duyurusu</FieldLabel>
+        <TextArea
+          rows={2}
+          maxLength={TICKET_NOTE_MAX}
+          placeholder="WhatsApp grubu: https://chat.whatsapp.com/…"
+          value={value.ticketNote}
+          onChange={(e) => patch({ ticketNote: e.target.value })}
+          aria-describedby="bilet-duyurusu-ipucu"
+        />
+      </label>
+      <span id="bilet-duyurusu-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+        Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.
+      </span>
+    </div>
+  );
+}
+
+/** Kapı düzeni. */
+export function EntryModeField({ value, patch }: EventFieldsProps) {
+  return (
+    <label className="block space-y-1">
+      <FieldLabel>Kapı düzeni</FieldLabel>
+      <Select
+        value={value.entryMode ?? 'auto'}
+        onChange={(change) =>
+          patch({
+            entryMode: change.target.value === 'auto' ? null : (change.target.value as EntryMode),
+          })
+        }
+        aria-describedby="kapi-duzeni-ipucu"
+      >
+        {ENTRY_MODES.map((mode) => (
+          <option key={mode.value} value={mode.value}>
+            {mode.label}
+          </option>
+        ))}
+      </Select>
+      <span id="kapi-duzeni-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
+        {ENTRY_MODES.find((mode) => mode.value === (value.entryMode ?? 'auto'))?.hint}
+      </span>
+    </label>
+  );
+}
+
+/** The door's two mails, "Hoş geldin postası" and "Katılım postası", as switches. */
+export const ATTENDANCE_MAILS = [
+  {
+    key: 'attendanceWelcomeMail',
+    feature: 'welcome',
+    label: 'Hoş geldin postası',
+    hint: 'Kişinin günün ilk girişinden 2 dakika sonra gider.',
+  },
+  {
+    key: 'attendanceRecordedMail',
+    feature: 'recorded',
+    label: 'Katılım postası',
+    hint: 'Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar.',
+  },
+] as const;
+
+export function AttendanceMailSwitch({
+  value,
+  patch,
+  mail,
+}: EventFieldsProps & { mail: (typeof ATTENDANCE_MAILS)[number] }) {
+  // Off on core (ATTENDANCE_MAIL): the switch is greyed out, the Event's value kept
+  const on = useAttendanceMailOn()[mail.feature];
+  return (
+    <Switch
+      checked={on && (value[mail.key] ?? true)}
+      onChange={(checked) => patch({ [mail.key]: checked })}
+      label={mail.label}
+      hint={on ? mail.hint : MAIL_OFF_HINT}
+      disabled={!on}
+    />
+  );
+}
+
+/** Katılımcı notu: the organizer's note in the welcome mail. */
+export function AttendeeNoteField({ value, patch }: EventFieldsProps) {
+  if (value.attendeeNote === undefined) return null;
+  return (
+    <label className="block space-y-1">
+      <FieldLabel>Katılımcı notu</FieldLabel>
+      <TextArea
+        rows={3}
+        maxLength={ATTENDEE_NOTE_MAX}
+        placeholder="Wi-Fi, salon tarifi"
+        value={value.attendeeNote}
+        onChange={(e) => patch({ attendeeNote: e.target.value })}
+      />
+    </label>
+  );
+}
+
+/** Kapı görevlileri: who scans at the door, chosen from the club's people. */
+export function DoorStaffField({
+  value,
+  patch,
+  label = true,
+}: EventFieldsProps & {
+  /** Off where the card's own title names it. */
+  label?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [people, setPeople] = useState<ReadonlyMap<string, Person>>(new Map());
+  const search = usePersonSearch(open, query);
+  const ids = value.doorStaffIds ?? [];
+  const key = ids.join(',');
+
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    void lookupPeople(key.split(','), people).then((next) => {
+      if (!cancelled && next.size !== people.size) setPeople(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  return (
+    <div className="space-y-2">
+      <div className={label ? 'flex items-center justify-between' : 'flex justify-end'}>
+        {label ? <FieldLabel>Kapı görevlileri</FieldLabel> : null}
+        <ActionButton
+          icon={Plus}
+          variant="primary"
+          label="Kişi ekle"
+          onClick={() => {
+            setQuery('');
+            setOpen(true);
+          }}
+        />
+      </div>
+      <ListPanel
+        status={listStatus({
+          loading: false,
+          rowCount: ids.length,
+          emptyMessage: 'Atanmış kişi yok',
+        })}
+      >
+        {ids.map((id) => {
+          const person = people.get(id);
+          const name = person
+            ? `${person.firstName} ${person.lastName}`.trim() || person.email
+            : id;
+          return (
+            <ListItem
+              key={id}
+              title={name}
+              subtitle={person?.email ?? id}
+              trailing={
+                <ActionButton
+                  icon={X}
+                  label="Kaldır"
+                  onClick={() => patch({ doorStaffIds: ids.filter((row) => row !== id) })}
+                />
+              }
+            />
+          );
+        })}
+      </ListPanel>
+      <PickerDrawer
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Kapı görevlisi ekle"
+        query={query}
+        onQuery={setQuery}
+        placeholder="Ad, e-posta"
+        loading={search.loading}
+        failed={search.failed}
+        options={search.people
+          .filter(
+            (person) =>
+              !ids.includes(person.id) &&
+              pickerMatch(query, person.email, person.firstName, person.lastName),
+          )
+          .map((person) => ({
+            id: person.id,
+            title: `${person.firstName} ${person.lastName}`.trim() || person.email,
+            subtitle: person.email,
+          }))}
+        emptyMessage={search.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
+        onPick={(picked) => {
+          const person = search.people.find((row) => row.id === picked);
+          if (person) setPeople((known) => new Map(known).set(person.id, person));
+          patch({ doorStaffIds: [...ids, picked] });
+          setOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+/** Tema and the ticket's accent colour. */
+export function EventAppearanceFields({ value, patch }: EventFieldsProps) {
+  // The linked Skyforms forms, the application form first: whose theme the editor offers
+  const formIds = (value.formSlots ?? [])
+    .map((slot) => skyformsFormId(slot.url.trim()))
+    .filter((id): id is string => Boolean(id));
+  return (
+    <EventThemeFields
+      theme={value.theme}
+      ticketAccentColor={value.ticketAccentColor}
+      onChange={patch}
+      formIds={formIds}
+    />
+  );
+}
+
+/** Sezon (for YK and ADMIN), Sıralamalı, Ödül and LinkedIn. */
+export function EventVisibilityFields({
+  value,
+  patch,
+  seasons = [],
+  showSeason,
+}: EventFieldsProps & { seasons?: Season[]; showSeason?: boolean }) {
+  return (
+    <>
+      {showSeason ? (
+        <label className="block space-y-1">
+          <FieldLabel>Sezon</FieldLabel>
+          <Select value={value.seasonId} onChange={(e) => patch({ seasonId: e.target.value })}>
+            <option value="">Yok</option>
+            {seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+      ) : null}
+      <Switch
+        checked={value.ranked}
+        onChange={(checked) => patch({ ranked: checked })}
+        label="Sıralamalı"
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block space-y-1">
+          <FieldLabel>Ödül</FieldLabel>
+          <Field
+            value={value.prizeInfo ?? ''}
+            onChange={(e) => patch({ prizeInfo: e.target.value })}
+          />
+        </label>
+        <label className="block space-y-1">
+          <FieldLabel>LinkedIn</FieldLabel>
+          <Field
+            value={value.linkedin ?? ''}
+            onChange={(e) => patch({ linkedin: e.target.value })}
+          />
+        </label>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The create page's form: every field of a new event on one page, in sections. A saved event's
+ * fields live on the pages they belong to (its Etkinlik ayarları, Katılımcılar › Kayıt ayarları,
+ * Kapı, Postalar, Sertifikalar), each card saved on its own.
+ */
 export function EventEditor({
   value,
   onChange,
@@ -312,86 +857,20 @@ export function EventEditor({
   organizers,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
-  const [staffOpen, setStaffOpen] = useState(false);
-  const [staffQuery, setStaffQuery] = useState('');
-  const [staffPeople, setStaffPeople] = useState<ReadonlyMap<string, Person>>(new Map());
-  const staffSearch = usePersonSearch(staffOpen, staffQuery);
-  // Off on core (ATTENDANCE_MAIL): the switch is greyed out, the Event's value kept
-  const mailOn = useAttendanceMailOn();
-
-  const staffIds = value.doorStaffIds ?? [];
-  // The linked Skyforms forms, the application form first: whose theme the editor offers
-  const formIds = (value.formSlots ?? [])
-    .map((slot) => skyformsFormId(slot.url.trim()))
-    .filter((id): id is string => Boolean(id));
-  const staffKey = staffIds.join(',');
-
-  useEffect(() => {
-    if (!assignDoorStaff || !staffKey) return;
-    let cancelled = false;
-    void lookupPeople(staffKey.split(','), staffPeople).then((next) => {
-      if (!cancelled && next.size !== staffPeople.size) setStaffPeople(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [assignDoorStaff, staffKey]);
+  const fields = { value, patch };
+  const trip = { returnTo, onLeaveToSkyforms, formInUse };
 
   return (
     <div className="space-y-10">
       <EditorSection id="temel" title="Temel bilgiler">
         {notices.temel}
-        <label className="block space-y-1">
-          <FieldLabel>Ad</FieldLabel>
-          <Field
-            value={value.name}
-            onChange={(e) => patch({ name: e.target.value })}
-            required
-            placeholder="Etkinlik adı"
-          />
-        </label>
-        <label className="block space-y-1">
-          <FieldLabel>Sahip ekip</FieldLabel>
-          {ownerOptions.length > 0 ? (
-            <Select
-              value={value.ownerTeam}
-              disabled={lockOwner}
-              onChange={(e) => patch({ ownerTeam: e.target.value })}
-              required={!ownerOptional}
-            >
-              <option value="">{ownerOptional ? 'Yok' : 'Seçiniz'}</option>
-              {ownerOptions.map((team) => (
-                <option key={team} value={team}>
-                  {team}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Field
-              value={value.ownerTeam}
-              onChange={(e) => patch({ ownerTeam: e.target.value })}
-              required={!ownerOptional}
-              placeholder="WEBLAB"
-              disabled={lockOwner}
-            />
-          )}
-        </label>
-        <label className="block space-y-1">
-          <FieldLabel>Açıklama</FieldLabel>
-          <TextArea
-            rows={4}
-            value={value.description}
-            onChange={(e) => patch({ description: e.target.value })}
-          />
-        </label>
-        <EventMediaFields
-          ownerTeam={value.ownerTeam}
-          coverImageId={value.coverImageId ?? ''}
-          imageIds={value.imageIds ?? []}
-          knownMedia={knownMedia}
-          onCover={(id) => patch({ coverImageId: id })}
-          onGallery={(ids) => patch({ imageIds: ids })}
+        <EventIdentityFields
+          {...fields}
+          ownerOptions={ownerOptions}
+          lockOwner={lockOwner}
+          ownerOptional={ownerOptional}
         />
+        <EventCoverFields {...fields} knownMedia={knownMedia} />
       </EditorSection>
       <EditorSection id="duzenleyenler" title="Düzenleyenler">
         {organizers ?? (
@@ -402,299 +881,39 @@ export function EventEditor({
       </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
         {notices.zaman}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DatePicker
-            label="Başlangıç"
-            value={value.startDate ?? ''}
-            onChange={(startDate) => patch({ startDate })}
-          />
-          <DatePicker
-            label="Bitiş"
-            value={value.endDate ?? ''}
-            onChange={(endDate) => patch({ endDate })}
-          />
-        </div>
-        <EventLocationFields value={value} ownerTeam={value.ownerTeam} onChange={patch} />
+        <EventScheduleFields {...fields} />
       </EditorSection>
       <EditorSection id="basvuru" title="Kayıt ve form">
         {notices.basvuru}
-        <EventFormSlots
-          slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
-          eventName={value.name}
-          ownerTeam={value.ownerTeam}
-          startLocal={value.startDate ?? ''}
-          reservedEventId={value.reservedId}
-          returnTo={returnTo}
-          onLeaveToSkyforms={onLeaveToSkyforms}
-          inUse={formInUse}
-          canSendTickets={canSendTickets}
-          onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
-        />
-        {/* An older core sends none: not offered */}
-        {value.formResponsesAutoTicket !== undefined ? (
-          <Switch
-            checked={value.formResponsesAutoTicket}
-            onChange={(formResponsesAutoTicket) => patch({ formResponsesAutoTicket })}
-            label="Otomatik bilet gönder"
-            hint={
-              value.formResponsesAutoTicket
-                ? 'Formda kabul edilen yeni yanıta bilet gider.'
-                : 'Yeni yanıtlar Katılımcılar’da bilet bekler.'
-            }
-          />
-        ) : null}
-        <ExternalRegistrationField
-          value={value.externalRegistrationUrl ?? ''}
-          onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
-          slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
-          onMove={(formSlots) =>
-            patch({
-              externalRegistrationUrl: '',
-              formSlots,
-              ...persistableFormFields(formSlots),
-            })
-          }
-        />
+        <EventRegistrationFormFields {...fields} {...trip} canSendTickets={canSendTickets} />
         <div className="space-y-2">
-          <label className="block space-y-1">
-            <FieldLabel>Geri bildirim</FieldLabel>
-            <Select
-              value={value.feedbackMode ?? 'event'}
-              onChange={(e) => patch({ feedbackMode: e.target.value as FeedbackMode })}
-            >
-              {FEEDBACK_MODES.map((mode) => (
-                <option key={mode.value} value={mode.value}>
-                  {mode.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <EventFormSlots
-            slots={[value.feedbackSlot ?? emptyFeedbackSlot()]}
-            eventName={value.name}
-            ownerTeam={value.ownerTeam}
-            startLocal={value.startDate ?? ''}
-            reservedEventId={value.reservedId}
-            returnTo={returnTo}
-            onLeaveToSkyforms={onLeaveToSkyforms}
-            addable={false}
-            inUse={formInUse}
-            onGateChange={(_, gate) => closeFeedbackReminders(value.reservedId, gate)}
-            onChange={([feedbackSlot]) =>
-              patch({ feedbackSlot: feedbackSlot ?? emptyFeedbackSlot() })
-            }
-          />
-          <Switch
-            checked={value.feedbackAutoSend ?? true}
-            onChange={(checked) => patch({ feedbackAutoSend: checked })}
-            label="Etkinlik bitince gönder"
-            hint="Bitişten 2 saat sonra katılanlara e-postayla gider."
-          />
+          <EventFeedbackFormFields {...fields} {...trip} />
+          <FeedbackAutoSendSwitch {...fields} />
         </div>
       </EditorSection>
       <EditorSection id="bilet" title="Bilet ve kapı">
         {notices.bilet}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1">
-            <FieldLabel>Kontenjan</FieldLabel>
-            <Field
-              type="number"
-              min={0}
-              value={Number.isFinite(value.capacity) ? value.capacity : 0}
-              onChange={(e) => patch({ capacity: Number(e.target.value) || 0 })}
-              aria-describedby="kontenjan-ipucu"
-            />
-            <span id="kontenjan-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
-              {capacityBelowTickets(value.capacity, activeTickets)
-                ? `${activeTickets} kayıt var. Kimse çıkarılmaz; yeni kayıt ${
-                    (value.waitlistEnabled ?? true) ? 'sıraya girer' : 'alınmaz'
-                  }.`
-                : '0 = sınırsız'}
-            </span>
-          </label>
-          <DatePicker
-            label="Son kayıt"
-            value={value.registrationClosesAt ?? ''}
-            onChange={(registrationClosesAt) => patch({ registrationClosesAt })}
-          />
-        </div>
-        {value.capacity > 0 ? (
-          <Switch
-            checked={value.waitlistEnabled ?? true}
-            onChange={(waitlistEnabled) => patch({ waitlistEnabled })}
-            label="Bekleme listesi açık"
-            hint={
-              (value.waitlistEnabled ?? true)
-                ? 'Dolunca yeni kayıt sıraya girer; yer açılınca sıradaki bilet alır.'
-                : 'Dolunca kayıt alınmaz.'
-            }
-          />
-        ) : null}
-        {value.ticketNote !== undefined ? (
-          <div className="space-y-1">
-            <label className="block space-y-1">
-              <FieldLabel>Bilet duyurusu</FieldLabel>
-              <TextArea
-                rows={2}
-                maxLength={TICKET_NOTE_MAX}
-                placeholder="WhatsApp grubu: https://chat.whatsapp.com/…"
-                value={value.ticketNote}
-                onChange={(e) => patch({ ticketNote: e.target.value })}
-                aria-describedby="bilet-duyurusu-ipucu"
-              />
-            </label>
-            <span
-              id="bilet-duyurusu-ipucu"
-              className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
-            >
-              Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.
-            </span>
-          </div>
-        ) : null}
-        <label className="block space-y-1">
-          <FieldLabel>Kapı düzeni</FieldLabel>
-          <Select
-            value={value.entryMode ?? 'auto'}
-            onChange={(change) =>
-              patch({
-                entryMode:
-                  change.target.value === 'auto' ? null : (change.target.value as EntryMode),
-              })
-            }
-            aria-describedby="kapi-duzeni-ipucu"
-          >
-            {ENTRY_MODES.map((mode) => (
-              <option key={mode.value} value={mode.value}>
-                {mode.label}
-              </option>
-            ))}
-          </Select>
-          <span id="kapi-duzeni-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
-            {ENTRY_MODES.find((mode) => mode.value === (value.entryMode ?? 'auto'))?.hint}
-          </span>
-        </label>
+        <EventCapacityFields {...fields} activeTickets={activeTickets} />
+        <TicketNoteField {...fields} />
+        <EntryModeField {...fields} />
         {/* An older core sends no switches: they are not offered */}
         {value.attendanceWelcomeMail !== undefined ? (
           <>
-            <Switch
-              checked={mailOn.welcome && (value.attendanceWelcomeMail ?? true)}
-              onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
-              label="Hoş geldin postası"
-              hint={
-                mailOn.welcome
-                  ? 'Kişinin günün ilk girişinden 2 dakika sonra gider.'
-                  : MAIL_OFF_HINT
-              }
-              disabled={!mailOn.welcome}
-            />
-            <Switch
-              checked={mailOn.recorded && (value.attendanceRecordedMail ?? true)}
-              onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
-              label="Katılım postası"
-              hint={
-                mailOn.recorded
-                  ? 'Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar.'
-                  : MAIL_OFF_HINT
-              }
-              disabled={!mailOn.recorded}
-            />
+            {ATTENDANCE_MAILS.map((mail) => (
+              <AttendanceMailSwitch key={mail.key} {...fields} mail={mail} />
+            ))}
           </>
         ) : null}
-        {value.attendeeNote !== undefined ? (
-          <label className="block space-y-1">
-            <FieldLabel>Katılımcı notu</FieldLabel>
-            <TextArea
-              rows={3}
-              maxLength={ATTENDEE_NOTE_MAX}
-              placeholder="Wi-Fi, salon tarifi"
-              value={value.attendeeNote}
-              onChange={(e) => patch({ attendeeNote: e.target.value })}
-            />
-          </label>
-        ) : null}
+        <AttendeeNoteField {...fields} />
         {assignDoorStaff ? (
-          <div id={DOOR_STAFF_ANCHOR} className="scroll-mt-28 space-y-2 md:scroll-mt-16">
-            <div className="flex items-center justify-between">
-              <FieldLabel>Kapı görevlileri</FieldLabel>
-              <ActionButton
-                icon={Plus}
-                variant="primary"
-                label="Kişi ekle"
-                onClick={() => {
-                  setStaffQuery('');
-                  setStaffOpen(true);
-                }}
-              />
-            </div>
-            <ListPanel
-              status={listStatus({
-                loading: false,
-                rowCount: staffIds.length,
-                emptyMessage: 'Atanmış kişi yok',
-              })}
-            >
-              {staffIds.map((id) => {
-                const person = staffPeople.get(id);
-                const name = person
-                  ? `${person.firstName} ${person.lastName}`.trim() || person.email
-                  : id;
-                return (
-                  <ListItem
-                    key={id}
-                    title={name}
-                    subtitle={person?.email ?? id}
-                    trailing={
-                      <ActionButton
-                        icon={X}
-                        label="Kaldır"
-                        onClick={() =>
-                          patch({ doorStaffIds: staffIds.filter((row) => row !== id) })
-                        }
-                      />
-                    }
-                  />
-                );
-              })}
-            </ListPanel>
-            <PickerDrawer
-              open={staffOpen}
-              onClose={() => setStaffOpen(false)}
-              title="Kapı görevlisi ekle"
-              query={staffQuery}
-              onQuery={setStaffQuery}
-              placeholder="Ad, e-posta"
-              loading={staffSearch.loading}
-              failed={staffSearch.failed}
-              options={staffSearch.people
-                .filter(
-                  (person) =>
-                    !staffIds.includes(person.id) &&
-                    pickerMatch(staffQuery, person.email, person.firstName, person.lastName),
-                )
-                .map((person) => ({
-                  id: person.id,
-                  title: `${person.firstName} ${person.lastName}`.trim() || person.email,
-                  subtitle: person.email,
-                }))}
-              emptyMessage={staffSearch.ready ? 'Kullanıcı yok' : PERSON_SEARCH_HINT}
-              onPick={(picked) => {
-                const person = staffSearch.people.find((row) => row.id === picked);
-                if (person) setStaffPeople((known) => new Map(known).set(person.id, person));
-                patch({ doorStaffIds: [...staffIds, picked] });
-                setStaffOpen(false);
-              }}
-            />
+          <div id={EVENT_CARDS.doorStaff} className="scroll-mt-28 md:scroll-mt-16">
+            <DoorStaffField {...fields} />
           </div>
         ) : null}
       </EditorSection>
       <EditorSection id="gorunum" title="Görünüm">
         {notices.gorunum}
-        <EventThemeFields
-          theme={value.theme}
-          ticketAccentColor={value.ticketAccentColor}
-          onChange={patch}
-          formIds={formIds}
-        />
+        <EventAppearanceFields {...fields} />
         <EventTicketImageFields
           eventId={value.reservedId}
           coverImageId={value.coverImageId ?? ''}
@@ -780,40 +999,7 @@ export function EventEditor({
       </EditorSection>
       <EditorSection id="yayin" title="Görünürlük ve yayın">
         {notices.yayin}
-        {showSeason ? (
-          <label className="block space-y-1">
-            <FieldLabel>Sezon</FieldLabel>
-            <Select value={value.seasonId} onChange={(e) => patch({ seasonId: e.target.value })}>
-              <option value="">Yok</option>
-              {seasons.map((season) => (
-                <option key={season.id} value={season.id}>
-                  {season.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-        ) : null}
-        <Switch
-          checked={value.ranked}
-          onChange={(checked) => patch({ ranked: checked })}
-          label="Sıralamalı"
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block space-y-1">
-            <FieldLabel>Ödül</FieldLabel>
-            <Field
-              value={value.prizeInfo ?? ''}
-              onChange={(e) => patch({ prizeInfo: e.target.value })}
-            />
-          </label>
-          <label className="block space-y-1">
-            <FieldLabel>LinkedIn</FieldLabel>
-            <Field
-              value={value.linkedin ?? ''}
-              onChange={(e) => patch({ linkedin: e.target.value })}
-            />
-          </label>
-        </div>
+        <EventVisibilityFields {...fields} seasons={seasons} showSeason={showSeason} />
       </EditorSection>
     </div>
   );

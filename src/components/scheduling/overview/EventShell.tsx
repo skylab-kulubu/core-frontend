@@ -1,6 +1,6 @@
 'use client';
 
-import { DoorOpen, Mail, Pencil } from 'lucide-react';
+import { DoorOpen, Mail } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import { ObjectPage, ObjectPageHeader } from '@/components/chrome/object-page/ObjectPage';
@@ -8,10 +8,11 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import type { CoreEvent } from '@/lib/api/events';
 import { eventInitials, eventWhenLong } from '@/lib/event-overview';
 import {
+  EVENT_SETTINGS_PAGES,
   eventDoorHref,
-  eventEditHref,
-  eventEditSectionHref,
+  eventSettingsHref,
   eventTabHref,
+  type EventPage,
   type EventTab,
 } from '@/lib/event-workspace';
 import { eventDisplayStatus } from '@/lib/events-view';
@@ -21,10 +22,15 @@ export const EVENT_TAB_LABELS: Record<EventTab, string> = {
   overview: 'Genel bakış',
   participants: 'Katılımcılar',
   program: 'Program',
+  checkin: 'Kapı',
+  competition: 'Yarışma',
+  emails: 'Postalar',
   certificates: 'Sertifikalar',
   content: 'Dosyalar',
-  competition: 'Yarışma',
 };
+
+/** The menu's group of the event's own settings (not the panel's Ayarlar). */
+export const EVENT_SETTINGS_LABEL = 'Etkinlik ayarları';
 
 /** What the reader may open, and the counts written beside each page. */
 export type EventShellPages = {
@@ -32,26 +38,21 @@ export type EventShellPages = {
   certificates: boolean;
   content: boolean;
   competition: boolean;
+  /** The scanning page (/door), the bar's Kapı command. */
   door: boolean;
-  edit: boolean;
+  /** Kapı in the menu: the door's layout, staff and QR. */
+  checkin: boolean;
+  /** Postalar and the Etkinlik ayarları group: who edits the event. */
+  settings: boolean;
   counts: Partial<Record<EventTab, number>>;
-};
-
-/** Each section of the edit page opens under Düzenle in the menu while the page is open. */
-export type EventEditSections = {
-  sections: readonly { id: string; title: string }[];
-  /** The section in view, written as the current item. */
-  current?: string;
 };
 
 export type EventShellProps = {
   event: CoreEvent;
   coverSrc?: string;
-  /** The open page; null on the edit page. */
-  active: EventTab | null;
+  /** The open page. */
+  page: EventPage;
   pages: EventShellPages;
-  /** On the edit page: its sections, listed under Düzenle. */
-  editSections?: EventEditSections;
   /** How many applied, when the reader may see it; written among the badges. */
   registrations?: number;
   /** "Yayınla", when the event may be published now. */
@@ -66,17 +67,30 @@ export type EventShellProps = {
   children: ReactNode;
 };
 
+/** The open page's name after the event's, and the menu item marked current. */
+function openPage(eventId: string, page: EventPage): { section?: string; href: string } {
+  if (page.kind === 'settings') {
+    const setting = EVENT_SETTINGS_PAGES.find((row) => row.key === page.page);
+    return { section: setting?.label, href: eventSettingsHref(eventId, page.page) };
+  }
+  return {
+    section: page.tab === 'overview' ? undefined : EVENT_TAB_LABELS[page.tab],
+    // Kayıt ayarları is a part of Katılımcılar: the menu marks Katılımcılar
+    href: eventTabHref(eventId, page.tab),
+  };
+}
+
 /**
  * An event as an object page (the admin centre's resource page): its cover band, a bar of
  * written commands, and the event's own menu on the left, its pages grouped by what they are for.
+ * Each tab keeps its own settings; the event's name, time, team and look sit in the last group.
  * While the event runs, the door is the command to use and is drawn as the main one.
  */
 export function EventShell({
   event,
   coverSrc,
-  active,
+  page,
   pages,
-  editSections,
   registrations,
   publish,
   onMail,
@@ -86,25 +100,11 @@ export function EventShell({
   children,
 }: EventShellProps) {
   const status = eventDisplayStatus(event);
-  const onEditPage = active === null;
   const item = (tab: EventTab) => ({
     href: eventTabHref(event.id, tab),
     label: EVENT_TAB_LABELS[tab],
     badge: pages.counts[tab],
   });
-  const editHref = eventEditHref(event.id);
-  // Düzenle stays in the menu; on its page its sections open under it
-  const editItems = pages.edit
-    ? [
-        { href: editHref, label: 'Düzenle' },
-        ...(onEditPage && editSections
-          ? editSections.sections.map((section) => ({
-              href: eventEditSectionHref(event.id, section.id),
-              label: section.title,
-            }))
-          : []),
-      ]
-    : [];
   const sections = [
     { items: [item('overview')] },
     {
@@ -112,7 +112,9 @@ export function EventShell({
       items: [
         ...(pages.participants ? [item('participants')] : []),
         item('program'),
+        ...(pages.checkin ? [item('checkin')] : []),
         ...(pages.competition ? [item('competition')] : []),
+        ...(pages.settings ? [item('emails')] : []),
       ],
     },
     {
@@ -122,8 +124,17 @@ export function EventShell({
         ...(pages.content ? [item('content')] : []),
       ],
     },
-    { label: 'Ayarlar', items: editItems },
-  ].filter((section): section is NonNullable<typeof section> => Boolean(section?.items.length));
+    {
+      label: EVENT_SETTINGS_LABEL,
+      items: pages.settings
+        ? EVENT_SETTINGS_PAGES.map((row) => ({
+            href: eventSettingsHref(event.id, row.key),
+            label: row.label,
+          }))
+        : [],
+    },
+  ].filter((section) => section.items.length > 0);
+  const open = openPage(event.id, page);
   const facts = [event.location, eventWhenLong(event)].filter(Boolean).join(' · ');
 
   return (
@@ -132,9 +143,7 @@ export function EventShell({
         <ObjectPageHeader
           eyebrow={`Etkinlik · ${event.ownerTeam || 'Genel'}`}
           title={event.name}
-          section={
-            onEditPage ? 'Düzenle' : active !== 'overview' ? EVENT_TAB_LABELS[active] : undefined
-          }
+          section={open.section}
           cover={{ src: coverSrc, initials: eventInitials(event.name) }}
           badges={
             <>
@@ -159,9 +168,6 @@ export function EventShell({
             <Command icon={DoorOpen} label="Kapı" href={eventDoorHref(event.id)} primary />
           ) : null}
           {publish}
-          {pages.edit && !onEditPage ? (
-            <Command icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} />
-          ) : null}
           {pages.door && status !== 'live' ? (
             <Command icon={DoorOpen} label="Kapı" href={eventDoorHref(event.id)} />
           ) : null}
@@ -175,13 +181,7 @@ export function EventShell({
       menu={{
         label: 'Etkinlik',
         sections,
-        activeHref: onEditPage
-          ? editSections?.current
-            ? eventEditSectionHref(event.id, editSections.current)
-            : editHref
-          : eventTabHref(event.id, active),
-        // The edit page's sections sit indented under Düzenle
-        className: "[&_a[href*='/edit#']]:pl-5",
+        activeHref: open.href,
       }}
     >
       {children}

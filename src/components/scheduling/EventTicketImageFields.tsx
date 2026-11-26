@@ -57,6 +57,8 @@ type EventTicketImageFieldsProps = {
   knownMedia?: EventMediaHint[];
   /** The Event's theme in the form (`artlab`, or none for Kurumsal). */
   theme?: string | null;
+  /** Whether a change waits for its save: leaving the page asks first meanwhile. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type Draft = {
@@ -94,6 +96,7 @@ export function EventTicketImageFields({
   coverImageId,
   knownMedia = [],
   theme,
+  onDirtyChange,
 }: EventTicketImageFieldsProps) {
   const [saved, setSaved] = useState<TicketImage | null>(null);
   const [draft, setDraft] = useState<Draft>({ source: 'auto' });
@@ -158,6 +161,10 @@ export function EventTicketImageFields({
     saved !== null &&
     JSON.stringify(bodyOf({ ...draft, crop: crop ?? draft.crop }, coverImageId)) !==
       JSON.stringify(bodyOf(draftOf(saved), saved.coverMediaId ?? coverImageId));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   if (state === 'loading') {
     return <Shell>Yükleniyor…</Shell>;

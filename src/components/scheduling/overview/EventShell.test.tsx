@@ -51,9 +51,11 @@ describe('event object page', () => {
     expect(await screen.findByRole('heading', { name: 'Temel bilgiler' })).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     const commands = screen.getByRole('group', { name: 'Etkinlik komutları' });
-    expect(within(commands).getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
+    // The event's fields open from its menu's Etkinlik ayarları and the essentials' Düzenle
+    expect(within(commands).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Temel bilgileri düzenle' })).toHaveAttribute(
       'href',
-      '/events/e1/edit',
+      '/events/e1/settings/general',
     );
     expect(within(commands).getByRole('link', { name: 'Kapı' })).toHaveAttribute(
       'href',
@@ -75,11 +77,11 @@ describe('event object page', () => {
     await renderEventTab(<EventOverviewPage />);
     expect(await screen.findByRole('link', { name: '2 kişi' })).toHaveAttribute(
       'href',
-      '/events/e1/edit#kapi-gorevlileri',
+      '/events/e1/checkin#kapi-gorevlileri',
     );
   });
 
-  it('writes the door staff count without a link where the edit page does not list them', async () => {
+  it('writes the door staff count without a link where Kapı does not list them', async () => {
     // core's capabilities unread: only the group rule's privileged assign door staff
     signInAs(LEADER);
     (eventsApi.get as jest.Mock).mockResolvedValue({

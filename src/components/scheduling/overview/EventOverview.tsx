@@ -11,7 +11,7 @@ import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList
 import { eventReadiness } from '@/lib/event-overview';
 import {
   eventDoorStaffHref,
-  eventEditHref,
+  eventSettingsHref,
   eventTabHref,
   type EventTab,
 } from '@/lib/event-workspace';
@@ -231,7 +231,7 @@ function DescriptionAndFeedback({ o }: { o: Overview }) {
     <>
       <ObjectCard
         title="Açıklama"
-        href={o.ws.canMutate ? eventEditHref(o.event.id) : undefined}
+        href={o.ws.canMutate ? eventSettingsHref(o.event.id) : undefined}
         linkLabel="Düzenle"
         linkName="Açıklamayı düzenle"
       >
@@ -267,7 +267,7 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
       {previous}
       {o.status === 'draft' ? <PublishReadiness o={o} /> : null}
       <ObjectEssentials
-        editHref={ws.canMutate ? eventEditHref(event.id) : undefined}
+        editHref={ws.canMutate ? eventSettingsHref(event.id) : undefined}
         items={eventEssentialItems({
           event,
           seasonName: o.seasonName,

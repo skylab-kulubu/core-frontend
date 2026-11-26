@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Skeleton } from '@skylab-kulubu/skylcn-ui';
+import { Skeleton } from '@skylab-kulubu/skylcn-ui';
 import { Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionButton } from '@/components/chrome/ActionButton';
@@ -9,7 +9,7 @@ import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { LoadError } from '@/components/chrome/LoadError';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
-import { SaveButton } from '@/components/chrome/SaveButton';
+import { SettingsSaveBar } from '@/components/chrome/SettingsPage';
 import { Select } from '@/components/chrome/Select';
 import { PERSON_SEARCH_HINT, usePersonSearch } from '@/components/identity/use-person-search';
 import { ProblemError } from '@/lib/api/core';
@@ -69,7 +69,7 @@ export function EventOrganizers({
   onDirtyChange,
 }: {
   event: Pick<CoreEvent, 'id' | 'ownerTeam' | 'startDate' | 'endDate' | 'viewer'>;
-  /** Whether a change waits for "Düzenleyenleri kaydet": the event's Kaydet holds meanwhile. */
+  /** Whether a change waits for its Kaydet: leaving the page asks first meanwhile. */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
@@ -260,7 +260,14 @@ export function EventOrganizers({
   }
 
   return (
-    <div className="space-y-5">
+    <form
+      noValidate
+      className="space-y-5"
+      onSubmit={(submitted) => {
+        submitted.preventDefault();
+        if (dirty && !saving) void save();
+      }}
+    >
       {ownerLine}
 
       <div className="space-y-2">
@@ -394,32 +401,16 @@ export function EventOrganizers({
         </ListPanel>
       </div>
 
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
-      {dirty ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <SaveButton type="button" disabled={saving} onClick={() => void save()}>
-            Düzenleyenleri kaydet
-          </SaveButton>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={saving}
-            onClick={() => {
-              setDraft(saved);
-              setError(undefined);
-            }}
-          >
-            Vazgeç
-          </Button>
-          <span className={`text-warning ${TEXT_SECONDARY}`}>
-            Etkinliğin Kaydet düğmesi bunları kaydetmez.
-          </span>
-        </div>
-      ) : null}
+      <SettingsSaveBar
+        visible={dirty || saving || Boolean(error)}
+        saving={saving}
+        canSave={dirty}
+        error={error}
+        onDiscard={() => {
+          setDraft(saved);
+          setError(undefined);
+        }}
+      />
 
       <PickerDrawer
         open={teamOpen}
@@ -487,6 +478,6 @@ export function EventOrganizers({
           setPersonOpen(false);
         }}
       />
-    </div>
+    </form>
   );
 }
