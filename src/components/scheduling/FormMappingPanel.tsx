@@ -13,13 +13,16 @@ import {
   type RespondentTicketJob,
 } from '@/lib/api/form-respondents';
 import {
+  DETAIL_FIELDS,
   EMPTY_MAPPING,
   MAPPING_FIELDS,
   formMappingProblem,
   guessMapping,
-  mappableQuestion,
+  hasDetails,
   mappingIssue,
+  mappingOf,
   previewLine,
+  questionFits,
   type MappingField,
 } from '@/lib/form-mapping';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
@@ -69,8 +72,9 @@ export function jobLine(job: RespondentTicketJob): string {
 
 /**
  * The question mapping of an Event's Skyforms form (core docs/form-mappings.md): which question
- * holds the guest's first name, last name, full name and e-mail. The boxes start from the panel's
- * guess (marked "tahmin") until a mapping is saved. The first save asks whether to send Tickets
+ * holds the guest's first name, last name, full name and e-mail, and optionally their phone,
+ * university, department and grade. The boxes start from the panel's guess (marked "tahmin")
+ * until a mapping is saved; a saved mapping without the details gets the details' guess. The first save asks whether to send Tickets
  * to everyone who filled the form (core docs/form-respondents.md); "Yanıtlara bilet gönder" asks
  * again any time. Both only for who may edit the Event or add attendees (core: Update || Assign),
  * also when Forms lets the reader only view the form.
@@ -115,15 +119,15 @@ export function FormMappingPanel({
           }),
         ]);
         if (cancelled) return;
-        const questions = (read.questions ?? []).filter(mappableQuestion);
+        const questions = read.questions ?? [];
         if (saved) {
-          setMapping({
-            firstName: saved.firstName ?? null,
-            lastName: saved.lastName ?? null,
-            fullName: saved.fullName ?? null,
-            email: saved.email ?? null,
-          });
-          setGuessed([]);
+          const kept = mappingOf(saved);
+          // A mapping saved before the details: guess them, the name's boxes as saved
+          const guess = hasDetails(kept)
+            ? { mapping: kept, guessed: [] }
+            : guessMapping(questions, {}, kept);
+          setMapping(guess.mapping);
+          setGuessed(guess.guessed);
         } else {
           const guess = guessMapping(questions, read.suggestion ?? {});
           setMapping(guess.mapping);
@@ -219,6 +223,31 @@ export function FormMappingPanel({
   if (load.state === 'hidden') return null;
 
   const issue = load.state === 'ready' ? mappingIssue(mapping) : null;
+  const mappingBox = ({ field, label }: { field: MappingField; label: string }) =>
+    load.state === 'ready' ? (
+      <label key={field} className="block space-y-1">
+        <span className="flex items-center gap-2">
+          <FieldLabel>{label}</FieldLabel>
+          {guessed.includes(field) ? <StatusChip kind="neutral" label="tahmin" /> : null}
+        </span>
+        <Select
+          value={mapping[field] ?? ''}
+          onChange={(e) => {
+            setMapping({ ...mapping, [field]: e.target.value || null });
+            setGuessed(guessed.filter((row) => row !== field));
+          }}
+        >
+          <option value="">Yok</option>
+          {load.questions
+            .filter((q) => questionFits(field, q) || q.id === mapping[field])
+            .map((q) => (
+              <option key={q.id} value={q.id}>
+                {questionLabel(q)}
+              </option>
+            ))}
+        </Select>
+      </label>
+    ) : null;
   // A viewer in Forms may still send: core decides by the Event's Ticket rights
   const sendable =
     canSend &&
@@ -248,30 +277,9 @@ export function FormMappingPanel({
       ) : null}
       {load.state === 'ready' ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {MAPPING_FIELDS.map(({ field, label }) => (
-              <label key={field} className="block space-y-1">
-                <span className="flex items-center gap-2">
-                  <FieldLabel>{label}</FieldLabel>
-                  {guessed.includes(field) ? <StatusChip kind="neutral" label="tahmin" /> : null}
-                </span>
-                <Select
-                  value={mapping[field] ?? ''}
-                  onChange={(e) => {
-                    setMapping({ ...mapping, [field]: e.target.value || null });
-                    setGuessed(guessed.filter((row) => row !== field));
-                  }}
-                >
-                  <option value="">Yok</option>
-                  {load.questions.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {questionLabel(q)}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            ))}
-          </div>
+          <div className="grid gap-3 sm:grid-cols-2">{MAPPING_FIELDS.map(mappingBox)}</div>
+          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>İsteğe bağlı</p>
+          <div className="grid gap-3 sm:grid-cols-2">{DETAIL_FIELDS.map(mappingBox)}</div>
           {issue ? <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>{issue}</p> : null}
           <div className="flex flex-wrap gap-2">
             <SaveButton

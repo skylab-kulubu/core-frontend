@@ -85,6 +85,79 @@ describe('FormMappingPanel', () => {
     expect(screen.queryByText('tahmin')).not.toBeInTheDocument();
   });
 
+  it('guesses the details of a mapping saved without them; a choice question fits them', async () => {
+    const user = userEvent.setup();
+    api.questions!.mockResolvedValue({
+      ...questions,
+      questions: [
+        ...questions.questions,
+        { id: 'q5', type: 'short_text', question: 'Telefon numaranız' },
+        { id: 'q6', type: 'combobox', question: 'Üniversiteniz' },
+        { id: 'q7', type: 'short_text', question: 'Bölümünüz' },
+        { id: 'q8', type: 'multi_choice', question: 'Kaçıncı sınıfsınız?' },
+      ],
+    });
+    api.mapping!.mockResolvedValue({
+      firstName: 'q1',
+      lastName: 'q2',
+      fullName: null,
+      email: 'q3',
+    });
+    api.saveMapping!.mockImplementation((_e: string, _f: string, m: unknown) => Promise.resolve(m));
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
+    await screen.findByText('Eşlemeyi kaydet');
+    expect(box('Ad').value).toBe('q1');
+    expect(box('Telefon').value).toBe('q5');
+    expect(box('Üniversite').value).toBe('q6');
+    expect(box('Bölüm').value).toBe('q7');
+    expect(box('Sınıf').value).toBe('q8');
+    expect(screen.getAllByText('tahmin')).toHaveLength(4);
+    expect(
+      within(box('Ad')).queryByRole('option', { name: 'Kaçıncı sınıfsınız?' }),
+    ).not.toBeInTheDocument();
+    expect(within(box('Sınıf')).queryByRole('option', { name: 'CV' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Eşlemeyi kaydet' }));
+    expect(api.saveMapping).toHaveBeenCalledWith(EVENT, FORM, {
+      firstName: 'q1',
+      lastName: 'q2',
+      fullName: null,
+      email: 'q3',
+      phone: 'q5',
+      university: 'q6',
+      department: 'q7',
+      grade: 'q8',
+    });
+    expect(await screen.findByText('Eşleme kaydedildi.')).toBeInTheDocument();
+    expect(screen.queryByText('tahmin')).not.toBeInTheDocument();
+  });
+
+  it('shows saved details as they are, with no guess', async () => {
+    api.mapping!.mockResolvedValue({
+      firstName: 'q1',
+      lastName: 'q2',
+      fullName: null,
+      email: 'q3',
+      phone: null,
+      university: null,
+      department: 'q2x',
+      grade: null,
+    });
+    api.questions!.mockResolvedValue({
+      ...questions,
+      questions: [
+        ...questions.questions,
+        { id: 'q2x', type: 'short_text', question: 'Bölüm' },
+        { id: 'q9', type: 'short_text', question: 'Telefon' },
+      ],
+    });
+    render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
+    await screen.findByText('Eşlemeyi kaydet');
+    expect(box('Bölüm').value).toBe('q2x');
+    expect(box('Telefon').value).toBe('');
+    expect(screen.queryByText('tahmin')).not.toBeInTheDocument();
+  });
+
   it('keeps the save off without an e-mail question', async () => {
     const user = userEvent.setup();
     render(<FormMappingPanel eventId={EVENT} formId={FORM} />);
@@ -96,10 +169,7 @@ describe('FormMappingPanel', () => {
 
   it.each([
     [new ProblemError(503, 'x', { code: 'forms_pull_off' }), 'Forms bağlantısı kapalı.'],
-    [
-      new ProblemError(403, 'x', { code: 'forms_access_denied' }),
-      'Bu forma erişimin yok.',
-    ],
+    [new ProblemError(403, 'x', { code: 'forms_access_denied' }), 'Bu forma erişimin yok.'],
     [new ProblemError(404, 'x', { code: 'form_not_listed' }), 'Etkinliği kaydet, sonra eşle.'],
   ])('says why it cannot map (%s), with nothing to save', async (err, text) => {
     api.questions!.mockRejectedValue(err);
@@ -151,6 +221,10 @@ describe('FormMappingPanel', () => {
         lastName: 'q2',
         fullName: null,
         email: 'q3',
+        phone: null,
+        university: null,
+        department: null,
+        grade: null,
       });
       const dialog = await screen.findByRole('alertdialog');
       expect(
@@ -213,9 +287,7 @@ describe('FormMappingPanel', () => {
   it('still offers sending to a viewer of the form in Forms', async () => {
     api.questions!.mockRejectedValue(new ProblemError(403, 'x', { code: 'forms_access_denied' }));
     render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
-    expect(
-      await screen.findByText('Bu forma erişimin yok.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Bu forma erişimin yok.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Yanıtlara bilet gönder' })).toBeInTheDocument();
   });
 

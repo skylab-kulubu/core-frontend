@@ -12,23 +12,32 @@ export type FormQuestion = {
   identity?: string;
 };
 
-/** Which question holds each part of a guest; a question id or null. */
+/**
+ * Which question holds each part of a guest; a question id or null. `phone`, `university`,
+ * `department` and `grade` are optional (core docs/form-mappings.md "The details"): a guest's
+ * Ticket takes their answers.
+ */
 export type FormMapping = {
   firstName: string | null;
   lastName: string | null;
   fullName: string | null;
   email: string | null;
+  phone: string | null;
+  university: string | null;
+  department: string | null;
+  grade: string | null;
 };
 
 export type FormQuestions = {
   formId: string;
   title: string;
   questions: FormQuestion[];
-  /** What the form's identity fields give (K5); the rest is null. */
-  suggestion: FormMapping;
+  /** What the form's identity fields give (K5); the rest is null (an older core leaves the details out). */
+  suggestion: Partial<FormMapping>;
 };
 
-export type SavedFormMapping = FormMapping & { updatedAt?: string };
+/** An older core leaves the details out. */
+export type SavedFormMapping = Partial<FormMapping> & { updatedAt?: string };
 
 /** The send counts (preview and send alike, core docs/form-respondents.md). */
 export type RespondentTicketPreview = {
