@@ -27,7 +27,12 @@ export function StaticSessionQr({ sessionId, title }: { sessionId: string; title
   }, [sessionId]);
 
   useEffect(() => {
-    const onChange = () => setFull(document.fullscreenElement === screenRef.current);
+    // Before the QR is shown the ref is null, as is fullscreenElement once another screen
+    // leaves full screen: that is not this one going full screen.
+    const onChange = () => {
+      const screen = screenRef.current;
+      setFull(screen !== null && document.fullscreenElement === screen);
+    };
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);

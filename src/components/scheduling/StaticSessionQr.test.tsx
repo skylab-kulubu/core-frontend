@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { StaticSessionQr } from '@/components/scheduling/StaticSessionQr';
@@ -71,6 +71,21 @@ describe('StaticSessionQr', () => {
     await user.click(screen.getByRole('button', { name: 'PNG indir' }));
     expect(qrPngBlob).toHaveBeenCalledWith('<svg id="static"/>', 'Açılış');
     expect(saveBlob).toHaveBeenCalledWith(blob, 'oturum-Açılış-sabit.png');
+  });
+
+  it('stays in the drawer when another QR leaves full screen before it is shown', async () => {
+    createDoorQr.mockResolvedValue(staticQr);
+    const user = userEvent.setup();
+    render(<StaticSessionQr sessionId="s1" title="Açılış" />);
+    // The rotating QR above has just left full screen.
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => null });
+    act(() => {
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    await user.click(screen.getByRole('button', { name: 'Sabit QR’ı göster' }));
+    const img = await screen.findByAltText("Oturumun sabit yoklama QR'ı");
+    expect(img.className).toContain('w-80');
+    expect(screen.queryByText('Yoklama için telefonunun kamerasıyla okut')).toBeNull();
   });
 
   it('says why core gave none', async () => {
