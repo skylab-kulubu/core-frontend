@@ -35,12 +35,29 @@ const ORDER: FieldName[] = ['firstName', 'lastName', 'email'];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Core's phone shapes: a Turkish number of 10 digits (bare from 2–5, or after 0, 90 or +90), or
- * an international one of 8–15 digits after +; spaces, dashes, dots and brackets are let through.
+ * Core's phone rule, exactly (core internal/ticket/walk_in.go normalizePhone): spaces, dashes, dots,
+ * brackets and no-break spaces are dropped. A Turkish number is 10 digits not starting with 0, bare
+ * or after 0, 90, +90 or 0090; another country's is 8–15 digits not starting with 0 after + or 00.
  */
 export function phoneShapeOk(value: string): boolean {
-  const digits = value.replace(/[\s\-.()]/g, '');
-  return /^(?:\+90|90|0)\d{10}$|^[2-5]\d{9}$/.test(digits) || /^\+\d{8,15}$/.test(digits);
+  let digits = value.replace(/[ \-.()\u00a0]/g, '');
+  let international = false;
+  if (digits.startsWith('+')) {
+    digits = digits.slice(1);
+    international = true;
+  } else if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+    international = true;
+  }
+  if (!/^\d+$/.test(digits)) return false;
+  const turkish = (national: string) => /^[1-9]\d{9}$/.test(national);
+  if (international) {
+    if (digits.startsWith('90')) return turkish(digits.slice(2));
+    return /^[1-9]\d{7,14}$/.test(digits);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) return turkish(digits.slice(1));
+  if (digits.length === 12 && digits.startsWith('90')) return turkish(digits.slice(2));
+  return digits.length === 10 && turkish(digits);
 }
 
 /** Universities offered first; anything else can be typed. */
@@ -67,6 +84,10 @@ const GRADES: [WalkInGrade, string][] = [
 const FIELDS_REQUIRED = 'Ad, soyad ve e-posta gerekli.';
 const EMAIL_INVALID = 'E-posta geçersiz.';
 const PHONE_INVALID = 'Telefon geçersiz.';
+const NAME_TOO_LONG = 'Ad ve soyad en çok 100 karakter.';
+const FIELD_INVALID = 'Bu alanda geçersiz karakter var.';
+/** Core's longest first or last name. */
+const NAME_MAX = 100;
 
 /** What the last walk-in came to: written (green), already in today (amber), or refused (red). */
 type Shown =
@@ -145,10 +166,19 @@ function missingOf(err: unknown): FieldName[] {
   return ORDER.filter((name) => named.includes(name));
 }
 
+/** The fields core named in `guest_field_invalid` (a control character in a name or a text). */
+const TEXT_FIELDS: FieldName[] = ['firstName', 'lastName', 'university', 'department'];
+function controlledOf(err: unknown): FieldName[] {
+  if (!(err instanceof ProblemError) || err.code !== 'guest_field_invalid') return [];
+  const named = Array.isArray(err.fields.fields) ? err.fields.fields : [];
+  return TEXT_FIELDS.filter((name) => named.includes(name));
+}
+
 /**
- * Kapıda kayıt: a person who arrives without a ticket gets one at the door (first name, last
- * name, e-mail; nothing else is asked). Core writes the ticket and, on an event run with one
- * entry a day, the day's venue entry; a person who already holds one keeps it.
+ * Kapıda kayıt: a person who arrives without a ticket gets one at the door. First name, last name
+ * and e-mail are required; phone, university, department and grade are optional (Ek bilgiler) and
+ * never shown at the door. Core writes the ticket and, on an event run with one entry a day, the
+ * day's venue entry; a person who already holds one keeps it.
  */
 export function DoorWalkIn({
   eventId,
@@ -246,8 +276,15 @@ export function DoorWalkIn({
       onDone?.(result);
     } catch (err) {
       const named = missingOf(err);
+      const controlled = controlledOf(err);
       if (named.length) refuse(named, FIELDS_REQUIRED);
-      else if (err instanceof ProblemError && err.code === 'email_invalid') {
+      else if (controlled.length) refuse(controlled, FIELD_INVALID);
+      else if (err instanceof ProblemError && err.code === 'guest_name_too_long') {
+        const long = (['firstName', 'lastName'] as const).filter(
+          (name) => body[name].length > NAME_MAX,
+        );
+        refuse(long.length ? [...long] : ['firstName', 'lastName'], NAME_TOO_LONG);
+      } else if (err instanceof ProblemError && err.code === 'email_invalid') {
         refuse(['email'], EMAIL_INVALID);
       } else if (err instanceof ProblemError && err.code && FIELD_CODES[err.code]) {
         refuse([FIELD_CODES[err.code]], REFUSED[err.code]);
@@ -316,13 +353,23 @@ export function DoorWalkIn({
             {field(
               'firstName',
               'Ad',
-              { autoCapitalize: 'words', enterKeyHint: 'next', spellCheck: false },
+              {
+                autoCapitalize: 'words',
+                enterKeyHint: 'next',
+                spellCheck: false,
+                maxLength: NAME_MAX,
+              },
               'lastName',
             )}
             {field(
               'lastName',
               'Soyad',
-              { autoCapitalize: 'words', enterKeyHint: 'next', spellCheck: false },
+              {
+                autoCapitalize: 'words',
+                enterKeyHint: 'next',
+                spellCheck: false,
+                maxLength: NAME_MAX,
+              },
               'email',
             )}
           </div>

@@ -402,6 +402,42 @@ describe('DoorWalkIn', () => {
     expect(screen.getByLabelText(label)).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('marks the fields core named holding a control character', async () => {
+    (ticketsApi.walkIn as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(400, 'Bad Request', {
+        code: 'guest_field_invalid',
+        fields: { fields: ['lastName', 'department'] },
+      }),
+    );
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Bu alanda geçersiz karakter var.'),
+    );
+    expect(last()).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Bölüm (isteğe bağlı)')).toHaveAttribute('aria-invalid', 'true');
+    expect(first()).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('caps the names at 100 characters and marks core’s guest_name_too_long', async () => {
+    (ticketsApi.walkIn as jest.Mock).mockRejectedValueOnce(
+      new ProblemError(400, 'Bad Request', { code: 'guest_name_too_long', fields: { max: 100 } }),
+    );
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    expect(first()).toHaveAttribute('maxlength', '100');
+    expect(last()).toHaveAttribute('maxlength', '100');
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Ad ve soyad en çok 100 karakter.'),
+    );
+    expect(first()).toHaveAttribute('aria-invalid', 'true');
+    expect(last()).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('caps the university and the department at 200 characters', async () => {
     const user = userEvent.setup();
     render(<DoorWalkIn eventId="e1" entryMode="venue" />);
@@ -444,7 +480,14 @@ describe('walk-in fields', () => {
     ['0532.123.45.67', true],
     ['12345', false],
     ['0532 123 45 6', false],
-    ['1234567890', false],
+    ['1234567890', true],
+    ['0090 532 123 45 67', true],
+    ['0049 30 1234567', true],
+    ['+90 0532 123 45 67', false],
+    ['+90 532 123 45', false],
+    ['0123456789', false],
+    ['+0 1234 5678', false],
+    ['0532\t1234567', false],
     ['+12 345', false],
     ['abc', false],
   ])('phone %s → %s', (value, ok) => {
