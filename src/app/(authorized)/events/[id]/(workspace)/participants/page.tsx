@@ -7,11 +7,17 @@ import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDraw
 import { AttendeeImportDrawer } from '@/components/scheduling/roster/AttendeeImportDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
+import { ExportMenu } from '@/components/scheduling/exports/ExportMenu';
 import { RespondentList, useRespondents } from '@/components/scheduling/roster/RespondentList';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
-import { ALREADY_CHECKED_IN, checkInSuccessLine, doorTicketName } from '@/lib/door-check-in';
+import {
+  ALREADY_CHECKED_IN,
+  checkInSuccessLine,
+  doorSessionLabel,
+  doorTicketName,
+} from '@/lib/door-check-in';
 import { isTicketCancelled, ticketApplicantEmail, ticketSendProblem } from '@/lib/tickets-ui';
 import type { Ticket } from '@/lib/api/tickets';
 import { useConfirm } from '@/lib/ui/use-confirm';
@@ -42,6 +48,7 @@ export default function EventParticipantsPage() {
     canDesk,
     canCancelTickets,
     canMutate,
+    canReadIssuedCertificates,
   } = useEventWorkspace();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -229,6 +236,23 @@ export default function EventParticipantsPage() {
                 formsPending: respondents.pending.total,
                 failed: respondents.failed,
               }
+            : undefined
+        }
+        renderExport={
+          canTickets
+            ? ({ ticketIds, filtered }) => (
+                <ExportMenu
+                  eventId={event.id}
+                  eventName={event.name}
+                  shownTicketIds={ticketIds}
+                  filtered={filtered}
+                  sessions={sessions.map((session) => ({
+                    id: session.id,
+                    label: doorSessionLabel(session),
+                  }))}
+                  certificates={canReadIssuedCertificates}
+                />
+              )
             : undefined
         }
         renderRespondents={(view, query) => (
