@@ -30,6 +30,7 @@ import {
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { capacityBelowTickets } from '@/lib/capacity';
+import { AUTO_SEND_HINT, AUTO_SEND_LABEL } from '@/lib/certificate-rule';
 import {
   externalRegistrationIssue,
   isExternalRegistrationIssue,
@@ -188,6 +189,8 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendanceRule: 'none',
     attendanceRatio: undefined,
     attendanceMinCount: null,
+    // A new Event's certificates go out by hand until this is turned on
+    attendanceAutoFinalize: false,
     doorStaffIds: [],
     registrationClosesAt: '',
   };
@@ -696,6 +699,16 @@ export function EventEditor({
           ) : (
             <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Varsayılan eşik %75</p>
           )
+        ) : null}
+        {/* An older core sends no switch: it is not offered */}
+        {(value.attendanceRule ?? 'none') !== 'none' &&
+        typeof value.attendanceAutoFinalize === 'boolean' ? (
+          <Switch
+            checked={value.attendanceAutoFinalize}
+            onChange={(attendanceAutoFinalize) => patch({ attendanceAutoFinalize })}
+            label={AUTO_SEND_LABEL}
+            hint={AUTO_SEND_HINT}
+          />
         ) : null}
         {legacyRules && value.attendanceRule === 'ratio' ? (
           <label className="block space-y-1">

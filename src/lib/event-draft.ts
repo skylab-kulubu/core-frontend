@@ -147,6 +147,8 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceRule: ev.attendanceRule ?? 'none',
     attendanceRatio: ev.attendanceRatio,
     attendanceMinCount: ev.attendanceMinCount ?? null,
+    // Undefined while core sends none: the switch is not offered
+    attendanceAutoFinalize: ev.attendanceAutoFinalize,
     doorStaffIds: ev.doorStaffIds ?? [],
     registrationClosesAt: toDatetimeLocal(ev.registrationClosesAt),
     reservedId: ev.id,

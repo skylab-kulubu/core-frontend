@@ -106,6 +106,12 @@ export type CoreEvent = {
   attendanceRatio?: number;
   /** The count rule's threshold; left out for the default ⌈3N/4⌉. */
   attendanceMinCount?: number;
+  /**
+   * "Sertifikaları otomatik gönder" (core docs/certificate-rule.md): an hour after the last
+   * Session core closes the attendance, issues and mails the certificates. Absent before core's
+   * automatic finalization.
+   */
+  attendanceAutoFinalize?: boolean;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
@@ -236,6 +242,8 @@ export type EventBody = {
   attendanceRatio?: number;
   /** The count rule's threshold; none for the default ⌈3N/4⌉. */
   attendanceMinCount?: number | null;
+  /** "Sertifikaları otomatik gönder"; left out, core's default. */
+  attendanceAutoFinalize?: boolean;
   doorStaffIds?: string[];
   /** The deadline of applying; none: no deadline. */
   registrationClosesAt?: string;
@@ -288,6 +296,8 @@ export type EventPatch = {
   attendanceRule?: string | null;
   attendanceRatio?: number | null;
   attendanceMinCount?: number | null;
+  /** Takes no `null` (400). */
+  attendanceAutoFinalize?: boolean;
   doorStaffIds?: string[] | null;
   registrationClosed?: boolean;
   registrationClosesAt?: string | null;

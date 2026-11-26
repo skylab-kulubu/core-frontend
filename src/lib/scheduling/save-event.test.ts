@@ -552,6 +552,28 @@ describe('a new event’s door mails', () => {
   });
 });
 
+describe('"Sertifikaları otomatik gönder" (attendanceAutoFinalize)', () => {
+  it('a new Event sends it off; an edit sends a change; an older core gets none', () => {
+    const fresh = emptyEventForm('GECEKODU');
+    expect(fresh.attendanceAutoFinalize).toBe(false);
+    expect(eventBodyFromForm(fresh)).toMatchObject({ attendanceAutoFinalize: false });
+    expect(eventBodyFromForm({ ...fresh, attendanceAutoFinalize: true })).toMatchObject({
+      attendanceAutoFinalize: true,
+    });
+
+    const loaded = formStateFromEvent({ ...savedEvent, attendanceAutoFinalize: true });
+    expect(loaded.attendanceAutoFinalize).toBe(true);
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, attendanceAutoFinalize: false }, loaded)).toEqual({
+      attendanceAutoFinalize: false,
+    });
+
+    const older = formStateFromEvent(savedEvent);
+    expect(older.attendanceAutoFinalize).toBeUndefined();
+    expect(eventPatchFromForm(older)).not.toHaveProperty('attendanceAutoFinalize');
+  });
+});
+
 describe('"Otomatik bilet gönder" (formResponsesAutoTicket)', () => {
   it('a new Event sends it only when off; an edit sends a change; an older core gets none', () => {
     const fresh = emptyEventForm('GECEKODU');

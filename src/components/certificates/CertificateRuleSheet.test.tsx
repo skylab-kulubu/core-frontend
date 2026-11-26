@@ -54,7 +54,7 @@ function rule(extra: Partial<CertificateRule> = {}): CertificateRule {
   };
 }
 
-function renderSheet(value = rule(), finalized = false) {
+function renderSheet(value = rule(), finalized = false, templateWarning?: string) {
   const onSaved = jest.fn();
   render(
     <CertificateRuleSheet
@@ -66,6 +66,7 @@ function renderSheet(value = rule(), finalized = false) {
         { id: 'd2', eventId: 'e1', name: '2. gün' },
       ]}
       finalized={finalized}
+      templateWarning={templateWarning}
       onClose={jest.fn()}
       onSaved={onSaved}
     />,
@@ -164,9 +165,34 @@ it('warns that a closed attendance moves only the list and a rescan', () => {
   expect(within(sheet).getByText(/Katılım kapandı/)).toBeInTheDocument();
 });
 
-it('shows the automatic closing switch only once core sends it', () => {
+it('shows the automatic sending switch only once core sends it', () => {
   const { sheet } = renderSheet();
-  expect(within(sheet).queryByText('Katılımı kendiliğinden kapat')).not.toBeInTheDocument();
+  expect(within(sheet).queryByText('Sertifikaları otomatik gönder')).not.toBeInTheDocument();
+});
+
+it('names what the switch does', () => {
+  const { sheet } = renderSheet(rule({ autoFinalize: false }));
+  expect(within(sheet).getByText('Sertifikaları otomatik gönder')).toBeInTheDocument();
+  expect(
+    within(sheet).getByText('Son oturumdan 1 saat sonra üretilir ve postalanır'),
+  ).toBeInTheDocument();
+});
+
+it('says the template while the switch is on and it is not the Event’s own', async () => {
+  if (!('PointerEvent' in window)) {
+    Object.defineProperty(window, 'PointerEvent', { value: MouseEvent, configurable: true });
+  }
+  const user = userEvent.setup();
+  const { sheet } = renderSheet(
+    rule({ autoFinalize: false }),
+    false,
+    'SKY LAB varsayılan şablonuyla basılacak',
+  );
+  expect(within(sheet).queryByText('SKY LAB varsayılan şablonuyla basılacak')).toBeNull();
+  await user.click(within(sheet).getByRole('switch'));
+  expect(within(sheet).getByText('SKY LAB varsayılan şablonuyla basılacak')).toBeInTheDocument();
+  await user.selectOptions(within(sheet).getByRole('combobox'), 'none');
+  expect(within(sheet).queryByText('SKY LAB varsayılan şablonuyla basılacak')).toBeNull();
 });
 
 it('sends the automatic closing switch when core has it', async () => {
