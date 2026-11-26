@@ -728,6 +728,7 @@ export default function EventProgramPage() {
                 sessionId={qrSession.id}
                 title={qrSession.title}
                 onMode={setSessionQrMode}
+                program={sessions}
               />
             ) : null}
             {canDesk && !qrSession.cancelled ? (
