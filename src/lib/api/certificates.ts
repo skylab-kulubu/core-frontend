@@ -37,6 +37,11 @@ export type CertificateElement = {
   opacity?: number;
   fit?: 'cover' | 'contain' | 'shrink';
   locked?: boolean;
+  /** `backgroundText`: converted from the PDF background's text. */
+  origin?: 'backgroundText';
+  /** The PDF's font name of a converted text, at most 120 characters. */
+  sourceFont?: string;
+  fontStyle?: 'italic';
 };
 
 /** How the background sits on the page (core `Layout.backgroundPlacement`). */
@@ -59,6 +64,11 @@ export type CertificateLayout = {
   backgroundMediaId?: string;
   /** Absent on layouts written before it: printed as `LEGACY_IMAGE_PLACEMENT`. */
   backgroundPlacement?: BackgroundPlacement;
+  /**
+   * The PDF a text conversion started from; never printed. Going back sets it
+   * as the background again and drops the converted layers.
+   */
+  backgroundOriginalMediaId?: string;
   elements: CertificateElement[];
 };
 
@@ -70,6 +80,67 @@ export type CertificateAssetInfo = {
   pages: number;
   /** The texts pdf-tools found; 0 for an image. */
   textCount: number;
+};
+
+/** Why pdf-tools cannot convert a text (core docs "Background text conversion"). */
+export type BackgroundTextReason =
+  | 'unreadable'
+  | 'stroke'
+  | 'invisible'
+  | 'clip'
+  | 'vertical'
+  | 'skewed'
+  | 'shared'
+  | 'unmatched'
+  | 'limit'
+  | 'truncated';
+
+/** One run of a PDF's text: one style along a line. */
+export type BackgroundTextSpan = {
+  id: string;
+  text: string;
+  sourceFont: string;
+  /** The family, weight and style a conversion sets it in. */
+  font: string;
+  fontWeight: number;
+  fontStyle?: 'italic';
+  fontSubstituted: boolean;
+  fontSizePt: number;
+  convertible: boolean;
+  reason?: BackgroundTextReason;
+};
+
+/** `GET /v1/certificate-assets/{id}/text`. */
+export type BackgroundTextList = {
+  spans: BackgroundTextSpan[];
+  truncated?: boolean;
+  /** Set when the list is empty: why the PDF has no text. */
+  textMissing?: 'outlines' | 'image' | 'unknown';
+};
+
+export type BackgroundTextConversionBody = {
+  spanIds: string[];
+  kinds: Record<string, 'recipientName' | 'eventName' | 'eventDates' | 'issueDate'>;
+  page: { width: number; height: number };
+  placement?: BackgroundPlacement;
+  /** How many layers the draft keeps beside the new ones (at most 100 together). */
+  existingElements: number;
+};
+
+export type BackgroundTextWarning = {
+  spanId: string;
+  elementId?: string;
+  kind: 'fontSubstituted' | 'fontSizeBounded' | 'textCut' | 'outsidePage';
+  from?: string | number;
+  to?: string | number;
+};
+
+/** `POST …/text-conversion`: nothing is saved; the editor applies it to the draft. */
+export type BackgroundTextConversion = {
+  backgroundMediaId: string;
+  backgroundOriginalMediaId: string;
+  elements: CertificateElement[];
+  warnings: BackgroundTextWarning[];
 };
 
 export type CertificateTemplateDraft = {
@@ -366,6 +437,15 @@ export const certificatesApi = {
   /** A PDF background's page as a PNG, its long side `max` px; an image as itself. */
   assetPreview: (id: string, max = 2000) =>
     coreFetchBlob(`/v1/certificate-assets/${encodeURIComponent(id)}/preview?max=${max}`),
+  /** A PDF background's text, one row per run; 503 `pdf_tools_unavailable` without pdf-tools. */
+  assetText: (id: string) =>
+    coreFetch<BackgroundTextList>(`/v1/certificate-assets/${encodeURIComponent(id)}/text`),
+  /** The chosen texts as layers on a copy of the PDF without them. */
+  convertAssetText: (id: string, body: BackgroundTextConversionBody) =>
+    coreFetch<BackgroundTextConversion>(
+      `/v1/certificate-assets/${encodeURIComponent(id)}/text-conversion`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   bindings: () => coreFetch<CertificateTemplateBinding[]>('/v1/certificate-template-bindings'),
   setBinding: (body: {
     scope: 'club' | 'ownerTeam' | 'event';

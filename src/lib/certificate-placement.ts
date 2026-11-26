@@ -171,6 +171,38 @@ export function resizeCertificateLayout(layout: CertificateLayout, size: Size): 
 }
 
 /**
+ * A layer converted from the PDF's text (`origin: "backgroundText"`) moved with
+ * its background, from the box `from` to the box `to`: its place and size
+ * scaled and shifted as the background is; its font with the height (`fill`
+ * stretches width and height apart; core sets a converted text's size by the
+ * height too).
+ */
+export function moveWithBackground<T extends CertificateLayout['elements'][number]>(
+  element: T,
+  from: Rect,
+  to: Rect,
+): T {
+  if (!(from.width > 0 && from.height > 0)) return element;
+  const sx = to.width / from.width;
+  const sy = to.height / from.height;
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const font = (size: number | undefined) =>
+    size ? Math.min(300, Math.max(1, round(size * sy))) : size;
+  return {
+    ...element,
+    x: round(to.left + (element.x - from.left) * sx),
+    y: round(to.top + (element.y - from.top) * sy),
+    width: round(element.width * sx),
+    height: round(element.height * sy),
+    fontSize: font(element.fontSize),
+    minFontSize: font(element.minFontSize),
+    letterSpacing: element.letterSpacing
+      ? round(element.letterSpacing * sy)
+      : element.letterSpacing,
+  };
+}
+
+/**
  * The page fitted to the background: page size from the background's natural
  * size, layers scaled, the background stretched to the page (a difference of
  * at most 0.1 % after rounding). Null when the ratio cannot fit.
