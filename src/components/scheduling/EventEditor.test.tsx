@@ -145,6 +145,7 @@ describe('EventEditor certificate rule', () => {
     initial?: Partial<EventFormState>;
     onValue?: (value: EventFormState) => void;
     certificatesHref?: string;
+    certificateTemplate?: React.ReactNode;
     legacyRules?: boolean;
     storedRatio?: number;
   }) {
@@ -173,6 +174,14 @@ describe('EventEditor certificate rule', () => {
   it('offers Yok, En az bir oturum and Oturum sayısı, no ratio', () => {
     render(<RuleEditor />);
     expect(options()).toEqual(['Yok', 'En az bir oturum', 'Oturum sayısı']);
+  });
+
+  it('says a new event chooses its template once saved, and draws a saved one’s row', () => {
+    const { rerender } = render(<RuleEditor />);
+    expect(screen.getByText('Kaydettikten sonra şablon seçilir')).toBeInTheDocument();
+    rerender(<RuleEditor certificateTemplate={<p>Şablon satırı</p>} />);
+    expect(screen.getByText('Şablon satırı')).toBeInTheDocument();
+    expect(screen.queryByText('Kaydettikten sonra şablon seçilir')).not.toBeInTheDocument();
   });
 
   it('writes the count rule at the default threshold and links to the Sertifikalar tab', async () => {

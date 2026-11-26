@@ -50,7 +50,7 @@ import {
 import { eventStatusOf } from '@/lib/events-view';
 import { lookupPeople } from '@/lib/people-lookup';
 import { formatClock, hasCheckIn } from '@/lib/roster-insights';
-import { teamDecision } from '@/lib/use-app-can';
+import { eventDecision } from '@/lib/use-app-can';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useDeferredUndo } from '@/lib/ui/use-deferred-undo';
 import { useNotify } from '@/lib/ui/use-notify';
@@ -103,7 +103,7 @@ export default function TicketDetailPage({
       try {
         const ev = await eventsApi.get(id);
         const groupRule = canListEventTickets(user?.groups ?? [], ev.ownerTeam);
-        if (!teamDecision(capabilities, ev.ownerTeam, 'ticket.read', groupRule)) {
+        if (!eventDecision(capabilities, ev, 'ticket.read', groupRule)) {
           throw new ProblemError(403, 'Forbidden', { detail: 'Bu başvuruları görme yetkin yok' });
         }
         const [got, days] = await Promise.all([
@@ -178,24 +178,19 @@ export default function TicketDetailPage({
   const open = eventStatusOf(event) !== 'cancelled';
   const canAssign =
     open &&
-    teamDecision(
+    eventDecision(
       capabilities,
-      event.ownerTeam,
+      event,
       'ticket.assign',
       canAssignEventTicket(groups, event.ownerTeam),
     );
   const canDesk =
     open &&
-    teamDecision(
-      capabilities,
-      event.ownerTeam,
-      'door.checkIn',
-      canDeskCheckIn(groups, event.ownerTeam),
-    );
+    eventDecision(capabilities, event, 'door.checkIn', canDeskCheckIn(groups, event.ownerTeam));
   // Exactly who may edit the event cancels a ticket and takes it back (core)
-  const canCancel = teamDecision(
+  const canCancel = eventDecision(
     capabilities,
-    event.ownerTeam,
+    event,
     'event.update',
     canCancelEventTicket(groups, event.ownerTeam),
   );

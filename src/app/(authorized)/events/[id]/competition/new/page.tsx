@@ -13,7 +13,7 @@ import { COMPETITOR_CONFLICT, coreProblemMessage } from '@/lib/core-problems';
 import { competitorsApi } from '@/lib/api/competitors';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { canManageCompetitors } from '@/lib/auth/groups';
-import { useTeamDecide } from '@/lib/use-app-can';
+import { useTeamDecide, viewerDecision } from '@/lib/use-app-can';
 import { eventTabHref } from '@/lib/event-workspace';
 import { useNotify } from '@/lib/ui/use-notify';
 
@@ -51,10 +51,13 @@ export default function NewCompetitorPage({ params }: { params: Promise<{ id: st
           e.preventDefault();
           if (
             !event ||
-            !decide(
-              event.ownerTeam,
-              'competitor.create',
-              canManageCompetitors(groups, event.ownerTeam),
+            !(
+              viewerDecision(event, 'competitor.update') ??
+              decide(
+                event.ownerTeam,
+                'competitor.create',
+                canManageCompetitors(groups, event.ownerTeam),
+              )
             ) ||
             !userId
           ) {

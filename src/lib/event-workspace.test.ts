@@ -1,14 +1,24 @@
 import { editorReturnTo } from '@/lib/event-draft';
 import { APPLY_SLOT_KEY } from '@/lib/event-forms';
 import {
+  eventCertificateTemplateHref,
   eventTabFromAnchor,
   eventTabFromPath,
   eventTabHref,
+  isFocusPath,
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
 
 describe('event workspace routes', () => {
+  it('draws the door and the certificate template editor without the sidebar', () => {
+    expect(isFocusPath('/events/e1/door')).toBe(true);
+    expect(eventCertificateTemplateHref('e1')).toBe('/events/e1/certificate-template');
+    expect(isFocusPath('/events/e1/certificate-template')).toBe(true);
+    expect(isFocusPath('/events/e1/certificates')).toBe(false);
+    expect(isFocusPath('/certificates/templates/t1')).toBe(false);
+  });
+
   it('gives each tab its own route under the event, the overview on the event itself', () => {
     expect(eventTabHref('e1')).toBe('/events/e1');
     expect(eventTabHref('e1', 'overview')).toBe('/events/e1');
