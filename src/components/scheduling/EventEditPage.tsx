@@ -6,6 +6,7 @@ import { useFormState, useWatch } from 'react-hook-form';
 import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
 import { EventEditTemplate } from '@/components/scheduling/EventEditTemplate';
+import { EventOrganizers } from '@/components/scheduling/EventOrganizers';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
@@ -16,6 +17,9 @@ import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
 import { useTeamDecide } from '@/lib/use-app-can';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
+
+export const ORGANIZERS_UNSAVED =
+  'Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.';
 
 /** Jumps to the section a form problem is in, so the reader sees the field. */
 export function showIssueSection(issue: string | undefined) {
@@ -61,7 +65,11 @@ export function EventEditPage() {
   } = useFormState({
     control: form.control,
   });
-  const guard = useUnsavedChanges(dirty && !saving);
+  // Düzenleyenler is saved on its own: the event's Kaydet waits until it is saved or dropped
+  const [organizersDirty, setOrganizersDirty] = useState(false);
+  const [organizersHeld, setOrganizersHeld] = useState(false);
+  // One question for the page, whichever part is unsaved
+  const guard = useUnsavedChanges((dirty || organizersDirty) && !saving);
   const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
@@ -96,9 +104,16 @@ export function EventEditPage() {
         saving={saving}
         submitLabel="Kaydet"
         onCancel={() => guard.leave(overview)}
-        error={editor.error ?? issue}
+        error={
+          (organizersHeld && organizersDirty ? ORGANIZERS_UNSAVED : null) ?? editor.error ?? issue
+        }
         onSubmit={form.handleSubmit(
           async ({ event: values }) => {
+            if (organizersDirty) {
+              setOrganizersHeld(true);
+              document.getElementById('duzenleyenler')?.scrollIntoView({ block: 'start' });
+              return;
+            }
             // A new time or place of a published event: ask whether its ticket holders are told
             const notice = editor.changeNotice(values);
             const notifyTicketHolders = notice ? await askChangeNotice(notice) : false;
@@ -146,6 +161,7 @@ export function EventEditPage() {
             event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
           }
           certificateTemplate={<EventEditTemplate leave={guard.leave} />}
+          organizers={<EventOrganizers event={event} onDirtyChange={setOrganizersDirty} />}
           notices={{
             temel: editor.optionsFailed.teams ? (
               <LoadError title="Ekipler yüklenemedi" onRetry={editor.reloadOptions} />

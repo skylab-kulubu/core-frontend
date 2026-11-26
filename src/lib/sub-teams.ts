@@ -96,6 +96,7 @@ const RECORD_KINDS: Record<string, string> = {
   certificate: 'sertifika',
   certificate_template: 'sertifika şablonu',
   certificate_template_binding: 'sertifika şablonu eşleşmesi',
+  event_co_organizer: 'etkinlik ortak düzenleyeni',
 };
 
 function recordKinds(fields: Record<string, unknown>): string {
