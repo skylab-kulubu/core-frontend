@@ -54,6 +54,9 @@ jest.mock('@/lib/api/certificates', () => ({
     assetPreview: jest.fn(),
     assetText: jest.fn(),
     convertAssetText: jest.fn(),
+    fonts: jest.fn(),
+    templateFonts: jest.fn(),
+    fontFile: jest.fn(),
   },
 }));
 
@@ -142,6 +145,8 @@ describe('CertificateTemplateEditor', () => {
       roles: [],
       groups: ['/ADMIN'],
     };
+    (certificatesApi.fonts as jest.Mock).mockResolvedValue([]);
+    (certificatesApi.templateFonts as jest.Mock).mockResolvedValue([]);
     (certificatesApi.assetInfo as jest.Mock).mockResolvedValue(A4_PORTRAIT_PDF);
     (certificatesApi.assetPreview as jest.Mock).mockResolvedValue(
       new Blob(['png'], { type: 'image/png' }),
@@ -228,6 +233,161 @@ describe('CertificateTemplateEditor', () => {
       ]),
     );
     expect(options.length).toBeGreaterThanOrEqual(18);
+  });
+
+  describe('uploaded fonts', () => {
+    const font = (over: object) => ({
+      id: 'f',
+      ownerTeam: '',
+      family: 'Brandon Grotesque',
+      weight: 700,
+      style: 'normal',
+      mediaId: 'm',
+      missingTurkish: '',
+      createdAt: '2026-11-25T10:00:00Z',
+      ...over,
+    });
+
+    function withTeamTemplate(elements?: object[], extra: object[] = []) {
+      const draft = emptyCertificateDraft();
+      (certificatesApi.template as jest.Mock).mockResolvedValue({
+        id: 'tpl-art',
+        name: 'ARTLAB şablonu',
+        ownerTeam: 'ARTLAB',
+        sourceKind: 'sky',
+        sourceRef: '',
+        sourceEditUrl: '',
+        draftLayout: { ...draft.layout, elements: elements ?? draft.layout.elements },
+        system: false,
+      });
+      (certificatesApi.templateFonts as jest.Mock).mockResolvedValue([
+        ...extra,
+        font({ id: 'f-club', mediaId: 'm-club' }),
+        font({
+          id: 'f-art',
+          ownerTeam: 'ARTLAB',
+          family: 'Gotham',
+          weight: 400,
+          mediaId: 'm-art',
+          missingTurkish: 'ğı',
+        }),
+        // core lists only the team's and the club's; another team's never shows
+        font({ id: 'f-web', ownerTeam: 'WEBLAB', family: 'Inter Tight', mediaId: 'm-web' }),
+      ]);
+    }
+
+    const recipientLayer = () =>
+      screen
+        .getAllByRole('button', { name: 'Katılımcı adı' })
+        .find((button) => button.className.includes('truncate'))!;
+    const recipientBox = () =>
+      screen
+        .getAllByRole('button', { name: 'Katılımcı adı' })
+        .find((button) => button.className.includes('absolute'))!;
+
+    it("offers the template's team's and the club's fonts as their own group", async () => {
+      const user = userEvent.setup();
+      withTeamTemplate();
+      render(<CertificateTemplateEditor templateId="tpl-art" />);
+      await screen.findByDisplayValue('ARTLAB şablonu');
+      await waitFor(() => expect(certificatesApi.templateFonts).toHaveBeenCalledWith('tpl-art'));
+      await user.click(recipientLayer());
+      const group = await screen.findByRole('group', { name: 'Ekip yazı tipleri' });
+      expect(
+        within(group)
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual(['Brandon Grotesque 700 · Kulüp', 'Gotham 400 · ARTLAB']);
+    });
+
+    it('sets the font, its file and face on the layer and warns of missing Turkish letters', async () => {
+      const user = userEvent.setup();
+      withTeamTemplate();
+      render(<CertificateTemplateEditor templateId="tpl-art" />);
+      await screen.findByDisplayValue('ARTLAB şablonu');
+      await user.click(recipientLayer());
+      await screen.findByRole('group', { name: 'Ekip yazı tipleri' });
+      await user.selectOptions(screen.getByLabelText('Yazı tipi'), 'Gotham 400 · ARTLAB');
+      expect(recipientBox().style.fontFamily).toMatch(/^"?'?cf-m-art/);
+      expect(screen.getByLabelText('Kalınlık')).toHaveValue(400);
+      expect(screen.getByLabelText('Kalınlık')).toBeDisabled();
+      expect(
+        screen.getByText('Bu yazı tipinde ğ, ı yok; adlarda başka yazı tipine düşebilir.'),
+      ).toBeInTheDocument();
+
+      // Back to a catalog font: the file goes
+      await user.selectOptions(screen.getByLabelText('Yazı tipi'), 'Montserrat');
+      expect(recipientBox().style.fontFamily).not.toMatch(/cf-/);
+      expect(screen.getByLabelText('Kalınlık')).toBeEnabled();
+    });
+
+    it('shows a used archived font apart, not to be chosen again, and warns', async () => {
+      const user = userEvent.setup();
+      const draft = emptyCertificateDraft();
+      withTeamTemplate(
+        draft.layout.elements.map((element) =>
+          element.kind === 'recipientName'
+            ? { ...element, fontFamily: 'Eski Yazı', fontMediaId: 'm-archived' }
+            : element,
+        ),
+        [
+          font({
+            id: 'f-old',
+            ownerTeam: 'ARTLAB',
+            family: 'Eski Yazı',
+            mediaId: 'm-archived',
+            draftOnly: true,
+          }),
+        ],
+      );
+      render(<CertificateTemplateEditor templateId="tpl-art" />);
+      await screen.findByDisplayValue('ARTLAB şablonu');
+      await user.click(recipientLayer());
+      const option = await screen.findByRole('option', { name: 'Eski Yazı 700 · ARTLAB' });
+      expect(option.closest('optgroup')).toHaveAttribute('label', 'Bu şablonda kullanılan');
+      expect(option).toBeDisabled();
+      expect(
+        within(screen.getByRole('group', { name: 'Ekip yazı tipleri' }))
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).not.toContain('Eski Yazı 700 · ARTLAB');
+      expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-archived');
+      expect(
+        screen.getByText(
+          'Yazı tipi arşivlenmiş ya da bu ekibin değil; değiştirirsen geri seçilemez.',
+        ),
+      ).toBeInTheDocument();
+      // Drawn in its own file: the box names it first
+      expect(recipientBox().style.fontFamily).toMatch(/cf-m-archived/);
+    });
+
+    it('warns of a layer whose font the list does not name at all', async () => {
+      const user = userEvent.setup();
+      const draft = emptyCertificateDraft();
+      withTeamTemplate(
+        draft.layout.elements.map((element) =>
+          element.kind === 'recipientName'
+            ? { ...element, fontFamily: 'Bilinmeyen', fontMediaId: 'm-gone' }
+            : element,
+        ),
+      );
+      render(<CertificateTemplateEditor templateId="tpl-art" />);
+      await screen.findByDisplayValue('ARTLAB şablonu');
+      await user.click(recipientLayer());
+      expect(
+        await screen.findByText(
+          'Yazı tipi arşivlenmiş ya da bu ekibin değil; değiştirirsen geri seçilemez.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Yazı tipi')).toHaveValue('cf:m-gone');
+    });
+
+    it("reads a new template's fonts by its team", async () => {
+      (certificatesApi.fonts as jest.Mock).mockResolvedValue([]);
+      render(<CertificateTemplateEditor />);
+      await waitFor(() => expect(certificatesApi.fonts).toHaveBeenCalledWith(undefined));
+      expect(certificatesApi.templateFonts).not.toHaveBeenCalled();
+    });
   });
 
   it('lets the designer delete the verification QR and the Event name, and keeps the recipient', async () => {
@@ -929,6 +1089,7 @@ describe('CertificateTemplateEditor', () => {
         page: { width: 1123, height: 794 },
         placement: { fit: 'fill', x: 0.5, y: 0.5, scale: 1 },
         existingElements: 2,
+        templateId: 'tpl-pdf',
       });
       // The new PDF is drawn, its text a layer the designer can pick
       await waitFor(() =>
@@ -947,6 +1108,11 @@ describe('CertificateTemplateEditor', () => {
         name: 'Yazı tipi değişti: BrandonGrotesque-Regular → Noto Sans',
       });
       expect(warned).toBeInTheDocument();
+      // Who may add fonts is sent to upload the PDF's own
+      await user.click(warned.closest('button')!);
+      expect(
+        screen.getByRole('link', { name: 'BrandonGrotesque yazı tipini yükle' }),
+      ).toHaveAttribute('href', '/certificates/fonts?aile=BrandonGrotesque');
 
       await user.click(screen.getByRole('button', { name: /Taslağı kaydet/ }));
       await waitFor(() => expect(certificatesApi.updateTemplate).toHaveBeenCalled());

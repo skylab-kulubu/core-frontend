@@ -19,6 +19,7 @@ export const CHROME_CRUMB_LABELS: Readonly<Record<string, string>> = {
   '/certificates/templates': 'Şablonlar',
   '/certificates/templates/new': 'Yeni şablon',
   '/certificates/defaults': 'Varsayılanlar',
+  '/certificates/fonts': 'Yazı tipleri',
   '/handoff-targets': "SkyApp'ten geçiş",
   '/map-regions': 'Harita bölgeleri',
 };

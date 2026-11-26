@@ -55,12 +55,14 @@ const layer = (id: string, kind: CertificateElement['kind']): CertificateElement
 
 function renderSheet(
   elements: CertificateElement[] = [layer('name', 'recipientName'), layer('qr', 'verificationQr')],
+  templateId?: string,
 ) {
   const onConverted = jest.fn();
   render(
     <BackgroundTextSheet
       open
       mediaId="bg-pdf"
+      templateId={templateId}
       page={{ width: 1123, height: 794 }}
       placement={{ fit: 'contain', x: 0.5, y: 0.5, scale: 1 }}
       elements={elements}
@@ -83,6 +85,19 @@ describe('BackgroundTextSheet', () => {
     });
   });
 
+  it("matches the template's team's fonts: the list and the conversion name the template", async () => {
+    const user = userEvent.setup();
+    const { onConverted } = renderSheet(undefined, 'tpl-1');
+    await screen.findByRole('list', { name: 'PDF metinleri' });
+    expect(assetText).toHaveBeenCalledWith('bg-pdf', 'tpl-1');
+    await user.click(screen.getByRole('button', { name: 'Dönüştür' }));
+    await waitFor(() => expect(onConverted).toHaveBeenCalled());
+    expect(convert).toHaveBeenCalledWith(
+      'bg-pdf',
+      expect.objectContaining({ templateId: 'tpl-1' }),
+    );
+  });
+
   it('says the font each text gets', () => {
     expect(spanFontLine(SPANS[1])).toBe('BrandonGrotesque-Regular 32 → Noto Sans 400 32');
     expect(spanFontLine(span('1', 'x', { fontStyle: 'italic', fontSizePt: 12.25 }))).toBe(
@@ -95,7 +110,7 @@ describe('BackgroundTextSheet', () => {
     const { onConverted } = renderSheet();
 
     const list = await screen.findByRole('list', { name: 'PDF metinleri' });
-    expect(assetText).toHaveBeenCalledWith('bg-pdf');
+    expect(assetText).toHaveBeenCalledWith('bg-pdf', undefined);
     expect(within(list).getAllByRole('listitem')).toHaveLength(4);
     expect(screen.getByRole('checkbox', { name: /Katılım Belgesi/ })).toBeChecked();
     const stroke = screen.getByRole('checkbox', { name: /SKY LAB/ });

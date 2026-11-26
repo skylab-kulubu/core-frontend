@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './certificate-fonts.css';
 import {
@@ -42,6 +43,7 @@ import {
   type CertificateTemplateDraft,
   type BackgroundTextList,
   type BackgroundTextWarning,
+  type CertificateFont,
 } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { mediaApi } from '@/lib/api/media';
@@ -52,7 +54,7 @@ import {
   canEditCertificateTemplateForTeam,
   canManageCertificateTemplates,
 } from '@/lib/auth/groups';
-import { useAnyTeamCan, useTeamCan } from '@/lib/use-app-can';
+import { useAnyTeamCan, useAppCan, useTeamCan } from '@/lib/use-app-can';
 import { useNotify } from '@/lib/ui/use-notify';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
@@ -61,7 +63,13 @@ import {
   FONT_GROUPS,
   SAMPLE,
   certificateFontStack,
+  elementFontStack,
 } from '@/lib/certificate-layout';
+import {
+  fontFaceLabel,
+  missingLettersWarning,
+  useLoadedCertificateFonts,
+} from '@/lib/certificate-user-fonts';
 import {
   FIT_LABELS,
   LEGACY_IMAGE_PLACEMENT,
@@ -170,7 +178,27 @@ const TEXT_MISSING: Record<NonNullable<BackgroundTextList['textMissing']>, strin
   unknown: "PDF'te düzenlenebilir metin yok.",
 };
 
-/** A conversion warning as the layer list and the properties show it. */
+/**
+ * A conversion warning as the layer list and the properties show it; a font
+ * stood in for also names the PDF's family, which the fonts page can take.
+ */
+type TextWarning = { text: string; family?: string };
+
+/** The PDF's family of a font name: `ABCDEF+BrandonGrotesque-Bold` → `BrandonGrotesque`. */
+export function pdfFontFamily(name: string) {
+  return name
+    .replace(/^[A-Z]{6}\+/, '')
+    .split(/[-,]/)[0]
+    .trim();
+}
+
+function textWarning(warning: BackgroundTextWarning): TextWarning {
+  const text = warningText(warning);
+  return warning.kind === 'fontSubstituted' && warning.from
+    ? { text, family: pdfFontFamily(String(warning.from)) }
+    : { text };
+}
+
 function warningText(warning: BackgroundTextWarning) {
   switch (warning.kind) {
     case 'fontSubstituted':
@@ -349,7 +377,7 @@ export function CertificateTemplateEditor({
     Record<string, BackgroundTextList['textMissing'] | null>
   >({});
   // Conversion warnings by layer id, for this session (core does not keep them)
-  const [textWarnings, setTextWarnings] = useState<Record<string, string[]>>({});
+  const [textWarnings, setTextWarnings] = useState<Record<string, TextWarning[]>>({});
   const [confirm, confirmDialog] = useConfirm();
   // Core dropped the placement on save: it predates it (core-backend #446)
   const [placementDropped, setPlacementDropped] = useState(false);
@@ -373,6 +401,11 @@ export function CertificateTemplateEditor({
     : canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []) &&
       anyTeamCan('certificateTemplate.create');
   const canEdit = templateRule || (Boolean(eventId) && eventEditable);
+  // Who may add a font (core's media.uploadCertificateFont): the conversion's "upload it" link
+  const appCan = useAppCan(canManageCertificateTemplates(user?.groups ?? [], user?.roles ?? []));
+  const canUploadFonts = appCan('media.uploadCertificateFont');
+  // The template's team's and the club's uploaded fonts (null: not read yet, or no such route)
+  const [fonts, setFonts] = useState<CertificateFont[] | null>(null);
 
   const elements = draft.layout.elements;
   const selected = useMemo(
@@ -429,6 +462,53 @@ export function CertificateTemplateEditor({
       )
     : undefined;
   const fittedPage = backgroundSize ? pageForBackground(backgroundSize) : null;
+
+  // The fonts the template may set text in: its team's and the club's (a saved
+  // template's also those its layers use, marked), read again when the team is
+  // changed (after a pause, since it is typed)
+  const fontTeam = draft.ownerTeam.trim();
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      (savedId
+        ? certificatesApi.templateFonts(savedId)
+        : certificatesApi.fonts(fontTeam || undefined)
+      )
+        .then((rows) => {
+          if (!cancelled) setFonts(rows);
+        })
+        // An older core (404) or a team the person may not use (403): the catalog alone
+        .catch(() => {
+          if (!cancelled) setFonts(null);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loading, fontTeam, savedId]);
+  // A new layer may take a current font of the template's team or the club's
+  const offered = (font: CertificateFont) =>
+    !font.draftOnly && (font.ownerTeam === '' || font.ownerTeam === fontTeam);
+  const teamFonts = (fonts ?? []).filter(offered);
+  const fontsByMedia = useMemo(
+    () => new Map((fonts ?? []).map((font) => [font.mediaId, font])),
+    [fonts],
+  );
+  // The canvas draws a layer in its uploaded font once the file is in (an archived one too)
+  const usedFonts = useMemo(
+    () => (fonts ?? []).filter((font) => elements.some((el) => el.fontMediaId === font.mediaId)),
+    [fonts, elements],
+  );
+  useLoadedCertificateFonts(usedFonts);
+  // Listed because a layer uses it, but no new layer may take it
+  const keptFonts = usedFonts.filter((font) => !offered(font));
+  const selectedFont = selected?.fontMediaId ? fontsByMedia.get(selected.fontMediaId) : undefined;
+  // A layer's uploaded font the list no longer offers: archived, or not the team's
+  const selectedFontGone = Boolean(
+    selected?.fontMediaId && fonts && (!selectedFont || !offered(selectedFont)),
+  );
 
   useEffect(() => {
     if (
@@ -750,10 +830,10 @@ export function CertificateTemplateEditor({
         elements: [...keptLayers(current.layout.elements, replacedKinds), ...result.elements],
       },
     }));
-    const warnings: Record<string, string[]> = {};
+    const warnings: Record<string, TextWarning[]> = {};
     for (const warning of result.warnings) {
       if (!warning.elementId) continue;
-      (warnings[warning.elementId] ??= []).push(warningText(warning));
+      (warnings[warning.elementId] ??= []).push(textWarning(warning));
     }
     setTextWarnings((current) => ({ ...current, ...warnings }));
     const outside = result.warnings.filter((warning) => warning.kind === 'outsidePage').length;
@@ -1290,10 +1370,10 @@ export function CertificateTemplateEditor({
                     {textWarnings[element.id] ? (
                       <TriangleAlert
                         role="img"
-                        aria-label={textWarnings[element.id].join('; ')}
+                        aria-label={textWarnings[element.id].map((w) => w.text).join('; ')}
                         className="text-warning ml-1 inline size-3.5 align-[-2px]"
                       >
-                        <title>{textWarnings[element.id].join('; ')}</title>
+                        <title>{textWarnings[element.id].map((w) => w.text).join('; ')}</title>
                       </TriangleAlert>
                     ) : null}
                   </button>
@@ -1370,7 +1450,7 @@ export function CertificateTemplateEditor({
                 width: `${(element.width / draft.layout.width) * 100}%`,
                 height: `${(element.height / draft.layout.height) * 100}%`,
                 color: element.color,
-                fontFamily: certificateFontStack(element.fontFamily),
+                fontFamily: elementFontStack(element),
                 fontSize: `${((element.fontSize ?? 16) / draft.layout.width) * 100}cqw`,
                 fontWeight: element.fontWeight,
                 fontStyle: element.fontStyle,
@@ -1519,10 +1599,18 @@ export function CertificateTemplateEditor({
                   ) : null}
                   {textWarnings[selected.id]?.map((warning) => (
                     <p
-                      key={warning}
-                      className="text-warning flex items-center gap-1.5 text-[13px]/5"
+                      key={warning.text}
+                      className="text-warning flex flex-wrap items-center gap-x-1.5 text-[13px]/5"
                     >
-                      <TriangleAlert className="size-3.5 shrink-0" aria-hidden /> {warning}
+                      <TriangleAlert className="size-3.5 shrink-0" aria-hidden /> {warning.text}
+                      {warning.family && canUploadFonts ? (
+                        <Link
+                          href={`/certificates/fonts?aile=${encodeURIComponent(warning.family)}`}
+                          className="text-skylab-300 underline underline-offset-2"
+                        >
+                          {warning.family} yazı tipini yükle
+                        </Link>
+                      ) : null}
                     </p>
                   ))}
                   {selected.sourceFont ? (
@@ -1545,7 +1633,8 @@ export function CertificateTemplateEditor({
                     <label className="space-y-1">
                       <FieldLabel>Kalınlık</FieldLabel>
                       <Field
-                        disabled={!canEdit || selected.locked}
+                        // An uploaded font is one face: its weight is the file's
+                        disabled={!canEdit || selected.locked || Boolean(selected.fontMediaId)}
                         type="number"
                         step={100}
                         value={selected.fontWeight ?? 400}
@@ -1559,11 +1648,59 @@ export function CertificateTemplateEditor({
                     <FieldLabel>Yazı tipi</FieldLabel>
                     <Select
                       disabled={!canEdit || selected.locked}
-                      value={selected.fontFamily ?? 'Arial'}
-                      onChange={(event) =>
-                        updateElement(selected.id, { fontFamily: event.target.value })
+                      value={
+                        selected.fontMediaId
+                          ? `cf:${selected.fontMediaId}`
+                          : (selected.fontFamily ?? 'Arial')
                       }
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (!value.startsWith('cf:')) {
+                          updateElement(selected.id, { fontFamily: value, fontMediaId: undefined });
+                          return;
+                        }
+                        const font = fontsByMedia.get(value.slice(3));
+                        if (!font || !offered(font)) return;
+                        updateElement(selected.id, {
+                          fontFamily: font.family,
+                          fontMediaId: font.mediaId,
+                          fontWeight: font.weight,
+                          fontStyle: font.style === 'italic' ? 'italic' : undefined,
+                        });
+                      }}
                     >
+                      {teamFonts.length ? (
+                        <optgroup label="Ekip yazı tipleri">
+                          {teamFonts.map((font) => (
+                            <option
+                              key={font.mediaId}
+                              value={`cf:${font.mediaId}`}
+                              style={{
+                                fontFamily: elementFontStack({
+                                  ...font,
+                                  fontMediaId: font.mediaId,
+                                }),
+                              }}
+                            >
+                              {`${font.family} ${fontFaceLabel(font)} · ${font.ownerTeam || 'Kulüp'}`}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {keptFonts.length || (selected.fontMediaId && !selectedFont) ? (
+                        <optgroup label="Bu şablonda kullanılan">
+                          {keptFonts.map((font) => (
+                            <option key={font.mediaId} value={`cf:${font.mediaId}`} disabled>
+                              {`${font.family} ${fontFaceLabel(font)} · ${font.ownerTeam || 'Kulüp'}`}
+                            </option>
+                          ))}
+                          {selected.fontMediaId && !selectedFont ? (
+                            <option value={`cf:${selected.fontMediaId}`} disabled>
+                              {selected.fontFamily ?? 'Yüklenen yazı tipi'}
+                            </option>
+                          ) : null}
+                        </optgroup>
+                      ) : null}
                       {FONT_GROUPS.map((group) => (
                         <optgroup key={group.label} label={group.label}>
                           {group.fonts.map(([font]) => (
@@ -1579,11 +1716,26 @@ export function CertificateTemplateEditor({
                       ))}
                     </Select>
                   </label>
+                  {selectedFont?.missingTurkish ? (
+                    <p className="text-warning flex items-center gap-1.5 text-[13px]/5">
+                      <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+                      {missingLettersWarning(
+                        selectedFont.missingTurkish,
+                        selected.kind === 'recipientName',
+                      )}
+                    </p>
+                  ) : null}
+                  {selectedFontGone ? (
+                    <p className="text-warning flex items-center gap-1.5 text-[13px]/5">
+                      <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+                      Yazı tipi arşivlenmiş ya da bu ekibin değil; değiştirirsen geri seçilemez.
+                    </p>
+                  ) : null}
                   <label className="text-secondary-foreground flex items-center gap-2 text-[13px]/5">
                     <input
                       type="checkbox"
                       className="accent-skylab-400 size-4 disabled:opacity-40"
-                      disabled={!canEdit || selected.locked}
+                      disabled={!canEdit || selected.locked || Boolean(selected.fontMediaId)}
                       checked={selected.fontStyle === 'italic'}
                       onChange={(event) =>
                         updateElement(selected.id, {
@@ -2040,6 +2192,7 @@ export function CertificateTemplateEditor({
         <BackgroundTextSheet
           open={textSheetOpen}
           mediaId={backgroundId}
+          templateId={savedId}
           page={{ width: draft.layout.width, height: draft.layout.height }}
           placement={
             draft.layout.backgroundPlacement

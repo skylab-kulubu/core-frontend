@@ -37,6 +37,7 @@ describe('buildSidebarNavigation', () => {
         [
           'Sezonlar',
           'Sertifika şablonları',
+          'Sertifika yazı tipleri',
           'Sertifika varsayılanları',
           'Uygulamalar',
           "SkyApp'ten geçiş",
@@ -88,7 +89,7 @@ describe('buildSidebarNavigation', () => {
       'Özet',
       'Etkinlikler',
       ['Kişiler', ['Ekibim']],
-      ['Ayarlar', ['Sertifika şablonları', 'Sertifika varsayılanları']],
+      ['Ayarlar', ['Sertifika şablonları', 'Sertifika yazı tipleri', 'Sertifika varsayılanları']],
     ]);
   });
 
@@ -151,7 +152,10 @@ describe('buildSidebarNavigation', () => {
   it('offers a template manager the templates and only a binder the defaults', () => {
     const hrefs = (roles: string[]) =>
       filterSidebarNavForUser(person(['/UYELER/ARGE/WEBLAB'], roles)).map((link) => link.href);
-    expect(hrefs(['certificate:template:manage'])).toEqual(['/certificates/templates']);
+    expect(hrefs(['certificate:template:manage'])).toEqual([
+      '/certificates/templates',
+      '/certificates/fonts',
+    ]);
     expect(hrefs(['certificate:binding:manage'])).toEqual([
       '/certificates/templates',
       '/certificates/defaults',
