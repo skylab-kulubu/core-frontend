@@ -8,6 +8,9 @@ import {
 import { certificatesApi, type CertificateBatch } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
+
 jest.mock('@/lib/api/certificates', () => ({
   certificatesApi: {
     summary: jest.fn(),
@@ -30,6 +33,16 @@ jest.mock('@/lib/api/certificates', () => ({
     rescan: jest.fn(),
     resendMail: jest.fn(),
     resendEventMails: jest.fn(),
+    // An older core: no Event templates; the card names the resolved one from the figures
+    eventTemplate: jest.fn(() => {
+      const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+      return Promise.reject(new Problem(404, 'Not Found'));
+    }),
+    resolve: jest.fn(() => Promise.reject(new Error('404'))),
+    createEventTemplate: jest.fn(),
+    previewEvent: jest.fn(),
+    setBinding: jest.fn(),
+    clearBinding: jest.fn(),
   },
 }));
 
@@ -884,5 +897,31 @@ describe('EventCertificatesPanel certificate mail', () => {
     expect(
       await screen.findByText('Herkese yeniden gönderme 10 dakikada bir yapılabilir.'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('EventCertificatesPanel without the figures', () => {
+  it('shows the rule and the template when core refuses the figures (403)', async () => {
+    jest.clearAllMocks();
+    api.summary.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    api.listIssued.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    api.templates.mockRejectedValue(new ProblemError(403, 'Forbidden'));
+    render(
+      <EventCertificatesPanel
+        eventId="e1"
+        ownerTeam="GECEKODU"
+        attendanceRule="once"
+        finalizeOpen
+        tickets={[]}
+        canIssue={false}
+        canBind
+        canRevoke={false}
+        canReadIssued
+        canEditEvent
+      />,
+    );
+    expect(await screen.findByRole('heading', { name: 'Kural' })).toBeInTheDocument();
+    expect(screen.queryByText('Sertifika bilgileri yüklenemedi')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
   });
 });

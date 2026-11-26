@@ -1,5 +1,6 @@
 'use client';
 
+import type { EventViewer } from '@/lib/api/events';
 import { leaderOwnerTeams } from '@/lib/auth/groups';
 import { useCapabilities, type CapabilitiesState } from '@/lib/capabilities-context';
 
@@ -94,6 +95,44 @@ export function teamDecision(
   return Boolean(scope?.can?.[key]);
 }
 
+/** The panel's team keys whose Event-by-Event decision core names otherwise (`viewer.can`). */
+const VIEWER_KEYS: Readonly<Record<string, string>> = {
+  'certificateTemplate.assign': 'certificate.template.assign',
+  'competitor.update': 'competition.manage',
+};
+
+/**
+ * core's decision on this one Event (`viewer.can`, core docs/co-organizers.md):
+ * it reads the Event's Co-organizers, which the Owner team's capabilities
+ * cannot. Undefined when core sends none (an older core, or a key it does not
+ * decide per Event yet, such as `door.checkIn` or `certificate.read`: those
+ * are read once core sends them; `certificate.read` is also true for who
+ * issues or revokes on the Event).
+ */
+export function viewerDecision(
+  event: { viewer?: EventViewer } | null | undefined,
+  key: string,
+): boolean | undefined {
+  const can = event?.viewer?.can;
+  const decided = can?.[VIEWER_KEYS[key] ?? key];
+  if (typeof decided === 'boolean') return decided;
+  // Reading the issued certificates: who issues or revokes on the Event reads them too
+  if (key === 'certificate.read' && (can?.['certificate.issue'] || can?.['certificate.revoke'])) {
+    return true;
+  }
+  return undefined;
+}
+
+/** The Event's own decision when core sends one; else teamDecision for its Owner team. */
+export function eventDecision(
+  state: CapabilitiesState,
+  event: { ownerTeam: string; viewer?: EventViewer },
+  key: string,
+  groupRule: boolean,
+): boolean {
+  return viewerDecision(event, key) ?? teamDecision(state, event.ownerTeam, key, groupRule);
+}
+
 /** teamDecision over the shared capabilities. */
 export function useTeamDecide(): TeamDecide {
   const state = useCapabilities();
@@ -111,4 +150,19 @@ export function leaderTeamsOf(state: CapabilitiesState, groups: readonly string[
   return (state.data.teams ?? [])
     .filter((row) => row.levels?.includes('LEADER'))
     .map((row) => row.team);
+}
+
+/**
+ * Whether core sends the door's mails now (capabilities `features`): `false`
+ * only when core's answer says so. Until it arrives, when it cannot be read
+ * and from an older core without `features`, the Event's switches are offered
+ * as before.
+ */
+export function useAttendanceMailOn(): { welcome: boolean; recorded: boolean } {
+  const state = useCapabilities();
+  const features = state.status === 'ready' ? state.data.features : undefined;
+  return {
+    welcome: features?.attendanceWelcomeMail !== false,
+    recorded: features?.attendanceRecordedMail !== false,
+  };
 }

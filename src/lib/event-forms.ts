@@ -404,3 +404,8 @@ export async function attachFormAliases(
   }
   return out;
 }
+
+/** A Skyforms form's public address, as a form slot keeps it: `https://<forms host>/<id>`. */
+export function skyformsPublicUrl(formId: string, origin = formsAdminOrigin()): string {
+  return `${new URL(origin).origin}/${formId}`;
+}
