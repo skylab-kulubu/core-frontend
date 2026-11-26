@@ -124,3 +124,7 @@ export function ruleIssues(draft: {
 export function countedByDefault(sessionType: string): boolean {
   return sessionType.trim().toUpperCase() !== 'NETWORKING';
 }
+
+/** "Sertifikaları otomatik gönder" (core `attendanceAutoFinalize`): the edit page and the rule sheet. */
+export const AUTO_SEND_LABEL = 'Sertifikaları otomatik gönder';
+export const AUTO_SEND_HINT = 'Son oturumdan 1 saat sonra üretilir ve postalanır';

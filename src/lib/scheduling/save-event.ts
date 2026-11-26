@@ -74,6 +74,16 @@ function autoTicketBody(
     : {};
 }
 
+/**
+ * "Sertifikaları otomatik gönder": left out until it was read or set (an older core reads none).
+ * A new Event always sends it, so an older core's default (on) does not apply.
+ */
+function autoSendBody(form: EventFormState): Pick<EventPatch, 'attendanceAutoFinalize'> {
+  return typeof form.attendanceAutoFinalize === 'boolean'
+    ? { attendanceAutoFinalize: form.attendanceAutoFinalize }
+    : {};
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -104,6 +114,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     // The count rule's threshold; left out for the default (the Sertifikalar tab sets it)
     attendanceMinCount:
       form.attendanceRule === 'count' ? (form.attendanceMinCount ?? undefined) : undefined,
+    ...autoSendBody(form),
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') || undefined,
   };
@@ -149,6 +160,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
     attendanceMinCount: form.attendanceRule === 'count' ? (form.attendanceMinCount ?? null) : null,
+    ...autoSendBody(form),
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };

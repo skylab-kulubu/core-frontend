@@ -31,6 +31,7 @@ import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-pag
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
 import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
 import {
+  autoSendTemplateWarning,
   EventTemplateRow,
   TemplateBindingDialog,
   useEventTemplateState,
@@ -1199,6 +1200,7 @@ export function EventCertificatesPanel({
           eventId={eventId}
           days={days}
           finalized={Boolean(summary?.attendanceFinalizedAt)}
+          templateWarning={autoSendTemplateWarning(templateView)}
           onClose={() => setRuleOpen(false)}
           onSaved={(saved) => {
             setRule(saved);
