@@ -74,6 +74,17 @@ export type FormRespondentsPage = {
   total: number;
   /** A gathering of the Event's forms waits or runs. */
   collecting: boolean;
+  /** Answers the last full gatherings kept no row for (core K3); absent before core sent it. */
+  incomplete?: RespondentIncomplete;
+};
+
+export type RespondentIncomplete = {
+  /** No first and last name (a one-word full name too). */
+  missingName: number;
+  /** No plain e-mail address. */
+  missingEmail: number;
+  /** No sign-in, no named guest, no mapping. */
+  noPerson: number;
 };
 
 export type RespondentsQuery = {
