@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ProblemError } from '@/lib/api/core';
@@ -52,6 +52,34 @@ const entry = (id: string, name: string) => ({
   createdAt: new Date(2026, 10, 25, 19, 4, 0).toISOString(),
 });
 
+/** A camera that reads `codes` one after another, then nothing, through BarcodeDetector. */
+function fakeCamera(codes: string[]) {
+  const queue = [...codes];
+  class FakeDetector {
+    async detect() {
+      const next = queue.shift();
+      return next ? [{ rawValue: next }] : [];
+    }
+  }
+  (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector = FakeDetector;
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop: jest.fn() }] }),
+    },
+  });
+  Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+    configurable: true,
+    value: () => Promise.resolve(),
+  });
+  return {
+    remove() {
+      delete (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    },
+  };
+}
+
 describe('DoorDesk at the event’s own door', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -71,14 +99,14 @@ describe('DoorDesk at the event’s own door', () => {
     render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(picker()).toHaveValue(EVENT_DOOR));
     expect(screen.queryByRole('option', { name: 'Oturum seç' })).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Bu etkinliğin oturumu yok: kapı etkinlik girişini yazar.'),
-    ).toBeVisible();
+    expect(screen.getByText('Bu etkinliğin oturumu yok: kapı alana girişi yazar.')).toBeVisible();
+    // One door, nothing to keep apart: no tabs
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Misafir QR/ })).not.toBeInTheDocument();
     // Today's entries and their count
     await waitFor(() => expect(screen.getByText('Grace Hopper')).toBeVisible());
     expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent(
-      'Etkinlik girişi · bugün1',
+      'Alana giriş · bugün1',
     );
     expect(ticketsApi.venueEntries).toHaveBeenCalledWith('e1');
     expect(ticketsApi.doorActivity).not.toHaveBeenCalled();
@@ -138,19 +166,253 @@ describe('DoorDesk at the event’s own door', () => {
     withSessions('per_session');
     render(<DoorDesk eventId="e1" />);
     await waitFor(() => expect(picker()).toHaveValue('s1'));
-    expect(
-      screen.queryByRole('option', { name: 'Etkinlik girişi (oturumsuz)' }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Alana giriş' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    // A session's count reads its attendance, as before
+    await waitFor(() => expect(ticketsApi.doorActivity).toHaveBeenCalledWith('s1'));
+    expect(ticketsApi.venueEntries).not.toHaveBeenCalled();
   });
 
-  it('opens an event run with one entry a day on its own door, its sessions beside it', async () => {
+  const tab = (name: string) => screen.getByRole('tab', { name });
+
+  /** Turns to Oturum katılımı and takes session s1 through the question. */
+  async function attendAt(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(tab('Oturum katılımı'));
+    await user.selectOptions(picker(), 's1');
+    const asked = await screen.findByRole('alertdialog');
+    await user.click(within(asked).getByRole('button', { name: 'Oturumu seç' }));
+    await waitFor(() => expect(picker()).toHaveValue('s1'));
+  }
+
+  it('opens an event run with one entry a day on Alana giriş, its own count and list', async () => {
     withSessions('venue');
     render(<DoorDesk eventId="e1" />);
-    await waitFor(() => expect(picker()).toHaveValue(EVENT_DOOR));
-    expect(screen.getByText('Etkinlik girişi yazılır; oturum yoklaması yazılmaz.')).toBeVisible();
-    expect(screen.getByRole('button', { name: /Misafir QR/ })).toBeDisabled();
-    await userEvent.setup().selectOptions(picker(), 's1');
+    await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+    expect(tab('Oturum katılımı')).toHaveAttribute('aria-selected', 'false');
+    // No session to pick and no guest QR here: both are a session's attendance
+    expect(screen.queryByLabelText('Oturum')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Misafir QR/ })).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Okutulan bilet bugünkü alana girişi yazar; oturum katılımı yazılmaz.'),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent(
+        'Alana giriş · bugün1giren',
+      ),
+    );
+    expect(screen.getByRole('region', { name: 'Son girişler' })).toHaveTextContent(
+      'Son alana girişler',
+    );
+    expect(ticketsApi.doorActivity).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Girişi yaz' })).toBeVisible();
+  });
+
+  it('keeps the two tabs as WAI-ARIA tabs: one panel, the arrow keys and Home/End', async () => {
+    withSessions('venue');
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+    const panel = screen.getByRole('tabpanel');
+    expect(tab('Alana giriş')).toHaveAttribute('aria-controls', panel.id);
+    expect(tab('Oturum katılımı')).toHaveAttribute('aria-controls', panel.id);
+    expect(panel).toHaveAttribute('aria-labelledby', tab('Alana giriş').id);
+    // Only the selected tab is in the Tab order
+    expect(tab('Alana giriş')).toHaveAttribute('tabindex', '0');
+    expect(tab('Oturum katılımı')).toHaveAttribute('tabindex', '-1');
+    expect(within(panel).getByRole('status', { name: 'Giriş sonucu' })).toBeInTheDocument();
+
+    tab('Alana giriş').focus();
+    await user.keyboard('{ArrowRight}');
+    expect(tab('Oturum katılımı')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Oturum katılımı')).toHaveFocus();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      tab('Oturum katılımı').id,
+    );
+    expect(picker()).toHaveValue('');
+    expect(screen.getByRole('status', { name: 'Katılım sonucu' })).toBeInTheDocument();
+    // Turning to the tab takes no session and asks nothing
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+
+    await user.keyboard('{Home}');
+    expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Alana giriş')).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(tab('Oturum katılımı')).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    expect(tab('Alana giriş')).toHaveFocus();
+  });
+
+  it('keeps no tabs on a door that has one way in', async () => {
+    withSessions('per_session');
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(picker()).toHaveValue('s1'));
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toBeInTheDocument();
+  });
+
+  it('asks before turning the door to a session, naming it, and stays put on Vazgeç', async () => {
+    withSessions('venue');
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+    await user.click(tab('Oturum katılımı'));
+    expect(picker()).toHaveValue('');
+    expect(
+      screen.getByText('Oturumu seç: okutulan ya da yazılan herkes o oturuma katılmış sayılır.'),
+    ).toBeVisible();
+    // Nothing is written before a session is taken
+    expect(box()).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Katılımı yaz' })).toBeDisabled();
+
+    await user.selectOptions(picker(), 's1');
+    const asked = await screen.findByRole('alertdialog');
+    expect(asked).toHaveTextContent('"Açılış" oturumuna katılım yazılsın mı?');
+    expect(asked).toHaveTextContent(
+      'Kapıda alana giriş okutulur. Burada okutulan ya da yazılan herkes bu oturuma katılmış sayılır.',
+    );
+    await user.click(within(asked).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(picker()).toHaveValue('');
+    expect(ticketsApi.doorActivity).not.toHaveBeenCalled();
+  });
+
+  it('counts the session’s attendance apart from the day’s entries, and writes attendance', async () => {
+    withSessions('venue');
+    (ticketsApi.doorActivity as jest.Mock).mockResolvedValue({
+      total: 2,
+      items: [
+        {
+          id: 'ci-1',
+          sessionId: 's1',
+          eventDayId: 'd1',
+          personName: 'Grace Hopper',
+          createdAt: new Date(2026, 10, 27, 11, 4, 0).toISOString(),
+        },
+      ],
+    });
+    (ticketsApi.venueEntries as jest.Mock).mockResolvedValue([
+      entry('v1', 'Grace Hopper'),
+      entry('v2', 'Ada Lovelace'),
+      entry('v3', 'Alan Turing'),
+    ]);
+    (ticketsApi.resolveAndCheckIn as jest.Mock).mockResolvedValue({
+      id: 'ci-2',
+      sessionId: 's1',
+      eventDayId: 'd1',
+      personName: 'Ada Lovelace',
+      createdAt: new Date(2026, 10, 27, 11, 5, 0).toISOString(),
+    });
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+    await attendAt(user);
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Katılan sayısı' })).toHaveTextContent(
+        'Oturum katılımı2katılan',
+      ),
+    );
+    expect(screen.getByRole('status', { name: 'Alana giren sayısı' })).toHaveTextContent(
+      'Alana giriş · bugün3giren',
+    );
+    expect(screen.getByRole('region', { name: 'Son katılanlar' })).toHaveTextContent(
+      'Bu oturuma son katılanlar',
+    );
     expect(screen.getByRole('button', { name: /Misafir QR/ })).toBeEnabled();
+
+    await user.type(box(), 'ada{Enter}');
+    await waitFor(() =>
+      expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', { query: 'ada' }),
+    );
+    const result = screen.getByRole('status', { name: 'Katılım sonucu' });
+    await waitFor(() => expect(result).toHaveTextContent('Katıldı'));
+    expect(result).toHaveTextContent('Ada Lovelace');
+    expect(ticketsApi.resolveEntry).not.toHaveBeenCalled();
+
+    // Back to the venue's door: no question, entries again
+    await user.click(tab('Alana giriş'));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('status', { name: 'Giren sayısı' })).toHaveTextContent(
+        'Alana giriş · bugün3',
+      ),
+    );
+  });
+
+  it('scans for the session’s attendance and says when only the venue entry was written', async () => {
+    withSessions('venue');
+    const camera = fakeCamera(['TOKEN-1', 'TOKEN-2', 'TOKEN-3']);
+    (ticketsApi.scanCheckIn as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'ci-1',
+        ticketId: 't1',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        kind: 'check_in',
+        createdAt: new Date(2026, 10, 27, 11, 4, 0).toISOString(),
+      })
+      // A core that writes the day's entry alone at a session
+      .mockResolvedValueOnce({
+        id: 'v9',
+        ticketId: 't2',
+        sessionId: 's1',
+        eventDayId: 'd1',
+        kind: 'entry',
+        createdAt: new Date(2026, 10, 27, 11, 5, 0).toISOString(),
+      })
+      .mockRejectedValueOnce(
+        new ProblemError(409, 'Conflict', { code: 'already_entered', fields: { name: 'Ada' } }),
+      );
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+      await attendAt(user);
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      await waitFor(() =>
+        expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-1', { checkIn: true }),
+      );
+      const result = screen.getByRole('status', { name: 'Katılım sonucu' });
+      await waitFor(() => expect(result).toHaveTextContent('Katıldı'));
+      await waitFor(
+        () =>
+          expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-2', { checkIn: true }),
+        { timeout: 2000 },
+      );
+      await waitFor(() => expect(result).toHaveTextContent('Katılım yazılmadı'));
+      expect(result).toHaveTextContent('Yalnız alana giriş yazıldı; katılımı adıyla yaz.');
+      await waitFor(
+        () =>
+          expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-3', { checkIn: true }),
+        { timeout: 2000 },
+      );
+      await waitFor(() =>
+        expect(result).toHaveTextContent('Kişi bugün alana girmiş; katılımı adıyla yaz.'),
+      );
+      expect(result).toHaveTextContent('Katılım yazılmadı');
+      expect(result).not.toHaveTextContent('Bugün zaten girmiş');
+      expect(ticketsApi.scanEntry).not.toHaveBeenCalled();
+    } finally {
+      camera.remove();
+    }
+  });
+
+  it('scans the venue entry on Alana giriş', async () => {
+    withSessions('venue');
+    const camera = fakeCamera(['TOKEN-1']);
+    (ticketsApi.scanEntry as jest.Mock).mockResolvedValue(entry('v5', 'Ada Lovelace'));
+    try {
+      const user = userEvent.setup();
+      render(<DoorDesk eventId="e1" />);
+      await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+      await user.click(await screen.findByRole('button', { name: 'Kamerayla tara' }));
+      await waitFor(() => expect(ticketsApi.scanEntry).toHaveBeenCalledWith('e1', 'TOKEN-1'));
+      const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+      await waitFor(() => expect(result).toHaveTextContent('Girdi'));
+      expect(ticketsApi.scanCheckIn).not.toHaveBeenCalled();
+    } finally {
+      camera.remove();
+    }
   });
 
   it('names an event that is closed for entries', () => {
