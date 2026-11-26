@@ -135,6 +135,7 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceWelcomeMail: ev.attendanceWelcomeMail,
     attendanceRecordedMail: ev.attendanceRecordedMail,
     attendeeNote: ev.attendeeNote,
+    formResponsesAutoTicket: ev.formResponsesAutoTicket,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',

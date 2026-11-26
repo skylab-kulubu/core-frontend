@@ -120,6 +120,13 @@ export type Ticket = {
   waitlistedAt?: string;
   /** On the answer of a panel write that went past the Event's capacity; never stored. */
   overCapacity?: boolean;
+  /**
+   * The answer's state in Forms for a Ticket a form answer wrote (core docs/form-respondents.md);
+   * absent otherwise and before core's form respondents.
+   */
+  formsStatus?: 'accepted' | 'pending' | 'declined';
+  /** Forms declined the answer after the Ticket was written: kept, not cancelled (K6, core #460). */
+  formsRejectedAt?: string;
 };
 
 export type TicketStatus = 'active' | 'waitlisted' | 'cancelled';

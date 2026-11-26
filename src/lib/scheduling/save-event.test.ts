@@ -551,3 +551,23 @@ describe('a new event’s door mails', () => {
     });
   });
 });
+
+describe('"Otomatik bilet gönder" (formResponsesAutoTicket)', () => {
+  it('a new Event sends it only when off; an edit sends a change; an older core gets none', () => {
+    const fresh = emptyEventForm('GECEKODU');
+    expect(fresh.formResponsesAutoTicket).toBe(true);
+    expect(eventBodyFromForm(fresh)).not.toHaveProperty('formResponsesAutoTicket');
+    expect(eventBodyFromForm({ ...fresh, formResponsesAutoTicket: false })).toMatchObject({
+      formResponsesAutoTicket: false,
+    });
+
+    const loaded = formStateFromEvent({ ...savedEvent, formResponsesAutoTicket: true });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, formResponsesAutoTicket: false }, loaded)).toEqual({
+      formResponsesAutoTicket: false,
+    });
+
+    const older = formStateFromEvent(savedEvent);
+    expect(eventPatchFromForm(older)).not.toHaveProperty('formResponsesAutoTicket');
+  });
+});
