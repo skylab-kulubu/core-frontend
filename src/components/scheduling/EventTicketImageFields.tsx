@@ -36,6 +36,18 @@ const SOURCES: { value: TicketImageSource; label: string; hint: string }[] = [
   { value: 'upload', label: 'Ayrı görsel', hint: 'Logo ya da afiş yükle, bölümünü seç.' },
 ];
 
+/**
+ * The ARTLAB PDF (core docs/event-theme.md): an own image is printed whole as a 3:1 poster (cut
+ * from its middle), the chosen region only on Kurumsal's band; with no choice, the theme's band.
+ */
+const ARTLAB_HINTS: Partial<Record<TicketImageSource, string>> = {
+  auto: 'Temanın bandı.',
+  upload: 'Afişin tamamını yükle (3:1, ör. 3000 × 1000).',
+};
+
+/** The width to height of the ARTLAB PDF's poster. */
+const POSTER_RATIO = 3;
+
 type EventTicketImageFieldsProps = {
   /** The Event's id; a new Event that is not saved yet answers 404. */
   eventId?: string;
@@ -43,6 +55,8 @@ type EventTicketImageFieldsProps = {
   coverImageId: string;
   /** Addresses of images the page knows (the saved cover). */
   knownMedia?: EventMediaHint[];
+  /** The Event's theme in the form (`artlab`, or none for Kurumsal). */
+  theme?: string | null;
 };
 
 type Draft = {
@@ -79,6 +93,7 @@ export function EventTicketImageFields({
   eventId,
   coverImageId,
   knownMedia = [],
+  theme,
 }: EventTicketImageFieldsProps) {
   const [saved, setSaved] = useState<TicketImage | null>(null);
   const [draft, setDraft] = useState<Draft>({ source: 'auto' });
@@ -190,7 +205,12 @@ export function EventTicketImageFields({
     }
   }
 
-  const hint = SOURCES.find((row) => row.value === draft.source)?.hint;
+  const artlab = theme === 'artlab';
+  // ARTLAB prints an own image whole: its region matters to Kurumsal's band alone
+  const poster = artlab && draft.source === 'upload';
+  const hint =
+    (artlab ? ARTLAB_HINTS[draft.source] : undefined) ??
+    SOURCES.find((row) => row.value === draft.source)?.hint;
   const missing =
     draft.source === 'upload'
       ? !draft.mediaId || !crop
@@ -227,7 +247,10 @@ export function EventTicketImageFields({
           ))}
         </Select>
         <span id="bilet-gorseli-ipucu" className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
-          PDF biletin üstündeki şerit ({BAND_WIDTH_MM} × {BAND_HEIGHT_MM} mm). {hint}
+          {poster
+            ? 'PDF biletin üstündeki afiş.'
+            : `PDF biletin üstündeki şerit (${BAND_WIDTH_MM} × ${BAND_HEIGHT_MM} mm).`}{' '}
+          {hint}
         </span>
       </label>
       {draft.source === 'upload' ? (
@@ -259,7 +282,13 @@ export function EventTicketImageFields({
         <p role="alert" className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
           Görsel yüklenemedi.
         </p>
-      ) : src ? (
+      ) : poster && src ? (
+        <PosterPreview
+          src={src}
+          onNatural={(w, h) => setNatural({ src, w, h })}
+          onError={() => setBrokenSrc(src)}
+        />
+      ) : artlab && draft.source === 'auto' ? null : src ? (
         <BandCropper
           src={src}
           crop={crop}
@@ -291,6 +320,33 @@ export function EventTicketImageFields({
           </span>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/** The image as the ARTLAB PDF prints it: whole, cut to 3:1 from its middle. */
+function PosterPreview({
+  src,
+  onNatural,
+  onError,
+}: {
+  src: string;
+  onNatural: (w: number, h: number) => void;
+  onError: () => void;
+}) {
+  return (
+    <div
+      data-slot="ticket-poster"
+      className="border-border bg-muted w-full overflow-hidden rounded-md border"
+      style={{ aspectRatio: `${POSTER_RATIO} / 1` }}
+    >
+      <img
+        src={src}
+        alt=""
+        onLoad={(e) => onNatural(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+        onError={onError}
+        className="h-full w-full object-cover"
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Paintbrush } from 'lucide-react';
+import { Paintbrush, RotateCw } from 'lucide-react';
 import { ActionButton } from '@/components/chrome/ActionButton';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { Field } from '@/components/chrome/Field';
@@ -47,10 +47,13 @@ export function EventThemeFields({
   const [themes, setThemes] = useState<EventTheme[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'unsupported' | 'failed'>('loading');
   const [formBrand, setFormBrand] = useState<string | null>(null);
+  // "Yeniden dene" reads the catalog again
+  const [attempt, setAttempt] = useState(0);
   const formKey = formIds.join(',');
 
   useEffect(() => {
     let cancelled = false;
+    setState('loading');
     eventThemesApi
       .list()
       .then((rows) => {
@@ -65,7 +68,7 @@ export function EventThemeFields({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     setFormBrand(null);
@@ -89,7 +92,7 @@ export function EventThemeFields({
 
   if (state === 'loading') return <Shell>Yükleniyor…</Shell>;
   if (state === 'unsupported') return <Shell>Bu özellik henüz sunucuda yok.</Shell>;
-  if (state === 'failed') return <Shell>Temalar yüklenemedi.</Shell>;
+  const failed = state === 'failed';
 
   const options = themes.some((row) => row.key === DEFAULT_EVENT_THEME)
     ? themes
@@ -108,38 +111,58 @@ export function EventThemeFields({
   const accentTrimmed = accentText.trim();
   const accentInvalid = accentTrimmed !== '' && !HEX_COLOR.test(accentTrimmed);
   // Kurumsal's page takes the cover's first colour (core); another theme its own
-  const kurumsal = (chosen?.key ?? DEFAULT_EVENT_THEME) === DEFAULT_EVENT_THEME;
-  const themeAccent = kurumsal ? '' : (chosen?.accent ?? '');
+  // Without the catalog the stored key still tells which; its colour is not known then
+  const kurumsal = failed
+    ? chosenKey === DEFAULT_EVENT_THEME
+    : (chosen?.key ?? DEFAULT_EVENT_THEME) === DEFAULT_EVENT_THEME;
+  const themeAccent = kurumsal || failed ? '' : (chosen?.accent ?? '');
   const swatch = HEX_COLOR.test(accentTrimmed) ? accentTrimmed : themeAccent || FALLBACK_ACCENT;
 
   return (
     <div className="space-y-3" data-slot="event-theme">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1">
-          <FieldLabel>Tema</FieldLabel>
-          <Select
-            value={chosen?.key ?? DEFAULT_EVENT_THEME}
-            onChange={(e) =>
-              onChange({
-                theme: e.target.value === DEFAULT_EVENT_THEME ? null : e.target.value,
-              })
-            }
-            aria-label="Tema"
-            aria-describedby="etkinlik-tema-ipucu"
-          >
-            {options.map((row) => (
-              <option key={row.key} value={row.key}>
-                {row.name}
-              </option>
-            ))}
-          </Select>
-          <span
-            id="etkinlik-tema-ipucu"
-            className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
-          >
-            Bilet, bilet postaları ve bilet sayfası bu temayla çıkar.
-          </span>
-        </label>
+        {failed ? (
+          <div className="space-y-1">
+            <FieldLabel>Tema</FieldLabel>
+            <div className="flex flex-wrap items-center gap-3">
+              <span role="alert" className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+                Temalar yüklenemedi.
+              </span>
+              <ActionButton
+                icon={RotateCw}
+                showLabel
+                label="Yeniden dene"
+                onClick={() => setAttempt((n) => n + 1)}
+              />
+            </div>
+          </div>
+        ) : (
+          <label className="block space-y-1">
+            <FieldLabel>Tema</FieldLabel>
+            <Select
+              value={chosen?.key ?? DEFAULT_EVENT_THEME}
+              onChange={(e) =>
+                onChange({
+                  theme: e.target.value === DEFAULT_EVENT_THEME ? null : e.target.value,
+                })
+              }
+              aria-label="Tema"
+              aria-describedby="etkinlik-tema-ipucu"
+            >
+              {options.map((row) => (
+                <option key={row.key} value={row.key}>
+                  {row.name}
+                </option>
+              ))}
+            </Select>
+            <span
+              id="etkinlik-tema-ipucu"
+              className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
+            >
+              Bilet, bilet postaları ve bilet sayfası bu temayla çıkar.
+            </span>
+          </label>
+        )}
         <div className="space-y-1">
           <label htmlFor="etkinlik-vurgu-rengi">
             <FieldLabel>Vurgu rengi</FieldLabel>
@@ -156,7 +179,13 @@ export function EventThemeFields({
               id="etkinlik-vurgu-rengi"
               value={accentText}
               onChange={(e) => onChange({ ticketAccentColor: e.target.value || null })}
-              placeholder={themeAccent ? `Temanın rengi (${themeAccent})` : 'Kapağın rengi'}
+              placeholder={
+                kurumsal
+                  ? 'Kapağın rengi'
+                  : themeAccent
+                    ? `Temanın rengi (${themeAccent})`
+                    : 'Temanın rengi'
+              }
               spellCheck={false}
               autoComplete="off"
               maxLength={7}
@@ -170,7 +199,7 @@ export function EventThemeFields({
           >
             {accentInvalid
               ? '#RRGGBB biçiminde yaz.'
-              : `Bilet sayfasının rengi. Boş: ${themeAccent ? 'temanın rengi' : 'kapaktan alınır'}.`}
+              : `Bilet sayfasının rengi. Boş: ${kurumsal ? 'kapaktan alınır' : 'temanın rengi'}.`}
             {accentTrimmed && !accentInvalid ? (
               <button
                 type="button"
@@ -183,7 +212,7 @@ export function EventThemeFields({
           </span>
         </div>
       </div>
-      {suggestion ? (
+      {suggestion && !failed ? (
         <div className={`flex flex-wrap items-center gap-3 ${TEXT_SECONDARY}`}>
           <span className="text-muted-foreground">Formun teması: {suggestion.name}</span>
           <ActionButton

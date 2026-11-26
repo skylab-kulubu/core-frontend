@@ -670,6 +670,7 @@ export function EventEditor({
           eventId={value.reservedId}
           coverImageId={value.coverImageId ?? ''}
           knownMedia={knownMedia}
+          theme={value.theme}
         />
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">

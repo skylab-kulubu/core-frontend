@@ -26,7 +26,18 @@ describe('readFormBrand', () => {
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/forms\/f1\/meta$/);
   });
 
-  it('is null for SKY LAB’s own look, a closed or a missing form', async () => {
+  it('reads it from a closed or not yet open form’s answer too (410)', async () => {
+    fetchMock.mockReturnValue(
+      answer(410, {
+        status: 'NotAvailable',
+        data: { title: 'Kayıt', description: null, brand: 'artlab' },
+        message: 'Bu form şu anda yanıt kabul etmiyor.',
+      }),
+    );
+    await expect(readFormBrand('f1')).resolves.toBe('artlab');
+  });
+
+  it('is null for SKY LAB’s own look, a closed form without one, or a missing form', async () => {
     fetchMock.mockReturnValueOnce(
       answer(200, { success: true, data: { title: 'Kayıt', brand: null } }),
     );

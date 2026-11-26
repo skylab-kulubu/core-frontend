@@ -78,6 +78,22 @@ describe('EventThemeFields', () => {
     expect(screen.queryByLabelText('Tema')).not.toBeInTheDocument();
   });
 
+  it('keeps the accent when the catalog fails, and reads it again', async () => {
+    list
+      .mockRejectedValueOnce(new ProblemError(503, 'Service Unavailable'))
+      .mockResolvedValue(catalog);
+    const onChange = jest.fn();
+    render(<Harness initial={{ theme: 'artlab' }} onChange={onChange} />);
+    expect(await screen.findByText('Temalar yüklenemedi.')).toBeInTheDocument();
+    const field = screen.getByLabelText('Vurgu rengi');
+    expect(field).toHaveAttribute('placeholder', 'Temanın rengi');
+    await userEvent.type(field, '#3AA0FF');
+    expect(onChange).toHaveBeenLastCalledWith({ ticketAccentColor: '#3AA0FF' });
+    await userEvent.click(screen.getByRole('button', { name: 'Yeniden dene' }));
+    expect(await screen.findByLabelText('Tema')).toHaveValue('artlab');
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it('lists the catalog; Kurumsal is the empty theme', async () => {
     list.mockResolvedValue(catalog);
     const onChange = jest.fn();

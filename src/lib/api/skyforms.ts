@@ -37,7 +37,9 @@ async function formsFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     body = null;
   }
   if (!res.ok) {
-    throw new ProblemError(res.status, body?.message || `HTTP ${res.status}`);
+    // Forms sends data with some refusals too (a closed form's meta): kept on the error
+    const fields = body && 'data' in body ? { data: body.data } : {};
+    throw new ProblemError(res.status, body?.message || `HTTP ${res.status}`, { fields });
   }
   return (body && 'data' in body ? body.data : (body as T)) as T;
 }
@@ -53,18 +55,22 @@ export async function readFormGate(formId: string): Promise<FormGate> {
   }
 }
 
+const brandOf = (meta: unknown): string | null => {
+  const brand = meta && typeof meta === 'object' ? (meta as { brand?: unknown }).brand : null;
+  return typeof brand === 'string' && brand ? brand : null;
+};
+
 /**
- * A form's theme from its public meta (`brand`, Forms' key such as `artlab`), `null` for SKY LAB's
- * own look, a closed or missing form, or an answer without the field.
+ * A form's theme from its public meta (`brand`, Forms' key such as `artlab`); a closed or not yet
+ * open form (410) sends it too. `null` for SKY LAB's own look, a missing form, or an answer
+ * without the field.
  */
 export async function readFormBrand(formId: string): Promise<string | null> {
   try {
-    const meta = await formsFetch<{ brand?: unknown } | null>(
-      `/api/forms/${encodeURIComponent(formId)}/meta`,
-    );
-    return typeof meta?.brand === 'string' && meta.brand ? meta.brand : null;
+    return brandOf(await formsFetch<unknown>(`/api/forms/${encodeURIComponent(formId)}/meta`));
   } catch (err) {
-    if (err instanceof ProblemError && (err.status === 404 || err.status === 410)) return null;
+    if (err instanceof ProblemError && err.status === 410) return brandOf(err.fields.data);
+    if (err instanceof ProblemError && err.status === 404) return null;
     throw err;
   }
 }
