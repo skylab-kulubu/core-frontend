@@ -1,16 +1,20 @@
 'use client';
 
-import { Card, Skeleton, Sparkline } from '@skylab-kulubu/skylcn-ui';
+import { Button, Card, Skeleton, Sparkline, cn } from '@skylab-kulubu/skylcn-ui';
+import { ChevronDown } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import type { ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ChartBoundary } from '@/components/chrome/PanelChart';
 import type { Ticket } from '@/lib/api/tickets';
 import {
   recentRegistrations,
   registrationsByDay,
+  rosterChartsOpen,
   rosterViewCounts,
+  setRosterChartsOpen,
   type RosterView,
 } from '@/lib/roster-insights';
+import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 const percent = (part: number, whole: number) =>
   whole ? `%${Math.round((part / whole) * 100)}` : '—';
@@ -151,7 +155,7 @@ export function RosterTiles({
         </span>
       </Tile>
       <Tile
-        label="Bilet gitmedi"
+        label="Posta gitmedi"
         value={counts.unsent}
         tone="warning"
         active={view === 'unsent'}
@@ -269,5 +273,37 @@ export function RosterCharts({ tickets }: { tickets: readonly Ticket[] }) {
         />
       </ChartBoundary>
     </Card>
+  );
+}
+
+/**
+ * The charts under the list, folded away with one button; the choice stays on this device.
+ */
+export function RosterChartsSection({ tickets }: { tickets: readonly Ticket[] }) {
+  const [open, setOpen] = useState(true);
+  const id = useId();
+  useEffect(() => setOpen(rosterChartsOpen()), []);
+  return (
+    <section aria-label="Grafikler" className="space-y-2">
+      <Button
+        className={BUTTON_TEXT}
+        variant="ghost"
+        size="sm"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          setOpen(!open);
+          setRosterChartsOpen(!open);
+        }}
+      >
+        <ChevronDown aria-hidden className={cn('transition-transform', !open && '-rotate-90')} />
+        Grafikler
+      </Button>
+      {open ? (
+        <div id={id}>
+          <RosterCharts tickets={tickets} />
+        </div>
+      ) : null}
+    </section>
   );
 }

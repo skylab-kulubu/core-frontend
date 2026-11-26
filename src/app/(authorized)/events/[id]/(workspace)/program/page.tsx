@@ -3,7 +3,16 @@
 import { useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, MenuItem, MenuLinkItem, cn } from '@skylab-kulubu/skylcn-ui';
-import { CheckCircle2, DoorOpen, MessageSquare, Pencil, Plus, QrCode, Trash2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  DoorOpen,
+  MessageSquare,
+  Pencil,
+  Plus,
+  QrCode,
+  Trash2,
+  UserCog,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,38 +24,33 @@ import { RowMenu } from '@/components/chrome/ListPage';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { SectionHeading } from '@/components/chrome/PanelChart';
-import { QrPreview } from '@/components/chrome/QrPreview';
 import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
-import { AttendanceQr } from '@/components/scheduling/AttendanceQr';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
-import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
-import { StaticSessionQr } from '@/components/scheduling/StaticSessionQr';
+import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { SessionQrDrawer, sessionForQr } from '@/components/scheduling/SessionQrDrawer';
 import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type FeedbackCount } from '@/lib/api/events';
 import {
   sessionsApi,
   SESSION_TYPES,
-  sessionQrFileName,
-  sessionQrPath,
-  sessionQrUrl,
   sessionTypeLabel,
   type EventSession,
 } from '@/lib/api/sessions';
-import { ticketsApi, type SessionQrMode } from '@/lib/api/tickets';
+import { ticketsApi } from '@/lib/api/tickets';
 import { urlsApi } from '@/lib/api/urls';
 import { toDatetimeLocal, toRfc3339 } from '@/lib/datetime-local';
 import { ALREADY_CHECKED_IN, checkInSuccessLine } from '@/lib/door-check-in';
 import { attachFormAliases, type EventFormSlot } from '@/lib/event-forms';
 import { countedByDefault } from '@/lib/certificate-rule';
 import { checkInsBySession, sessionClock, sessionNowAndNext } from '@/lib/event-overview';
-import { eventDoorHref } from '@/lib/event-workspace';
+import { eventDoorHref, eventDoorStaffHref } from '@/lib/event-workspace';
 import { listStatus } from '@/lib/list-status';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 import {
@@ -111,15 +115,11 @@ export default function EventProgramPage() {
     canDesk,
     canTickets,
   } = useEventWorkspace();
+  const editsDoorStaff = useEditsDoorStaff();
   const [dayOpen, setDayOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
-  // The session the attendance QR shows now (picked by hand or by "Programı izle"); the static QR
-  // follows it.
-  const [qrShown, setQrShown] = useState<{ id: string; title: string } | null>(null);
-  // Core's SESSION_QR_MODE, learnt from the attendance QR; null until it answers.
-  const [sessionQrMode, setSessionQrMode] = useState<SessionQrMode | null>(null);
   const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
   // A drawer's own error shows inside it; the tab's line sits behind the open drawer
   const [dayError, setDayError] = useState<string | null>(null);
@@ -217,42 +217,67 @@ export default function EventProgramPage() {
     setSessionOpen(true);
   }
 
+  // The top Oturum QR opens on the session running now (or the next); the drawer moves on itself
+  const qrTarget = sessionForQr(sessions);
+
   return (
     <div className="space-y-6">
       <SectionHeading
         title="Günler ve oturumlar"
         actions={
-          canMutate ? (
-            <div className="flex gap-2">
-              <ActionButton
-                icon={Plus}
-                label="Gün ekle"
-                showLabel
-                onClick={() => {
-                  setDayError(null);
-                  setDayOpen(true);
-                }}
-              />
-              <ActionButton
-                icon={Plus}
-                variant="primary"
-                label="Oturum ekle"
-                ref={addSession}
-                onClick={() => {
-                  if (days.length === 0) {
+          canMutate || qrTarget ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {qrTarget ? (
+                <ActionButton
+                  icon={QrCode}
+                  label="Oturum QR"
+                  showLabel
+                  iconOnlyOnPhone
+                  onClick={() => setQrSession(qrTarget)}
+                />
+              ) : null}
+              {editsDoorStaff ? (
+                <ActionButton
+                  icon={UserCog}
+                  label="Kapı görevlileri"
+                  showLabel
+                  iconOnlyOnPhone
+                  href={eventDoorStaffHref(event.id)}
+                />
+              ) : null}
+              {canMutate ? (
+                <ActionButton
+                  icon={Plus}
+                  label="Gün ekle"
+                  showLabel
+                  onClick={() => {
                     setDayError(null);
                     setDayOpen(true);
-                    return;
-                  }
-                  setSessionError(null);
-                  setSessionInUse(null);
-                  setEditingSessionId(null);
-                  setFeedbackSlot(null);
-                  sessionForm.reset(emptySession(days[0]?.id ?? ''));
-                  sessionDeleted.current = false;
-                  setSessionOpen(true);
-                }}
-              />
+                  }}
+                />
+              ) : null}
+              {canMutate ? (
+                <ActionButton
+                  icon={Plus}
+                  variant="primary"
+                  label="Oturum ekle"
+                  ref={addSession}
+                  onClick={() => {
+                    if (days.length === 0) {
+                      setDayError(null);
+                      setDayOpen(true);
+                      return;
+                    }
+                    setSessionError(null);
+                    setSessionInUse(null);
+                    setEditingSessionId(null);
+                    setFeedbackSlot(null);
+                    sessionForm.reset(emptySession(days[0]?.id ?? ''));
+                    sessionDeleted.current = false;
+                    setSessionOpen(true);
+                  }}
+                />
+              ) : null}
             </div>
           ) : null
         }
@@ -719,53 +744,12 @@ export default function EventProgramPage() {
           />
         ) : null}
       </Drawer>
-      <Drawer
-        open={qrSession !== null}
-        onClose={() => {
-          setQrSession(null);
-          setQrShown(null);
-        }}
-        title={qrSession ? `${qrSession.title} QR` : 'Oturum QR'}
-      >
-        {qrSession ? (
-          <div className="space-y-6">
-            {canDesk ? (
-              <AttendanceQr
-                sessionId={qrSession.id}
-                title={qrSession.title}
-                onMode={setSessionQrMode}
-                program={sessions}
-                onSession={setQrShown}
-              />
-            ) : null}
-            {canDesk && !qrSession.cancelled ? (
-              <StaticSessionQr
-                sessionId={qrShown?.id ?? qrSession.id}
-                title={qrShown?.title ?? qrSession.title}
-              />
-            ) : null}
-            {sessionQrMode === 'qr' ? (
-              <p className="text-secondary-foreground text-sm">
-                Basılı oturum QR&apos;ı artık yoklama yazmaz.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {canDesk ? (
-                  <p className="text-secondary-foreground text-sm">
-                    Basılı QR: sky-app&apos;in bugünkü sürümü bunu okur. Geçiş bitince kalkar.
-                  </p>
-                ) : null}
-                <QrPreview
-                  imageUrl={sessionQrUrl(qrSession.id)}
-                  downloadPath={sessionQrPath(qrSession.id, { size: 1024 })}
-                  fileName={sessionQrFileName(qrSession.id, qrSession.title)}
-                  label={`${qrSession.title} QR`}
-                />
-              </div>
-            )}
-          </div>
-        ) : null}
-      </Drawer>
+      <SessionQrDrawer
+        session={qrSession}
+        sessions={sessions}
+        canDesk={canDesk}
+        onClose={() => setQrSession(null)}
+      />
       <Drawer
         open={checkInSession !== null}
         onClose={() => {

@@ -22,6 +22,7 @@ import {
   RefreshCw,
   RotateCcw,
   Send,
+  Settings2,
   Upload,
   X,
 } from 'lucide-react';
@@ -59,7 +60,7 @@ import {
   type TicketSourceEvent,
 } from '@/lib/tickets-ui';
 import type { RespondentView } from './RespondentList';
-import { CapacityStrip, RosterCharts, RosterTiles } from './RosterOverview';
+import { CapacityStrip, RosterChartsSection, RosterTiles } from './RosterOverview';
 import { cancelShut, EVENT_OVER } from './ticket-cancel';
 import { TicketPanel } from './TicketPanel';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
@@ -80,7 +81,7 @@ type ListView = RosterView | 'waitlisted' | 'cancelled' | RespondentView;
 const WAITLIST_VIEW = { value: 'waitlisted', label: 'Bekleme listesi' } as const;
 const CANCELLED_VIEW = { value: 'cancelled', label: 'İptal edilenler' } as const;
 /** Form answers with no Ticket yet (core docs/form-respondents.md): not Tickets, listed apart. */
-const UNTICKETED_VIEW = { value: 'unticketed', label: 'Bilet gönderilmedi' } as const;
+const UNTICKETED_VIEW = { value: 'unticketed', label: 'Bileti yok' } as const;
 const FORMS_PENDING_VIEW = { value: 'formsPending', label: 'Forms’ta onay bekliyor' } as const;
 type Saved = { query?: string; view?: RosterView; sort?: Sort; page?: number };
 
@@ -104,6 +105,8 @@ export type ParticipantRosterProps = {
   onAddParticipant?: () => void;
   /** "İçe aktar": a list from another form turned into tickets (core docs/attendee-import.md). */
   onImport?: () => void;
+  /** "Kayıt ayarları": the form, its mapping and the automatic ticket, on the edit page. */
+  settingsHref?: string;
   onMail: (recipients: TicketMailRecipient[]) => void;
   /** Writes the entry; a refusal comes back as its text and shows in the row. */
   onMarkAttended?: (ticket: Ticket, sessionId: string) => Promise<string | null>;
@@ -129,8 +132,8 @@ export type ParticipantRosterProps = {
 };
 
 /**
- * The Katılımcılar tab: figures that open their view, the charts, the list
- * with views, and the registration beside it.
+ * The Katılımcılar tab: figures that open their view, the list with views and its search, the
+ * charts under it (they fold away), and the registration beside the list.
  */
 export function ParticipantRoster({
   eventId,
@@ -147,6 +150,7 @@ export function ParticipantRoster({
   onOpenTicket,
   onAddParticipant,
   onImport,
+  settingsHref,
   onMail,
   onMarkAttended,
   onResend,
@@ -370,6 +374,15 @@ export function ParticipantRoster({
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
       <div className="ml-auto flex items-center gap-2">
+        {settingsHref ? (
+          <ActionButton
+            href={settingsHref}
+            icon={Settings2}
+            label="Kayıt ayarları"
+            showLabel
+            iconOnlyOnPhone
+          />
+        ) : null}
         {onImport ? (
           <ActionButton icon={Upload} label="İçe aktar" showLabel onClick={onImport} />
         ) : null}
@@ -399,12 +412,6 @@ export function ParticipantRoster({
       />
       {tickets.length > 0 ? (
         <RosterTiles tickets={tickets} view={apartView ? null : view} onView={pickView} />
-      ) : null}
-      {tickets.length > 0 ? (
-        // On a phone the list comes first, the charts after it
-        <div className="order-last lg:order-none">
-          <RosterCharts tickets={tickets} />
-        </div>
       ) : null}
       <div className="space-y-3">
         {toolbar}
@@ -512,6 +519,7 @@ export function ParticipantRoster({
           </>
         )}
       </div>
+      {tickets.length > 0 ? <RosterChartsSection tickets={tickets} /> : null}
       <Drawer
         open={openTicket !== null}
         onClose={() => onOpenTicket(null)}
@@ -655,7 +663,7 @@ function RosterRow({
               <span className="text-muted-foreground">Gelmedi</span>
             )}
             {ticket.sent === false && !apart ? (
-              <span className="text-warning">Bilet gitmedi</span>
+              <span className="text-warning">Posta gitmedi</span>
             ) : null}
           </span>
           {error ? (
@@ -686,7 +694,7 @@ function RosterRow({
             <StatusChip kind="neutral" label="Gelmedi" />
           )}
           {ticket.sent === false && !apart ? (
-            <span className="text-warning mt-1 block text-[13px]/5">Bilet gitmedi</span>
+            <span className="text-warning mt-1 block text-[13px]/5">Posta gitmedi</span>
           ) : null}
         </span>
       </Link>

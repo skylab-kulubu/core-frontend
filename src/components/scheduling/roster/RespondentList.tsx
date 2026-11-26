@@ -39,7 +39,7 @@ const EMPTY: Part = { rows: [], total: 0, nextCursor: null };
 const NO_INCOMPLETE: RespondentIncomplete = { missingName: 0, missingEmail: 0, noPerson: 0 };
 
 export type Respondents = {
-  /** Accepted in Forms: "Bilet gönderilmedi". */
+  /** Accepted in Forms: "Bileti yok". */
   accepted: Part;
   /** Pending in Forms: "Forms'ta onay bekliyor". */
   pending: Part;
@@ -165,7 +165,7 @@ function resultLine(result: RespondentTicketResult): string {
 }
 
 /**
- * "Bilet gönderilmedi" and "Forms'ta onay bekliyor" on Katılımcılar (core
+ * "Bileti yok" and "Forms'ta onay bekliyor" on Katılımcılar (core
  * docs/form-respondents.md): a respondent is not a Ticket. An accepted row is sent one by one,
  * chosen or all at once, each time after the preview's counts; a pending row waits for Forms
  * (its button off, a link to the answer).

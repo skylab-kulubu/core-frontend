@@ -875,10 +875,20 @@ describe('EventCertificatesPanel certificate mail', () => {
     api.summary.mockResolvedValue({ ...summary(0), issuedCount: 3 });
     renderMail();
     await screen.findByRole('region', { name: 'Verilen sertifikalar' });
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Diğer sertifika eylemleri' }));
-    expect(screen.queryByRole('menuitem', { name: /yeniden gönder/ })).not.toBeInTheDocument();
+    // Örnek PDF is on the template row: with no resend the bar keeps no menu
+    await screen.findByRole('group', { name: 'Şablon eylemleri' });
+    expect(
+      screen.queryByRole('button', { name: 'Diğer sertifika eylemleri' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /yeniden gönder/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Posta')).not.toBeInTheDocument();
+  });
+
+  it('draws Örnek PDF once, on the template row', async () => {
+    renderMail();
+    const row = await screen.findByRole('group', { name: 'Şablon eylemleri' });
+    expect(within(row).getByRole('button', { name: 'Örnek PDF' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Örnek PDF' })).toHaveLength(1);
   });
 
   it('says when everyone was sent to too recently', async () => {
@@ -920,7 +930,7 @@ describe('EventCertificatesPanel without the figures', () => {
         canEditEvent
       />,
     );
-    expect(await screen.findByRole('heading', { name: 'Kural' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Kural ve şablon' })).toBeInTheDocument();
     expect(screen.queryByText('Sertifika bilgileri yüklenemedi')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Katılımı kapat/ })).not.toBeInTheDocument();
   });

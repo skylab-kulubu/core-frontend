@@ -93,7 +93,7 @@ describe('Edit page: a newly linked Skyforms form', () => {
     window.sessionStorage.clear();
   });
 
-  it('asks after the save whether its respondents get Tickets, then goes back to the event', async () => {
+  it('asks after the save whether its respondents get Tickets, staying on the edit page', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockResolvedValueOnce('e1');
@@ -116,6 +116,7 @@ describe('Edit page: a newly linked Skyforms form', () => {
     expect(workspaceRouter.push).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: 'Biletleri gönder' }));
     expect(formRespondentsApi.sendTickets).toHaveBeenCalledWith('e1', { all: true, formId: FORM });
-    await waitFor(() => expect(workspaceRouter.push).toHaveBeenCalledWith('/events/e1'));
+    expect(await screen.findByText('Etkinlik kaydedildi')).toBeInTheDocument();
+    expect(workspaceRouter.push).not.toHaveBeenCalled();
   });
 });

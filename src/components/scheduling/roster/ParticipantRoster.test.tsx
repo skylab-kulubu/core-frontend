@@ -72,9 +72,44 @@ describe('ParticipantRoster', () => {
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
     const views = screen.getByRole('group', { name: 'Görünüm' });
-    await userEvent.click(within(views).getByText('Bilet gitmedi'));
+    await userEvent.click(within(views).getByText('Posta gitmedi'));
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.queryByText('Grace Hopper')).not.toBeInTheDocument();
+  });
+
+  it('puts the search and the list above the charts, which fold away and stay folded', async () => {
+    window.localStorage.clear();
+    setup();
+    const search = screen.getByRole('searchbox', { name: 'Katılımcı ara' });
+    const fold = screen.getByRole('button', { name: 'Grafikler' });
+    // The search comes first in the page, the charts after the list
+    expect(search.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const charts = () => document.getElementById(fold.getAttribute('aria-controls') ?? '');
+    expect(fold).toHaveAttribute('aria-expanded', 'true');
+    expect(charts()).toBeInTheDocument();
+
+    await userEvent.click(fold);
+    expect(fold).toHaveAttribute('aria-expanded', 'false');
+    expect(charts()).toBeNull();
+
+    cleanup();
+    setup();
+    expect(screen.getByRole('button', { name: 'Grafikler' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    window.localStorage.clear();
+  });
+
+  it('links to the registration settings for who edits the event', () => {
+    setup({ settingsHref: '/events/e1/edit#basvuru' });
+    expect(screen.getByRole('link', { name: 'Kayıt ayarları' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit#basvuru',
+    );
+    cleanup();
+    setup();
+    expect(screen.queryByRole('link', { name: 'Kayıt ayarları' })).not.toBeInTheDocument();
   });
 
   it('opens a registration beside the list on a plain click', async () => {
@@ -129,7 +164,7 @@ describe('ParticipantRoster list', () => {
   it('keeps the view when the tab is opened again', async () => {
     setup();
     await userEvent.click(
-      within(screen.getByRole('group', { name: 'Görünüm' })).getByText('Bilet gitmedi'),
+      within(screen.getByRole('group', { name: 'Görünüm' })).getByText('Posta gitmedi'),
     );
     cleanup();
     setup();
