@@ -71,7 +71,7 @@ export function foldQuestion(text: string): string {
 /** "Okul", "okulunuz", "hangi okulda": the school a guest studies at. */
 const SCHOOL = /\bokul(u|un|unuz|da|dasin|dasiniz)?\b/;
 /** A school's number, club or community is not the school. */
-const NOT_SCHOOL = /numara|\bno\b|kulub|kulup|topluluk/;
+const NOT_SCHOOL = /numara|\bno\b|kulub|kulup|toplulu/;
 /** "Bölüm", "bölümünüz", "hangi bölümde": the department a guest studies in. */
 const STUDY_DEPARTMENT = /\bbolum(u|un|unuz|de|unde|undesin|undesiniz)?\b/;
 /** A part of the Event (a session's, the program's) is not a department. */
