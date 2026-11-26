@@ -7,9 +7,11 @@ import EventCompetitionPage from '@/app/(authorized)/events/[id]/(workspace)/com
 import EventParticipantsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/page';
 import EventProgramPage from '@/app/(authorized)/events/[id]/(workspace)/program/page';
 import { capabilitiesApi } from '@/lib/api/capabilities';
+import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi } from '@/lib/api/events';
+import { eventOrganizersApi } from '@/lib/api/event-organizers';
 import { ticketsApi } from '@/lib/api/tickets';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import {
@@ -49,6 +51,30 @@ jest.mock('@/lib/api/capabilities', () => ({
 jest.mock('@/lib/scheduling/save-event', () =>
   jest.requireActual('@/test/event-workspace').saveEventModule(),
 );
+// An older core without Co-organizers (404) unless a test sets core's answer
+jest.mock('@/lib/api/event-organizers', () => {
+  const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+  return {
+    eventOrganizersApi: {
+      get: jest.fn(() => Promise.reject(new Problem(404, 'Not Found'))),
+      put: jest.fn(),
+    },
+  };
+});
+// An older core without Event templates (404) unless a test sets core's answer
+jest.mock('@/lib/api/certificates', () => {
+  const actual = jest.requireActual('@/lib/api/certificates');
+  const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+  return {
+    ...actual,
+    certificatesApi: {
+      ...actual.certificatesApi,
+      eventTemplate: jest.fn(() => Promise.reject(new Problem(404, 'Not Found'))),
+      createEventTemplate: jest.fn(),
+      resolve: jest.fn(() => Promise.resolve(null)),
+    },
+  };
+});
 
 /** core's capabilities: every Event write for GECEKODU. */
 function allowStatusActions(write = true) {
@@ -120,6 +146,37 @@ describe('Event workspace layout', () => {
     expect(tab('Genel bakış')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Kapı' })).toHaveAttribute('href', '/events/e1/door');
     expect(screen.queryByRole('button', { name: 'Hesabınla kaydol' })).not.toBeInTheDocument();
+  });
+
+  it('opens the tabs a Co-organizer team’s Leader may use, by core’s decision on the Event', async () => {
+    signInAs(['/UYELER/ARGE/WEBLAB/LIDERLER']);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [{ team: 'WEBLAB', can: { 'event.update': true } }],
+      otherTeams: { can: {} },
+    });
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      viewer: {
+        via: 'coTeam',
+        can: {
+          'event.update': true,
+          'event.delete': false,
+          'ticket.read': true,
+          'certificate.issue': true,
+          'certificate.template.assign': true,
+          'competition.manage': true,
+        },
+      },
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await waitFor(() =>
+      expect(tabNames()).toEqual(expect.arrayContaining(['Katılımcılar', 'Sertifikalar'])),
+    );
+    expect(screen.getByRole('link', { name: 'Düzenle' })).toHaveAttribute(
+      'href',
+      '/events/e1/edit',
+    );
   });
 
   it('shows door staff only the overview, the program and the door', async () => {
@@ -265,6 +322,7 @@ describe('Event workspace layout', () => {
         .map((link) => link.textContent),
     ).toEqual([
       'Temel bilgiler',
+      'Düzenleyenler',
       'Zaman ve yer',
       'Başvuru ve form',
       'Bilet ve kapı',
@@ -384,6 +442,49 @@ describe('Event workspace layout', () => {
     expect([...owner.options].map((option) => option.value)).toEqual(
       expect.arrayContaining(['MOBIL', 'WEBLAB']),
     );
+  });
+
+  it('holds the event’s Kaydet while a Düzenleyenler change is unsaved', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    (eventOrganizersApi.get as jest.Mock).mockResolvedValueOnce({
+      ownerTeam: 'GECEKODU',
+      ownerRule: 'members',
+      teams: [
+        { code: 'WEBLAB', name: 'WEBLAB', management: 'members', visibility: 'co_organizer' },
+      ],
+      people: [],
+      canManage: true,
+    });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    const section = document.getElementById('duzenleyenler') as HTMLElement;
+    await user.selectOptions(
+      await within(section).findByRole('combobox', { name: 'Görünüm' }),
+      'helper',
+    );
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+
+    expect(
+      await screen.findByText('Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.'),
+    ).toBeInTheDocument();
+    expect(saveEventWithSeason).not.toHaveBeenCalled();
+    // Leaving asks once, for the whole page, though only Düzenleyenler changed
+    const barCancel = screen
+      .getAllByRole('button', { name: 'Vazgeç' })
+      .find((button) => !section.contains(button)) as HTMLElement;
+    await user.click(barCancel);
+    expect(
+      await screen.findAllByRole('alertdialog', {
+        name: 'Kaydedilmemiş değişiklikler silinsin mi?',
+      }),
+    ).toHaveLength(1);
+    expect(workspaceRouter.push).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    // Dropping the change lets the event save again
+    await user.click(within(section).getByRole('button', { name: 'Vazgeç' }));
+    expect(
+      screen.queryByText('Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.'),
+    ).not.toBeInTheDocument();
   });
 
   it('says the event was saved from the edit page and goes back to the event', async () => {
@@ -575,6 +676,57 @@ describe('Event workspace layout', () => {
       'href',
       expect.stringContaining(`fromForm=${formId}`),
     );
+  });
+
+  it('shows who edits the event Sertifikalar, without a certificate role', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [{ team: 'GECEKODU', can: { 'event.update': true } }],
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await waitFor(() => expect(tabNames()).toContain('Sertifikalar'));
+  });
+
+  it('keeps Sertifikalar from a member who neither edits the event nor holds a certificate role', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    (capabilitiesApi.get as jest.Mock).mockResolvedValue({
+      teams: [{ team: 'GECEKODU', can: { 'event.update': false } }],
+    });
+    await renderEventTab(<EventOverviewPage />);
+    await screen.findByRole('heading', { name: 'GeceKodu' });
+    await waitFor(() => expect(tabNames()).not.toContain('Sertifikalar'));
+  });
+
+  it('draws the template row in the Sertifika section and asks before leaving unsaved work for the editor', async () => {
+    const user = userEvent.setup();
+    signInAs(['/UYELER/YK']);
+    (certificatesApi.eventTemplate as jest.Mock).mockResolvedValueOnce({
+      resolution: {
+        source: 'ownerTeam',
+        template: {
+          id: 't-team',
+          name: 'GECEKODU sertifikası',
+          ownerTeam: 'GECEKODU',
+          system: false,
+        },
+        version: { version: 2 },
+      },
+      eventTemplate: null,
+      choices: [],
+    });
+    (certificatesApi.createEventTemplate as jest.Mock).mockResolvedValue({ id: 't-own' });
+    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    expect(await screen.findByText('GECEKODU ekip şablonu · v2')).toBeInTheDocument();
+
+    await user.type(await screen.findByDisplayValue('GeceKodu'), ' 2026');
+    await user.click(screen.getByRole('button', { name: 'Etkinliğe özel şablon oluştur' }));
+
+    expect(certificatesApi.createEventTemplate).toHaveBeenCalledWith('e1', 'current');
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Kaydedilmemiş değişiklikler silinsin mi?' }),
+    ).toBeInTheDocument();
+    expect(workspaceRouter.push).not.toHaveBeenCalledWith('/events/e1/certificate-template');
   });
 
   it('shows why the event did not load instead of its tabs', async () => {

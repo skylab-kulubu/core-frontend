@@ -64,6 +64,7 @@ describe('filterSidebarNavForUser', () => {
       '/urls',
       '/seasons',
       '/certificates/templates',
+      '/certificates/fonts',
       '/certificates/defaults',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');
@@ -82,6 +83,7 @@ describe('filterSidebarNavForUser', () => {
       '/dashboard',
       '/events',
       '/certificates/templates',
+      '/certificates/fonts',
       '/certificates/defaults',
     ]);
     expect(filterSidebarNavForUser(user).map((l) => l.href)).not.toContain('/sessions');

@@ -1,4 +1,5 @@
 import {
+  canManageCertificateTemplates,
   canManageHandoffTargets,
   canUseCertificates,
   canUseUrls,
@@ -130,6 +131,14 @@ const NAVIGATION_LINKS: readonly NavigationLink[] = [
     label: 'Sertifika şablonları',
     section: 'settings',
     visibleWhen: ({ groups, roles }) => canUseCertificates(groups, roles),
+  },
+  {
+    href: '/certificates/fonts',
+    label: 'Sertifika yazı tipleri',
+    section: 'settings',
+    keywords: 'font yazı tipi',
+    // Who makes templates sets text in the fonts; a binder alone does not
+    visibleWhen: ({ groups, roles }) => canManageCertificateTemplates(groups, roles),
   },
   {
     href: '/certificates/defaults',

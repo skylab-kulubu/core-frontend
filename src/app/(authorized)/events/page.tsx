@@ -32,6 +32,7 @@ import {
 import { coreProblemMessage } from '@/lib/core-problems';
 import { dashboardApi, type EventStat } from '@/lib/api/dashboard';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
+import { isCoOrganizerView, organizerTeamsChip } from '@/lib/event-organizers';
 import { publicMediaUrl } from '@/lib/event-media';
 import { useEventCreate } from '@/lib/use-event-create';
 import {
@@ -110,6 +111,15 @@ function EventsPageContent() {
   const { open: openNewEvent } = useNewEvent();
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get('ownerTeam')?.trim() || '';
+  // `team`: the Events a team owns or is a named Co-organizer of (core docs/co-organizers.md)
+  const teamFilter = ownerFilter ? '' : searchParams.get('team')?.trim() || '';
+  // Yönettiklerim (the Events the reader may edit) unless Bütün etkinlikler is chosen; a team's
+  // list shows it whole
+  const managedParam = searchParams.get('managed');
+  const managedAsked = managedParam ? managedParam === 'true' : !ownerFilter && !teamFilter;
+  // Who manages none (a DK member) gets every Event by default, not an empty list
+  const [managesNone, setManagesNone] = useState(false);
+  const managed = managedAsked && !(managesNone && !managedParam);
   const [params, setParams] = useListParams({ view: 'list' });
   const calendar = params.view === 'calendar';
   const statusFilter = eventStatusFilterFrom(searchParams.get('status'));
@@ -141,7 +151,7 @@ function EventsPageContent() {
   const copy = useEventCopy();
 
   /** The status slice and the team stay in their own address keys, as the links to them write. */
-  function setAddress(name: 'status' | 'ownerTeam', value: string | null) {
+  function setAddress(name: 'status' | 'ownerTeam' | 'team' | 'managed', value: string | null) {
     const next = new URLSearchParams(window.location.search);
     if (value) next.set(name, value);
     else next.delete(name);
@@ -154,14 +164,24 @@ function EventsPageContent() {
     setLoading(true);
     try {
       // Drafts too: core adds the ones the reader may see (their editors, DK)
-      setEvents(await eventsApi.list(ownerFilter || undefined, undefined, { drafts: true }));
+      const read = (onlyManaged: boolean) =>
+        eventsApi.list(ownerFilter || undefined, undefined, {
+          drafts: true,
+          ...(teamFilter ? { team: teamFilter } : {}),
+          ...(onlyManaged ? { managed: true } : {}),
+        });
+      let rows = await read(managedAsked);
+      const none = managedAsked && !managedParam && rows.length === 0;
+      if (none) rows = await read(false);
+      setManagesNone(none);
+      setEvents(rows);
       setError(null);
     } catch (err) {
       setError(coreProblemMessage(err, 'Etkinlikler yüklenemedi'));
     } finally {
       setLoading(false);
     }
-  }, [ownerFilter]);
+  }, [ownerFilter, teamFilter, managedAsked, managedParam]);
 
   useEffect(() => {
     void load();
@@ -230,9 +250,12 @@ function EventsPageContent() {
             subtitle={
               <span className={cn('flex min-w-0 flex-col', TEXT_SECONDARY)}>
                 <span className="truncate">
-                  {[ev.ownerTeam?.trim() || 'Genel', ev.location?.trim()]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {isCoOrganizerView(ev) ? (
+                    <span className="border-border-subtle text-secondary-foreground mr-1.5 rounded border px-1 text-[11px]/4">
+                      Ortak
+                    </span>
+                  ) : null}
+                  {[organizerTeamsChip(ev), ev.location?.trim()].filter(Boolean).join(' · ')}
                   {when ? <span className="md:hidden"> · {when}</span> : null}
                 </span>
                 {/* A phone has no status column: the state is the first word of a line */}
@@ -359,7 +382,7 @@ function EventsPageContent() {
     },
   ];
 
-  const filteredView = Boolean(params.q.trim()) || statusFilter !== 'all';
+  const filteredView = Boolean(params.q.trim()) || statusFilter !== 'all' || managed;
   const empty = error ? (
     <EmptyState kind="failed" title={error} onRetry={() => void load()} />
   ) : filteredView ? (
@@ -367,6 +390,7 @@ function EventsPageContent() {
       kind="no-results"
       onClear={() => {
         setAddress('status', null);
+        if (managed) setAddress('managed', 'false');
         setParams({ q: '' });
       }}
     />
@@ -385,6 +409,20 @@ function EventsPageContent() {
         ) : undefined
       }
     />
+  );
+
+  const managedSwitch = (
+    <div className="[&_button]:whitespace-nowrap">
+      <Pills
+        aria-label="Kapsam"
+        value={managed ? 'managed' : 'all'}
+        onValueChange={(next) => setAddress('managed', next === 'managed' ? 'true' : 'false')}
+        options={[
+          { value: 'managed', label: 'Yönettiklerim' },
+          { value: 'all', label: 'Bütün etkinlikler' },
+        ]}
+      />
+    </div>
   );
 
   const viewSwitch = (
@@ -515,6 +553,20 @@ function EventsPageContent() {
               <X className="size-3.5" aria-hidden />
             </button>
           ) : null}
+          {teamFilter ? (
+            <button
+              type="button"
+              onClick={() => {
+                setAddress('team', null);
+              }}
+              className="border-border-subtle bg-card text-secondary-foreground hover:bg-accent inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[13px]"
+              aria-label={`Ekip süzgecini kaldır: ${teamFilter}`}
+            >
+              Ekip: {teamFilter} (ortak dahil)
+              <X className="size-3.5" aria-hidden />
+            </button>
+          ) : null}
+          {managedSwitch}
           {viewSwitch}
         </ListToolbar>
       }

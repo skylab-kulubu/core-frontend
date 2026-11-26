@@ -37,6 +37,50 @@ export type CertificateElement = {
   opacity?: number;
   fit?: 'cover' | 'contain' | 'shrink';
   locked?: boolean;
+  /** `backgroundText`: converted from the PDF background's text. */
+  origin?: 'backgroundText';
+  /** The PDF's font name of a converted text, at most 120 characters. */
+  sourceFont?: string;
+  fontStyle?: 'italic';
+  /**
+   * A team's or the club's certificate font (core docs/certificate-fonts.md):
+   * its checked WOFF2. `fontFamily` is then its family, `fontWeight` and
+   * `fontStyle` its face's.
+   */
+  fontMediaId?: string;
+};
+
+/** A team's (or, `ownerTeam` '', the club's) uploaded certificate font: one face. */
+export type CertificateFont = {
+  id: string;
+  ownerTeam: string;
+  family: string;
+  weight: number;
+  style: 'normal' | 'italic';
+  /** The checked WOFF2: an element's `fontMediaId`. */
+  mediaId: string;
+  /** The letters of ğĞıİşŞçÇöÖüÜ, A–Z, a–z, 0–9 it lacks; '' when none. */
+  missingTurkish: string;
+  uploadedBy?: string | null;
+  createdAt: string;
+  /**
+   * `?template=` only: a font the draft uses that is none of its team's or the
+   * club's current ones (archived, or another team's in a copy): kept, not
+   * offered for new text.
+   */
+  draftOnly?: boolean;
+};
+
+/** How the background sits on the page (core `Layout.backgroundPlacement`). */
+export type BackgroundFit = 'contain' | 'cover' | 'fill' | 'fitWidth' | 'fitHeight' | 'none';
+
+export type BackgroundPlacement = {
+  fit: BackgroundFit;
+  /** CSS object-position fractions: 0 left/top, 0.5 centre, 1 right/bottom. */
+  x: number;
+  y: number;
+  /** Multiplies the fit's scale, 0.1–10; fill ignores it. */
+  scale: number;
 };
 
 export type CertificateLayout = {
@@ -45,7 +89,89 @@ export type CertificateLayout = {
   orientation: 'landscape' | 'portrait';
   backgroundColor: string;
   backgroundMediaId?: string;
+  /** Absent on layouts written before it: printed as `LEGACY_IMAGE_PLACEMENT`. */
+  backgroundPlacement?: BackgroundPlacement;
+  /**
+   * The PDF a text conversion started from; never printed. Going back sets it
+   * as the background again and drops the converted layers.
+   */
+  backgroundOriginalMediaId?: string;
   elements: CertificateElement[];
+};
+
+/** `GET /v1/certificate-assets/{id}/info`: a PDF's visible box in pt × 96/72. */
+export type CertificateAssetInfo = {
+  contentType: string;
+  widthPx: number;
+  heightPx: number;
+  pages: number;
+  /** The texts pdf-tools found; 0 for an image. */
+  textCount: number;
+};
+
+/** Why pdf-tools cannot convert a text (core docs "Background text conversion"). */
+export type BackgroundTextReason =
+  | 'unreadable'
+  | 'stroke'
+  | 'invisible'
+  | 'clip'
+  | 'vertical'
+  | 'skewed'
+  | 'shared'
+  | 'unmatched'
+  | 'limit'
+  | 'truncated';
+
+/** One run of a PDF's text: one style along a line. */
+export type BackgroundTextSpan = {
+  id: string;
+  text: string;
+  sourceFont: string;
+  /** The family, weight and style a conversion sets it in. */
+  font: string;
+  fontWeight: number;
+  fontStyle?: 'italic';
+  fontSubstituted: boolean;
+  /** Set when `font` is a certificate font of the template's team or the club's. */
+  fontMediaId?: string;
+  fontSizePt: number;
+  convertible: boolean;
+  reason?: BackgroundTextReason;
+};
+
+/** `GET /v1/certificate-assets/{id}/text`. */
+export type BackgroundTextList = {
+  spans: BackgroundTextSpan[];
+  truncated?: boolean;
+  /** Set when the list is empty: why the PDF has no text. */
+  textMissing?: 'outlines' | 'image' | 'unknown';
+};
+
+export type BackgroundTextConversionBody = {
+  spanIds: string[];
+  kinds: Record<string, 'recipientName' | 'eventName' | 'eventDates' | 'issueDate'>;
+  page: { width: number; height: number };
+  placement?: BackgroundPlacement;
+  /** How many layers the draft keeps beside the new ones (at most 100 together). */
+  existingElements: number;
+  /** The template the draft is of: its team's fonts are matched too (else the club's alone). */
+  templateId?: string;
+};
+
+export type BackgroundTextWarning = {
+  spanId: string;
+  elementId?: string;
+  kind: 'fontSubstituted' | 'fontSizeBounded' | 'textCut' | 'outsidePage';
+  from?: string | number;
+  to?: string | number;
+};
+
+/** `POST …/text-conversion`: nothing is saved; the editor applies it to the draft. */
+export type BackgroundTextConversion = {
+  backgroundMediaId: string;
+  backgroundOriginalMediaId: string;
+  elements: CertificateElement[];
+  warnings: BackgroundTextWarning[];
 };
 
 export type CertificateTemplateDraft = {
@@ -75,6 +201,8 @@ export type CertificateTemplate = {
   sourceEditUrl: string;
   draftLayout: CertificateLayout;
   system: boolean;
+  /** An Event template (core docs/certificate-event-templates.md): serves this Event alone. */
+  eventId?: string;
   createdAt: string;
   updatedAt: string;
   publishedVersion?: CertificateTemplateVersion;
@@ -85,6 +213,35 @@ export type ResolvedCertificateTemplate = {
   version: CertificateTemplateVersion;
   source: 'event' | 'ownerTeam' | 'clubDefault';
 };
+
+/** A published team or club template an Event may be bound to: its name, never its layout. */
+export type CertificateTemplateChoice = {
+  id: string;
+  name: string;
+  ownerTeam: string;
+  system: boolean;
+  version: number;
+};
+
+/**
+ * GET /v1/events/{id}/certificate-template: what a certificate issued now
+ * takes (`resolution`, null when nothing resolves; its layout only to who may
+ * read that template), the Event's own template if it has one
+ * (`publishedVersion` absent while a draft) and the templates it may take instead.
+ */
+export type EventCertificateTemplateState = {
+  resolution: ResolvedCertificateTemplate | null;
+  eventTemplate: {
+    id: string;
+    name: string;
+    draftUpdatedAt: string;
+    publishedVersion?: number;
+  } | null;
+  choices: CertificateTemplateChoice[];
+};
+
+/** Where a new Event template starts: the layout in use now, an empty page, or a choice's id. */
+export type EventTemplateFrom = 'current' | 'blank' | (string & {});
 
 export type CertificateTemplateBinding = {
   id: string;
@@ -273,7 +430,13 @@ export type CertificateRuleBody = {
 const eventPath = (eventId: string) => `/v1/events/${encodeURIComponent(eventId)}`;
 
 export const certificatesApi = {
-  templates: () => coreFetch<CertificateTemplate[]>('/v1/certificate-templates'),
+  /** Team and club templates; `eventId` lists that Event's own template alone. */
+  templates: (filter: { eventId?: string } = {}) =>
+    coreFetch<CertificateTemplate[]>(
+      filter.eventId
+        ? `/v1/certificate-templates?eventId=${encodeURIComponent(filter.eventId)}`
+        : '/v1/certificate-templates',
+    ),
   template: (id: string) =>
     coreFetch<CertificateTemplate>(`/v1/certificate-templates/${encodeURIComponent(id)}`),
   createTemplate: (body: CertificateTemplateDraft) =>
@@ -295,6 +458,59 @@ export const certificatesApi = {
     coreFetchBlob(`/v1/certificate-templates/${encodeURIComponent(id)}/preview`, {
       method: 'POST',
     }),
+  /**
+   * A background's natural size in layout px; a PDF's from pdf-tools (503
+   * `pdf_tools_unavailable` without it). An older core, and anyone who may
+   * not edit a template that links it, gets 404.
+   */
+  assetInfo: (id: string) =>
+    coreFetch<CertificateAssetInfo>(`/v1/certificate-assets/${encodeURIComponent(id)}/info`),
+  /** A PDF background's page as a PNG, its long side `max` px; an image as itself. */
+  assetPreview: (id: string, max = 2000) =>
+    coreFetchBlob(`/v1/certificate-assets/${encodeURIComponent(id)}/preview?max=${max}`),
+  /**
+   * A PDF background's text, one row per run; 503 `pdf_tools_unavailable` without pdf-tools.
+   * With `templateId`, its team's certificate fonts are matched as well as the club's.
+   */
+  assetText: (id: string, templateId?: string) =>
+    coreFetch<BackgroundTextList>(
+      `/v1/certificate-assets/${encodeURIComponent(id)}/text` +
+        (templateId ? `?template=${encodeURIComponent(templateId)}` : ''),
+    ),
+  /** The chosen texts as layers on a copy of the PDF without them. */
+  convertAssetText: (id: string, body: BackgroundTextConversionBody) =>
+    coreFetch<BackgroundTextConversion>(
+      `/v1/certificate-assets/${encodeURIComponent(id)}/text-conversion`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  /**
+   * The current certificate fonts of `team` and the club the caller may use
+   * (without `team`, the club's); 403 for a team the caller may not use.
+   */
+  fonts: (team?: string) =>
+    coreFetch<CertificateFont[]>(
+      '/v1/certificate-fonts' + (team ? `?team=${encodeURIComponent(team)}` : ''),
+    ),
+  /**
+   * The fonts a saved template's editor offers: its team's and the club's
+   * current ones, and those its layers use that it may no longer take, marked.
+   */
+  templateFonts: (templateId: string) =>
+    coreFetch<CertificateFont[]>(
+      `/v1/certificate-fonts?template=${encodeURIComponent(templateId)}`,
+    ),
+  /** An uploaded `certificate_font` Media, checked by pdf-tools, kept as the team's font. */
+  createFont: (mediaId: string, ownerTeam: string) =>
+    coreFetch<CertificateFont>('/v1/certificate-fonts', {
+      method: 'POST',
+      body: JSON.stringify({ mediaId, ownerTeam }),
+    }),
+  /** The font's checked WOFF2 (an archived font's too). */
+  fontFile: (id: string, signal?: AbortSignal) =>
+    coreFetchBlob(`/v1/certificate-fonts/${encodeURIComponent(id)}/file`, { signal }),
+  /** Archives it: drafts and published versions keep printing it; no new layer may take it. */
+  archiveFont: (id: string) =>
+    coreFetch<void>(`/v1/certificate-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   bindings: () => coreFetch<CertificateTemplateBinding[]>('/v1/certificate-template-bindings'),
   setBinding: (body: {
     scope: 'club' | 'ownerTeam' | 'event';
@@ -310,6 +526,15 @@ export const certificatesApi = {
       `/v1/certificate-template-bindings/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
       { method: 'DELETE' },
     ),
+  /** An older core has no such call and answers 404: the Event shows the resolved template alone. */
+  eventTemplate: (eventId: string) =>
+    coreFetch<EventCertificateTemplateState>(`${eventPath(eventId)}/certificate-template`),
+  /** 409 `template_event_exists` carries the current one's `templateId`. */
+  createEventTemplate: (eventId: string, from: EventTemplateFrom = 'current') =>
+    coreFetch<CertificateTemplate>(`${eventPath(eventId)}/certificate-template`, {
+      method: 'POST',
+      body: JSON.stringify({ from }),
+    }),
   resolve: (eventId: string) =>
     coreFetch<ResolvedCertificateTemplate>(`${eventPath(eventId)}/certificates/template`),
   summary: (eventId: string) =>
