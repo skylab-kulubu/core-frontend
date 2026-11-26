@@ -135,7 +135,11 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceWelcomeMail: ev.attendanceWelcomeMail,
     attendanceRecordedMail: ev.attendanceRecordedMail,
     attendeeNote: ev.attendeeNote,
+    ticketNote: ev.ticketNote,
     formResponsesAutoTicket: ev.formResponsesAutoTicket,
+    // Undefined while core sends none (left out when empty, or an older core): nothing is written back
+    theme: ev.theme,
+    ticketAccentColor: ev.ticketAccentColor,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',
@@ -147,6 +151,8 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceRule: ev.attendanceRule ?? 'none',
     attendanceRatio: ev.attendanceRatio,
     attendanceMinCount: ev.attendanceMinCount ?? null,
+    // Undefined while core sends none: the switch is not offered
+    attendanceAutoFinalize: ev.attendanceAutoFinalize,
     doorStaffIds: ev.doorStaffIds ?? [],
     registrationClosesAt: toDatetimeLocal(ev.registrationClosesAt),
     reservedId: ev.id,

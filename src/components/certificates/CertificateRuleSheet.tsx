@@ -18,6 +18,8 @@ import {
 import type { EventDay } from '@/lib/api/eventDays';
 import { sessionTypeLabel } from '@/lib/api/sessions';
 import {
+  AUTO_SEND_HINT,
+  AUTO_SEND_LABEL,
   countedTotal,
   defaultMin,
   minFromRatio,
@@ -101,6 +103,7 @@ export function CertificateRuleSheet({
   eventId,
   days,
   finalized,
+  templateWarning,
   onClose,
   onSaved,
 }: {
@@ -110,6 +113,8 @@ export function CertificateRuleSheet({
   days: readonly EventDay[];
   /** Attendance was closed: a change moves only the list and a rescan. */
   finalized: boolean;
+  /** Said under the switch while it is on: the template is not the Event's own published one. */
+  templateWarning?: string | null;
   onClose: () => void;
   onSaved: (rule: CertificateRule) => void;
 }) {
@@ -325,9 +330,17 @@ export function CertificateRuleSheet({
         <Switch
           checked={Boolean(draft.autoFinalize)}
           onChange={(checked) => setDraft((d) => ({ ...d, autoFinalize: checked }))}
-          label="Katılımı kendiliğinden kapat"
-          hint="Son oturumdan 1 saat sonra"
+          label={AUTO_SEND_LABEL}
+          hint={AUTO_SEND_HINT}
         />
+      ) : null}
+      {typeof rule.autoFinalize === 'boolean' &&
+      draft.rule !== 'none' &&
+      draft.autoFinalize &&
+      templateWarning ? (
+        <p role="status" className={`text-warning ${TEXT_SECONDARY}`}>
+          {templateWarning}
+        </p>
       ) : null}
 
       <div className="flex items-center gap-2 pt-1">

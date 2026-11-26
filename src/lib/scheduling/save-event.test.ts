@@ -541,6 +541,21 @@ describe('the attendee note', () => {
   });
 });
 
+describe('the ticket note', () => {
+  it('is sent trimmed when changed, "" clears it, a new event leaves an empty one out', () => {
+    const loaded = formStateFromEvent({ ...savedEvent, ticketNote: 'https://chat.whatsapp.com/A' });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(
+      eventPatchFromForm({ ...loaded, ticketNote: '  Grup: https://chat.whatsapp.com/B ' }, loaded),
+    ).toEqual({ ticketNote: 'Grup: https://chat.whatsapp.com/B' });
+    expect(eventPatchFromForm({ ...loaded, ticketNote: '' }, loaded)).toEqual({ ticketNote: '' });
+    expect(eventBodyFromForm({ ...loaded, ticketNote: '' })).not.toHaveProperty('ticketNote');
+    expect(eventBodyFromForm({ ...loaded, ticketNote: 'Grup' }).ticketNote).toBe('Grup');
+    // An older core, or a reader who may not see it: nothing is written back
+    expect(eventPatchFromForm(formStateFromEvent(savedEvent))).not.toHaveProperty('ticketNote');
+  });
+});
+
 describe('a new event’s door mails', () => {
   it('sends a switch only when turned off', () => {
     const fresh = emptyEventForm('GECEKODU');
@@ -549,6 +564,28 @@ describe('a new event’s door mails', () => {
     expect(eventBodyFromForm({ ...fresh, attendanceRecordedMail: false })).toMatchObject({
       attendanceRecordedMail: false,
     });
+  });
+});
+
+describe('"Sertifikaları otomatik gönder" (attendanceAutoFinalize)', () => {
+  it('a new Event sends it off; an edit sends a change; an older core gets none', () => {
+    const fresh = emptyEventForm('GECEKODU');
+    expect(fresh.attendanceAutoFinalize).toBe(false);
+    expect(eventBodyFromForm(fresh)).toMatchObject({ attendanceAutoFinalize: false });
+    expect(eventBodyFromForm({ ...fresh, attendanceAutoFinalize: true })).toMatchObject({
+      attendanceAutoFinalize: true,
+    });
+
+    const loaded = formStateFromEvent({ ...savedEvent, attendanceAutoFinalize: true });
+    expect(loaded.attendanceAutoFinalize).toBe(true);
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, attendanceAutoFinalize: false }, loaded)).toEqual({
+      attendanceAutoFinalize: false,
+    });
+
+    const older = formStateFromEvent(savedEvent);
+    expect(older.attendanceAutoFinalize).toBeUndefined();
+    expect(eventPatchFromForm(older)).not.toHaveProperty('attendanceAutoFinalize');
   });
 });
 
@@ -569,5 +606,29 @@ describe('"Otomatik bilet gönder" (formResponsesAutoTicket)', () => {
 
     const older = formStateFromEvent(savedEvent);
     expect(eventPatchFromForm(older)).not.toHaveProperty('formResponsesAutoTicket');
+  });
+});
+
+describe('Görünüm (theme, ticketAccentColor)', () => {
+  it('a new Event sends only what was chosen; an edit sends a change; an older core gets none', () => {
+    const fresh = emptyEventForm('ARTLAB');
+    expect(eventBodyFromForm(fresh)).not.toHaveProperty('theme');
+    expect(eventBodyFromForm({ ...fresh, theme: null, ticketAccentColor: ' ' })).not.toHaveProperty(
+      'ticketAccentColor',
+    );
+    expect(
+      eventBodyFromForm({ ...fresh, theme: 'artlab', ticketAccentColor: ' #f5b82e ' }),
+    ).toMatchObject({ theme: 'artlab', ticketAccentColor: '#F5B82E' });
+
+    const loaded = formStateFromEvent({ ...savedEvent, theme: 'artlab' });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(eventPatchFromForm({ ...loaded, theme: null }, loaded)).toEqual({ theme: null });
+    expect(eventPatchFromForm({ ...loaded, ticketAccentColor: '' }, loaded)).toEqual({
+      ticketAccentColor: null,
+    });
+
+    const older = formStateFromEvent(savedEvent);
+    expect(eventPatchFromForm(older)).not.toHaveProperty('theme');
+    expect(eventPatchFromForm(older)).not.toHaveProperty('ticketAccentColor');
   });
 });

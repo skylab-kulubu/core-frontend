@@ -44,9 +44,11 @@ export type VenueEntry = {
 
 /**
  * `door`: the door screen, guests pass one by one (core caps a token at 20). `display`: the
- * attendance QR on the projector or OBS, a whole room scans one frame (cap 400).
+ * attendance QR on the projector or OBS, a whole room scans one frame (cap 400). `static`: the
+ * session's one fixed attendance QR, for a printout or a screen that cannot refresh (no cap, the
+ * same every time, valid in the session window; core docs/guest-self-check-in.md).
  */
-export type DoorQrUse = 'door' | 'display';
+export type DoorQrUse = 'door' | 'display' | 'static';
 /** Core's SESSION_QR_MODE: in `qr` the static (printed) session QR no longer checks anyone in. */
 export type SessionQrMode = 'open' | 'qr';
 
@@ -64,6 +66,9 @@ export type DoorQr = {
   issuedAt: string;
   expiresAt: string;
   refreshAfterSeconds: number;
+  /** `static` only: when it checks anyone in (the session window). */
+  validFrom?: string;
+  validUntil?: string;
 };
 
 export type DoorCheckIn = {
@@ -277,7 +282,7 @@ export const ticketsApi = {
     ),
   createDoorQr: (sessionId: string, use: DoorQrUse = 'door') =>
     coreFetch<DoorQr>(
-      `/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1${use === 'display' ? '&use=display' : ''}`,
+      `/v1/sessions/${encodeURIComponent(sessionId)}/door-qr?svg=1${use === 'door' ? '' : `&use=${use}`}`,
       { method: 'POST' },
     ),
   /**

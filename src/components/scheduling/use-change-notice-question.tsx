@@ -2,12 +2,18 @@
 
 import { useRef, type ReactNode } from 'react';
 import { CheckboxRow } from '@/components/scheduling/use-event-status-actions';
-import { changeNoticeTitle, type ChangeNotice } from '@/lib/scheduling/change-notice';
+import {
+  changeNoticeTitle,
+  noticeTickedByDefault,
+  type ChangeNotice,
+} from '@/lib/scheduling/change-notice';
 import { useConfirm } from '@/lib/ui/use-confirm';
 
 /**
- * Asks before a save that gives a published Event a new time or place whether its Ticket
- * holders are told (ticked, as in the cancel dialog). The answer is true or false; `null` when
+ * Asks before a save that gives a published Event a new time, place or other details (name,
+ * description, attendee note, capacity, links) whether its Ticket holders are told: ticked for a
+ * new time or place, as in the cancel dialog; unticked for other details alone (core
+ * docs/event-updated-notification.md#other-details). The answer is true or false; `null` when
  * the reader leaves the question (Vazgeç), and nothing is saved. Render `dialog` once.
  */
 export function useChangeNoticeQuestion(): [
@@ -21,7 +27,7 @@ export function useChangeNoticeQuestion(): [
     pending.current?.(null);
     return new Promise((resolve) => {
       pending.current = resolve;
-      const answer = { notify: true };
+      const answer = { notify: noticeTickedByDefault(notice.changes) };
       const settle = (value: boolean | null) => {
         if (pending.current === resolve) pending.current = null;
         resolve(value);
@@ -35,7 +41,7 @@ export function useChangeNoticeQuestion(): [
                 ? 'Bilet sahiplerine bildir'
                 : `Bilet sahiplerine bildir (${notice.holders} kişi)`
             }
-            defaultChecked
+            defaultChecked={answer.notify}
             onChange={(next) => {
               answer.notify = next;
             }}
