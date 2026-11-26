@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import LoginPage from '@/app/login/page';
 import { loginErrorCode, loginErrorMessage, UNKNOWN_LOGIN_ERROR } from '@/app/login/login-errors';
-import { sceneAction, sceneTitle } from '@/test/error-scenes';
+import { sceneAction } from '@/test/error-scenes';
 
 let mockSearchParams = new URLSearchParams({ error: 'stale_authentication' });
 
@@ -16,7 +16,10 @@ describe('Giriş sayfası', () => {
     render(<LoginPage />);
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: sceneTitle('sessionExpired') }),
+      await screen.findByRole('heading', { level: 1, name: 'Oturumun süresi doldu' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Oturumlar bir süre sonra kendiliğinden kapanır; yeniden giriş yap.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: sceneAction('sessionExpired') })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Hesap merkezi' })).toHaveAttribute(

@@ -89,10 +89,11 @@ function LoginContent() {
     startLogin();
   }, [error, logout]);
 
-  // The sign-in is older than the panel accepts (8 hours, auth-age.ts): the session scene.
+  // The sign-in is older than the panel accepts (8 hours, auth-age.ts): the session scene's B
+  // ("Oturumlar bir süre sonra kendiliğinden kapanır"); A and C tell of a computer left unlocked.
   if (error === STALE_AUTHENTICATION) {
     return (
-      <SessionExpiredScenePage onAction={startLogin}>
+      <SessionExpiredScenePage variant="B" onAction={startLogin}>
         <Button variant="ghost" render={<a href={accountCenterUrl()} />}>
           Hesap merkezi
         </Button>
