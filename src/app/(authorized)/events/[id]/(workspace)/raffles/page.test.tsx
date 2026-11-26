@@ -5,6 +5,7 @@ import EventRafflesPage from '@/app/(authorized)/events/[id]/(workspace)/raffles
 import { ProblemError } from '@/lib/api/core';
 import { DEFAULT_RAFFLE_CRITERIA, rafflesApi } from '@/lib/api/raffles';
 import {
+  eventDaysModule,
   primeEventWorkspace,
   renderEventTab,
   signInAs,
@@ -131,6 +132,15 @@ describe('Çekiliş page', () => {
     expect(screen.getByRole('button', { name: 'Çek' })).toBeDisabled();
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(rafflesApi.preview).toHaveBeenCalledTimes(calls);
+  });
+
+  it('asks no Session minimum of an event without Sessions', async () => {
+    eventDaysModule.eventDaysApi.listSessions.mockResolvedValue([]);
+    signInAs(LEADER);
+    await renderRaffles();
+    await screen.findByText('Uygun: 312 kişi');
+    expect(screen.queryByLabelText('En az kaç sayılan oturuma katılmış')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Alana giriş')).toBeInTheDocument();
   });
 
   it('opens the masked list', async () => {

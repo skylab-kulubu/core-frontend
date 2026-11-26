@@ -127,6 +127,24 @@ describe('Çekiliş projector', () => {
     expect(within(stage).queryByText('Mert Kaya')).not.toBeInTheDocument();
   });
 
+  it('announces each winner and keeps the focus inside', async () => {
+    const user = userEvent.setup();
+    await renderPresent();
+    const stage = await screen.findByRole('dialog');
+    expect(stage).toHaveFocus();
+    await user.keyboard(' ');
+    expect(within(stage).getByText('1. kazanan: Ayşe Nur Yılmaz')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    const close = within(stage).getByRole('link', { name: 'Kapat' });
+    close.focus();
+    await user.tab();
+    expect(within(stage).getByRole('checkbox', { name: 'Adları kısalt' })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(close).toHaveFocus();
+  });
+
   it('goes back to the result on Escape', async () => {
     const user = userEvent.setup();
     await renderPresent();

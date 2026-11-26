@@ -180,29 +180,32 @@ export function RaffleForm({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <Card className="space-y-6 p-4">
           <Group title="Şartlar">
-            <div className="space-y-1">
-              <label htmlFor={`${ids}-min-input`} className="block">
-                <FieldLabel>En az kaç sayılan oturuma katılmış</FieldLabel>
-              </label>
-              <span className="flex items-center gap-2">
-                <Field
-                  id={`${ids}-min-input`}
-                  className="w-24"
-                  inputMode="numeric"
-                  placeholder="Şart yok"
-                  value={minCounted}
-                  aria-invalid={minInvalid || undefined}
-                  aria-describedby={minInvalid ? `${ids}-min` : undefined}
-                  onChange={(change) => setMinCounted(change.target.value)}
-                />
-                <span className={`text-muted-foreground ${TEXT_SECONDARY}`}>/{countedTotal}</span>
-              </span>
-              {minInvalid ? (
-                <span id={`${ids}-min`} className={`text-destructive block ${TEXT_SECONDARY}`}>
-                  1 ile {countedTotal} arasında bir sayı yaz
+            {/* An Event without Sessions counts its Venue entry: "Alana giriş" asks that. */}
+            {countedTotal > 0 ? (
+              <div className="space-y-1">
+                <label htmlFor={`${ids}-min-input`} className="block">
+                  <FieldLabel>En az kaç sayılan oturuma katılmış</FieldLabel>
+                </label>
+                <span className="flex items-center gap-2">
+                  <Field
+                    id={`${ids}-min-input`}
+                    className="w-24"
+                    inputMode="numeric"
+                    placeholder="Şart yok"
+                    value={minCounted}
+                    aria-invalid={minInvalid || undefined}
+                    aria-describedby={minInvalid ? `${ids}-min` : undefined}
+                    onChange={(change) => setMinCounted(change.target.value)}
+                  />
+                  <span className={`text-muted-foreground ${TEXT_SECONDARY}`}>/{countedTotal}</span>
                 </span>
-              ) : null}
-            </div>
+                {minInvalid ? (
+                  <span id={`${ids}-min`} className={`text-destructive block ${TEXT_SECONDARY}`}>
+                    1 ile {countedTotal} arasında bir sayı yaz
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             {open.length ? (
               <div className="space-y-2 pt-2">

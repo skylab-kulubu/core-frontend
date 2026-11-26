@@ -3,7 +3,7 @@
 import { Button, Checkbox } from '@skylab-kulubu/skylcn-ui';
 import { Maximize, Minimize, X } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { RaffleEntry } from '@/lib/api/raffles';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 import { shortRaffleName } from './raffle-copy';
@@ -47,8 +47,15 @@ export function RafflePresenter({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
+  // A modal dialog: focus moves in on open and goes back where it was on close
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    stage.current?.focus();
+    return () => before?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       // A focused control answers its own keys
       if (target?.closest('button, a, input, [role="checkbox"]')) return;
@@ -63,12 +70,35 @@ export function RafflePresenter({
     return () => window.removeEventListener('keydown', onKey);
   }, [next, onExit]);
 
+  // Tab stays among the dialog's own controls
+  function keepFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Tab' || !stage.current) return;
+    const controls = Array.from(
+      stage.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), [role="checkbox"]',
+      ),
+    ).filter((control) => control.tabIndex >= 0 && !control.closest('[aria-hidden="true"]'));
+    if (!controls.length) return;
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === stage.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   function toggleFull() {
     if (document.fullscreenElement) void document.exitFullscreen?.();
     else void stage.current?.requestFullscreen?.();
   }
 
   const many = total > 6;
+  // The screen reader hears each winner as they are shown
+  const latest = revealed > 0 ? winners[revealed - 1] : null;
 
   return (
     <div
@@ -76,8 +106,15 @@ export function RafflePresenter({
       role="dialog"
       aria-modal="true"
       aria-label={`${title} — kazananlar`}
-      className="fixed inset-0 z-[200] flex flex-col overflow-y-auto bg-[#0b0a12] text-white"
+      tabIndex={-1}
+      onKeyDown={keepFocus}
+      className="fixed inset-0 z-[200] flex flex-col overflow-y-auto bg-[#0b0a12] text-white outline-none"
     >
+      <p aria-live="polite" className="sr-only">
+        {latest
+          ? `${revealed}. kazanan: ${short ? shortRaffleName(latest.name) : latest.name}`
+          : ''}
+      </p>
       <div className="flex flex-wrap items-center justify-end gap-2 p-3 sm:p-4">
         <label className="mr-auto flex items-center gap-2 text-sm text-white/80">
           <Checkbox checked={short} onCheckedChange={(on) => setShort(on)} />
