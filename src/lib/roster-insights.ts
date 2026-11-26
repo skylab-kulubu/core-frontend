@@ -9,7 +9,7 @@ export const ROSTER_VIEWS: readonly { value: RosterView; label: string }[] = [
   { value: 'checked-in', label: 'Giriş yaptı' },
   { value: 'guest', label: 'Misafir' },
   { value: 'member', label: 'Üye' },
-  { value: 'unsent', label: 'Bilet gitmedi' },
+  { value: 'unsent', label: 'Posta gitmedi' },
 ];
 
 type RosterTicket = Pick<Ticket, 'ticketType' | 'checkIns' | 'sent'>;
@@ -167,4 +167,23 @@ export function formatEntry(iso: string, now = new Date()): string {
   return dayKey(time) === dayKey(now.getTime())
     ? clockOnly.format(new Date(time))
     : clock.format(new Date(time));
+}
+
+const CHARTS_KEY = 'skylab.admin.roster.charts';
+
+/** Whether the Katılımcılar charts are open (open unless folded on this device). */
+export function rosterChartsOpen(): boolean {
+  try {
+    return window.localStorage.getItem(CHARTS_KEY) !== 'closed';
+  } catch {
+    return true;
+  }
+}
+
+export function setRosterChartsOpen(open: boolean): void {
+  try {
+    window.localStorage.setItem(CHARTS_KEY, open ? 'open' : 'closed');
+  } catch {
+    // private window: the choice lasts until the page is left
+  }
 }

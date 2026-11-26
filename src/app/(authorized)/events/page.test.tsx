@@ -221,7 +221,7 @@ describe('Etkinlikler listesi', () => {
     menu = await openMenu(user, 'Yakın Kodu');
     expect(within(menu).getByRole('menuitem', { name: 'İptal et…' })).toBeInTheDocument();
     expect(
-      within(menu).getByRole('menuitem', { name: 'Başvuru linkini kopyala' }),
+      within(menu).getByRole('menuitem', { name: 'Kayıt linkini kopyala' }),
     ).toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'Sil…' })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'Yayınla' })).not.toBeInTheDocument();
@@ -246,7 +246,7 @@ describe('Etkinlikler listesi', () => {
       within(menu)
         .getAllByRole('menuitem')
         .map((item) => item.textContent),
-    ).toEqual(['Başvuru linkini kopyala']);
+    ).toEqual(['Kayıt linkini kopyala']);
     expect(screen.queryByRole('button', { name: 'Taslak Kodu: eylemler' })).not.toBeInTheDocument();
   });
 

@@ -52,7 +52,7 @@ describe('ParticipantRoster form respondents', () => {
     setup({ respondentCounts: { unticketed: 3, formsPending: 1 }, renderRespondents });
 
     const pills = within(screen.getByRole('group', { name: 'Görünüm' }));
-    await user.click(pills.getByText('Bilet gönderilmedi'));
+    await user.click(pills.getByText('Bileti yok'));
     expect(screen.getByText('liste:unticketed:')).toBeInTheDocument();
     // Not Tickets: no mail, no sorting, no Ticket rows
     expect(screen.queryByRole('button', { name: 'E-posta' })).not.toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('ParticipantRoster form respondents', () => {
 
   it('offers neither view to a core without respondents, nor one with none', () => {
     setup();
-    expect(screen.queryByText('Bilet gönderilmedi')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bileti yok')).not.toBeInTheDocument();
     window.sessionStorage.clear();
   });
 
@@ -116,6 +116,6 @@ describe('ParticipantRoster form respondents', () => {
       renderRespondents: () => null,
     });
     const pills = within(screen.getByRole('group', { name: 'Görünüm' }));
-    expect(pills.getByText('Bilet gönderilmedi')).toBeInTheDocument();
+    expect(pills.getByText('Bileti yok')).toBeInTheDocument();
   });
 });

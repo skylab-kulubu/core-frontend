@@ -5,11 +5,16 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ObjectCard, ObjectEssentials } from '@/components/chrome/object-page/ObjectPage';
 import { RosterCharts } from '@/components/scheduling/roster/RosterOverview';
-import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { EventFeedbackPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { FeedbackSessionList } from '@/components/scheduling/FeedbackSessionList';
 import { eventReadiness } from '@/lib/event-overview';
-import { eventEditHref, eventTabHref, type EventTab } from '@/lib/event-workspace';
+import {
+  eventDoorStaffHref,
+  eventEditHref,
+  eventTabHref,
+  type EventTab,
+} from '@/lib/event-workspace';
 import { attendanceFinalizeOpen, eventDisplayStatus } from '@/lib/events-view';
 import { recentRegistrations, registrationsByDay } from '@/lib/roster-insights';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
@@ -164,7 +169,7 @@ function AttendanceTiles({ o }: { o: Overview }) {
       </Tile>
       <Tile
         href={participants}
-        label="Bilet gitmedi"
+        label="Posta gitmedi"
         value={counts.unsent}
         hint={counts.unsent ? 'bekliyor' : 'hepsi gitti'}
         tone={counts.unsent ? 'warning' : undefined}
@@ -256,6 +261,7 @@ function DescriptionAndFeedback({ o }: { o: Overview }) {
 export function EventOverview({ previous }: { previous: ReactNode }) {
   const o = useOverview();
   const { ws, event } = o;
+  const editsDoorStaff = useEditsDoorStaff();
   return (
     <div className="space-y-4">
       {previous}
@@ -266,6 +272,7 @@ export function EventOverview({ previous }: { previous: ReactNode }) {
           event,
           seasonName: o.seasonName,
           registered: ws.canTickets ? ws.tickets.length : undefined,
+          doorStaffHref: editsDoorStaff ? eventDoorStaffHref(event.id) : undefined,
         })}
       />
       {ws.canTickets && o.status !== 'draft' ? (

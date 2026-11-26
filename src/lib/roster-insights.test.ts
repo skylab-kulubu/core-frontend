@@ -34,7 +34,7 @@ describe('roster views', () => {
     });
   });
 
-  it('keeps an unknown mail state out of "Bilet gitmedi"', () => {
+  it('keeps an unknown mail state out of "Posta gitmedi"', () => {
     expect(inRosterView({ ticketType: 'GUEST' }, 'unsent')).toBe(false);
   });
 });

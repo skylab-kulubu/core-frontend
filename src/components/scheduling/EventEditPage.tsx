@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useFormState, useWatch } from 'react-hook-form';
 import { LoadError } from '@/components/chrome/LoadError';
@@ -9,13 +8,12 @@ import { EventEditTemplate } from '@/components/scheduling/EventEditTemplate';
 import { EventOrganizers } from '@/components/scheduling/EventOrganizers';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
-import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-notice-question';
 import { newlyListedForms, useBindQuestion } from '@/components/scheduling/use-bind-question';
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
-import { useTeamDecide } from '@/lib/use-app-can';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 export const ORGANIZERS_UNSAVED =
@@ -46,9 +44,11 @@ export function useLegacyCertificateRules(eventId: string, enabled: boolean): bo
   return legacy;
 }
 
-/** /events/[id]/edit: the whole event on one page in sections, saved from the bar below. */
+/**
+ * /events/[id]/edit: the whole event on one page in sections, saved from the bar below. The
+ * event's menu stays beside it with the sections under Düzenle; a save stays on the page.
+ */
 export function EventEditPage() {
-  const router = useRouter();
   const { event, canMutate, canAssign, editor } = useEventWorkspace();
   // A save that links a Skyforms form asks whether its respondents get Tickets: core lets who
   // may edit the Event or add attendees send them (Update || Assign, as the attendee import)
@@ -70,16 +70,10 @@ export function EventEditPage() {
   const [organizersHeld, setOrganizersHeld] = useState(false);
   // One question for the page, whichever part is unsaved
   const guard = useUnsavedChanges((dirty || organizersDirty) && !saving);
-  const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
   // core's Assign on the saved Event (privileged, or its Owner team's Leader); the group rule if unread
-  const teamDecide = useTeamDecide();
-  const assignDoorStaff = teamDecide(
-    event.ownerTeam ?? '',
-    'event.assignDoorStaff',
-    editor.privileged,
-  );
+  const assignDoorStaff = useEditsDoorStaff();
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);
@@ -103,7 +97,9 @@ export function EventEditPage() {
         dirty={dirty}
         saving={saving}
         submitLabel="Kaydet"
-        onCancel={() => guard.leave(overview)}
+        sectionNav="phone"
+        onSectionChange={editor.setSection}
+        onCancel={() => guard.leave(editor.returnHref)}
         error={
           (organizersHeld && organizersDirty ? ORGANIZERS_UNSAVED : null) ?? editor.error ?? issue
         }
@@ -125,7 +121,6 @@ export function EventEditPage() {
                   await askBind(event.id, formId);
                 }
               }
-              router.push(overview);
             }
           },
           (errors) => showIssueSection(errors.event?.message),

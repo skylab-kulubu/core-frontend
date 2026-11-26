@@ -104,7 +104,7 @@ export default function TicketDetailPage({
         const ev = await eventsApi.get(id);
         const groupRule = canListEventTickets(user?.groups ?? [], ev.ownerTeam);
         if (!eventDecision(capabilities, ev, 'ticket.read', groupRule)) {
-          throw new ProblemError(403, 'Forbidden', { detail: 'Bu başvuruları görme yetkin yok' });
+          throw new ProblemError(403, 'Forbidden', { detail: 'Bu kayıtları görme yetkin yok' });
         }
         const [got, days] = await Promise.all([
           ticketsApi.get(ticketId).catch(async () => {
@@ -123,10 +123,10 @@ export default function TicketDetailPage({
         setTicket(got);
         setPeople([...owners.values()]);
         setSessions(sessionRows.flat());
-        setError(got ? null : 'Başvuru bulunamadı');
+        setError(got ? null : 'Kayıt bulunamadı');
       } catch (err) {
         if (cancelled) return;
-        setError(coreProblemMessage(err, 'Başvuru yüklenemedi'));
+        setError(coreProblemMessage(err, 'Kayıt yüklenemedi'));
       }
     }
     void load();

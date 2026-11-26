@@ -51,7 +51,7 @@ export function ticketTimeline(
   if (ticket.sent === true) {
     items.push({ id: 'mail', title: 'Bilet gönderildi', icon: Mail, tone: 'neutral' });
   } else if (ticket.sent === false) {
-    items.push({ id: 'mail', title: 'Bilet gitmedi', icon: MailWarning, tone: 'warning' });
+    items.push({ id: 'mail', title: 'Posta gitmedi', icon: MailWarning, tone: 'warning' });
   }
   const entries = [...(ticket.checkIns ?? [])].sort(
     (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),

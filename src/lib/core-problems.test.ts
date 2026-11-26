@@ -384,7 +384,7 @@ describe('coreProblemMessage for any core refusal', () => {
     ['event_ended', 409, 'Etkinlik bitmiş; iptal edilemez.'],
     ['event_not_draft', 409, 'Yalnız taslak etkinlik silinir.'],
     ['event_not_cancelled', 409, 'Etkinlik iptal edilmemiş.'],
-    ['registration_closed', 409, 'Etkinliğin başvurusu kapalı.'],
+    ['registration_closed', 409, 'Etkinliğin kayıtları kapalı.'],
     ['event_location_invalid', 400, 'Konum geçersiz: noktayı ve açık adresi denetle.'],
     ['background_pdf_pages', 400, 'PDF arka plan tek sayfa olmalı.'],
     ['layout_not_verifiable', 400, "Doğrulama QR'ı ya da sertifika kodundan biri gerekli."],

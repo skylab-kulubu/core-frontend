@@ -114,7 +114,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
       startDate: future,
     });
     await renderEventTab(<EventOverviewPage />);
-    await screen.findByText('2 başvuru');
+    await screen.findByText('2 kayıt');
     const top = await header();
     await user.click(within(top).getByRole('button', { name: 'Yayınla' }));
 
@@ -140,7 +140,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
       startDate: '2020-10-01T10:00:00+03:00',
     });
     await renderEventTab(<EventOverviewPage />);
-    await screen.findByText('1 başvuru');
+    await screen.findByText('1 kayıt');
     await user.click(within(await header()).getByRole('button', { name: 'Yayınla' }));
     expect(eventsApi.publish).toHaveBeenCalledWith('e1');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -225,7 +225,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
       { ...guestTicket, id: 't2' },
     ]);
     await renderEventTab(<EventOverviewPage />);
-    await screen.findByText('2 başvuru');
+    await screen.findByText('2 kayıt');
     const menu = await openMenu(user);
     const unpublish = within(menu).getByRole('menuitem', { name: /Taslağa al/ });
     expect(unpublish).toHaveAttribute('aria-disabled', 'true');
@@ -250,7 +250,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
       cancelNotifiedAt: '2026-10-20T09:00:00Z',
     });
     await renderEventTab(<EventOverviewPage />);
-    await screen.findByText('2 başvuru');
+    await screen.findByText('2 kayıt');
     const menu = await openMenu(user);
     await user.click(within(menu).getByRole('menuitem', { name: 'İptal et…' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Etkinliği iptal et' });
@@ -411,12 +411,10 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     });
     await renderEventTab(<EventOverviewPage />);
     const menu = await openMenu(user);
-    await user.click(within(menu).getByRole('menuitem', { name: 'Başvuruyu kapat' }));
+    await user.click(within(menu).getByRole('menuitem', { name: 'Kayıtları kapat' }));
     expect(eventsApi.patch).toHaveBeenCalledWith('e1', { registrationClosed: true });
-    expect(
-      await within(screen.getByRole('banner')).findByText('Başvuru kapalı'),
-    ).toBeInTheDocument();
+    expect(await within(screen.getByRole('banner')).findByText('Kayıt kapalı')).toBeInTheDocument();
     const again = await openMenu(user);
-    expect(within(again).getByRole('menuitem', { name: 'Başvuruyu aç' })).toBeInTheDocument();
+    expect(within(again).getByRole('menuitem', { name: 'Kayıtları aç' })).toBeInTheDocument();
   });
 });
