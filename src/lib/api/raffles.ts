@@ -3,7 +3,7 @@ import type { RaffleVerification } from '@/lib/raffle/verify';
 
 export type RaffleTicketType = 'REGISTERED' | 'GUEST';
 
-/** Who may be drawn (core docs/raffles.md). Cancelled and waitlisted Tickets never are. */
+/** Who may be drawn (core docs/raffle.md). Cancelled and waitlisted Tickets never are. */
 export type RaffleCriteria = {
   /** At least this many counted Sessions attended; null for no such condition. */
   minCounted: number | null;

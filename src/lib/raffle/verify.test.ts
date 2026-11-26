@@ -10,7 +10,7 @@ import {
   type RaffleVerification,
 } from './verify';
 
-// The vector core's Go tests use too (core docs/raffles.md)
+// The vector core's Go tests use too (core docs/raffle.md)
 const IDS = [
   '0b6f3c1e-4d2a-4f7e-9a51-1c2d3e4f5a61',
   '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',

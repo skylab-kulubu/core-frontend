@@ -1,6 +1,6 @@
 /**
  * sky-raffle-v1, the draw core runs, repeated in the browser so anyone can check a Raffle
- * from its published seed and list (core docs/raffles.md):
+ * from its published seed and list (core docs/raffle.md):
  *
  * - ids: the eligible Ticket ids, lower-case UUIDs in ascending order;
  *   listHash = hex(SHA-256(UTF-8 of ids joined by "\n")), no newline at the end.
