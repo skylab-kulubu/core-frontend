@@ -30,11 +30,15 @@ import { ListToolbar } from '@/components/chrome/ListToolbar';
 import { Command, CommandBar, CommandMenu } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
 import { CertificateRuleSheet } from '@/components/certificates/CertificateRuleSheet';
+import {
+  EventTemplateRow,
+  TemplateBindingDialog,
+  useEventTemplateState,
+} from '@/components/certificates/EventTemplateRow';
 import { ManualIssueDialog } from '@/components/certificates/ManualIssueDialog';
 import { EmptyState } from '@/components/chrome/PageState';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
 import { SaveButton } from '@/components/chrome/SaveButton';
-import { SidePanel } from '@/components/chrome/SidePanel';
 import { StatusChip } from '@/components/chrome/StatusChip';
 import { matchesQuery, paginateRows } from '@/lib/list-query';
 import { pickerMatch } from '@/lib/picker';
@@ -77,15 +81,6 @@ import { listStatus } from '@/lib/list-status';
 import { DEFAULT_PAGE_SIZE } from '@/lib/ui/page-sizes';
 import { useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
-
-const sourceLabel = (source: string | undefined, ownerTeam: string) => {
-  if (source === 'event') return 'Etkinliğe özel';
-  if (source === 'ownerTeam') {
-    const team = ownerTeam === 'YK' || ownerTeam === 'DK' || !ownerTeam ? 'SKY LAB' : ownerTeam;
-    return `${team} varsayılanı`;
-  }
-  return 'SKY LAB varsayılanı';
-};
 
 const WHEN = new Intl.DateTimeFormat('tr-TR', {
   dateStyle: 'medium',
@@ -154,6 +149,7 @@ export function EventCertificatesPanel({
   canBind,
   canRevoke,
   canReadIssued,
+  canEditEvent = false,
   ruleHref,
   days = [],
   onRuleSaved,
@@ -185,6 +181,11 @@ export function EventCertificatesPanel({
   canBind: boolean;
   canRevoke: boolean;
   canReadIssued: boolean;
+  /**
+   * Who edits the event: sets its rule and its template here without a
+   * certificate role (no figures, no issuing).
+   */
+  canEditEvent?: boolean;
 }) {
   const [summary, setSummary] = useState<CertificateEventSummary>();
   // null: core has no rule editor (404, older core) or it could not be read
@@ -202,7 +203,6 @@ export function EventCertificatesPanel({
   const [issued, setIssued] = useState<IssuedCertificate[]>([]);
   const [failed, setFailed] = useState<CertificateBatch[]>([]);
   const [failedUnread, setFailedUnread] = useState(false);
-  const [templateId, setTemplateId] = useState('');
   const [picking, setPicking] = useState(false);
   const [pickQuery, setPickQuery] = useState('');
   const [binding, setBinding] = useState(false);
@@ -210,11 +210,18 @@ export function EventCertificatesPanel({
   const [view, setView] = useState<IssuedView>('all');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // core refused the figures (403): the tab shows the rule and the template alone
+  const [figuresRefused, setFiguresRefused] = useState(false);
   const [error, setError] = useState<string>();
   // A count the organizer reads stays on the tab; a plain "it went through" is a toast
   const [message, setMessage] = useState<string>();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
+  // Who only edits the event reads no figures: core keeps them to the certificate roles
+  // Binding a template (every editor of the Event may) opens no figures: those take a certificate role
+  const workspace = canReadIssued || canIssue || canRevoke || !canEditEvent;
+  const canPick = canBind || canEditEvent;
+  const template = useEventTemplateState(eventId);
   /** A write went through: the earlier error and queue line are stale now. */
   const settled = (line?: string) => {
     setError(undefined);
@@ -238,25 +245,42 @@ export function EventCertificatesPanel({
     setLoading(true);
     try {
       const [nextSummary, nextTemplates, nextIssued, nextRule, nextAttendance] = await Promise.all([
-        certificatesApi.summary(eventId),
-        canBind ? certificatesApi.templates() : Promise.resolve([]),
-        canReadIssued ? certificatesApi.listIssued(eventId) : Promise.resolve([]),
+        // A refused figures read (403) is a reader without them: the rule and template stay
+        workspace
+          ? certificatesApi.summary(eventId).catch((cause: unknown) => {
+              if (cause instanceof ProblemError && cause.status === 403) return undefined;
+              throw cause;
+            })
+          : Promise.resolve(undefined),
+        // An older core's template list, for its picker; a refusal leaves it empty
+        canBind ? certificatesApi.templates().catch(() => []) : Promise.resolve([]),
+        canReadIssued
+          ? certificatesApi.listIssued(eventId).catch((cause: unknown) => {
+              if (cause instanceof ProblemError && cause.status === 403) return [];
+              throw cause;
+            })
+          : Promise.resolve([]),
         // An older core answers 404: the card says the rule as before
         certificatesApi.rule(eventId).catch(() => null),
         // An older core answers 404: the tab stays as it was; another failure says so
-        certificatesApi
-          .attendance(eventId)
-          .catch((cause: unknown) =>
-            cause instanceof ProblemError && cause.status === 404 ? null : ('failed' as const),
-          ),
+        workspace
+          ? certificatesApi
+              .attendance(eventId)
+              .catch((cause: unknown) =>
+                cause instanceof ProblemError && (cause.status === 404 || cause.status === 403)
+                  ? null
+                  : ('failed' as const),
+              )
+          : null,
       ]);
       // Only read the batches when something failed: retrying is what they are for here,
       // and a failed read keeps the rest of the tab
       const nextBatches =
-        canIssue && nextSummary.failedCount > 0
+        canIssue && nextSummary && nextSummary.failedCount > 0
           ? await certificatesApi.listBatches(eventId).catch(() => null)
           : [];
       setSummary(nextSummary);
+      setFiguresRefused(workspace && !nextSummary);
       setRule(nextRule);
       setAttendance(nextAttendance === 'failed' ? null : nextAttendance);
       setAttendanceFailed(nextAttendance === 'failed');
@@ -264,7 +288,6 @@ export function EventCertificatesPanel({
       setIssued(nextIssued);
       setFailed(failedBatches(nextBatches ?? []));
       setFailedUnread(nextBatches === null);
-      setTemplateId(nextSummary.resolution.template.id);
       setError(undefined);
     } catch (cause) {
       setError(coreProblemMessage(cause, 'Sertifika bilgileri yüklenemedi'));
@@ -275,7 +298,7 @@ export function EventCertificatesPanel({
 
   useEffect(() => {
     void load();
-  }, [canBind, canIssue, canReadIssued, eventId]);
+  }, [canBind, canIssue, canReadIssued, canRevoke, eventId]);
 
   async function issueTo(ticketId: string) {
     setBusy(true);
@@ -703,6 +726,14 @@ export function EventCertificatesPanel({
     },
   ];
 
+  // An older core (no Event templates) knows the resolved template from the figures too
+  const templateView =
+    template.status === 'ready'
+      ? {
+          ...template.view,
+          resolution: template.view.resolution ?? summary?.resolution ?? null,
+        }
+      : null;
   const pendingCount = (summary?.queuedCount ?? 0) + (summary?.failedCount ?? 0);
   const ruleKind = rule?.rule ?? attendanceRule;
   const ruleText = rule
@@ -841,7 +872,7 @@ export function EventCertificatesPanel({
                 they fit); narrower, the rest goes behind one menu */}
             <span className="hidden md:contents">
               <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
-              {canBind ? (
+              {canPick ? (
                 <Command
                   icon={FileBadge}
                   label="Şablonu değiştir"
@@ -879,7 +910,7 @@ export function EventCertificatesPanel({
                   >
                     Örnek PDF
                   </MenuItem>,
-                  ...(canBind
+                  ...(canPick
                     ? [
                         <MenuItem
                           key="binding"
@@ -919,42 +950,59 @@ export function EventCertificatesPanel({
               />
             </span>
           </CommandBar>
-          <ObjectCard
-            title="Kural"
-            action={
-              rule && ruleHref ? (
-                <button
-                  type="button"
-                  aria-label="Kuralı düzenle"
-                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
-                  onClick={() => setRuleOpen(true)}
-                >
-                  Düzenle
-                </button>
-              ) : ruleHref ? (
-                <Link
-                  href={ruleHref}
-                  aria-label="Kuralı değiştir"
-                  className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
-                >
-                  Düzenle
-                </Link>
-              ) : undefined
-            }
-          >
+        </>
+      ) : null}
+      {summary || !workspace || figuresRefused ? (
+        <ObjectCard
+          title="Kural"
+          action={
+            rule && ruleHref ? (
+              <button
+                type="button"
+                aria-label="Kuralı düzenle"
+                className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+                onClick={() => setRuleOpen(true)}
+              >
+                Düzenle
+              </button>
+            ) : ruleHref ? (
+              <Link
+                href={ruleHref}
+                aria-label="Kuralı değiştir"
+                className={`text-skylab-300 hover:text-foreground ${TEXT_SECONDARY}`}
+              >
+                Düzenle
+              </Link>
+            ) : undefined
+          }
+        >
+          <div className="space-y-4">
+            {templateView ? (
+              <EventTemplateRow
+                eventId={eventId}
+                view={templateView}
+                canEdit={canEditEvent}
+                canPick={canPick}
+                from="certificates"
+                onPick={() => setBinding(true)}
+              />
+            ) : template.status === 'failed' ? (
+              <p role="alert" className={`text-destructive ${TEXT_SECONDARY}`}>
+                {template.error}
+              </p>
+            ) : (
+              <Skeleton className="h-14 w-full" />
+            )}
             <DescriptionList
               columns={2}
               items={[
-                { label: 'Şablon', value: summary.resolution.template.name },
-                { label: 'Sürüm', value: `v${summary.resolution.version.version}` },
-                { label: 'Kaynak', value: sourceLabel(summary.resolution.source, ownerTeam) },
                 { label: 'Katılım kuralı', value: ruleText },
                 // The line over the commands says it when core gives a time
                 ...(closeLine ? [] : [{ label: 'Katılım', value: attendanceText }]),
               ]}
             />
-          </ObjectCard>
-        </>
+          </div>
+        </ObjectCard>
       ) : null}
 
       {canIssue && (failed.length > 0 || failedUnread) ? (
@@ -1162,83 +1210,30 @@ export function EventCertificatesPanel({
         />
       ) : null}
 
-      {canBind ? (
-        <SidePanel
+      {canPick ? (
+        <TemplateBindingDialog
           open={binding}
-          title="Etkinliğe özel şablon"
-          onClose={() => {
-            setBinding(false);
-            setTemplateId(summary?.resolution.template.id ?? '');
+          onClose={() => setBinding(false)}
+          eventId={eventId}
+          choices={
+            templateView && !templateView.legacy
+              ? templateView.choices
+              : availableTemplates.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  ownerTeam: item.ownerTeam,
+                  system: item.system,
+                  version: item.publishedVersion?.version ?? 0,
+                }))
+          }
+          eventTemplate={templateView?.eventTemplate ?? null}
+          resolution={templateView?.resolution ?? null}
+          onDone={() => {
+            settled();
+            void load();
+            void template.reload();
           }}
-        >
-          <fieldset className="space-y-2">
-            <legend className="sr-only">Yayınlanmış şablon</legend>
-            {availableTemplates.map((template) => (
-              <label
-                key={template.id}
-                className="border-border-subtle has-[:checked]:border-skylab-600/60 flex cursor-pointer items-center gap-3 rounded-md border p-2"
-              >
-                <input
-                  type="radio"
-                  name="event-template"
-                  checked={templateId === template.id}
-                  onChange={() => setTemplateId(template.id)}
-                  className="accent-skylab-400"
-                />
-                <span className="min-w-0">
-                  <span className="text-foreground block truncate text-sm">{template.name}</span>
-                  <span className={`text-subtle-foreground block ${TEXT_SECONDARY}`}>
-                    {template.ownerTeam || 'Kulüp geneli'} · v{template.publishedVersion?.version}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <CommandBar label="Şablon komutları">
-            <SaveButton
-              type="button"
-              disabled={busy || !templateId}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await certificatesApi.setBinding({
-                    scope: 'event',
-                    scopeKey: eventId,
-                    templateId,
-                  });
-                  done('Etkinliğe özel şablon seçildi');
-                  setBinding(false);
-                  await load();
-                } catch (cause) {
-                  setError(coreProblemMessage(cause, 'Şablon seçilemedi'));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Etkinliğe uygula
-            </SaveButton>
-            {summary?.resolution.source === 'event' ? (
-              <Command
-                icon={RotateCcw}
-                label="Varsayılana dön"
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await certificatesApi.clearBinding('event', eventId);
-                    done('Etkinliğe özel seçim kaldırıldı; varsayılana dönüldü');
-                    setBinding(false);
-                    await load();
-                  } catch (cause) {
-                    setError(coreProblemMessage(cause, 'Seçim kaldırılamadı'));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
-            ) : null}
-          </CommandBar>
-        </SidePanel>
+        />
       ) : null}
     </div>
   );

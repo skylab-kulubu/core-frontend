@@ -100,7 +100,7 @@ describe('Etkinlik sayfası: kopya', () => {
     await renderEventTab(<EventOverviewPage />);
     expect(
       await screen.findByText(
-        'Sertifika şablonu bağlaması kopyalanmadı: bu ekipte şablon bağlama yetkin yok.',
+        'Sertifika şablonu kopyalanmadı: seçilmedi, bu ekipte şablon bağlama yetkin yok ya da şablon bu ekibe uymuyor.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByText('Kapak görseli kopyalanmadı.')).toBeInTheDocument();

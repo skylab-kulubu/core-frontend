@@ -10,6 +10,7 @@ import { FieldLabel } from '@/components/chrome/FieldLabel';
 import { ListItem } from '@/components/chrome/ListItem';
 import { ListPanel } from '@/components/chrome/ListPanel';
 import { PickerDrawer } from '@/components/chrome/PickerDrawer';
+import { SaveButton } from '@/components/chrome/SaveButton';
 import { Select } from '@/components/chrome/Select';
 import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
@@ -32,14 +33,19 @@ import { capacityBelowTickets } from '@/lib/capacity';
 import {
   externalRegistrationIssue,
   isExternalRegistrationIssue,
+  moveSkyformsLink,
+  skyformsLinkIn,
+  skyformsMoveTarget,
 } from '@/lib/external-registration';
 import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
+import { EventTicketImageFields } from './EventTicketImageFields';
 
 export type EventFormState = EventBody & {
   seasonId: string;
@@ -71,6 +77,8 @@ type EventEditorProps = {
   onLeaveToSkyforms?: () => void;
   /** The form the last save was refused for (`409 form_in_use`). */
   formInUse?: FormInUse | null;
+  /** Who may edit the Event or add attendees: a form's mapping offers to send Tickets. */
+  canSendTickets?: boolean;
   /** Said at the top of a section, such as choices that could not be loaded. */
   notices?: Partial<Record<EventEditorSectionId, ReactNode>>;
   /** The Sertifikalar tab, where the threshold and the counted Sessions are chosen. */
@@ -81,7 +89,14 @@ type EventEditorProps = {
   storedRatio?: number;
   /** The saved Event's active Tickets (core `ticketCount`), for the lowered-capacity note. */
   activeTickets?: number;
+  /** The saved Event's certificate template row; a new Event chooses one once saved. */
+  certificateTemplate?: ReactNode;
+  /** The saved Event's Co-organizers, saved on their own; a new Event adds them once saved. */
+  organizers?: ReactNode;
 };
+
+/** Under a door's mail switch while core sends none (capabilities `features`). */
+export const MAIL_OFF_HINT = 'Bu posta şu an kapalı.';
 
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
 export const ATTENDEE_NOTE_MAX = 1000;
@@ -108,6 +123,7 @@ export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: stri
 /** The editor's sections in page order, for the jump list beside the form. */
 export const EVENT_EDITOR_SECTIONS = [
   { id: 'temel', title: 'Temel bilgiler' },
+  { id: 'duzenleyenler', title: 'Düzenleyenler' },
   { id: 'zaman', title: 'Zaman ve yer' },
   { id: 'basvuru', title: 'Başvuru ve form' },
   { id: 'bilet', title: 'Bilet ve kapı' },
@@ -146,6 +162,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendeeNote: '',
     attendanceWelcomeMail: true,
     attendanceRecordedMail: true,
+    formResponsesAutoTicket: true,
     name: '',
     description: '',
     location: '',
@@ -191,19 +208,34 @@ export async function closeFeedbackReminders(eventId: string | undefined, gate: 
   }
 }
 
+/** What the Skyforms note's button says, by where the form goes. */
+const SKYFORMS_MOVE_LABEL = {
+  apply: 'Başvuru formuna taşı',
+  extra: 'Ek form olarak taşı',
+  listed: 'Bağlantıyı sil',
+} as const;
+
 /**
  * "Dış kayıt bağlantısı": the form on another product (Microsoft Forms and
  * the like) where people register; anyone who reads the Event sees it.
- * Its registrations come in through Katılımcılar → İçe aktar.
+ * Its registrations come in through Katılımcılar → İçe aktar. A Skyforms
+ * address here writes no Ticket: the note offers to move it to the Form
+ * slots (`onMove` gets them with the form in; the link is emptied).
  */
 function ExternalRegistrationField({
   value,
   onChange,
+  slots,
+  onMove,
 }: {
   value: string;
   onChange: (next: string) => void;
+  slots: EventFormSlot[];
+  onMove: (slots: EventFormSlot[]) => void;
 }) {
   const issue = externalRegistrationIssue(value);
+  const skyforms = issue ? null : skyformsLinkIn(value);
+  const target = skyforms?.formUrl ? skyformsMoveTarget(slots, skyforms) : null;
   return (
     <div className="space-y-1">
       <label className="block space-y-1">
@@ -220,11 +252,20 @@ function ExternalRegistrationField({
       </label>
       <span
         id="dis-kayit-ipucu"
-        className={`${issue ? 'text-destructive' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
+        className={`${issue ? 'text-destructive' : skyforms ? 'text-warning' : 'text-subtle-foreground'} block ${TEXT_SECONDARY}`}
       >
         {issue ??
-          'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.'}
+          (skyforms
+            ? target === 'listed'
+              ? 'Bu SkyForms formu zaten Başvuru ve form’da; bu bağlantı gerekmez.'
+              : 'SkyForms formu: buradaki bağlantının yanıtları bilete dönmez. Formu yukarıdaki form alanına bağla.'
+            : 'Kayıt başka bir formdaysa (Microsoft Forms vb.). Kayıtları Katılımcılar → İçe aktar ile bilete çevir.')}
       </span>
+      {skyforms && target ? (
+        <SaveButton type="button" onClick={() => onMove(moveSkyformsLink(slots, skyforms))}>
+          {SKYFORMS_MOVE_LABEL[target]}
+        </SaveButton>
+      ) : null}
     </div>
   );
 }
@@ -249,17 +290,22 @@ export function EventEditor({
   returnTo,
   onLeaveToSkyforms,
   formInUse,
+  canSendTickets,
   notices = {},
   certificatesHref,
   legacyRules,
   storedRatio,
   activeTickets,
+  certificateTemplate,
+  organizers,
 }: EventEditorProps) {
   const patch = (partial: Partial<EventFormState>) => onChange({ ...value, ...partial });
   const [staffOpen, setStaffOpen] = useState(false);
   const [staffQuery, setStaffQuery] = useState('');
   const [staffPeople, setStaffPeople] = useState<ReadonlyMap<string, Person>>(new Map());
   const staffSearch = usePersonSearch(staffOpen, staffQuery);
+  // Off on core (ATTENDANCE_MAIL): the switch is greyed out, the Event's value kept
+  const mailOn = useAttendanceMailOn();
 
   const staffIds = value.doorStaffIds ?? [];
   const staffKey = staffIds.join(',');
@@ -331,6 +377,13 @@ export function EventEditor({
           onGallery={(ids) => patch({ imageIds: ids })}
         />
       </EditorSection>
+      <EditorSection id="duzenleyenler" title="Düzenleyenler">
+        {organizers ?? (
+          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+            Ortak düzenleyenler kaydettikten sonra eklenir
+          </p>
+        )}
+      </EditorSection>
       <EditorSection id="zaman" title="Zaman ve yer">
         {notices.zaman}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -358,11 +411,33 @@ export function EventEditor({
           returnTo={returnTo}
           onLeaveToSkyforms={onLeaveToSkyforms}
           inUse={formInUse}
+          canSendTickets={canSendTickets}
           onChange={(formSlots) => patch({ formSlots, ...persistableFormFields(formSlots) })}
         />
+        {/* An older core sends none: not offered */}
+        {value.formResponsesAutoTicket !== undefined ? (
+          <Switch
+            checked={value.formResponsesAutoTicket}
+            onChange={(formResponsesAutoTicket) => patch({ formResponsesAutoTicket })}
+            label="Otomatik bilet gönder"
+            hint={
+              value.formResponsesAutoTicket
+                ? 'Formda kabul edilen yeni yanıta bilet gider.'
+                : 'Yeni yanıtlar Katılımcılar’da bilet bekler.'
+            }
+          />
+        ) : null}
         <ExternalRegistrationField
           value={value.externalRegistrationUrl ?? ''}
           onChange={(externalRegistrationUrl) => patch({ externalRegistrationUrl })}
+          slots={value.formSlots?.length ? value.formSlots : [emptyApplySlot()]}
+          onMove={(formSlots) =>
+            patch({
+              externalRegistrationUrl: '',
+              formSlots,
+              ...persistableFormFields(formSlots),
+            })
+          }
         />
         <div className="space-y-2">
           <label className="block space-y-1">
@@ -465,16 +540,26 @@ export function EventEditor({
         {value.attendanceWelcomeMail !== undefined ? (
           <>
             <Switch
-              checked={value.attendanceWelcomeMail ?? true}
+              checked={mailOn.welcome && (value.attendanceWelcomeMail ?? true)}
               onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
               label="Hoş geldin postası"
-              hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
+              hint={
+                mailOn.welcome
+                  ? 'Kişinin günün ilk girişinden 2 dakika sonra gider.'
+                  : MAIL_OFF_HINT
+              }
+              disabled={!mailOn.welcome}
             />
             <Switch
-              checked={value.attendanceRecordedMail ?? true}
+              checked={mailOn.recorded && (value.attendanceRecordedMail ?? true)}
               onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
               label="Katılım postası"
-              hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
+              hint={
+                mailOn.recorded
+                  ? 'Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar.'
+                  : MAIL_OFF_HINT
+              }
+              disabled={!mailOn.recorded}
             />
           </>
         ) : null}
@@ -564,6 +649,11 @@ export function EventEditor({
             />
           </div>
         ) : null}
+        <EventTicketImageFields
+          eventId={value.reservedId}
+          coverImageId={value.coverImageId ?? ''}
+          knownMedia={knownMedia}
+        />
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
         {notices.sertifika}
@@ -620,6 +710,14 @@ export function EventEditor({
             />
           </label>
         ) : null}
+        <div className="space-y-1">
+          <FieldLabel>Şablon</FieldLabel>
+          {certificateTemplate ?? (
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              Kaydettikten sonra şablon seçilir
+            </p>
+          )}
+        </div>
       </EditorSection>
       <EditorSection id="yayin" title="Görünürlük ve yayın">
         {notices.yayin}

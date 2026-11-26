@@ -5,6 +5,7 @@ import { FileText } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { CertificateLayout } from '@/lib/api/certificates';
 import { SAMPLE, certificateFontStack } from '@/lib/certificate-layout';
+import './certificate-fonts.css';
 
 /**
  * The picture inside a fixed box (a card's or a row's), whole: a portrait page stands as

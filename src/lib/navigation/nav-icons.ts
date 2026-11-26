@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   Ticket,
   Trophy,
+  Type,
   Mail,
   Users,
   UsersRound,
@@ -44,6 +45,7 @@ const PAGE_ICON: Record<string, LucideIcon> = {
   '/urls': Link2,
   '/certificates/templates': LayoutTemplate,
   '/certificates/defaults': SlidersHorizontal,
+  '/certificates/fonts': Type,
   '/handoff-targets': ArrowRightLeft,
   '/map-regions': MapIcon,
 };

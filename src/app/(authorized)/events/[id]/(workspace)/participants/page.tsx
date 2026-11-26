@@ -7,6 +7,7 @@ import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDraw
 import { AttendeeImportDrawer } from '@/components/scheduling/roster/AttendeeImportDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
+import { RespondentList, useRespondents } from '@/components/scheduling/roster/RespondentList';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { ticketsApi } from '@/lib/api/tickets';
@@ -40,6 +41,7 @@ export default function EventParticipantsPage() {
     canAssign,
     canDesk,
     canCancelTickets,
+    canMutate,
   } = useEventWorkspace();
   const notify = useNotify();
   const [confirm, confirmDialog] = useConfirm();
@@ -79,6 +81,9 @@ export default function EventParticipantsPage() {
   useEffect(() => {
     void readWaitlisted();
   }, [readWaitlisted]);
+
+  // Form answers with no Ticket yet: read by who may see the Tickets (core docs/form-respondents.md)
+  const respondents = useRespondents(event.id, canTickets);
 
   // The address decides, also when a link changes it while the page is open
   const linked = useSearchParams()?.get(OPEN_PARAM) ?? null;
@@ -142,7 +147,7 @@ export default function EventParticipantsPage() {
 
   const capacity = event.capacity ?? 0;
   const readAll = async () => {
-    await Promise.all([reload(), readCancelled(), readWaitlisted()]);
+    await Promise.all([reload(), readCancelled(), readWaitlisted(), respondents.reload()]);
   };
 
   // Exactly who may edit the event cancels a ticket and takes it back (core)
@@ -217,6 +222,31 @@ export default function EventParticipantsPage() {
         onPromote={canCancelTickets ? askPromote : undefined}
         eventEnded={eventHasEnded(event)}
         dialogs={confirmDialog}
+        respondentCounts={
+          respondents.available
+            ? {
+                unticketed: respondents.accepted.total,
+                formsPending: respondents.pending.total,
+                failed: respondents.failed,
+              }
+            : undefined
+        }
+        renderRespondents={(view, query) => (
+          <RespondentList
+            eventId={event.id}
+            view={view}
+            query={query}
+            respondents={respondents}
+            confirm={confirm}
+            // core: Update on the Event or Assign on its Tickets, as the attendee import
+            canSend={canMutate || canAssign}
+            onSent={async (line) => {
+              notify.success(line);
+              await readAll();
+            }}
+            onRefresh={readAll}
+          />
+        )}
       />
       <AddParticipantDrawer
         open={addOpen}
