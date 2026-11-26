@@ -193,6 +193,9 @@ const AUDIT_ACTIONS: Record<string, string> = {
   'membership.term.extend': 'Görev uzatıldı',
   'membership.term.handover': 'Görev devredildi',
   'membership.term.expired': 'Görev süresi doldu',
+  'co_organizer.add': 'Ortak düzenleyen eklendi',
+  'co_organizer.remove': 'Ortak düzenleyen çıkarıldı',
+  'co_organizer.change': 'Ortak düzenleyen ayarı değişti',
 };
 
 export function auditActionLabel(action: string): string {

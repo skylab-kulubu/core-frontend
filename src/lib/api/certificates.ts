@@ -99,6 +99,8 @@ export type CertificateTemplate = {
   sourceEditUrl: string;
   draftLayout: CertificateLayout;
   system: boolean;
+  /** An Event template (core docs/certificate-event-templates.md): serves this Event alone. */
+  eventId?: string;
   createdAt: string;
   updatedAt: string;
   publishedVersion?: CertificateTemplateVersion;
@@ -109,6 +111,35 @@ export type ResolvedCertificateTemplate = {
   version: CertificateTemplateVersion;
   source: 'event' | 'ownerTeam' | 'clubDefault';
 };
+
+/** A published team or club template an Event may be bound to: its name, never its layout. */
+export type CertificateTemplateChoice = {
+  id: string;
+  name: string;
+  ownerTeam: string;
+  system: boolean;
+  version: number;
+};
+
+/**
+ * GET /v1/events/{id}/certificate-template: what a certificate issued now
+ * takes (`resolution`, null when nothing resolves; its layout only to who may
+ * read that template), the Event's own template if it has one
+ * (`publishedVersion` absent while a draft) and the templates it may take instead.
+ */
+export type EventCertificateTemplateState = {
+  resolution: ResolvedCertificateTemplate | null;
+  eventTemplate: {
+    id: string;
+    name: string;
+    draftUpdatedAt: string;
+    publishedVersion?: number;
+  } | null;
+  choices: CertificateTemplateChoice[];
+};
+
+/** Where a new Event template starts: the layout in use now, an empty page, or a choice's id. */
+export type EventTemplateFrom = 'current' | 'blank' | (string & {});
 
 export type CertificateTemplateBinding = {
   id: string;
@@ -297,7 +328,13 @@ export type CertificateRuleBody = {
 const eventPath = (eventId: string) => `/v1/events/${encodeURIComponent(eventId)}`;
 
 export const certificatesApi = {
-  templates: () => coreFetch<CertificateTemplate[]>('/v1/certificate-templates'),
+  /** Team and club templates; `eventId` lists that Event's own template alone. */
+  templates: (filter: { eventId?: string } = {}) =>
+    coreFetch<CertificateTemplate[]>(
+      filter.eventId
+        ? `/v1/certificate-templates?eventId=${encodeURIComponent(filter.eventId)}`
+        : '/v1/certificate-templates',
+    ),
   template: (id: string) =>
     coreFetch<CertificateTemplate>(`/v1/certificate-templates/${encodeURIComponent(id)}`),
   createTemplate: (body: CertificateTemplateDraft) =>
@@ -344,6 +381,15 @@ export const certificatesApi = {
       `/v1/certificate-template-bindings/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
       { method: 'DELETE' },
     ),
+  /** An older core has no such call and answers 404: the Event shows the resolved template alone. */
+  eventTemplate: (eventId: string) =>
+    coreFetch<EventCertificateTemplateState>(`${eventPath(eventId)}/certificate-template`),
+  /** 409 `template_event_exists` carries the current one's `templateId`. */
+  createEventTemplate: (eventId: string, from: EventTemplateFrom = 'current') =>
+    coreFetch<CertificateTemplate>(`${eventPath(eventId)}/certificate-template`, {
+      method: 'POST',
+      body: JSON.stringify({ from }),
+    }),
   resolve: (eventId: string) =>
     coreFetch<ResolvedCertificateTemplate>(`${eventPath(eventId)}/certificates/template`),
   summary: (eventId: string) =>

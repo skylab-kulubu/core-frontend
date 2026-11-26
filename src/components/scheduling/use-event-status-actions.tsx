@@ -17,7 +17,7 @@ import { lookupPeople } from '@/lib/people-lookup';
 import { ticketApplicantName } from '@/lib/tickets-ui';
 import { UNDO_HINT, useConfirm } from '@/lib/ui/use-confirm';
 import { useNotify } from '@/lib/ui/use-notify';
-import { useTeamCan } from '@/lib/use-app-can';
+import { useTeamCan, viewerDecision } from '@/lib/use-app-can';
 
 /** The most core takes as a cancellation reason. */
 export const CANCEL_REASON_MAX = 500;
@@ -36,14 +36,21 @@ export type EventStatusRights = {
  * answer is in, or when it cannot be read, nothing is offered; core decides
  * every request anyway.
  */
-export function useEventStatusRights(): (event: Pick<CoreEvent, 'ownerTeam'>) => EventStatusRights {
+export function useEventStatusRights(): (
+  event: Pick<CoreEvent, 'ownerTeam' | 'viewer'>,
+) => EventStatusRights {
   const capabilities = useCapabilities();
   const teamCan = useTeamCan();
   return (event) => {
     const ready = capabilities.status === 'ready';
+    // core's decision on the Event itself (viewer.can) when it sends one
     return {
-      canUpdate: ready && teamCan(event.ownerTeam, 'event.update'),
-      canDelete: ready && teamCan(event.ownerTeam, 'event.delete'),
+      canUpdate:
+        viewerDecision(event, 'event.update') ??
+        (ready && teamCan(event.ownerTeam, 'event.update')),
+      canDelete:
+        viewerDecision(event, 'event.delete') ??
+        (ready && teamCan(event.ownerTeam, 'event.delete')),
     };
   };
 }

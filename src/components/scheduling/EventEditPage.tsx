@@ -5,14 +5,21 @@ import { useEffect, useState } from 'react';
 import { useFormState, useWatch } from 'react-hook-form';
 import { LoadError } from '@/components/chrome/LoadError';
 import { StateCard } from '@/components/chrome/StateCard';
+import { EventEditTemplate } from '@/components/scheduling/EventEditTemplate';
+import { EventOrganizers } from '@/components/scheduling/EventOrganizers';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-notice-question';
+import { newlyListedForms, useBindQuestion } from '@/components/scheduling/use-bind-question';
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
+import { useTeamDecide } from '@/lib/use-app-can';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
+
+export const ORGANIZERS_UNSAVED =
+  'Düzenleyenler değişikliği kaydedilmedi; önce kaydet ya da vazgeç.';
 
 /** Jumps to the section a form problem is in, so the reader sees the field. */
 export function showIssueSection(issue: string | undefined) {
@@ -42,7 +49,11 @@ export function useLegacyCertificateRules(eventId: string, enabled: boolean): bo
 /** /events/[id]/edit: the whole event on one page in sections, saved from the bar below. */
 export function EventEditPage() {
   const router = useRouter();
-  const { event, canMutate, editor } = useEventWorkspace();
+  const { event, canMutate, canAssign, editor } = useEventWorkspace();
+  // A save that links a Skyforms form asks whether its respondents get Tickets: core lets who
+  // may edit the Event or add attendees send them (Update || Assign, as the attendee import)
+  const [askBind, bindDialog] = useBindQuestion();
+  const canSendTickets = canMutate || canAssign;
   const { form } = editor;
   // Subscribed here, not in the workspace: the page must redraw when load() resets the form
   const value = useWatch({ control: form.control, name: 'event' });
@@ -54,10 +65,21 @@ export function EventEditPage() {
   } = useFormState({
     control: form.control,
   });
-  const guard = useUnsavedChanges(dirty && !saving);
+  // Düzenleyenler is saved on its own: the event's Kaydet waits until it is saved or dropped
+  const [organizersDirty, setOrganizersDirty] = useState(false);
+  const [organizersHeld, setOrganizersHeld] = useState(false);
+  // One question for the page, whichever part is unsaved
+  const guard = useUnsavedChanges((dirty || organizersDirty) && !saving);
   const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
+  // core's Assign on the saved Event (privileged, or its Owner team's Leader); the group rule if unread
+  const teamDecide = useTeamDecide();
+  const assignDoorStaff = teamDecide(
+    event.ownerTeam ?? '',
+    'event.assignDoorStaff',
+    editor.privileged,
+  );
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);
@@ -82,15 +104,27 @@ export function EventEditPage() {
         saving={saving}
         submitLabel="Kaydet"
         onCancel={() => guard.leave(overview)}
-        error={editor.error ?? issue}
+        error={
+          (organizersHeld && organizersDirty ? ORGANIZERS_UNSAVED : null) ?? editor.error ?? issue
+        }
         onSubmit={form.handleSubmit(
           async ({ event: values }) => {
+            if (organizersDirty) {
+              setOrganizersHeld(true);
+              document.getElementById('duzenleyenler')?.scrollIntoView({ block: 'start' });
+              return;
+            }
             // A new time or place of a published event: ask whether its ticket holders are told
             const notice = editor.changeNotice(values);
             const notifyTicketHolders = notice ? await askChangeNotice(notice) : false;
             if (notifyTicketHolders === null) return;
             if (await editor.save(values, { notifyTicketHolders })) {
               guard.allowLeave();
+              if (canSendTickets) {
+                for (const formId of newlyListedForms(event, values)) {
+                  await askBind(event.id, formId);
+                }
+              }
               router.push(overview);
             }
           },
@@ -110,7 +144,7 @@ export function EventEditPage() {
           seasons={editor.seasons}
           showSeason={editor.privileged}
           ownerOptional={editor.privileged}
-          assignDoorStaff={editor.privileged}
+          assignDoorStaff={assignDoorStaff}
           knownMedia={[
             ...(event.coverImageId
               ? [{ id: event.coverImageId, name: 'Kapak', url: event.coverImageUrl }]
@@ -119,12 +153,15 @@ export function EventEditPage() {
           ]}
           returnTo={typeof window !== 'undefined' ? window.location.href : ''}
           formInUse={editor.inUse}
+          canSendTickets={canSendTickets}
           certificatesHref={eventTabHref(event.id, 'certificates')}
           legacyRules={legacyRules}
           activeTickets={event.ticketCount}
           storedRatio={
             event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
           }
+          certificateTemplate={<EventEditTemplate leave={guard.leave} />}
+          organizers={<EventOrganizers event={event} onDirtyChange={setOrganizersDirty} />}
           notices={{
             temel: editor.optionsFailed.teams ? (
               <LoadError title="Ekipler yüklenemedi" onRetry={editor.reloadOptions} />
@@ -137,6 +174,7 @@ export function EventEditPage() {
       </EventFormLayout>
       {guard.dialog}
       {changeNoticeDialog}
+      {bindDialog}
     </>
   );
 }

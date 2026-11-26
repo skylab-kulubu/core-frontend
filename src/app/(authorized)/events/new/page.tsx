@@ -29,6 +29,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { eventFormChanged } from '@/lib/event-draft';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
+import { useTeamDecide } from '@/lib/use-app-can';
 import { PageSkeleton } from '@/components/chrome/PageSkeleton';
 
 function NewEventPageContent() {
@@ -45,6 +46,7 @@ function NewEventPageContent() {
     leaderTeams,
     ready: capabilitiesReady,
   } = useEventCreate(groups);
+  const teamDecide = useTeamDecide();
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -201,7 +203,7 @@ function NewEventPageContent() {
             seasons={seasons}
             showSeason={privileged}
             ownerOptional={privileged}
-            assignDoorStaff={privileged}
+            assignDoorStaff={teamDecide(form.ownerTeam ?? '', 'event.assignDoorStaff', privileged)}
             returnTo={typeof window !== 'undefined' ? window.location.href : ''}
             onLeaveToSkyforms={() => {
               // The draft comes back with the form: no question on the way out
