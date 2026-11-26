@@ -6,7 +6,9 @@ import {
   ArrowLeft,
   CheckCircle2,
   CircleAlert,
+  DoorOpen,
   Inbox,
+  Presentation,
   QrCode,
   ScanLine,
   Search,
@@ -49,6 +51,7 @@ import {
 import { eventTabHref } from '@/lib/event-workspace';
 import { formatApplicantWhen } from '@/lib/tickets-ui';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useConfirm } from '@/lib/ui/use-confirm';
 import { useDeferredUndo } from '@/lib/ui/use-deferred-undo';
 
 type Entry = { id: string; name: string; createdAt: string };
@@ -60,13 +63,16 @@ type Outcome =
   | { kind: 'already'; text: string; title?: string }
   | { kind: 'refused'; text: string; title?: string };
 
+/** An attempt core did not write. */
+type Refused = Extract<Outcome, { kind: 'already' | 'refused' }>;
+
 /** The full-screen result of a scan, tied to its entry so the name can arrive after it. */
 type Flash = DoorFlashResult & { entryId?: string };
 
 const RECENT = 10;
 /**
- * The picker's value for the event's own door (core docs/venue-entry.md): no session, the scan
- * writes the day's venue entry. The only door of an event without sessions.
+ * The picker's value for the event's own door, "Alana giriş" (core docs/venue-entry.md): no
+ * session, the scan writes the day's venue entry. The only door of an event without sessions.
  */
 export const EVENT_DOOR = 'event';
 const SUGGESTIONS = 6;
@@ -84,10 +90,28 @@ const timeOf = (iso: string) => {
 };
 
 /**
+ * A refusal at a session's attendance on an event run with one entry a day (Oturum katılımı):
+ * already there is "already attended"; a core that writes the day's venue entry alone at a
+ * session answers a person let in today with `already_entered`, and nothing was written for the
+ * session (the desk by name writes it).
+ */
+function asAttendance(refused: Refused, err: unknown): Refused & { title: string } {
+  if (err instanceof ProblemError && err.code === 'already_entered') {
+    return { kind: 'refused', title: NOT_ATTENDED, text: ENTERED_ATTEND_BY_NAME };
+  }
+  if (refused.kind === 'already') return { ...refused, title: 'Zaten katılmış' };
+  return { ...refused, title: refused.title ?? 'Katılmadı' };
+}
+
+const NOT_ATTENDED = 'Katılım yazılmadı';
+const ATTEND_BY_NAME = 'Yalnız alana giriş yazıldı; katılımı adıyla yaz.';
+const ENTERED_ATTEND_BY_NAME = 'Kişi bugün alana girmiş; katılımı adıyla yaz.';
+
+/**
  * A refusal in the door's words: already in (amber), a cancelled or waitlisted ticket, two
  * people of that name, nobody found, or core's Turkish reason (red).
  */
-function refusal(err: unknown, fallback: string): Outcome {
+function refusal(err: unknown, fallback: string): Refused {
   const conflict = doorConflict(err);
   if (conflict?.kind === 'already') {
     return { kind: 'already', title: conflict.title, text: conflict.text };
@@ -101,11 +125,14 @@ function refusal(err: unknown, fallback: string): Outcome {
 
 function OutcomeBand({
   outcome,
+  attendance,
   waiting,
   onUndo,
   onKeep,
 }: {
   outcome: Outcome | null;
+  /** The session's attendance (Oturum katılımı), not an entry. */
+  attendance: boolean;
   /** The entries taken back but still waiting for Vazgeç. */
   waiting: ReadonlySet<string>;
   onUndo: (entry: Entry) => void;
@@ -140,7 +167,9 @@ function OutcomeBand({
           <div className="min-w-0 flex-1">
             <p className="text-foreground-strong text-lg leading-tight font-semibold">
               {outcome.kind === 'in'
-                ? 'Girdi'
+                ? attendance
+                  ? 'Katıldı'
+                  : 'Girdi'
                 : outcome.kind === 'undone'
                   ? 'Geri alındı'
                   : outcome.kind === 'already'
@@ -184,10 +213,82 @@ function OutcomeBand({
   );
 }
 
+/** One of the door's two tabs on an event run with one entry a day. */
+function ModeTab({
+  selected,
+  Icon,
+  label,
+  onSelect,
+}: {
+  selected: boolean;
+  Icon: typeof DoorOpen;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      onClick={onSelect}
+      className={cn(
+        'focus-visible:ring-ring flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium outline-hidden focus-visible:ring-2',
+        selected
+          ? 'bg-card text-foreground-strong shadow-sm'
+          : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+/** A live count: what it counts on top, the number large, its unit beside it. */
+function DoorCount({
+  label,
+  title,
+  value,
+  unit,
+  current = false,
+}: {
+  label: string;
+  title: string;
+  value: number | null;
+  unit: string;
+  /** The count of what the door writes now, beside another. */
+  current?: boolean;
+}) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className={cn(
+        'bg-card min-w-0 rounded-xl border p-4',
+        current ? 'border-primary/60' : 'border-border-subtle',
+      )}
+    >
+      <p className={cn('text-muted-foreground break-words', TEXT_SECONDARY)}>{title}</p>
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-foreground-strong text-4xl leading-none font-semibold tabular-nums">
+          {value ?? '—'}
+        </p>
+        <p className={cn('text-muted-foreground', TEXT_SECONDARY)}>{unit}</p>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The door of one event, a focus page without the sidebar: the session and its count on top,
  * one box for a name, an e-mail or a ticket code (or the camera), a large result band that can
  * take the entry back, the guest QR and the last entries.
+ *
+ * An event run with one entry a day and sessions keeps the two apart, as check-in apps keep the
+ * venue's check-in and a session's (Cvent OnArrival's event and session check-in, pretix's
+ * check-in lists): two tabs, "Alana giriş" (the default: the day's venue entry) and "Oturum
+ * katılımı" (the chosen session's attendance, asked before the session is taken), each with its
+ * own count and list.
  */
 export function DoorDesk({ eventId }: { eventId: string }) {
   const [events, setEvents] = useState<DoorEvent[]>([]);
@@ -197,6 +298,8 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   const [activityError, setActivityError] = useState<string | null>(null);
   const [recent, setRecent] = useState<Entry[]>([]);
   const [total, setTotal] = useState(0);
+  // The day's venue entries beside a session's attendance (Oturum katılımı)
+  const [venueTotal, setVenueTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<DoorAttendee[]>([]);
@@ -211,6 +314,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [soundOn, setSoundOn] = useState(true);
   const deferred = useDeferredUndo();
+  const [confirm, confirmDialog] = useConfirm();
   // The session the desk shows now, for answers that arrive after it was changed
   const shownSession = useRef(sessionId);
   shownSession.current = sessionId;
@@ -296,6 +400,11 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   useChromeCrumbName(`/events/${eventId}`, event?.name);
 
   const atEventDoor = sessionId === EVENT_DOOR;
+  const hasSessions = sessions.some((session) => !session.cancelled);
+  // The venue entry and a session's attendance apart: an event run with one entry a day that has
+  // sessions. Its door is the venue's (Alana giriş) unless the staff turn to a session.
+  const split = hasSessions && event?.effectiveEntryMode === 'venue';
+  const attendance = split && !atEventDoor;
 
   const refresh = useCallback(async (): Promise<Entry[]> => {
     if (!sessionId) return [];
@@ -310,11 +419,17 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         setRecent(rows);
         return rows;
       }
-      const activity = await ticketsApi.doorActivity(sessionId);
+      // The session's attendance alone; at an event run with one entry a day the day's entries
+      // beside it, on a count of their own
+      const [activity, entries] = await Promise.all([
+        ticketsApi.doorActivity(sessionId),
+        split ? ticketsApi.venueEntries(eventId).catch(() => null) : null,
+      ]);
       const rows = activity.items
         .slice(0, RECENT)
         .map((item) => ({ id: item.id, name: item.personName, createdAt: item.createdAt }));
       setTotal(activity.total);
+      setVenueTotal(entries ? entries.length : null);
       setActivityError(null);
       setRecent(rows);
       return rows;
@@ -322,11 +437,12 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       setActivityError(coreProblemMessage(err, 'Son girişler yüklenemedi'));
       return [];
     }
-  }, [sessionId, eventId]);
+  }, [sessionId, eventId, split]);
 
   useEffect(() => {
     setRecent([]);
     setTotal(0);
+    setVenueTotal(null);
     setActivityError(null);
     setOutcome(null);
     if (!sessionId) return;
@@ -385,7 +501,8 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       admitted({ id: created.id, name: name || label, createdAt: created.createdAt });
       signal('in');
     } catch (err) {
-      const refused = refusal(err, 'Giriş yazılamadı');
+      const said = refusal(err, attendance ? 'Katılım yazılamadı' : 'Giriş yazılamadı');
+      const refused = attendance ? asAttendance(said, err) : said;
       setOutcome(refused);
       signal(refused.kind === 'already' ? 'already' : 'refused');
     } finally {
@@ -402,7 +519,16 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       const written =
         sessionId === EVENT_DOOR
           ? await ticketsApi.scanEntry(eventId, token)
-          : await ticketsApi.scanCheckIn(sessionId, token);
+          : attendance
+            ? await ticketsApi.scanCheckIn(sessionId, token, { checkIn: true })
+            : await ticketsApi.scanCheckIn(sessionId, token);
+      if (attendance && 'kind' in written && written.kind === 'entry') {
+        // A core that writes the venue entry alone at a session: nothing for the session
+        const refused = { kind: 'refused' as const, title: NOT_ATTENDED, text: ATTEND_BY_NAME };
+        setOutcome(refused);
+        signal('refused', { signal: 'refused', title: refused.title, line: refused.text });
+        return;
+      }
       const created = {
         id: written.id,
         createdAt: written.createdAt,
@@ -416,7 +542,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       });
       signal('in', {
         signal: 'in',
-        title: 'Giriş yazıldı',
+        title: attendance ? 'Katılım yazıldı' : 'Giriş yazıldı',
         line: created.personName || '',
         time: timeOf(created.createdAt),
         entryId: created.id,
@@ -434,7 +560,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         );
       }
     } catch (err) {
-      const refused = scanRefusal(err);
+      const refused = attendance ? asAttendance(scanRefusal(err), err) : scanRefusal(err);
       setOutcome(refused);
       signal(refused.kind, { signal: refused.kind, title: refused.title, line: refused.text });
     } finally {
@@ -449,7 +575,8 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   function undo(entry: Entry) {
     const session = sessionId;
     if (!session) return;
-    deferred.schedule(entry.id, `${entry.name}: giriş geri alınıyor`, async () => {
+    const what = attendance ? 'katılım' : 'giriş';
+    deferred.schedule(entry.id, `${entry.name}: ${what} geri alınıyor`, async () => {
       try {
         if (session === EVENT_DOOR) await ticketsApi.undoEntry(eventId, entry.id);
         else await ticketsApi.undoCheckIn(session, entry.id);
@@ -479,19 +606,44 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   }
 
   const selectedSession = sessions.find((session) => session.id === sessionId);
-  const hasSessions = sessions.some((session) => !session.cancelled);
   // The event's own door: on an event without sessions, or one run with one entry a day; an
   // event run per session keeps its sessions' doors alone
   const offerEventDoor = !hasSessions || event?.effectiveEntryMode === 'venue';
-  // Never blocks: says why nothing is chosen, what the event's door writes, or that the chosen
-  // session is not running now
+  // Never blocks: what the door writes here, why nothing is chosen, or that the chosen session
+  // is not running now
   const sessionNote = atEventDoor
     ? hasSessions
-      ? 'Etkinlik girişi yazılır; oturum yoklaması yazılmaz.'
-      : 'Bu etkinliğin oturumu yok: kapı etkinlik girişini yazar.'
-    : !sessionId && sessions.length > 0
-      ? 'Şu an süren oturum yok; giriş oturumunu seç.'
-      : doorSessionTiming(selectedSession);
+      ? 'Okutulan bilet bugünkü alana girişi yazar; oturum katılımı yazılmaz.'
+      : 'Bu etkinliğin oturumu yok: kapı alana girişi yazar.'
+    : attendance
+      ? !sessionId
+        ? 'Oturumu seç: okutulan ya da yazılan herkes o oturuma katılmış sayılır.'
+        : (doorSessionTiming(selectedSession) ??
+          'Okutulan ya da yazılan herkes bu oturuma katılmış sayılır.')
+      : !sessionId && sessions.length > 0
+        ? 'Şu an süren oturum yok; giriş oturumunu seç.'
+        : doorSessionTiming(selectedSession);
+
+  /**
+   * Turns the door to a session: on an event run with one entry a day only after a question
+   * that names it, since everyone written there counts as attending it.
+   */
+  function pickSession(next: string) {
+    const chosen = sessions.find((session) => session.id === next);
+    if (!split || !chosen) {
+      setSessionId(next);
+      return;
+    }
+    confirm({
+      title: `"${chosen.title}" oturumuna katılım yazılsın mı?`,
+      description:
+        'Kapıda alana giriş okutulur. Burada okutulan ya da yazılan herkes bu oturuma katılmış sayılır.',
+      actionLabel: 'Oturumu seç',
+      destructive: false,
+      onConfirm: () => setSessionId(next),
+    });
+  }
+  const writeLabel = attendance ? 'Katılımı yaz' : 'Girişi yaz';
 
   // Back to the event on top: the door is reached from it, and left for it
   const shell = (body: ReactNode) => (
@@ -540,67 +692,96 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label className="block space-y-1">
-          <FieldLabel>Oturum</FieldLabel>
-          <Select
-            value={sessionId}
-            onChange={(change) => setSessionId(change.target.value)}
-            aria-describedby={sessionNote ? 'door-session-note' : undefined}
-            className="h-11"
-          >
-            {hasSessions ? <option value="">Oturum seç</option> : null}
-            {offerEventDoor ? (
-              <option value={EVENT_DOOR}>Etkinlik girişi (oturumsuz)</option>
-            ) : null}
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {doorSessionLabel(session)}
-              </option>
-            ))}
-          </Select>
-        </label>
-        {hasSessions ? (
-          <Button
-            variant={guestQr ? 'primary' : 'outline'}
-            size="lg"
-            className={BUTTON_TEXT}
-            disabled={!sessionId || atEventDoor}
-            aria-pressed={guestQr}
-            onClick={() => setGuestQr((open) => !open)}
-          >
-            <QrCode aria-hidden />
-            Misafir QR’ı
-          </Button>
-        ) : null}
-      </div>
+      {split ? (
+        <div
+          role="tablist"
+          aria-label="Kapıda yazılan"
+          className="border-border-subtle bg-muted grid grid-cols-2 gap-1 rounded-xl border p-1"
+        >
+          <ModeTab
+            selected={atEventDoor}
+            Icon={DoorOpen}
+            label="Alana giriş"
+            onSelect={() => setSessionId(EVENT_DOOR)}
+          />
+          <ModeTab
+            selected={!atEventDoor}
+            Icon={Presentation}
+            label="Oturum katılımı"
+            onSelect={() => {
+              if (atEventDoor) setSessionId('');
+            }}
+          />
+        </div>
+      ) : null}
+
+      {split && atEventDoor ? null : (
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <label className="block space-y-1">
+            <FieldLabel>Oturum</FieldLabel>
+            <Select
+              value={sessionId}
+              onChange={(change) => pickSession(change.target.value)}
+              aria-describedby={sessionNote ? 'door-session-note' : undefined}
+              className="h-11"
+            >
+              {hasSessions ? <option value="">Oturum seç</option> : null}
+              {offerEventDoor && !split ? <option value={EVENT_DOOR}>Alana giriş</option> : null}
+              {sessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {doorSessionLabel(session)}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {hasSessions ? (
+            <Button
+              variant={guestQr ? 'primary' : 'outline'}
+              size="lg"
+              className={BUTTON_TEXT}
+              disabled={!sessionId}
+              aria-pressed={guestQr}
+              onClick={() => setGuestQr((open) => !open)}
+            >
+              <QrCode aria-hidden />
+              Misafir QR’ı
+            </Button>
+          ) : null}
+        </div>
+      )}
       {sessionNote ? (
         <p id="door-session-note" className={cn('text-muted-foreground', TEXT_SECONDARY)}>
           {sessionNote}
         </p>
       ) : null}
 
-      <div
-        role="status"
-        aria-label="Giren sayısı"
-        className="border-border-subtle bg-card flex items-end justify-between gap-3 rounded-xl border p-4"
-      >
-        <div className="min-w-0">
-          <p className={cn('text-muted-foreground truncate', TEXT_SECONDARY)}>
-            {atEventDoor
-              ? 'Etkinlik girişi · bugün'
-              : selectedSession
-                ? selectedSession.title
-                : 'Oturum seçilmedi'}
-          </p>
-          <p className="text-foreground-strong text-4xl leading-none font-semibold tabular-nums">
-            {sessionId ? total : '—'}
-          </p>
-        </div>
-        <p className={cn('text-muted-foreground', TEXT_SECONDARY)}>giren</p>
+      <div className={cn('grid gap-3', attendance && sessionId && 'grid-cols-2')}>
+        <DoorCount
+          label={attendance ? 'Katılan sayısı' : 'Giren sayısı'}
+          title={
+            atEventDoor
+              ? 'Alana giriş · bugün'
+              : attendance
+                ? 'Oturum katılımı'
+                : selectedSession
+                  ? selectedSession.title
+                  : 'Oturum seçilmedi'
+          }
+          value={sessionId ? total : null}
+          unit={attendance ? 'katılan' : 'giren'}
+          current={attendance}
+        />
+        {attendance && sessionId ? (
+          <DoorCount
+            label="Alana giren sayısı"
+            title="Alana giriş · bugün"
+            value={venueTotal}
+            unit="giren"
+          />
+        ) : null}
       </div>
 
-      {guestQr && !atEventDoor ? <GuestDoorQr sessionId={sessionId} open /> : null}
+      {guestQr && sessionId && !atEventDoor ? <GuestDoorQr sessionId={sessionId} open /> : null}
 
       <form className="space-y-2" noValidate onSubmit={submit} role="search">
         <div className="space-y-1">
@@ -634,7 +815,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
               disabled={!sessionId || busy}
             >
               <UserCheck aria-hidden />
-              {busy ? 'Yazılıyor…' : 'Girişi yaz'}
+              {busy ? 'Yazılıyor…' : writeLabel}
             </Button>
           </div>
         </div>
@@ -679,6 +860,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
 
       <OutcomeBand
         outcome={outcome}
+        attendance={attendance}
         waiting={deferred.pending}
         onUndo={undo}
         onKeep={(entry) => deferred.cancel(entry.id)}
@@ -713,7 +895,7 @@ export function DoorDesk({ eventId }: { eventId: string }) {
                   </span>
                 </span>
                 <span className={cn('text-skylab-300 shrink-0 font-medium', TEXT_SECONDARY)}>
-                  Girişi yaz
+                  {writeLabel}
                 </span>
               </button>
             </li>
@@ -721,8 +903,14 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         </ul>
       ) : null}
 
-      <section aria-label="Son girişler" className="space-y-2">
-        <h2 className="text-foreground text-sm font-semibold">Son girişler</h2>
+      <section aria-label={attendance ? 'Son katılanlar' : 'Son girişler'} className="space-y-2">
+        <h2 className="text-foreground text-sm font-semibold">
+          {atEventDoor && split
+            ? 'Son alana girişler'
+            : attendance
+              ? 'Bu oturuma son katılanlar'
+              : 'Son girişler'}
+        </h2>
         {activityError ? (
           <p role="alert" className="text-destructive text-sm">
             {activityError}
@@ -777,12 +965,15 @@ export function DoorDesk({ eventId }: { eventId: string }) {
           <p className={cn('text-subtle-foreground', TEXT_SECONDARY)}>
             {atEventDoor
               ? 'Bugün henüz giriş yok'
-              : sessionId
-                ? 'Bu oturumda henüz giriş yok'
-                : 'Oturum seç'}
+              : attendance && sessionId
+                ? 'Bu oturuma henüz katılan yok'
+                : sessionId
+                  ? 'Bu oturumda henüz giriş yok'
+                  : 'Oturum seç'}
           </p>
         )}
       </section>
+      {confirmDialog}
     </div>,
   );
 }

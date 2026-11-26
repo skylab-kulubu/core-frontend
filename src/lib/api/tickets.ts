@@ -9,6 +9,11 @@ export type CheckIn = {
   createdAt: string;
   /** The holder's name, where core sends it (the camera scan does not yet). */
   personName?: string;
+  /**
+   * `entry` when a scan at a session wrote the day's venue entry alone (an event run with one
+   * entry a day; core docs/venue-entry.md), `check_in` for the session's attendance.
+   */
+  kind?: 'check_in' | 'entry';
 };
 
 export type DoorEvent = {
@@ -264,12 +269,14 @@ export const ticketsApi = {
   /**
    * What the door's camera read: a Ticket QR or a SkyPass code (core-backend
    * docs/ticket-qr.md). 401 `ticket_qr_invalid`, 410 `ticket_qr_superseded`,
-   * 409 when the holder is already in.
+   * 409 when the holder is already in. `checkIn` asks for the session's attendance on an event
+   * run with one entry a day too, where a scan writes the day's venue entry alone without it
+   * (core docs/venue-entry.md).
    */
-  scanCheckIn: (sessionId: string, token: string) =>
+  scanCheckIn: (sessionId: string, token: string, options?: { checkIn?: boolean }) =>
     coreFetch<CheckIn>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-in/scan`, {
       method: 'POST',
-      body: JSON.stringify({ token }),
+      body: JSON.stringify(options?.checkIn ? { token, checkIn: true } : { token }),
     }),
   /**
    * Takes back an entry the door wrote by mistake (204); who may write the entry may take it
@@ -369,9 +376,14 @@ export const ticketsApi = {
     coreFetch<VenueEntry[]>(`/v1/events/${encodeURIComponent(eventId)}/entries`, {
       cache: 'no-store',
     }),
-  /** Live: the door page asks every few seconds, never from the kept reads. */
+  /**
+   * Live: the session's attendance alone (`kind=check_in`), never the day's venue entries core
+   * adds to it on an event run with one entry a day (core docs/venue-entry.md). The door page asks
+   * every few seconds, never from the kept reads.
+   */
   doorActivity: (sessionId: string) =>
-    coreFetch<DoorActivity>(`/v1/sessions/${encodeURIComponent(sessionId)}/check-ins`, {
-      cache: 'no-store',
-    }),
+    coreFetch<DoorActivity>(
+      `/v1/sessions/${encodeURIComponent(sessionId)}/check-ins?kind=check_in`,
+      { cache: 'no-store' },
+    ),
 };
