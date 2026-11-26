@@ -136,6 +136,9 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceRecordedMail: ev.attendanceRecordedMail,
     attendeeNote: ev.attendeeNote,
     formResponsesAutoTicket: ev.formResponsesAutoTicket,
+    // Undefined while core sends none (left out when empty, or an older core): nothing is written back
+    theme: ev.theme,
+    ticketAccentColor: ev.ticketAccentColor,
     startDate: toDatetimeLocal(ev.startDate),
     endDate: toDatetimeLocal(ev.endDate),
     linkedin: ev.linkedin ?? '',

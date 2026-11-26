@@ -25,7 +25,8 @@ export type CopySkippedPart =
   | 'doorStaff'
   | 'competitions'
   | 'attendeeNote'
-  | 'coOrganizerPeople';
+  | 'coOrganizerPeople'
+  | 'ticketImage';
 
 const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   cover: 'Kapak görseli kopyalanmadı.',
@@ -36,6 +37,7 @@ const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   attendeeNote: 'Katılımcı notu kopyalanmadı: bu notu görme yetkin yok.',
   coOrganizerPeople:
     'Ortak kişiler kopyalanmadı: ortak düzenleyen listesini değiştirme yetkin yok.',
+  ticketImage: 'Bilet görseli kopyalanmadı: görsel bu ekipte kullanılamıyor.',
 };
 
 /** One line per part core left out, for the copy's page; an unknown part is named as it came. */

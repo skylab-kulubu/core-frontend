@@ -74,6 +74,23 @@ function autoTicketBody(
     : {};
 }
 
+/**
+ * The theme and accent colour; each left out until it was read or set, so an older core reads
+ * none. A new Event sends only what was chosen; an edit sends `null` to go back to the default.
+ */
+function themeBody(
+  form: EventFormState,
+  create = false,
+): Pick<EventPatch, 'theme' | 'ticketAccentColor'> {
+  const out: Pick<EventPatch, 'theme' | 'ticketAccentColor'> = {};
+  if (form.theme !== undefined && (!create || form.theme)) out.theme = form.theme || null;
+  const accent = form.ticketAccentColor?.trim();
+  if (form.ticketAccentColor !== undefined && (!create || accent)) {
+    out.ticketAccentColor = accent ? accent.toUpperCase() : null;
+  }
+  return out;
+}
+
 export function eventBodyFromForm(form: EventFormState): EventBody {
   const forms = persistableFormFields(form.formSlots ?? []);
   const reservedId = isEventId(form.reservedId) ? form.reservedId : undefined;
@@ -93,6 +110,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     ...waitlistBody(form),
     ...doorBody(form, true),
     ...autoTicketBody(form, true),
+    ...themeBody(form, true),
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
@@ -140,6 +158,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     ...waitlistBody(form),
     ...doorBody(form),
     ...autoTicketBody(form),
+    ...themeBody(form),
     startDate: toRfc3339(form.startDate ?? '') ?? null,
     endDate: toRfc3339(form.endDate ?? '') ?? null,
     linkedin: form.linkedin || null,

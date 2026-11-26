@@ -53,6 +53,22 @@ export async function readFormGate(formId: string): Promise<FormGate> {
   }
 }
 
+/**
+ * A form's theme from its public meta (`brand`, Forms' key such as `artlab`), `null` for SKY LAB's
+ * own look, a closed or missing form, or an answer without the field.
+ */
+export async function readFormBrand(formId: string): Promise<string | null> {
+  try {
+    const meta = await formsFetch<{ brand?: unknown } | null>(
+      `/api/forms/${encodeURIComponent(formId)}/meta`,
+    );
+    return typeof meta?.brand === 'string' && meta.brand ? meta.brand : null;
+  } catch (err) {
+    if (err instanceof ProblemError && (err.status === 404 || err.status === 410)) return null;
+    throw err;
+  }
+}
+
 function upsertFrom(form: SkyformsForm, status: number) {
   return {
     id: form.id,
