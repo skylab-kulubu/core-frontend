@@ -209,6 +209,19 @@ describe('EventEditor certificate rule', () => {
     expect(screen.queryByText('Katılım oranı')).not.toBeInTheDocument();
   });
 
+  it('says a new event chooses the threshold on the Sertifikalar tab once created', async () => {
+    const user = userEvent.setup();
+    render(<RuleEditor />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sertifika kuralı' }), 'count');
+    expect(
+      screen.getByText('Eşik, etkinlik oluşturulduktan sonra Sertifikalar sekmesinde seçilir.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Varsayılan eşik/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Eşiği ve oturumları Sertifikalar sekmesinde seç' }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps an older event's ratio as it is, without a field to change it", () => {
     render(
       <RuleEditor

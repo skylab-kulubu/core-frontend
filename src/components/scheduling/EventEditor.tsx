@@ -711,7 +711,9 @@ export function EventEditor({
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           ) : (
-            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Varsayılan eşik %75</p>
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              Eşik, etkinlik oluşturulduktan sonra Sertifikalar sekmesinde seçilir.
+            </p>
           )
         ) : null}
         {legacyRules && value.attendanceRule === 'ratio' ? (
