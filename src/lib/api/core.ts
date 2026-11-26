@@ -145,6 +145,26 @@ export async function coreFetchBlob(path: string, init: RequestInit = {}): Promi
   return res.blob();
 }
 
+/**
+ * A core request whose answer is a file: JSON in, the Response out (its body unread), problem+json
+ * errors as ProblemError.
+ */
+export async function coreFetchResponse(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetchWithToken(
+    `${CORE_API_URL}${path}`,
+    { ...init, credentials: 'include' },
+    (token) => ({
+      ...(typeof init.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers as Record<string, string> | undefined),
+    }),
+  );
+  if (!res.ok) {
+    throw problemFromResponse(res.status, await res.text());
+  }
+  return res;
+}
+
 export async function downloadBlob(path: string, fileName: string): Promise<void> {
   const blob = await coreFetchBlob(path);
   const href = URL.createObjectURL(blob);
