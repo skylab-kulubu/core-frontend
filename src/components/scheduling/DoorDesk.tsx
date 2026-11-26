@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { Button, buttonVariants, cn, TaskPage } from '@skylab-kulubu/skylcn-ui';
 import {
   ArrowLeft,
@@ -140,7 +148,11 @@ function OutcomeBand({
 }) {
   // Always mounted, so each new line is read out
   return (
-    <div role="status" aria-label="Giriş sonucu" aria-live="polite">
+    <div
+      role="status"
+      aria-label={attendance ? 'Katılım sonucu' : 'Giriş sonucu'}
+      aria-live="polite"
+    >
       {outcome ? (
         <div
           className={cn(
@@ -213,13 +225,23 @@ function OutcomeBand({
   );
 }
 
-/** One of the door's two tabs on an event run with one entry a day. */
+/** The two tabs' ids and the one panel they show (Alana giriş or Oturum katılımı). */
+const VENUE_TAB = 'door-tab-venue';
+const ATTENDANCE_TAB = 'door-tab-attendance';
+const MODE_PANEL = 'door-mode-panel';
+
+/**
+ * One of the door's two tabs on an event run with one entry a day (WAI-ARIA tabs: the selected
+ * tab alone in the Tab order, the arrow keys move between them).
+ */
 function ModeTab({
+  id,
   selected,
   Icon,
   label,
   onSelect,
 }: {
+  id: string;
   selected: boolean;
   Icon: typeof DoorOpen;
   label: string;
@@ -227,9 +249,12 @@ function ModeTab({
 }) {
   return (
     <button
+      id={id}
       type="button"
       role="tab"
       aria-selected={selected}
+      aria-controls={MODE_PANEL}
+      tabIndex={selected ? 0 : -1}
       onClick={onSelect}
       className={cn(
         'focus-visible:ring-ring flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium outline-hidden focus-visible:ring-2',
@@ -645,6 +670,28 @@ export function DoorDesk({ eventId }: { eventId: string }) {
   }
   const writeLabel = attendance ? 'Katılımı yaz' : 'Girişi yaz';
 
+  const toVenue = () => setSessionId(EVENT_DOOR);
+  // Nothing is written on Oturum katılımı before a session is taken (with its question)
+  const toAttendance = () => {
+    if (atEventDoor) setSessionId('');
+  };
+  /** The tabs' keys: Left/Right go to the other tab, Home and End to the first and the last. */
+  function modeKey(event: KeyboardEvent<HTMLDivElement>) {
+    const venue =
+      event.key === 'Home'
+        ? true
+        : event.key === 'End'
+          ? false
+          : event.key === 'ArrowLeft' || event.key === 'ArrowRight'
+            ? !atEventDoor
+            : null;
+    if (venue === null) return;
+    event.preventDefault();
+    if (venue) toVenue();
+    else toAttendance();
+    document.getElementById(venue ? VENUE_TAB : ATTENDANCE_TAB)?.focus();
+  }
+
   // Back to the event on top: the door is reached from it, and left for it
   const shell = (body: ReactNode) => (
     <TaskPage
@@ -696,284 +743,308 @@ export function DoorDesk({ eventId }: { eventId: string }) {
         <div
           role="tablist"
           aria-label="Kapıda yazılan"
+          onKeyDown={modeKey}
           className="border-border-subtle bg-muted grid grid-cols-2 gap-1 rounded-xl border p-1"
         >
           <ModeTab
+            id={VENUE_TAB}
             selected={atEventDoor}
             Icon={DoorOpen}
             label="Alana giriş"
-            onSelect={() => setSessionId(EVENT_DOOR)}
+            onSelect={toVenue}
           />
           <ModeTab
+            id={ATTENDANCE_TAB}
             selected={!atEventDoor}
             Icon={Presentation}
             label="Oturum katılımı"
-            onSelect={() => {
-              if (atEventDoor) setSessionId('');
-            }}
+            onSelect={toAttendance}
           />
         </div>
       ) : null}
 
-      {split && atEventDoor ? null : (
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <label className="block space-y-1">
-            <FieldLabel>Oturum</FieldLabel>
-            <Select
-              value={sessionId}
-              onChange={(change) => pickSession(change.target.value)}
-              aria-describedby={sessionNote ? 'door-session-note' : undefined}
-              className="h-11"
-            >
-              {hasSessions ? <option value="">Oturum seç</option> : null}
-              {offerEventDoor && !split ? <option value={EVENT_DOOR}>Alana giriş</option> : null}
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {doorSessionLabel(session)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {hasSessions ? (
-            <Button
-              variant={guestQr ? 'primary' : 'outline'}
-              size="lg"
-              className={BUTTON_TEXT}
-              disabled={!sessionId}
-              aria-pressed={guestQr}
-              onClick={() => setGuestQr((open) => !open)}
-            >
-              <QrCode aria-hidden />
-              Misafir QR’ı
-            </Button>
+      <ModePanel tabs={split} labelledBy={atEventDoor ? VENUE_TAB : ATTENDANCE_TAB}>
+        {split && atEventDoor ? null : (
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label className="block space-y-1">
+              <FieldLabel>Oturum</FieldLabel>
+              <Select
+                value={sessionId}
+                onChange={(change) => pickSession(change.target.value)}
+                aria-describedby={sessionNote ? 'door-session-note' : undefined}
+                className="h-11"
+              >
+                {hasSessions ? <option value="">Oturum seç</option> : null}
+                {offerEventDoor && !split ? <option value={EVENT_DOOR}>Alana giriş</option> : null}
+                {sessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {doorSessionLabel(session)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {hasSessions ? (
+              <Button
+                variant={guestQr ? 'primary' : 'outline'}
+                size="lg"
+                className={BUTTON_TEXT}
+                disabled={!sessionId}
+                aria-pressed={guestQr}
+                onClick={() => setGuestQr((open) => !open)}
+              >
+                <QrCode aria-hidden />
+                Misafir QR’ı
+              </Button>
+            ) : null}
+          </div>
+        )}
+        {sessionNote ? (
+          <p id="door-session-note" className={cn('text-muted-foreground', TEXT_SECONDARY)}>
+            {sessionNote}
+          </p>
+        ) : null}
+
+        <div className={cn('grid gap-3', attendance && sessionId && 'grid-cols-2')}>
+          <DoorCount
+            label={attendance ? 'Katılan sayısı' : 'Giren sayısı'}
+            title={
+              atEventDoor
+                ? 'Alana giriş · bugün'
+                : attendance
+                  ? 'Oturum katılımı'
+                  : selectedSession
+                    ? selectedSession.title
+                    : 'Oturum seçilmedi'
+            }
+            value={sessionId ? total : null}
+            unit={attendance ? 'katılan' : 'giren'}
+            current={attendance}
+          />
+          {attendance && sessionId ? (
+            <DoorCount
+              label="Alana giren sayısı"
+              title="Alana giriş · bugün"
+              value={venueTotal}
+              unit="giren"
+            />
           ) : null}
         </div>
-      )}
-      {sessionNote ? (
-        <p id="door-session-note" className={cn('text-muted-foreground', TEXT_SECONDARY)}>
-          {sessionNote}
-        </p>
-      ) : null}
 
-      <div className={cn('grid gap-3', attendance && sessionId && 'grid-cols-2')}>
-        <DoorCount
-          label={attendance ? 'Katılan sayısı' : 'Giren sayısı'}
-          title={
-            atEventDoor
-              ? 'Alana giriş · bugün'
-              : attendance
-                ? 'Oturum katılımı'
-                : selectedSession
-                  ? selectedSession.title
-                  : 'Oturum seçilmedi'
-          }
-          value={sessionId ? total : null}
-          unit={attendance ? 'katılan' : 'giren'}
-          current={attendance}
-        />
-        {attendance && sessionId ? (
-          <DoorCount
-            label="Alana giren sayısı"
-            title="Alana giriş · bugün"
-            value={venueTotal}
-            unit="giren"
-          />
-        ) : null}
-      </div>
+        {guestQr && sessionId && !atEventDoor ? <GuestDoorQr sessionId={sessionId} open /> : null}
 
-      {guestQr && sessionId && !atEventDoor ? <GuestDoorQr sessionId={sessionId} open /> : null}
-
-      <form className="space-y-2" noValidate onSubmit={submit} role="search">
-        <div className="space-y-1">
-          <label htmlFor="door-query" className="block">
-            <FieldLabel>Kişi ya da bilet</FieldLabel>
-          </label>
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search
-                className="text-subtle-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-                aria-hidden
-              />
-              <Field
-                id="door-query"
-                type="search"
-                inputMode="search"
-                autoComplete="off"
-                enterKeyHint="go"
-                placeholder="Ad, e-posta, bilet kodu"
-                value={query}
-                onChange={(change) => setQuery(change.target.value)}
-                disabled={!sessionId}
-                className="h-11 pl-9 text-base"
-              />
+        <form className="space-y-2" noValidate onSubmit={submit} role="search">
+          <div className="space-y-1">
+            <label htmlFor="door-query" className="block">
+              <FieldLabel>Kişi ya da bilet</FieldLabel>
+            </label>
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  className="text-subtle-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                  aria-hidden
+                />
+                <Field
+                  id="door-query"
+                  type="search"
+                  inputMode="search"
+                  autoComplete="off"
+                  enterKeyHint="go"
+                  placeholder="Ad, e-posta, bilet kodu"
+                  value={query}
+                  onChange={(change) => setQuery(change.target.value)}
+                  disabled={!sessionId}
+                  className="h-11 pl-9 text-base"
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className={BUTTON_TEXT}
+                disabled={!sessionId || busy}
+              >
+                <UserCheck aria-hidden />
+                {busy ? 'Yazılıyor…' : writeLabel}
+              </Button>
             </div>
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              className={BUTTON_TEXT}
-              disabled={!sessionId || busy}
-            >
-              <UserCheck aria-hidden />
-              {busy ? 'Yazılıyor…' : writeLabel}
-            </Button>
           </div>
-        </div>
-        {camera ? (
-          <div className="flex gap-2">
-            {!cameraOpen ? (
+          {camera ? (
+            <div className="flex gap-2">
+              {!cameraOpen ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className={cn(BUTTON_TEXT, 'min-w-0 flex-1')}
+                  disabled={!sessionId}
+                  onClick={() => {
+                    // The tap that opens the camera also lets the page beep (iPhone)
+                    primeDoorSound();
+                    setCameraOpen(true);
+                  }}
+                >
+                  <ScanLine aria-hidden />
+                  Kamerayla tara
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
                 size="lg"
-                className={cn(BUTTON_TEXT, 'min-w-0 flex-1')}
-                disabled={!sessionId}
-                onClick={() => {
-                  // The tap that opens the camera also lets the page beep (iPhone)
-                  primeDoorSound();
-                  setCameraOpen(true);
-                }}
+                className={cn(BUTTON_TEXT, cameraOpen && 'ml-auto')}
+                aria-pressed={soundOn}
+                onClick={toggleSound}
               >
-                <ScanLine aria-hidden />
-                Kamerayla tara
+                {soundOn ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
+                Ses
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className={cn(BUTTON_TEXT, cameraOpen && 'ml-auto')}
-              aria-pressed={soundOn}
-              onClick={toggleSound}
-            >
-              {soundOn ? <Volume2 aria-hidden /> : <VolumeX aria-hidden />}
-              Ses
-            </Button>
-          </div>
+            </div>
+          ) : null}
+        </form>
+        {cameraOpen && sessionId ? (
+          <DoorScanner
+            onScan={(value) => void scanned(value)}
+            onClose={() => setCameraOpen(false)}
+          />
         ) : null}
-      </form>
-      {cameraOpen && sessionId ? (
-        <DoorScanner onScan={(value) => void scanned(value)} onClose={() => setCameraOpen(false)} />
-      ) : null}
 
-      <DoorFlash result={flash} onClose={closeFlash} />
+        <DoorFlash result={flash} onClose={closeFlash} />
 
-      <OutcomeBand
-        outcome={outcome}
-        attendance={attendance}
-        waiting={deferred.pending}
-        onUndo={undo}
-        onKeep={(entry) => deferred.cancel(entry.id)}
-      />
+        <OutcomeBand
+          outcome={outcome}
+          attendance={attendance}
+          waiting={deferred.pending}
+          onUndo={undo}
+          onKeep={(entry) => deferred.cancel(entry.id)}
+        />
 
-      {suggestions.length ? (
-        <ul
-          aria-label="Eşleşen kişiler"
-          className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border"
-        >
-          {suggestions.map((attendee) => (
-            <li key={attendee.personId ?? attendee.email}>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void checkIn(
-                    attendee.personId
-                      ? { personId: attendee.personId }
-                      : { query: attendee.email || attendee.name },
-                    attendee.name,
-                  )
-                }
-                className="hover:bg-accent focus-visible:ring-ring flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left outline-hidden focus-visible:ring-2"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="text-foreground block truncate text-sm font-medium">
-                    {attendee.name}
-                  </span>
-                  <span className={cn('text-subtle-foreground block truncate', TEXT_SECONDARY)}>
-                    {attendee.email}
-                  </span>
-                </span>
-                <span className={cn('text-skylab-300 shrink-0 font-medium', TEXT_SECONDARY)}>
-                  {writeLabel}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <section aria-label={attendance ? 'Son katılanlar' : 'Son girişler'} className="space-y-2">
-        <h2 className="text-foreground text-sm font-semibold">
-          {atEventDoor && split
-            ? 'Son alana girişler'
-            : attendance
-              ? 'Bu oturuma son katılanlar'
-              : 'Son girişler'}
-        </h2>
-        {activityError ? (
-          <p role="alert" className="text-destructive text-sm">
-            {activityError}
-          </p>
-        ) : null}
-        {recent.length ? (
-          <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
-            {recent.map((row) => {
-              const leaving = deferred.pending.has(row.id);
-              return (
-                <li
-                  key={row.id}
-                  className={cn(
-                    'flex min-h-12 items-center gap-3 px-3 py-2',
-                    leaving && 'opacity-60',
-                  )}
+        {suggestions.length ? (
+          <ul
+            aria-label="Eşleşen kişiler"
+            className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border"
+          >
+            {suggestions.map((attendee) => (
+              <li key={attendee.personId ?? attendee.email}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void checkIn(
+                      attendee.personId
+                        ? { personId: attendee.personId }
+                        : { query: attendee.email || attendee.name },
+                      attendee.name,
+                    )
+                  }
+                  className="hover:bg-accent focus-visible:ring-ring flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left outline-hidden focus-visible:ring-2"
                 >
-                  <CheckCircle2 className="text-success size-4 shrink-0" aria-hidden />
                   <span className="min-w-0 flex-1">
-                    <span className="text-foreground block truncate text-sm">{row.name}</span>
-                    <span className={cn('text-subtle-foreground block', TEXT_SECONDARY)}>
-                      {leaving ? 'Geri alınıyor…' : formatApplicantWhen(row.createdAt)}
+                    <span className="text-foreground block truncate text-sm font-medium">
+                      {attendee.name}
+                    </span>
+                    <span className={cn('text-subtle-foreground block truncate', TEXT_SECONDARY)}>
+                      {attendee.email}
                     </span>
                   </span>
-                  {leaving ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={BUTTON_TEXT}
-                      aria-label={`${row.name}: geri almaktan vazgeç`}
-                      onClick={() => deferred.cancel(row.id)}
-                    >
-                      Vazgeç
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={BUTTON_TEXT}
-                      aria-label={`${row.name}: girişi geri al`}
-                      onClick={() => undo(row)}
-                    >
-                      <Undo2 aria-hidden />
-                      Geri al
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
+                  <span className={cn('text-skylab-300 shrink-0 font-medium', TEXT_SECONDARY)}>
+                    {writeLabel}
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
-        ) : (
-          <p className={cn('text-subtle-foreground', TEXT_SECONDARY)}>
-            {atEventDoor
-              ? 'Bugün henüz giriş yok'
-              : attendance && sessionId
-                ? 'Bu oturuma henüz katılan yok'
-                : sessionId
-                  ? 'Bu oturumda henüz giriş yok'
-                  : 'Oturum seç'}
-          </p>
-        )}
-      </section>
+        ) : null}
+
+        <section aria-label={attendance ? 'Son katılanlar' : 'Son girişler'} className="space-y-2">
+          <h2 className="text-foreground text-sm font-semibold">
+            {atEventDoor && split
+              ? 'Son alana girişler'
+              : attendance
+                ? 'Bu oturuma son katılanlar'
+                : 'Son girişler'}
+          </h2>
+          {activityError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {activityError}
+            </p>
+          ) : null}
+          {recent.length ? (
+            <ul className="border-border-subtle bg-card divide-border-subtle divide-y overflow-hidden rounded-lg border">
+              {recent.map((row) => {
+                const leaving = deferred.pending.has(row.id);
+                return (
+                  <li
+                    key={row.id}
+                    className={cn(
+                      'flex min-h-12 items-center gap-3 px-3 py-2',
+                      leaving && 'opacity-60',
+                    )}
+                  >
+                    <CheckCircle2 className="text-success size-4 shrink-0" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-foreground block truncate text-sm">{row.name}</span>
+                      <span className={cn('text-subtle-foreground block', TEXT_SECONDARY)}>
+                        {leaving ? 'Geri alınıyor…' : formatApplicantWhen(row.createdAt)}
+                      </span>
+                    </span>
+                    {leaving ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={BUTTON_TEXT}
+                        aria-label={`${row.name}: geri almaktan vazgeç`}
+                        onClick={() => deferred.cancel(row.id)}
+                      >
+                        Vazgeç
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={BUTTON_TEXT}
+                        aria-label={`${row.name}: girişi geri al`}
+                        onClick={() => undo(row)}
+                      >
+                        <Undo2 aria-hidden />
+                        Geri al
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className={cn('text-subtle-foreground', TEXT_SECONDARY)}>
+              {atEventDoor
+                ? 'Bugün henüz giriş yok'
+                : attendance && sessionId
+                  ? 'Bu oturuma henüz katılan yok'
+                  : sessionId
+                    ? 'Bu oturumda henüz giriş yok'
+                    : 'Oturum seç'}
+            </p>
+          )}
+        </section>
+      </ModePanel>
       {confirmDialog}
     </div>,
+  );
+}
+
+/** Under the two tabs, their one panel; without tabs the door's body as it is. */
+function ModePanel({
+  tabs,
+  labelledBy,
+  children,
+}: {
+  tabs: boolean;
+  labelledBy: string;
+  children: ReactNode;
+}) {
+  if (!tabs) return <>{children}</>;
+  return (
+    <div role="tabpanel" id={MODE_PANEL} aria-labelledby={labelledBy} className="space-y-4">
+      {children}
+    </div>
   );
 }

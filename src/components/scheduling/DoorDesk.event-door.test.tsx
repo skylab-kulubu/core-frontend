@@ -207,6 +207,50 @@ describe('DoorDesk at the event’s own door', () => {
     expect(screen.getByRole('button', { name: 'Girişi yaz' })).toBeVisible();
   });
 
+  it('keeps the two tabs as WAI-ARIA tabs: one panel, the arrow keys and Home/End', async () => {
+    withSessions('venue');
+    const user = userEvent.setup();
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true'));
+    const panel = screen.getByRole('tabpanel');
+    expect(tab('Alana giriş')).toHaveAttribute('aria-controls', panel.id);
+    expect(tab('Oturum katılımı')).toHaveAttribute('aria-controls', panel.id);
+    expect(panel).toHaveAttribute('aria-labelledby', tab('Alana giriş').id);
+    // Only the selected tab is in the Tab order
+    expect(tab('Alana giriş')).toHaveAttribute('tabindex', '0');
+    expect(tab('Oturum katılımı')).toHaveAttribute('tabindex', '-1');
+    expect(within(panel).getByRole('status', { name: 'Giriş sonucu' })).toBeInTheDocument();
+
+    tab('Alana giriş').focus();
+    await user.keyboard('{ArrowRight}');
+    expect(tab('Oturum katılımı')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Oturum katılımı')).toHaveFocus();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'aria-labelledby',
+      tab('Oturum katılımı').id,
+    );
+    expect(picker()).toHaveValue('');
+    expect(screen.getByRole('status', { name: 'Katılım sonucu' })).toBeInTheDocument();
+    // Turning to the tab takes no session and asks nothing
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+
+    await user.keyboard('{Home}');
+    expect(tab('Alana giriş')).toHaveAttribute('aria-selected', 'true');
+    expect(tab('Alana giriş')).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(tab('Oturum katılımı')).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    expect(tab('Alana giriş')).toHaveFocus();
+  });
+
+  it('keeps no tabs on a door that has one way in', async () => {
+    withSessions('per_session');
+    render(<DoorDesk eventId="e1" />);
+    await waitFor(() => expect(picker()).toHaveValue('s1'));
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Giriş sonucu' })).toBeInTheDocument();
+  });
+
   it('asks before turning the door to a session, naming it, and stays put on Vazgeç', async () => {
     withSessions('venue');
     const user = userEvent.setup();
@@ -280,7 +324,7 @@ describe('DoorDesk at the event’s own door', () => {
     await waitFor(() =>
       expect(ticketsApi.resolveAndCheckIn).toHaveBeenCalledWith('s1', { query: 'ada' }),
     );
-    const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+    const result = screen.getByRole('status', { name: 'Katılım sonucu' });
     await waitFor(() => expect(result).toHaveTextContent('Katıldı'));
     expect(result).toHaveTextContent('Ada Lovelace');
     expect(ticketsApi.resolveEntry).not.toHaveBeenCalled();
@@ -328,7 +372,7 @@ describe('DoorDesk at the event’s own door', () => {
       await waitFor(() =>
         expect(ticketsApi.scanCheckIn).toHaveBeenCalledWith('s1', 'TOKEN-1', { checkIn: true }),
       );
-      const result = screen.getByRole('status', { name: 'Giriş sonucu' });
+      const result = screen.getByRole('status', { name: 'Katılım sonucu' });
       await waitFor(() => expect(result).toHaveTextContent('Katıldı'));
       await waitFor(
         () =>
