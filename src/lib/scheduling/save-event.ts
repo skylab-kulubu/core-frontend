@@ -187,6 +187,10 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     ...autoSendBody(form),
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
+    // Closed by hand; left out until it was read (a new Event opens applying)
+    ...(typeof form.registrationClosed === 'boolean'
+      ? { registrationClosed: form.registrationClosed }
+      : {}),
   };
 }
 

@@ -37,7 +37,7 @@ describe('EventTemplateEditorPage', () => {
     });
   });
 
-  it('opens the Event template in the editor, back to the edit page’s Sertifika section', async () => {
+  it('opens the Event template in the editor, back to the Sertifikalar tab', async () => {
     api.eventTemplate.mockResolvedValue(
       state({ id: 't-own', name: 'GeceKodu sertifikası', draftUpdatedAt: '' }),
     );
@@ -46,15 +46,6 @@ describe('EventTemplateEditorPage', () => {
     expect(await screen.findByText('Editör t-own e1 true')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Sertifika şablonu/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'GeceKodu' })).toHaveAttribute(
-      'href',
-      '/events/e1/edit#sertifika',
-    );
-  });
-
-  it('leads back to the Sertifikalar tab when opened from it', async () => {
-    api.eventTemplate.mockResolvedValue(state({ id: 't-own', name: 'x', draftUpdatedAt: '' }));
-    render(<EventTemplateEditorPage eventId="e1" from="certificates" />);
-    expect(await screen.findByRole('link', { name: 'GeceKodu' })).toHaveAttribute(
       'href',
       '/events/e1/certificates',
     );

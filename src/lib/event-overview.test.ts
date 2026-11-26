@@ -39,7 +39,13 @@ describe('eventReadiness', () => {
       0,
     );
     expect(items.filter((item) => item.done).map((item) => item.key)).toEqual(['date', 'place']);
-    expect(items.find((item) => item.key === 'form')?.href).toBe('/events/e1/edit#basvuru');
+    expect(items.find((item) => item.key === 'form')?.href).toBe(
+      '/events/e1/participants/settings#kayit-formu',
+    );
+    expect(items.find((item) => item.key === 'date')?.href).toBe('/events/e1/settings/schedule');
+    expect(items.find((item) => item.key === 'cover')?.href).toBe(
+      '/events/e1/settings/general#kapak',
+    );
     expect(items.find((item) => item.key === 'program')?.href).toBe('/events/e1/program');
     // No limit on places and no certificate are choices, not gaps
     expect(items.map((item) => item.key)).toEqual([

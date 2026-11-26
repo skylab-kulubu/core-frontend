@@ -90,7 +90,7 @@ describe('EventOrganizers', () => {
       screen.getByText('Ekibi varsa ekibi ekleyin. Kişiler dışarıda görünmez.'),
     ).toBeInTheDocument();
     // Nothing changed: no save
-    expect(screen.queryByRole('button', { name: 'Düzenleyenleri kaydet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kaydet' })).not.toBeInTheDocument();
   });
 
   it('adds a team with the Owner team’s rule and Ortak düzenleyen, and saves the choices', async () => {
@@ -129,7 +129,7 @@ describe('EventOrganizers', () => {
       'members',
     );
 
-    await user.click(screen.getByRole('button', { name: 'Düzenleyenleri kaydet' }));
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
 
     expect(api.put).toHaveBeenCalledWith('e1', {
       teams: [
@@ -139,7 +139,7 @@ describe('EventOrganizers', () => {
       people: ['u1'],
     });
     await waitFor(() => expect(mockSuccess).toHaveBeenCalledWith('Düzenleyenler kaydedildi'));
-    expect(screen.queryByRole('button', { name: 'Düzenleyenleri kaydet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kaydet' })).not.toBeInTheDocument();
   });
 
   it('removes a person and adds another from the person search', async () => {
@@ -160,7 +160,7 @@ describe('EventOrganizers', () => {
 
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Düzenleyenleri kaydet' }));
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
     expect(api.put).toHaveBeenCalledWith('e1', expect.objectContaining({ people: ['u2'] }));
   });
 
@@ -254,9 +254,9 @@ describe('EventOrganizers', () => {
       within(teamRow('WEBLAB')).getByRole('combobox', { name: 'Görünüm' }),
       'helper',
     );
-    await user.click(screen.getByRole('button', { name: 'Düzenleyenleri kaydet' }));
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(text);
-    expect(screen.getByRole('button', { name: 'Düzenleyenleri kaydet' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kaydet' })).toBeInTheDocument();
   });
 });

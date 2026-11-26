@@ -2,10 +2,15 @@ import { editorReturnTo } from '@/lib/event-draft';
 import { APPLY_SLOT_KEY } from '@/lib/event-forms';
 import {
   eventCertificateTemplateHref,
+  eventDoorStaffHref,
+  eventPageFromPath,
+  eventRegistrationSettingsHref,
+  eventSettingsHref,
   eventTabFromAnchor,
   eventTabFromPath,
   eventTabHref,
   isFocusPath,
+  legacyEditHref,
   legacyEventAnchorHref,
   showsCompetitionTab,
 } from '@/lib/event-workspace';
@@ -27,7 +32,44 @@ describe('event workspace routes', () => {
     expect(eventTabHref('e1', 'certificates')).toBe('/events/e1/certificates');
     expect(eventTabHref('e1', 'content')).toBe('/events/e1/content');
     expect(eventTabHref('e1', 'competition')).toBe('/events/e1/competition');
+    expect(eventTabHref('e1', 'checkin')).toBe('/events/e1/checkin');
+    expect(eventTabHref('e1', 'emails')).toBe('/events/e1/emails');
     expect(eventTabHref('a b', 'program')).toBe('/events/a%20b/program');
+  });
+
+  it('keeps the event’s own settings under /settings, a tab’s beside it', () => {
+    expect(eventSettingsHref('e1')).toBe('/events/e1/settings/general');
+    expect(eventSettingsHref('e1', 'visibility')).toBe('/events/e1/settings/visibility');
+    expect(eventRegistrationSettingsHref('e1')).toBe('/events/e1/participants/settings');
+    // The door staff are chosen on Kapı; the scanning page keeps its address
+    expect(eventDoorStaffHref('e1')).toBe('/events/e1/checkin#kapi-gorevlileri');
+    expect(isFocusPath('/events/e1/checkin')).toBe(false);
+  });
+
+  it('reads the open page, a tab’s settings or an event setting, from the path', () => {
+    expect(eventPageFromPath('/events/e1/checkin')).toEqual({ kind: 'tab', tab: 'checkin' });
+    expect(eventPageFromPath('/events/e1/participants/settings')).toEqual({
+      kind: 'tab',
+      tab: 'participants',
+      registrationSettings: true,
+    });
+    expect(eventPageFromPath('/events/e1/settings/team')).toEqual({
+      kind: 'settings',
+      page: 'team',
+    });
+    expect(eventPageFromPath('/events/e1/settings/nope')).toBeNull();
+    expect(eventPageFromPath('/events/e1/program/x')).toBeNull();
+    expect(eventPageFromPath('/events/e1/edit')).toBeNull();
+    expect(eventTabFromPath('/events/e1/participants/settings')).toBeNull();
+    expect(eventTabFromPath('/events/e1/settings/general')).toBeNull();
+  });
+
+  it('sends the old Düzenle page’s sections where their settings went', () => {
+    expect(legacyEditHref('e1')).toBe('/events/e1/settings/general');
+    expect(legacyEditHref('e1', '#nope')).toBe('/events/e1/settings/general');
+    expect(legacyEditHref('e1', '#basvuru')).toBe('/events/e1/participants/settings#kayit-formu');
+    expect(legacyEditHref('e1', 'kapi-gorevlileri')).toBe('/events/e1/checkin#kapi-gorevlileri');
+    expect(legacyEditHref('e1', '#sertifika')).toBe('/events/e1/certificates');
   });
 
   it('reads the open tab from the path', () => {
