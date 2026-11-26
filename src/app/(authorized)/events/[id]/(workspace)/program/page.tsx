@@ -6,6 +6,7 @@ import { Button, MenuItem, MenuLinkItem, cn } from '@skylab-kulubu/skylcn-ui';
 import {
   CheckCircle2,
   DoorOpen,
+  Download,
   MessageSquare,
   Pencil,
   Plus,
@@ -30,6 +31,7 @@ import { Switch } from '@/components/chrome/Switch';
 import { TextArea } from '@/components/chrome/TextArea';
 import { DatePicker } from '@/components/forms/DatePicker';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
+import { downloadSessionAttendance } from '@/components/scheduling/exports/ExportMenu';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
 import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
@@ -436,6 +438,26 @@ export default function EventProgramPage() {
                               <MenuItem icon={QrCode} onClick={() => setQrSession(session)}>
                                 Oturum QR
                               </MenuItem>
+                              {canTickets ? (
+                                <MenuItem
+                                  icon={Download}
+                                  onClick={() =>
+                                    void downloadSessionAttendance(
+                                      event.id,
+                                      event.name,
+                                      session.id,
+                                    ).then(
+                                      (name) => notify.success('İndirildi', name),
+                                      (cause) =>
+                                        setError(
+                                          coreProblemMessage(cause, 'Katılanlar indirilemedi.'),
+                                        ),
+                                    )
+                                  }
+                                >
+                                  Katılanları indir
+                                </MenuItem>
+                              ) : null}
                               {perSession && session.feedbackFormUrl ? (
                                 <MenuItem
                                   icon={MessageSquare}

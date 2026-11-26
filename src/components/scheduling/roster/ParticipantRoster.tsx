@@ -129,6 +129,8 @@ export type ParticipantRosterProps = {
   respondentCounts?: { unticketed: number; formsPending: number; failed?: boolean };
   /** Their list, in place of the Tickets', for the two respondent views. */
   renderRespondents?: (view: RespondentView, query: string) => ReactNode;
+  /** "İndir" in the toolbar (ExportMenu): the rows the list shows, in its order, and whether narrowed. */
+  renderExport?: (shown: { ticketIds: string[]; filtered: boolean }) => ReactNode;
 };
 
 /**
@@ -162,6 +164,7 @@ export function ParticipantRoster({
   dialogs,
   respondentCounts,
   renderRespondents,
+  renderExport,
 }: ParticipantRosterProps) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<ListView>('all');
@@ -378,7 +381,13 @@ export function ParticipantRoster({
           <ActionButton href={raffleHref} icon={Gift} label="Çekiliş" showLabel iconOnlyOnPhone />
         ) : null}
         {onImport ? (
-          <ActionButton icon={Upload} label="İçe aktar" showLabel onClick={onImport} />
+          <ActionButton
+            icon={Upload}
+            label="İçe aktar"
+            showLabel
+            iconOnlyOnPhone
+            onClick={onImport}
+          />
         ) : null}
         {onAddParticipant ? (
           <ActionButton
@@ -388,8 +397,15 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
+        {renderExport?.({ ticketIds: rows.map((row) => row.id), filtered })}
         {apartView ? null : (
-          <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
+          <ActionButton
+            icon={Mail}
+            label="E-posta"
+            showLabel
+            iconOnlyOnPhone
+            onClick={mailChosen}
+          />
         )}
       </div>
     </div>
