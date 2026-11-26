@@ -3,11 +3,13 @@
 import { Forbidden } from '@/components/chrome/PageState';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
-import { eventEditHref } from '@/lib/event-workspace';
 import { lastSessionEnded } from '@/lib/certificate-attendance';
 import { attendanceFinalizeOpen } from '@/lib/events-view';
 
-/** Sertifikalar tab: the template, attendance and issued certificates of the event. */
+/**
+ * Sertifikalar tab: the rule and template (their one place), attendance and issued certificates
+ * of the event.
+ */
 export default function EventCertificatesPage() {
   const {
     event,
@@ -41,7 +43,7 @@ export default function EventCertificatesPage() {
       canRevoke={canRevokeCertificate}
       canReadIssued={canReadIssuedCertificates}
       canEditEvent={canMutate}
-      ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
+      canEditRule={canMutate}
       days={days}
       onRuleSaved={() => void reload()}
     />

@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import EventEditRoute from '@/app/(authorized)/events/[id]/(workspace)/edit/page';
+import EventRegistrationSettingsPage from '@/app/(authorized)/events/[id]/(workspace)/participants/settings/page';
 import { formRespondentsApi } from '@/lib/api/form-respondents';
 import { saveEventWithSeason } from '@/lib/scheduling/save-event';
 import {
@@ -86,18 +86,18 @@ jest.mock('@/lib/api/form-respondents', () => {
   };
 });
 
-describe('Edit page: a newly linked Skyforms form', () => {
+describe('Kayıt ayarları: a newly linked Skyforms form', () => {
   beforeEach(primeEventWorkspace);
   afterEach(() => {
     window.history.replaceState(null, '', '/');
     window.sessionStorage.clear();
   });
 
-  it('asks after the save whether its respondents get Tickets, staying on the edit page', async () => {
+  it('asks after the card’s save whether its respondents get Tickets, staying on the page', async () => {
     const user = userEvent.setup();
     signInAs(['/UYELER/YK']);
     (saveEventWithSeason as jest.Mock).mockResolvedValueOnce('e1');
-    await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+    await renderEventTab(<EventRegistrationSettingsPage />, '/events/e1/participants/settings');
     await user.click((await screen.findAllByRole('radio', { name: 'SkyForms' }))[0]!);
     await user.click(await screen.findByRole('button', { name: 'Form seç' }));
     await user.click(await screen.findByRole('button', { name: 'Başvuru 2026' }));

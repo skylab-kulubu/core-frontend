@@ -1,22 +1,45 @@
 /**
- * The Event workspace's tabs. Each is a route under /events/[id]; the overview
+ * The Event workspace's pages. Each is a route under /events/[id]; the overview
  * is the event's own path, so every link to /events/[id] still lands on it.
+ * A tab keeps its own settings beside its work (Katılımcılar › Kayıt ayarları,
+ * Kapı, Postalar); only the event's own name, time, team and look sit in the
+ * "Etkinlik ayarları" group at the bottom of the menu.
  */
 export type EventTab =
   | 'overview'
   | 'participants'
   | 'program'
+  | 'checkin'
+  | 'competition'
+  | 'emails'
   | 'certificates'
-  | 'content'
-  | 'competition';
+  | 'content';
 
 const TAB_SEGMENTS: Readonly<Record<Exclude<EventTab, 'overview'>, string>> = {
   participants: 'participants',
   program: 'program',
+  checkin: 'checkin',
+  competition: 'competition',
+  emails: 'emails',
   certificates: 'certificates',
   content: 'content',
-  competition: 'competition',
 };
+
+/** The pages of the "Etkinlik ayarları" group, in menu order, with their names. */
+export const EVENT_SETTINGS_PAGES = [
+  { key: 'general', label: 'Genel' },
+  { key: 'schedule', label: 'Zaman ve yer' },
+  { key: 'team', label: 'Ekip' },
+  { key: 'appearance', label: 'Görünüm' },
+  { key: 'visibility', label: 'Görünürlük ve yayın' },
+] as const;
+
+export type EventSettingsPage = (typeof EVENT_SETTINGS_PAGES)[number]['key'];
+
+/** The open page of the workspace: a tab (Katılımcılar maybe on its Kayıt ayarları), or a setting. */
+export type EventPage =
+  | { kind: 'tab'; tab: EventTab; registrationSettings?: boolean }
+  | { kind: 'settings'; page: EventSettingsPage };
 
 // The event page used to be one long page with in-page anchors (#program, …)
 const LEGACY_ANCHORS: Readonly<Record<string, EventTab>> = {
@@ -51,38 +74,60 @@ export function eventTabHref(eventId: string, tab: EventTab = 'overview'): strin
   return tab === 'overview' ? base : `${base}/${TAB_SEGMENTS[tab]}`;
 }
 
-/** The event's create-and-edit page, outside the tabs. */
-export function eventEditHref(eventId: string): string {
-  return `/events/${encodeURIComponent(eventId)}/edit`;
+/** A page of the "Etkinlik ayarları" group (Genel when none is named). */
+export function eventSettingsHref(eventId: string, page: EventSettingsPage = 'general'): string {
+  return `/events/${encodeURIComponent(eventId)}/settings/${page}`;
 }
 
-/** A section of the edit page (#basvuru, #kapi-gorevlileri…): where a tab's settings live. */
-export function eventEditSectionHref(eventId: string, section: string): string {
-  return `${eventEditHref(eventId)}#${section}`;
+/** Katılımcılar › Kayıt ayarları: the form, the capacity and the ticket, beside the list. */
+export function eventRegistrationSettingsHref(eventId: string): string {
+  return `${eventTabHref(eventId, 'participants')}/settings`;
 }
 
-/** The door staff list on the edit page (inside Bilet ve kapı). */
-export const DOOR_STAFF_ANCHOR = 'kapi-gorevlileri';
+/** A card on a page (#kapi-gorevlileri on Kapı), for a link that lands on it. */
+export function withCard(href: string, card?: string): string {
+  return card ? `${href}#${card}` : href;
+}
 
-/** Where an event's door staff are chosen: Program, Kapı and the overview link here. */
+/** The cards other pages link to by their anchor. */
+export const EVENT_CARDS = {
+  registrationForm: 'kayit-formu',
+  capacity: 'kontenjan',
+  ticket: 'bilet',
+  doorStaff: 'kapi-gorevlileri',
+  entryMode: 'kapi-duzeni',
+  feedback: 'geri-bildirim',
+} as const;
+
+/** Where an event's door staff are chosen: its Kapı page. Program, the door and the overview link here. */
 export function eventDoorStaffHref(eventId: string): string {
-  return eventEditSectionHref(eventId, DOOR_STAFF_ANCHOR);
+  return withCard(eventTabHref(eventId, 'checkin'), EVENT_CARDS.doorStaff);
 }
 
-export function isEventEditPath(pathname: string): boolean {
-  return /^\/events\/[^/]+\/edit\/?$/.test(pathname);
-}
-
-/** The tab a path under /events/[id] shows; null for pages outside the tabs (a ticket, a redirect). */
-export function eventTabFromPath(pathname: string): EventTab | null {
-  const match = pathname.match(/^\/events\/([^/]+)(?:\/([^/]+))?\/?$/);
+/** The open page from a path under /events/[id]; null for pages outside the workspace (a ticket). */
+export function eventPageFromPath(pathname: string): EventPage | null {
+  const match = pathname.match(/^\/events\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?\/?$/);
   if (!match || match[1] === 'new') return null;
-  const segment = match[2];
-  if (!segment) return 'overview';
+  const [, , segment, sub] = match;
+  if (!segment) return { kind: 'tab', tab: 'overview' };
+  if (segment === 'settings') {
+    const page = EVENT_SETTINGS_PAGES.find((row) => row.key === sub);
+    return page ? { kind: 'settings', page: page.key } : null;
+  }
   const tab = (Object.keys(TAB_SEGMENTS) as Array<keyof typeof TAB_SEGMENTS>).find(
     (key) => TAB_SEGMENTS[key] === segment,
   );
-  return tab ?? null;
+  if (!tab) return null;
+  if (!sub) return { kind: 'tab', tab };
+  return tab === 'participants' && sub === 'settings'
+    ? { kind: 'tab', tab, registrationSettings: true }
+    : null;
+}
+
+/** The tab a path under /events/[id] shows; null for a setting or a page outside the tabs. */
+export function eventTabFromPath(pathname: string): EventTab | null {
+  const page = eventPageFromPath(pathname);
+  return page?.kind === 'tab' && !page.registrationSettings ? page.tab : null;
 }
 
 export function eventTabFromAnchor(hash: string): EventTab | null {
@@ -94,6 +139,34 @@ export function eventTabFromAnchor(hash: string): EventTab | null {
 export function legacyEventAnchorHref(eventId: string, hash: string): string | null {
   const tab = eventTabFromAnchor(hash);
   return tab && tab !== 'overview' ? eventTabHref(eventId, tab) : null;
+}
+
+/**
+ * Where a link to the old Düzenle page (/events/[id]/edit, its sections as #anchors) now lands:
+ * each section's settings went to the page they belong to. Without a known section, Genel.
+ */
+export function legacyEditHref(eventId: string, hash = ''): string {
+  const section = hash.replace(/^#/, '');
+  switch (section) {
+    case 'duzenleyenler':
+      return eventSettingsHref(eventId, 'team');
+    case 'zaman':
+      return eventSettingsHref(eventId, 'schedule');
+    case 'basvuru':
+      return withCard(eventRegistrationSettingsHref(eventId), EVENT_CARDS.registrationForm);
+    case 'bilet':
+      return withCard(eventRegistrationSettingsHref(eventId), EVENT_CARDS.capacity);
+    case 'kapi-gorevlileri':
+      return eventDoorStaffHref(eventId);
+    case 'gorunum':
+      return eventSettingsHref(eventId, 'appearance');
+    case 'sertifika':
+      return eventTabHref(eventId, 'certificates');
+    case 'yayin':
+      return eventSettingsHref(eventId, 'visibility');
+    default:
+      return eventSettingsHref(eventId, 'general');
+  }
 }
 
 /**

@@ -2,7 +2,13 @@ import type { CoreEvent } from '@/lib/api/events';
 import type { EventSession } from '@/lib/api/sessions';
 import type { Ticket } from '@/lib/api/tickets';
 import { publicShortUrl } from '@/lib/api/urls';
-import { eventEditHref, eventTabHref } from '@/lib/event-workspace';
+import {
+  EVENT_CARDS,
+  eventRegistrationSettingsHref,
+  eventSettingsHref,
+  eventTabHref,
+  withCard,
+} from '@/lib/event-workspace';
 import { hasCheckIn } from '@/lib/roster-insights';
 import { percentWithEnding } from '@/lib/text/turkish-number';
 
@@ -27,18 +33,24 @@ export function eventReadiness(
   >,
   sessionCount: number,
 ): ReadinessItem[] {
-  const edit = (section: string) => `${eventEditHref(event.id)}#${section}`;
+  const schedule = eventSettingsHref(event.id, 'schedule');
+  const general = eventSettingsHref(event.id, 'general');
   return [
-    { key: 'date', label: 'Tarih', done: Boolean(event.startDate), href: edit('zaman') },
-    { key: 'place', label: 'Yer', done: Boolean(event.location?.trim()), href: edit('zaman') },
-    { key: 'cover', label: 'Kapak', done: Boolean(event.coverImageUrl), href: edit('temel') },
+    { key: 'date', label: 'Tarih', done: Boolean(event.startDate), href: schedule },
+    { key: 'place', label: 'Yer', done: Boolean(event.location?.trim()), href: schedule },
+    { key: 'cover', label: 'Kapak', done: Boolean(event.coverImageUrl), href: `${general}#kapak` },
     {
       key: 'description',
       label: 'Açıklama',
       done: Boolean(event.description?.trim()),
-      href: edit('temel'),
+      href: general,
     },
-    { key: 'form', label: 'Başvuru formu', done: Boolean(event.formUrl), href: edit('basvuru') },
+    {
+      key: 'form',
+      label: 'Başvuru formu',
+      done: Boolean(event.formUrl),
+      href: withCard(eventRegistrationSettingsHref(event.id), EVENT_CARDS.registrationForm),
+    },
     {
       key: 'program',
       label: 'Program',

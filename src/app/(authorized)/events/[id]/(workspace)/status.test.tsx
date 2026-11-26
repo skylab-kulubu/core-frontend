@@ -187,7 +187,8 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     await renderEventTab(<EventOverviewPage />);
     const top = await header();
     expect(await within(top).findByRole('button', { name: 'Yayınla' })).toBeInTheDocument();
-    expect(within(top).getByRole('link', { name: 'Düzenle' })).toBeInTheDocument();
+    // The event's settings open from its menu
+    expect(screen.getAllByRole('link', { name: 'Genel' }).length).toBeGreaterThan(0);
     const menu = await openMenu(user);
     // Deleting stays the Owner team's
     expect(within(menu).queryByRole('menuitem', { name: 'Sil…' })).not.toBeInTheDocument();
@@ -201,7 +202,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     const top = await header();
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(within(top).queryByRole('button', { name: 'Yayınla' })).not.toBeInTheDocument();
-    expect(within(top).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('link', { name: 'Genel' })).toHaveLength(0);
   });
 
   it('shows a DK reader the draft with no action at all', async () => {
@@ -214,7 +215,7 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
     expect(within(top).queryByRole('button', { name: 'Yayınla' })).not.toBeInTheDocument();
     expect(within(top).queryByRole('button', { name: 'Diğer eylemler' })).not.toBeInTheDocument();
-    expect(within(top).queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('link', { name: 'Genel' })).toHaveLength(0);
   });
 
   it('offers unpublish only without registrations, and says how many there are', async () => {
@@ -371,7 +372,12 @@ describe('Etkinlik sayfası: durum ve eylemler', () => {
     });
     await renderEventTab(<EventOverviewPage />);
     await screen.findByText('20 Ekim 2026 tarihinde iptal edildi.');
-    expect(screen.queryByRole('link', { name: 'Kapı' })).not.toBeInTheDocument();
+    // The scanning goes; the Kapı page keeps its settings in the menu
+    expect(
+      within(screen.getByRole('group', { name: 'Etkinlik komutları' })).queryByRole('link', {
+        name: 'Kapı',
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Formu kapat' })).toHaveAttribute(
       'href',
       expect.stringContaining('/forms/11111111-1111-4111-8111-111111111111/edit'),

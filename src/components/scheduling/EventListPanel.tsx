@@ -1,7 +1,7 @@
 'use client';
 
 import { DescriptionList, Sparkline, type DescriptionItem } from '@skylab-kulubu/skylcn-ui';
-import { ClipboardList, Pencil, Users } from 'lucide-react';
+import { ClipboardList, Settings2, Users } from 'lucide-react';
 import { CoverFrame } from '@/components/chrome/object-page/ObjectCover';
 import { Command, CommandBar } from '@/components/chrome/object-page/CommandBar';
 import { ObjectCard } from '@/components/chrome/object-page/ObjectPage';
@@ -9,12 +9,13 @@ import { StatusChip } from '@/components/chrome/StatusChip';
 import { ReadinessList } from '@/components/scheduling/overview/OverviewParts';
 import type { EventStat } from '@/lib/api/dashboard';
 import type { CoreEvent } from '@/lib/api/events';
-import { eventEditHref, eventTabHref } from '@/lib/event-workspace';
+import { legacyEditHref, eventSettingsHref, eventTabHref } from '@/lib/event-workspace';
 import { publicMediaUrl } from '@/lib/event-media';
 import { eventInitials, eventWhenLong } from '@/lib/event-overview';
 import { eventDisplayStatus, eventGaps, type EventGap } from '@/lib/events-view';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
+/** Each gap's row, and the old Düzenle section that now leads to its card. */
 const GAP_ROWS: Record<EventGap, { label: string; section: string }> = {
   date: { label: 'Tarih', section: 'zaman' },
   place: { label: 'Yer', section: 'zaman' },
@@ -86,7 +87,9 @@ export function EventListPanel({
       <CommandBar label="Etkinlik">
         <Command icon={Users} label="Katılımcılar" href={eventTabHref(event.id, 'participants')} />
         <Command icon={ClipboardList} label="Program" href={eventTabHref(event.id, 'program')} />
-        {canEdit ? <Command icon={Pencil} label="Düzenle" href={eventEditHref(event.id)} /> : null}
+        {canEdit ? (
+          <Command icon={Settings2} label="Ayarlar" href={eventSettingsHref(event.id)} />
+        ) : null}
       </CommandBar>
       <DescriptionList items={items} columns={1} />
       {stat ? (
@@ -116,7 +119,7 @@ export function EventListPanel({
               key: gap,
               label: GAP_ROWS[gap].label,
               done: false,
-              href: `${eventEditHref(event.id)}#${GAP_ROWS[gap].section}`,
+              href: legacyEditHref(event.id, GAP_ROWS[gap].section),
             }))}
           />
         </ObjectCard>

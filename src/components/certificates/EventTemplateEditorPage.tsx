@@ -14,22 +14,15 @@ import {
 } from '@/components/certificates/EventTemplateRow';
 import { eventsApi, type CoreEvent } from '@/lib/api/events';
 import { coreProblemMessage } from '@/lib/core-problems';
-import { eventEditHref, eventTabHref } from '@/lib/event-workspace';
+import { eventTabHref } from '@/lib/event-workspace';
 import { useTeamCan, viewerDecision } from '@/lib/use-app-can';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 /**
  * /events/[id]/certificate-template: the editor of the Event's own template,
- * without the sidebar. Back leads to where it was opened from: the
- * Sertifikalar tab, else the edit page's Sertifika section.
+ * without the sidebar. Back leads to the Sertifikalar tab, the template's one place.
  */
-export function EventTemplateEditorPage({
-  eventId,
-  from,
-}: {
-  eventId: string;
-  from?: 'certificates';
-}) {
+export function EventTemplateEditorPage({ eventId }: { eventId: string }) {
   const teamCan = useTeamCan();
   const [event, setEvent] = useState<CoreEvent | null>(null);
   const [eventError, setEventError] = useState<string>();
@@ -52,10 +45,7 @@ export function EventTemplateEditorPage({
     };
   }, [eventId]);
 
-  const back =
-    from === 'certificates'
-      ? eventTabHref(eventId, 'certificates')
-      : `${eventEditHref(eventId)}#sertifika`;
+  const back = eventTabHref(eventId, 'certificates');
   const canEditEvent = event
     ? (viewerDecision(event, 'event.update') ?? teamCan(event.ownerTeam, 'event.update'))
     : false;

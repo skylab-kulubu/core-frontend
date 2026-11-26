@@ -101,17 +101,6 @@ describe('ParticipantRoster', () => {
     window.localStorage.clear();
   });
 
-  it('links to the registration settings for who edits the event', () => {
-    setup({ settingsHref: '/events/e1/edit#basvuru' });
-    expect(screen.getByRole('link', { name: 'Kayıt ayarları' })).toHaveAttribute(
-      'href',
-      '/events/e1/edit#basvuru',
-    );
-    cleanup();
-    setup();
-    expect(screen.queryByRole('link', { name: 'Kayıt ayarları' })).not.toBeInTheDocument();
-  });
-
   it('opens a registration beside the list on a plain click', async () => {
     const props = setup();
     await userEvent.click(screen.getByRole('link', { name: /Ada Lovelace/ }));
