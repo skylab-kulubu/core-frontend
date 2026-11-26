@@ -96,14 +96,14 @@ describe('app assignment texts', () => {
       name: 'ALGOLAB',
       inheritsTo: 2,
       members: 9,
-      assignedRoles: ['skymail:access'],
+      assignedRoles: ['skynotify:access'],
     };
-    expect(initialRoles(['skymail:access', 'skymail:templates:read'], target)).toEqual([
-      'skymail:templates:read',
+    expect(initialRoles(['skynotify:access', 'skynotify:templates:read'], target)).toEqual([
+      'skynotify:templates:read',
     ]);
-    expect(initialRoles(['skymail:access'], null)).toEqual(['skymail:access']);
+    expect(initialRoles(['skynotify:access'], null)).toEqual(['skynotify:access']);
     expect(targetSubtitle(target)).toBe(
-      '/UYELER/ARGE/ALGOLAB · Alt ekipleri de kapsar (2 grup) · 9 kişi · Atanmış: skymail:access',
+      '/UYELER/ARGE/ALGOLAB · Alt ekipleri de kapsar (2 grup) · 9 kişi · Atanmış: skynotify:access',
     );
   });
 });

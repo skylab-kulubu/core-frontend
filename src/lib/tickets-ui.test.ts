@@ -277,7 +277,7 @@ describe('ticket mail recipients', () => {
     ]);
   });
 
-  it('drops applicants without an email so Skymail can take the list as-is', () => {
+  it('drops applicants without an email so SkyNotify can take the list as-is', () => {
     const blank: Ticket = {
       id: 't-blank',
       eventId: 'e1',

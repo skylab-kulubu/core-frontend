@@ -59,7 +59,7 @@ describe('AdminSidebar', () => {
     renderSidebar();
     await pointer.click(screen.getByRole('button', { name: 'Kulüp konsolları' }));
     expect(await screen.findByRole('menuitem', { name: /Forms/ })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /İletişim/ })).toHaveTextContent(
+    expect(screen.getByRole('menuitem', { name: /SkyNotify/ })).toHaveTextContent(
       'E-posta ve bildirim gönderimi',
     );
   });
