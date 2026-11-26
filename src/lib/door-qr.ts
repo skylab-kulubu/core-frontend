@@ -54,3 +54,35 @@ export function doorQrFailure(err: unknown, refreshAfterSeconds: number): DoorQr
   }
   return { message: 'QR yenilenemedi.', retryAfterSeconds: refreshAfterSeconds, hideQr: false };
 }
+
+const WINDOW_TIME = new Intl.DateTimeFormat('tr-TR', {
+  timeZone: 'Europe/Istanbul',
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** When the static QR checks anyone in: "Geçerli: 26 Kas 23:30 – 28 Kas 01:15". */
+export function staticQrWindowText(validFrom?: string, validUntil?: string): string {
+  const from = validFrom ? Date.parse(validFrom) : NaN;
+  const until = validUntil ? Date.parse(validUntil) : NaN;
+  if (!Number.isFinite(from) || !Number.isFinite(until)) return '';
+  return `Geçerli: ${WINDOW_TIME.format(new Date(from))} – ${WINDOW_TIME.format(new Date(until))}`;
+}
+
+/** Why core gave no static QR. */
+export function staticQrFailure(err: unknown): string {
+  if (err instanceof ProblemError) {
+    if (err.code === 'door_qr_static_off') return 'Sabit QR kapalı.';
+    if (err.code === 'session_times_required') {
+      return 'Sabit QR için oturumun başlangıç ve bitiş saati olmalı.';
+    }
+    if (err.status === 403 && err.code === 'session_closed') return 'Oturum iptal edilmiş.';
+    if (err.status === 403) return 'Bu etkinlikte görevli değilsin.';
+    if (err.status === 401) return 'Oturum süresi doldu; yeniden giriş yap.';
+    if (err.status === 404) return 'Oturum bulunamadı.';
+    if (err.status === 429) return 'Çok sık istendi; biraz sonra yeniden dene.';
+  }
+  return 'Sabit QR alınamadı.';
+}

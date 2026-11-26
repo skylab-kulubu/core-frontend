@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import {
+  autoSendTemplateWarning,
   EventTemplateRow,
   TemplateBindingDialog,
   useEventTemplateState,
@@ -278,5 +279,52 @@ describe('TemplateBindingDialog', () => {
     );
     expect(screen.getAllByRole('radio')).toHaveLength(1);
     expect(screen.queryByText(/Etkinliğe özel/)).not.toBeInTheDocument();
+  });
+});
+
+describe('autoSendTemplateWarning', () => {
+  const sky = { id: 't-sky', name: 'SKY LAB', ownerTeam: '', system: true };
+  const own = { id: 't-own', name: 'ARTLAB 2026', ownerTeam: 'ARTLAB', system: false };
+  const resolved = (template: object, source: string) =>
+    ({ source, template, version: { version: 1 } }) as unknown as EventTemplateView['resolution'];
+
+  it('says the SKY LAB default while the Event’s own template is a draft', () => {
+    const draft = { ...own, eventId: 'e1' } as unknown as EventTemplateView['eventTemplate'];
+    expect(
+      autoSendTemplateWarning(
+        view({ resolution: resolved(sky, 'clubDefault'), eventTemplate: draft }),
+      ),
+    ).toBe('SKY LAB varsayılan şablonuyla basılacak');
+  });
+
+  it('says a team template', () => {
+    expect(autoSendTemplateWarning(view())).toBe('GECEKODU ekip şablonuyla basılacak');
+  });
+
+  it('says nothing for the Event’s own published template', () => {
+    const published = {
+      ...own,
+      eventId: 'e1',
+      publishedVersion: { version: 1 },
+    } as unknown as EventTemplateView['eventTemplate'];
+    expect(
+      autoSendTemplateWarning(
+        view({ resolution: resolved(own, 'event'), eventTemplate: published }),
+      ),
+    ).toBeNull();
+  });
+
+  it('on an older core goes by the source alone', () => {
+    expect(
+      autoSendTemplateWarning(view({ legacy: true, resolution: resolved(own, 'event') })),
+    ).toBeNull();
+    expect(
+      autoSendTemplateWarning(view({ legacy: true, resolution: resolved(sky, 'clubDefault') })),
+    ).toBe('SKY LAB varsayılan şablonuyla basılacak');
+  });
+
+  it('says nothing while nothing is known', () => {
+    expect(autoSendTemplateWarning(null)).toBeNull();
+    expect(autoSendTemplateWarning(view({ resolution: null }))).toBeNull();
   });
 });

@@ -115,7 +115,7 @@ export const formRespondentsApi = {
       cache: 'no-store',
     });
   },
-  /** `503 forms_pull_off` while core reads no Forms; `403 forms_access_denied` for a viewer. */
+  /** `503 forms_pull_off` while core reads no Forms; `403 forms_access_denied` for someone not on the form's team in Forms. */
   questions: (eventId: string, formId: string) =>
     coreFetch<FormQuestions>(`${formPath(eventId, formId)}/questions`, { cache: 'no-store' }),
   /** `404 mapping_not_found` before the first save. */

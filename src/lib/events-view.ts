@@ -1,5 +1,6 @@
 import { pad2 } from '@/lib/date-picker';
 import { getInclusiveLocalCalendarDates } from '@/lib/utils/eventCalendar';
+import { HEX_COLOR } from '@/lib/api/event-themes';
 import { externalRegistrationIssue } from '@/lib/external-registration';
 
 export type DatedEvent = {
@@ -23,6 +24,7 @@ export function eventFormIssue(form: {
   startDate?: string;
   endDate?: string;
   externalRegistrationUrl?: string;
+  ticketAccentColor?: string | null;
 }): string | null {
   if (!form.name.trim()) return 'Etkinlik adı gerekli.';
   if (!form.location.trim()) return 'Konum gerekli.';
@@ -35,6 +37,8 @@ export function eventFormIssue(form: {
   if (!Number.isNaN(start) && !Number.isNaN(end) && end < start) {
     return 'Bitiş, başlangıçtan önce olamaz.';
   }
+  const accent = form.ticketAccentColor?.trim();
+  if (accent && !HEX_COLOR.test(accent)) return 'Vurgu rengi #RRGGBB biçiminde olmalı.';
   return null;
 }
 

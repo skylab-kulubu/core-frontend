@@ -25,11 +25,13 @@ import {
   emptyApplySlot,
   emptyFeedbackSlot,
   persistableFormFields,
+  skyformsFormId,
   type EventFormSlot,
 } from '@/lib/event-forms';
 import type { FormInUse } from '@/lib/core-problems';
 import type { EventMediaHint } from '@/lib/event-media';
 import { capacityBelowTickets } from '@/lib/capacity';
+import { AUTO_SEND_HINT, AUTO_SEND_LABEL } from '@/lib/certificate-rule';
 import {
   externalRegistrationIssue,
   isExternalRegistrationIssue,
@@ -45,6 +47,7 @@ import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
+import { EventThemeFields } from './EventThemeFields';
 import { EventTicketImageFields } from './EventTicketImageFields';
 
 export type EventFormState = EventBody & {
@@ -101,6 +104,9 @@ export const MAIL_OFF_HINT = 'Bu posta şu an kapalı.';
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
 export const ATTENDEE_NOTE_MAX = 1000;
 
+/** core's bound on the ticket note, in characters (docs/ticket-note.md). */
+export const TICKET_NOTE_MAX = 500;
+
 /** The door's mode (core docs/venue-entry.md); `auto` is core's `null`. */
 export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: string }[] = [
   {
@@ -127,6 +133,7 @@ export const EVENT_EDITOR_SECTIONS = [
   { id: 'zaman', title: 'Zaman ve yer' },
   { id: 'basvuru', title: 'Başvuru ve form' },
   { id: 'bilet', title: 'Bilet ve kapı' },
+  { id: 'gorunum', title: 'Görünüm' },
   { id: 'sertifika', title: 'Sertifika' },
   { id: 'yayin', title: 'Görünürlük ve yayın' },
 ] as const;
@@ -137,6 +144,7 @@ export type EventEditorSectionId = (typeof EVENT_EDITOR_SECTIONS)[number]['id'];
 export function sectionOfIssue(issue: string): EventEditorSectionId {
   if (isExternalRegistrationIssue(issue)) return 'basvuru';
   if (/adı/i.test(issue)) return 'temel';
+  if (/vurgu/i.test(issue)) return 'gorunum';
   return 'zaman';
 }
 
@@ -160,6 +168,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
     // A new event takes the note and the door's mails; an edited one shows them once core sends them
     attendeeNote: '',
+    ticketNote: '',
     attendanceWelcomeMail: true,
     attendanceRecordedMail: true,
     formResponsesAutoTicket: true,
@@ -188,6 +197,8 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
     attendanceRule: 'none',
     attendanceRatio: undefined,
     attendanceMinCount: null,
+    // A new Event's certificates go out by hand until this is turned on
+    attendanceAutoFinalize: false,
     doorStaffIds: [],
     registrationClosesAt: '',
   };
@@ -308,6 +319,10 @@ export function EventEditor({
   const mailOn = useAttendanceMailOn();
 
   const staffIds = value.doorStaffIds ?? [];
+  // The linked Skyforms forms, the application form first: whose theme the editor offers
+  const formIds = (value.formSlots ?? [])
+    .map((slot) => skyformsFormId(slot.url.trim()))
+    .filter((id): id is string => Boolean(id));
   const staffKey = staffIds.join(',');
 
   useEffect(() => {
@@ -514,6 +529,27 @@ export function EventEditor({
             }
           />
         ) : null}
+        {value.ticketNote !== undefined ? (
+          <div className="space-y-1">
+            <label className="block space-y-1">
+              <FieldLabel>Bilet duyurusu</FieldLabel>
+              <TextArea
+                rows={2}
+                maxLength={TICKET_NOTE_MAX}
+                placeholder="WhatsApp grubu: https://chat.whatsapp.com/…"
+                value={value.ticketNote}
+                onChange={(e) => patch({ ticketNote: e.target.value })}
+                aria-describedby="bilet-duyurusu-ipucu"
+              />
+            </label>
+            <span
+              id="bilet-duyurusu-ipucu"
+              className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
+            >
+              Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.
+            </span>
+          </div>
+        ) : null}
         <label className="block space-y-1">
           <FieldLabel>Kapı düzeni</FieldLabel>
           <Select
@@ -649,10 +685,20 @@ export function EventEditor({
             />
           </div>
         ) : null}
+      </EditorSection>
+      <EditorSection id="gorunum" title="Görünüm">
+        {notices.gorunum}
+        <EventThemeFields
+          theme={value.theme}
+          ticketAccentColor={value.ticketAccentColor}
+          onChange={patch}
+          formIds={formIds}
+        />
         <EventTicketImageFields
           eventId={value.reservedId}
           coverImageId={value.coverImageId ?? ''}
           knownMedia={knownMedia}
+          theme={value.theme}
         />
       </EditorSection>
       <EditorSection id="sertifika" title="Sertifika">
@@ -694,8 +740,20 @@ export function EventEditor({
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           ) : (
-            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>Varsayılan eşik %75</p>
+            <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              Eşik, etkinlik oluşturulduktan sonra Sertifikalar sekmesinde seçilir.
+            </p>
           )
+        ) : null}
+        {/* An older core sends no switch: it is not offered */}
+        {(value.attendanceRule ?? 'none') !== 'none' &&
+        typeof value.attendanceAutoFinalize === 'boolean' ? (
+          <Switch
+            checked={value.attendanceAutoFinalize}
+            onChange={(attendanceAutoFinalize) => patch({ attendanceAutoFinalize })}
+            label={AUTO_SEND_LABEL}
+            hint={AUTO_SEND_HINT}
+          />
         ) : null}
         {legacyRules && value.attendanceRule === 'ratio' ? (
           <label className="block space-y-1">

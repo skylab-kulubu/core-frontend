@@ -65,11 +65,24 @@ export type CoreEvent = {
    */
   attendeeNote?: string;
   /**
+   * The organizer's announcement for the Ticket holders (a WhatsApp group, say; core
+   * docs/ticket-note.md), sent in the ticket mails and the reminder: to the readers of
+   * attendeeNote, `""` for none; absent otherwise and before core's ticket note.
+   */
+  ticketNote?: string;
+  /**
    * A linked form's newly accepted answer gets its Ticket by itself (core
    * docs/form-respondents.md, default true); off, it waits on Katılımcılar. Absent before core's
    * form respondents.
    */
   formResponsesAutoTicket?: boolean;
+  /**
+   * The Event's theme (core docs/event-theme.md), a key from `GET /v1/event-themes`; `null` or
+   * left out for Kurumsal. `ticketAccentColor` (`#RRGGBB`) overrides the theme's colour. Absent
+   * before core's event themes.
+   */
+  theme?: string | null;
+  ticketAccentColor?: string | null;
   /** `capacity > 0` and the active Tickets fill it. */
   full?: boolean;
   /** The active Tickets; only for who may edit the Event. */
@@ -106,6 +119,12 @@ export type CoreEvent = {
   attendanceRatio?: number;
   /** The count rule's threshold; left out for the default ⌈3N/4⌉. */
   attendanceMinCount?: number;
+  /**
+   * "Sertifikaları otomatik gönder" (core docs/certificate-rule.md): an hour after the last
+   * Session core closes the attendance, issues and mails the certificates. Absent before core's
+   * automatic finalization.
+   */
+  attendanceAutoFinalize?: boolean;
   images?: { id: string; url?: string }[];
   imageUrls?: string[];
   doorStaffIds?: string[];
@@ -224,8 +243,13 @@ export type EventBody = {
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
   attendeeNote?: string;
+  ticketNote?: string;
   /** Left out: core's default (on). */
   formResponsesAutoTicket?: boolean;
+  /** Left out or `null`: Kurumsal; a key outside the catalog is refused (`400 event_theme_unknown`). */
+  theme?: string | null;
+  /** Left out or `null`: the theme's colour. */
+  ticketAccentColor?: string | null;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -236,6 +260,8 @@ export type EventBody = {
   attendanceRatio?: number;
   /** The count rule's threshold; none for the default ⌈3N/4⌉. */
   attendanceMinCount?: number | null;
+  /** "Sertifikaları otomatik gönder"; left out, core's default. */
+  attendanceAutoFinalize?: boolean;
   doorStaffIds?: string[];
   /** The deadline of applying; none: no deadline. */
   registrationClosesAt?: string;
@@ -277,8 +303,14 @@ export type EventPatch = {
   attendanceRecordedMail?: boolean;
   /** `""` or `null` clears it. */
   attendeeNote?: string | null;
+  /** `""` or `null` clears it. */
+  ticketNote?: string | null;
   /** Takes no `null` (400). */
   formResponsesAutoTicket?: boolean;
+  /** `null` back to Kurumsal. */
+  theme?: string | null;
+  /** `null` back to the theme's colour. */
+  ticketAccentColor?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;
@@ -288,6 +320,8 @@ export type EventPatch = {
   attendanceRule?: string | null;
   attendanceRatio?: number | null;
   attendanceMinCount?: number | null;
+  /** Takes no `null` (400). */
+  attendanceAutoFinalize?: boolean;
   doorStaffIds?: string[] | null;
   registrationClosed?: boolean;
   registrationClosesAt?: string | null;

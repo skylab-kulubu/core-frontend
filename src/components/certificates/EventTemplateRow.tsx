@@ -91,6 +91,27 @@ export function templateSourceLine(view: EventTemplateView): string {
   return `${kind} · v${resolution.version.version}`;
 }
 
+/** "SKY LAB varsayılan şablonuyla", "Kulüp şablonuyla", "GECEKODU ekip şablonuyla". */
+function templateWith(template: { ownerTeam: string; system: boolean }): string {
+  if (template.system) return 'SKY LAB varsayılan şablonuyla';
+  if (CLUB_TEAMS.has(template.ownerTeam)) return 'Kulüp şablonuyla';
+  return `${template.ownerTeam} ekip şablonuyla`;
+}
+
+/**
+ * Said while "Sertifikaları otomatik gönder" is on and certificates would not take the Event's
+ * own published template: "SKY LAB varsayılan şablonuyla basılacak". An older core (no Event
+ * templates) knows only the resolution's source.
+ */
+export function autoSendTemplateWarning(view: EventTemplateView | null | undefined): string | null {
+  const resolution = view?.resolution;
+  if (!view || !resolution) return null;
+  const own = view.legacy
+    ? resolution.source === 'event'
+    : Boolean(view.eventTemplate && resolution.template.id === view.eventTemplate.id);
+  return own ? null : `${templateWith(resolution.template)} basılacak`;
+}
+
 /** Said while the Event's own template is a draft: what certificates take meanwhile. */
 export function draftLine(view: EventTemplateView): string | null {
   if (!view.eventTemplate || view.eventTemplate.publishedVersion) return null;

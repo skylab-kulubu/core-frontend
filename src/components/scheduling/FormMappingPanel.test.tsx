@@ -98,7 +98,7 @@ describe('FormMappingPanel', () => {
     [new ProblemError(503, 'x', { code: 'forms_pull_off' }), 'Forms bağlantısı kapalı.'],
     [
       new ProblemError(403, 'x', { code: 'forms_access_denied' }),
-      'Bu formun sahibi ya da düzenleyeni değilsin.',
+      'Bu forma erişimin yok.',
     ],
     [new ProblemError(404, 'x', { code: 'form_not_listed' }), 'Etkinliği kaydet, sonra eşle.'],
   ])('says why it cannot map (%s), with nothing to save', async (err, text) => {
@@ -214,7 +214,7 @@ describe('FormMappingPanel', () => {
     api.questions!.mockRejectedValue(new ProblemError(403, 'x', { code: 'forms_access_denied' }));
     render(<FormMappingPanel eventId={EVENT} formId={FORM} canSend />);
     expect(
-      await screen.findByText('Bu formun sahibi ya da düzenleyeni değilsin.'),
+      await screen.findByText('Bu forma erişimin yok.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Yanıtlara bilet gönder' })).toBeInTheDocument();
   });

@@ -110,9 +110,15 @@ const CODE_MESSAGES: Record<string, string> = {
   import_unreadable: 'Liste okunamadı. Dosyayı UTF-8 CSV olarak kaydet.',
   import_too_large: "Liste 2 MB'tan büyük.",
   import_too_many_rows: 'Liste 1000 satırdan uzun; böl ve ayrı ayrı içe aktar.',
+  // The Event's theme and accent (core docs/event-theme.md)
+  event_theme_unknown: 'Bu tema sunucuda yok. Sayfayı yenileyip yeniden seç.',
+  event_ticket_accent_color_invalid: 'Vurgu rengi #RRGGBB biçiminde olmalı.',
   // The attendee note (core docs/attendance-mail.md): over 1000 characters or an invisible character
   event_attendee_note_invalid:
     'Katılımcı notu geçersiz: en çok 1000 karakter, görünmez karakter olmasın.',
+  // The ticket note (core docs/ticket-note.md): over 500 characters or an invisible character
+  event_ticket_note_invalid:
+    'Bilet duyurusu en çok 500 karakter olabilir, görünmez karakter içermemeli.',
   // Sending a Ticket again, renewing its link (core docs/ticket-resend.md)
   ticket_resend_rate_limited:
     'Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.',
@@ -126,6 +132,9 @@ const CODE_MESSAGES: Record<string, string> = {
   audit_unavailable: 'İşlem kaydı açılamadı; hiçbir şey gönderilmedi. Biraz sonra tekrar dene.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
+  // Linking a form the person is not on the team of in Forms (core docs/form-respondents.md)
+  forms_access_denied: 'Bu forma erişimin yok.',
+  forms_unavailable: 'Forms yanıt vermedi. Biraz sonra dene.',
   feedback_form_missing: 'Geri bildirim formu bağlı değil.',
   feedback_not_sendable: 'Taslak, iptal edilmiş ya da arşivlenmiş etkinliğin formu gönderilmez.',
   ytu_managed_field: 'Bu alan YTÜ hesabından geliyor; buradan değiştirilemez.',

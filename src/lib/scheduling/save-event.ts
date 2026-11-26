@@ -17,6 +17,16 @@ function feedbackBody(form: EventFormState): Partial<EventBody> {
   };
 }
 
+/**
+ * "Sertifikaları otomatik gönder": left out until it was read or set (an older core reads none).
+ * A new Event always sends it, so an older core's default (on) does not apply.
+ */
+function autoSendBody(form: EventFormState): Pick<EventPatch, 'attendanceAutoFinalize'> {
+  return typeof form.attendanceAutoFinalize === 'boolean'
+    ? { attendanceAutoFinalize: form.attendanceAutoFinalize }
+    : {};
+}
+
 /** A new Event's point and address; left out while empty. */
 function locationBody(form: EventFormState): Partial<EventBody> {
   const point = pointOf(form);
@@ -41,6 +51,7 @@ function doorBody(
   create = false,
 ): Pick<EventPatch, 'entryMode' | 'attendanceWelcomeMail' | 'attendanceRecordedMail'> & {
   attendeeNote?: string;
+  ticketNote?: string;
 } {
   return {
     ...(form.entryMode !== undefined ? { entryMode: form.entryMode } : {}),
@@ -57,6 +68,10 @@ function doorBody(
     ...(typeof form.attendeeNote === 'string' && (!create || form.attendeeNote.trim())
       ? { attendeeNote: form.attendeeNote.trim() }
       : {}),
+    // The ticket mails' announcement, the same way (core docs/ticket-note.md)
+    ...(typeof form.ticketNote === 'string' && (!create || form.ticketNote.trim())
+      ? { ticketNote: form.ticketNote.trim() }
+      : {}),
   };
 }
 
@@ -72,6 +87,23 @@ function autoTicketBody(
     (!create || !form.formResponsesAutoTicket)
     ? { formResponsesAutoTicket: form.formResponsesAutoTicket }
     : {};
+}
+
+/**
+ * The theme and accent colour; each left out until it was read or set, so an older core reads
+ * none. A new Event sends only what was chosen; an edit sends `null` to go back to the default.
+ */
+function themeBody(
+  form: EventFormState,
+  create = false,
+): Pick<EventPatch, 'theme' | 'ticketAccentColor'> {
+  const out: Pick<EventPatch, 'theme' | 'ticketAccentColor'> = {};
+  if (form.theme !== undefined && (!create || form.theme)) out.theme = form.theme || null;
+  const accent = form.ticketAccentColor?.trim();
+  if (form.ticketAccentColor !== undefined && (!create || accent)) {
+    out.ticketAccentColor = accent ? accent.toUpperCase() : null;
+  }
+  return out;
 }
 
 export function eventBodyFromForm(form: EventFormState): EventBody {
@@ -93,6 +125,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     ...waitlistBody(form),
     ...doorBody(form, true),
     ...autoTicketBody(form, true),
+    ...themeBody(form, true),
     startDate: toRfc3339(form.startDate ?? ''),
     endDate: toRfc3339(form.endDate ?? ''),
     linkedin: form.linkedin || undefined,
@@ -104,6 +137,7 @@ export function eventBodyFromForm(form: EventFormState): EventBody {
     // The count rule's threshold; left out for the default (the Sertifikalar tab sets it)
     attendanceMinCount:
       form.attendanceRule === 'count' ? (form.attendanceMinCount ?? undefined) : undefined,
+    ...autoSendBody(form),
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') || undefined,
   };
@@ -140,6 +174,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     ...waitlistBody(form),
     ...doorBody(form),
     ...autoTicketBody(form),
+    ...themeBody(form),
     startDate: toRfc3339(form.startDate ?? '') ?? null,
     endDate: toRfc3339(form.endDate ?? '') ?? null,
     linkedin: form.linkedin || null,
@@ -149,6 +184,7 @@ export function eventFieldsFromForm(form: EventFormState): EventPatch {
     attendanceRule: form.attendanceRule || 'none',
     attendanceRatio: form.attendanceRule === 'ratio' ? (form.attendanceRatio ?? null) : null,
     attendanceMinCount: form.attendanceRule === 'count' ? (form.attendanceMinCount ?? null) : null,
+    ...autoSendBody(form),
     doorStaffIds: form.doorStaffIds ?? [],
     registrationClosesAt: toRfc3339(form.registrationClosesAt ?? '') ?? null,
   };

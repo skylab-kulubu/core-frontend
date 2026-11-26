@@ -160,7 +160,14 @@ export function EventEditPage() {
           storedRatio={
             event.attendanceRule === 'ratio' ? (event.attendanceRatio ?? 0.75) : undefined
           }
-          certificateTemplate={<EventEditTemplate leave={guard.leave} />}
+          certificateTemplate={
+            <EventEditTemplate
+              leave={guard.leave}
+              autoSend={
+                (value.attendanceRule ?? 'none') !== 'none' && value.attendanceAutoFinalize === true
+              }
+            />
+          }
           organizers={<EventOrganizers event={event} onDirtyChange={setOrganizersDirty} />}
           notices={{
             temel: editor.optionsFailed.teams ? (

@@ -209,6 +209,19 @@ describe('EventEditor certificate rule', () => {
     expect(screen.queryByText('Katılım oranı')).not.toBeInTheDocument();
   });
 
+  it('says a new event chooses the threshold on the Sertifikalar tab once created', async () => {
+    const user = userEvent.setup();
+    render(<RuleEditor />);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sertifika kuralı' }), 'count');
+    expect(
+      screen.getByText('Eşik, etkinlik oluşturulduktan sonra Sertifikalar sekmesinde seçilir.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Varsayılan eşik/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Eşiği ve oturumları Sertifikalar sekmesinde seç' }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps an older event's ratio as it is, without a field to change it", () => {
     render(
       <RuleEditor
@@ -326,6 +339,22 @@ describe('EventEditor capacity and waiting list', () => {
     expect(note).toHaveAttribute('maxLength', '1000');
     await user.type(note, 'Wi-Fi');
     expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ attendeeNote: 'Wi-Fi' }));
+  });
+
+  it('takes the ticket note when core sends it, says where it shows, and hides it otherwise', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    const { unmount } = render(<CapacityEditor start={{ capacity: 0, ticketNote: undefined }} />);
+    expect(screen.queryByText('Bilet duyurusu')).not.toBeInTheDocument();
+    unmount();
+    render(<CapacityEditor start={{ capacity: 0, ticketNote: '' }} onValue={onValue} />);
+    const note = screen.getByRole('textbox', { name: 'Bilet duyurusu' });
+    expect(note).toHaveAttribute('maxLength', '500');
+    expect(note).toHaveAccessibleDescription(
+      'Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.',
+    );
+    await user.type(note, 'Grup');
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ ticketNote: 'Grup' }));
   });
 
   it('says nobody is taken out when the capacity goes below the tickets', () => {
