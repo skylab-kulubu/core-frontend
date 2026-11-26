@@ -75,3 +75,77 @@ export async function setFormGate(formId: string, open: boolean): Promise<FormGa
   });
   return open ? 'open' : 'closed';
 }
+
+/** Forms' CollaboratorRole: what the signed-in person is on a form. */
+export const FORM_ROLE_VIEWER = 1;
+export const FORM_ROLE_EDITOR = 2;
+export const FORM_ROLE_OWNER = 3;
+
+/** A row of the person's forms (`GET /api/admin/forms/`, FormSummaryContract). */
+export type MyForm = {
+  id: string;
+  title: string;
+  /** 2 open, 1 closed. */
+  status: number;
+  /** 1 viewer, 2 editor, 3 owner. */
+  userRole: number;
+  responseCount: number;
+  updatedAt?: string | null;
+};
+
+export type MyFormsPage = {
+  items: MyForm[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+};
+
+/**
+ * The forms the signed-in person sees in Forms (owner, editor or viewer), newest change first,
+ * with the person's own token: no new right (SPEC form-alan-eslestirme K2).
+ */
+export async function listMyForms(
+  query: { search?: string; page?: number; pageSize?: number } = {},
+): Promise<MyFormsPage> {
+  const params = new URLSearchParams({
+    Page: String(query.page ?? 1),
+    PageSize: String(query.pageSize ?? 20),
+    SortBy: 'updatedAt',
+    SortDirection: 'descending',
+  });
+  const search = query.search?.trim();
+  if (search) params.set('Search', search);
+  const page = await formsFetch<Partial<MyFormsPage> | null>(`/api/admin/forms/?${params}`);
+  return {
+    items: page?.items ?? [],
+    totalCount: page?.totalCount ?? 0,
+    page: page?.page ?? query.page ?? 1,
+    pageSize: page?.pageSize ?? query.pageSize ?? 20,
+  };
+}
+
+/** A form's answer counts (`GET /api/admin/forms/{id}/metrics`); archived answers are left out. */
+export type FormAnswerCounts = {
+  /** Accepted: sent to a form without review, or approved. */
+  accepted: number;
+  /** Waiting for review in Forms (unverified ones included). */
+  pending: number;
+};
+
+export async function readFormAnswerCounts(formId: string): Promise<FormAnswerCounts> {
+  const metrics = await formsFetch<{
+    totalResponses?: number;
+    pendingCount?: number;
+    rejectedCount?: number;
+  }>(`/api/admin/forms/${encodeURIComponent(formId)}/metrics`);
+  const total = metrics?.totalResponses ?? 0;
+  const pending = metrics?.pendingCount ?? 0;
+  const rejected = metrics?.rejectedCount ?? 0;
+  return { accepted: Math.max(0, total - pending - rejected), pending };
+}
+
+/** A form's title, read with the person's token (`GET /api/admin/forms/{id}`). */
+export async function readFormTitle(formId: string): Promise<string> {
+  const form = await formsFetch<SkyformsForm>(`/api/admin/forms/${encodeURIComponent(formId)}`);
+  return form?.title ?? '';
+}

@@ -8,3 +8,6 @@ storybook-static
 
 # Vendored map files, kept as their source wrote them (public/map/README.md)
 public/map
+
+# Copy of core-backend internal/certificate/testdata/background-placement.json, kept byte for byte
+src/lib/__fixtures__/background-placement.json

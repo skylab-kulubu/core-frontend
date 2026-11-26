@@ -11,7 +11,7 @@ import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { useCapabilities } from '@/lib/capabilities-context';
 import { eventTabHref } from '@/lib/event-workspace';
 import { listStatus } from '@/lib/list-status';
-import { teamDecision } from '@/lib/use-app-can';
+import { eventDecision } from '@/lib/use-app-can';
 
 /**
  * Yarışma tab: the event's competitions in core's competition module (ADR-0068). The records of
@@ -21,12 +21,7 @@ export default function EventCompetitionPage() {
   const { event, competitors, personById, canCompetitors } = useEventWorkspace();
   const capabilities = useCapabilities();
   // core's competition.manage for the Owner team; the competitor right when it cannot be read
-  const canManage = teamDecision(
-    capabilities,
-    event.ownerTeam,
-    'competition.manage',
-    canCompetitors,
-  );
+  const canManage = eventDecision(capabilities, event, 'competition.manage', canCompetitors);
   const [legacy, setLegacy] = useState(false);
 
   return (

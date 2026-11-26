@@ -34,6 +34,7 @@ import {
 import { MAP_ATTRIBUTION, MAP_ATTRIBUTION_URL } from '@/lib/event-location';
 import { publicMediaUrl } from '@/lib/event-media';
 import { eventDisplayStatus, EVENT_STATUS_LABELS } from '@/lib/events-view';
+import { organizersLine } from '@/lib/event-organizers';
 import { rosterViewCounts } from '@/lib/roster-insights';
 import { formatApplicantWhen, ticketApplicantName, ticketTypeLabel } from '@/lib/tickets-ui';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
@@ -117,7 +118,7 @@ export function eventEssentialItems({
         '—'
       ),
     },
-    { label: 'Ekip', value: event.ownerTeam || '—' },
+    { label: 'Ekip', value: organizersLine(event) },
     { label: 'Sezon', value: seasonName || '—' },
     {
       label: 'Kontenjan',
