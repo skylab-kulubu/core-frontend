@@ -8,13 +8,12 @@ import { EventEditTemplate } from '@/components/scheduling/EventEditTemplate';
 import { EventOrganizers } from '@/components/scheduling/EventOrganizers';
 import { EventEditor, sectionOfIssue } from '@/components/scheduling/EventEditor';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
-import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-notice-question';
 import { newlyListedForms, useBindQuestion } from '@/components/scheduling/use-bind-question';
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
-import { useTeamDecide } from '@/lib/use-app-can';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 export const ORGANIZERS_UNSAVED =
@@ -74,12 +73,7 @@ export function EventEditPage() {
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
   // core's Assign on the saved Event (privileged, or its Owner team's Leader); the group rule if unread
-  const teamDecide = useTeamDecide();
-  const assignDoorStaff = teamDecide(
-    event.ownerTeam ?? '',
-    'event.assignDoorStaff',
-    editor.privileged,
-  );
+  const assignDoorStaff = useEditsDoorStaff();
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);

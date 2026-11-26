@@ -66,8 +66,8 @@ describe('event object page', () => {
     );
   });
 
-  it('links the door staff count to where they are chosen', async () => {
-    signInAs(LEADER);
+  it('links the door staff count to where they are chosen, for who may choose them', async () => {
+    signInAs(['/UYELER/YK']);
     (eventsApi.get as jest.Mock).mockResolvedValue({
       ...workspaceEvent,
       doorStaffIds: ['u1', 'u2'],
@@ -77,6 +77,18 @@ describe('event object page', () => {
       'href',
       '/events/e1/edit#kapi-gorevlileri',
     );
+  });
+
+  it('writes the door staff count without a link where the edit page does not list them', async () => {
+    // core's capabilities unread: only the group rule's privileged assign door staff
+    signInAs(LEADER);
+    (eventsApi.get as jest.Mock).mockResolvedValue({
+      ...workspaceEvent,
+      doorStaffIds: ['u1', 'u2'],
+    });
+    await renderEventTab(<EventOverviewPage />);
+    expect(await screen.findByText('2 kişi')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '2 kişi' })).not.toBeInTheDocument();
   });
 
   it('names the open page beside the event', async () => {

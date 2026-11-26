@@ -32,7 +32,7 @@ import { DatePicker } from '@/components/forms/DatePicker';
 import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
-import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { useEditsDoorStaff, useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { SessionQrDrawer, sessionForQr } from '@/components/scheduling/SessionQrDrawer';
 import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
@@ -115,6 +115,7 @@ export default function EventProgramPage() {
     canDesk,
     canTickets,
   } = useEventWorkspace();
+  const editsDoorStaff = useEditsDoorStaff();
   const [dayOpen, setDayOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -235,7 +236,7 @@ export default function EventProgramPage() {
                   onClick={() => setQrSession(qrTarget)}
                 />
               ) : null}
-              {canMutate ? (
+              {editsDoorStaff ? (
                 <ActionButton
                   icon={UserCog}
                   label="Kapı görevlileri"

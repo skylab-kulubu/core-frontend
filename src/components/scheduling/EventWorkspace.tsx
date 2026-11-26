@@ -85,7 +85,13 @@ import {
   ticketOwnerPeople,
 } from '@/lib/tickets-ui';
 import { useCapabilities } from '@/lib/capabilities-context';
-import { leaderTeamsOf, teamDecision, viewerDecision, type TeamDecide } from '@/lib/use-app-can';
+import {
+  leaderTeamsOf,
+  teamDecision,
+  useTeamDecide,
+  viewerDecision,
+  type TeamDecide,
+} from '@/lib/use-app-can';
 import { BUTTON_TEXT } from '@/lib/ui/type-scale';
 
 export const eventEditSchema = z
@@ -289,6 +295,16 @@ export function useEventWorkspace(): EventWorkspaceValue {
   const value = useContext(EventWorkspaceContext);
   if (!value) throw new Error('useEventWorkspace is used outside the event workspace');
   return value;
+}
+
+/**
+ * Whether the edit page lists the door staff for this reader, as it decides (core's Assign on the
+ * Owner team; the group rule if unread): Program and the overview link there only then.
+ */
+export function useEditsDoorStaff(): boolean {
+  const { event, canMutate, editor } = useEventWorkspace();
+  const teamDecide = useTeamDecide();
+  return canMutate && teamDecide(event.ownerTeam ?? '', 'event.assignDoorStaff', editor.privileged);
 }
 
 /**

@@ -377,13 +377,20 @@ describe('Program tab settings and QR', () => {
     expect(await screen.findByRole('dialog', { name: 'Panel QR' })).toBeInTheDocument();
   });
 
-  it('links to the door staff for who edits the event', async () => {
-    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+  it('links to the door staff for who may choose them', async () => {
+    signInAs(['/UYELER/YK']);
     await renderProgram();
     expect(await screen.findByRole('link', { name: 'Kapı görevlileri' })).toHaveAttribute(
       'href',
       '/events/e1/edit#kapi-gorevlileri',
     );
+  });
+
+  it('gives no door staff link to who edits the event but may not choose them', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU']);
+    await renderProgram();
+    expect(await screen.findByRole('button', { name: 'Oturum ekle' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Kapı görevlileri' })).not.toBeInTheDocument();
   });
 });
 
