@@ -102,13 +102,14 @@ describe('Edit page: a newly linked Skyforms form', () => {
     await user.click(await screen.findByRole('button', { name: 'Form seç' }));
     await user.click(await screen.findByRole('button', { name: 'Başvuru 2026' }));
     await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+    // A published event's new form is a new link: the save asks first (core event.changed)
+    const notice = await screen.findByRole('alertdialog', { name: 'Bağlantılar değişti' });
+    await user.click(within(notice).getByRole('button', { name: 'Kaydet' }));
 
-    const dialog = await screen.findByRole('alertdialog');
-    expect(
-      within(dialog).getByText(
-        'Bu formu 3 kişi doldurdu. Hepsini katılımcı olarak ekleyip biletlerini gönderelim mi?',
-      ),
-    ).toBeInTheDocument();
+    const question = await screen.findByText(
+      'Bu formu 3 kişi doldurdu. Hepsini katılımcı olarak ekleyip biletlerini gönderelim mi?',
+    );
+    const dialog = question.closest<HTMLElement>('[role="alertdialog"]')!;
     expect(
       within(dialog).getByText('Yanıtlar alınıyor; biletler alım bitince gider.'),
     ).toBeInTheDocument();
