@@ -6,8 +6,9 @@ import { changeNoticeTitle, type ChangeNotice } from '@/lib/scheduling/change-no
 import { useConfirm } from '@/lib/ui/use-confirm';
 
 /**
- * Asks before a save that gives a published Event a new time or place whether its Ticket
- * holders are told (ticked, as in the cancel dialog). The answer is true or false; `null` when
+ * Asks before a save that gives a published Event a new time, place or other details (name,
+ * description, attendee note, capacity, links) whether its Ticket holders are told (ticked, as in
+ * the cancel dialog). The answer is true or false; `null` when
  * the reader leaves the question (Vazgeç), and nothing is saved. Render `dialog` once.
  */
 export function useChangeNoticeQuestion(): [

@@ -578,6 +578,31 @@ describe('Event workspace layout', () => {
       expect(workspaceRouter.push).not.toHaveBeenCalledWith('/events/e1');
     });
 
+    it('asks for a new name too, listing what changed (core event.changed)', async () => {
+      const user = userEvent.setup();
+      await renderEventTab(<EventEditRoute />, '/events/e1/edit');
+      await screen.findByRole('heading', { name: 'GeceKodu' });
+      const name = screen.getByPlaceholderText('Etkinlik adı');
+      await user.clear(name);
+      await user.type(name, 'Gece Kodu 2026');
+      await user.click(screen.getByRole('button', { name: 'Kaydet' }));
+      const question = await screen.findByRole('alertdialog', { name: 'Ad değişti' });
+      expect(
+        within(question).getByRole('checkbox', { name: 'Bilet sahiplerine bildir (3 kişi)' }),
+      ).toBeChecked();
+
+      await user.click(within(question).getByRole('button', { name: 'Kaydet' }));
+
+      await waitFor(() =>
+        expect(saveEventWithSeason).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'Gece Kodu 2026' }),
+          'e1',
+          expect.objectContaining({ name: 'GeceKodu' }),
+          { notifyTicketHolders: true },
+        ),
+      );
+    });
+
     it('does not ask for a draft', async () => {
       const user = userEvent.setup();
       (eventsApi.get as jest.Mock).mockResolvedValue({
