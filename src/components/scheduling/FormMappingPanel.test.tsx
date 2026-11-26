@@ -112,6 +112,8 @@ describe('FormMappingPanel', () => {
     expect(box('Bölüm').value).toBe('q7');
     expect(box('Sınıf').value).toBe('q8');
     expect(screen.getAllByText('tahmin')).toHaveLength(4);
+    const optional = screen.getByRole('group', { name: 'İsteğe bağlı' });
+    expect(within(optional).getAllByRole('combobox')).toHaveLength(4);
     expect(
       within(box('Ad')).queryByRole('option', { name: 'Kaçıncı sınıfsınız?' }),
     ).not.toBeInTheDocument();

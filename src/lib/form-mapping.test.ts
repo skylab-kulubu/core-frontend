@@ -44,6 +44,13 @@ describe('fieldFromText (SPEC §5.2 step 3)', () => {
     ['Kaçıncı sınıfsınız?', 'grade'],
     ['Sınıf', 'grade'],
     ['Okul e-postanız', 'email'],
+    ['Okulunuz', 'university'],
+    ['Okul kulübünüz', null],
+    ['Okul topluluğu', null],
+    ['Hangi bölümde okuyorsunuz?', 'department'],
+    ['Oturum bölümü', null],
+    ['Etkinliğin hangi bölümüne katılacaksınız?', null],
+    ['Department', 'department'],
   ])('%s → %s', (text, field) => {
     expect(fieldFromText(text)).toBe(field);
   });
@@ -89,6 +96,12 @@ describe('guessMapping: the details', () => {
     expect(questionFits('grade', form[6]!)).toBe(false);
     expect(questionFits('grade', form[5]!)).toBe(true);
     expect(questionFits('fullName', form[5]!)).toBe(false);
+  });
+
+  it('says why a save goes past the form’s 20 questions', () => {
+    expect(
+      formMappingProblem(new ProblemError(400, 'x', { code: 'mapping_too_many_questions' }), 'x'),
+    ).toBe('Bu formun eşlemeleri birlikte en çok 20 soru seçebilir.');
   });
 
   it('refuses a question in a detail box and a name box at once', () => {

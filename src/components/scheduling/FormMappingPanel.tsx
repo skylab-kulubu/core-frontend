@@ -278,8 +278,10 @@ export function FormMappingPanel({
       {load.state === 'ready' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2">{MAPPING_FIELDS.map(mappingBox)}</div>
-          <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>İsteğe bağlı</p>
-          <div className="grid gap-3 sm:grid-cols-2">{DETAIL_FIELDS.map(mappingBox)}</div>
+          <fieldset className="min-w-0 space-y-2">
+            <legend className={`text-subtle-foreground ${TEXT_SECONDARY}`}>İsteğe bağlı</legend>
+            <div className="grid gap-3 sm:grid-cols-2">{DETAIL_FIELDS.map(mappingBox)}</div>
+          </fieldset>
           {issue ? <p className={`text-subtle-foreground ${TEXT_SECONDARY}`}>{issue}</p> : null}
           <div className="flex flex-wrap gap-2">
             <SaveButton

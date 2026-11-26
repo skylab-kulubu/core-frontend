@@ -68,16 +68,27 @@ export function foldQuestion(text: string): string {
     .trim();
 }
 
+/** "Okul", "okulunuz", "hangi okulda": the school a guest studies at. */
+const SCHOOL = /\bokul(u|un|unuz|da|dasin|dasiniz)?\b/;
+/** A school's number, club or community is not the school. */
+const NOT_SCHOOL = /numara|\bno\b|kulub|kulup|topluluk/;
+/** "Bölüm", "bölümünüz", "hangi bölümde": the department a guest studies in. */
+const STUDY_DEPARTMENT = /\bbolum(u|un|unuz|de|unde|undesin|undesiniz)?\b/;
+/** A part of the Event (a session's, the program's) is not a department. */
+const NOT_DEPARTMENT = /oturum|etkinli|program|kisim|katil/;
+
 /** Which box a question's text points to (SPEC §5.2 step 3), or null. */
 export function fieldFromText(text: string): MappingField | null {
   const t = foldQuestion(text);
   if (!t) return null;
   if (/e-?posta|mail/.test(t)) return 'email';
   if (/telefon|\bgsm\b|\bcep\b|phone/.test(t)) return 'phone';
-  if (/universite|university/.test(t) || (/\bokul/.test(t) && !/numara|\bno\b/.test(t))) {
+  if (/universite|university/.test(t) || (SCHOOL.test(t) && !NOT_SCHOOL.test(t))) {
     return 'university';
   }
-  if (/\bbolum|department/.test(t)) return 'department';
+  if (/department/.test(t) || (STUDY_DEPARTMENT.test(t) && !NOT_DEPARTMENT.test(t))) {
+    return 'department';
+  }
   if (/\bsinif|\bkacinci|\bgrade\b|year of study/.test(t)) return 'grade';
   if (/\b(ad|adi|adiniz) (ve )?(soyad|soyadi|soyadiniz)\b|\bad-soyad|isim soyisim/.test(t)) {
     return 'fullName';
@@ -198,6 +209,8 @@ export function formMappingProblem(err: unknown, fallback: string): string {
         return 'Seçili bir soru artık formda yok.';
       case 'mapping_invalid':
         return 'Eşleme geçersiz: e-posta ile ad ve soyad ya da ad soyad gerekli.';
+      case 'mapping_too_many_questions':
+        return 'Bu formun eşlemeleri birlikte en çok 20 soru seçebilir.';
       case 'form_not_listed':
         return 'Etkinliği kaydet, sonra eşle.';
       case 'form_not_found':
