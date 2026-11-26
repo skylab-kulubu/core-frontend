@@ -3,9 +3,12 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ProblemError } from '@/lib/api/core';
 import { DoorDesk } from '@/components/scheduling/DoorDesk';
-import { DoorWalkIn } from '@/components/scheduling/DoorWalkIn';
+import { DoorWalkIn, phoneShapeOk } from '@/components/scheduling/DoorWalkIn';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { ticketsApi, type WalkInResult } from '@/lib/api/tickets';
+
+const { walkInRequest } =
+  jest.requireActual<typeof import('@/lib/api/tickets')>('@/lib/api/tickets');
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'op', groups: ['/UYELER/YK'], roles: [] } }),
@@ -55,6 +58,7 @@ const band = () => screen.getByRole('status', { name: 'Kapıda kayıt sonucu' })
 const first = () => screen.getByLabelText('Ad');
 const last = () => screen.getByLabelText('Soyad');
 const email = () => screen.getByLabelText('E-posta');
+const phone = () => screen.getByLabelText('Telefon (isteğe bağlı)');
 
 async function fill(
   user: ReturnType<typeof userEvent.setup>,
@@ -89,7 +93,30 @@ describe('DoorWalkIn', () => {
     for (const input of [first(), last(), email()]) {
       expect(input).toHaveAttribute('autocomplete', 'off');
     }
-    expect(screen.queryByLabelText(/Telefon/)).not.toBeInTheDocument();
+    // The optional fields, open under Ek bilgiler
+    expect(phone()).toBeVisible();
+    expect(phone()).toHaveAttribute('type', 'tel');
+    expect(phone()).toHaveAttribute('inputmode', 'tel');
+    expect(phone()).toHaveAttribute('autocomplete', 'tel');
+    const university = screen.getByLabelText('Üniversite (isteğe bağlı)');
+    const offered = document.getElementById(university.getAttribute('list') ?? '');
+    expect(offered?.querySelector('option')).toHaveAttribute('value', 'Yıldız Teknik Üniversitesi');
+    expect(screen.getByLabelText('Bölüm (isteğe bağlı)')).toBeVisible();
+    const grade = screen.getByLabelText('Sınıf (isteğe bağlı)');
+    expect(
+      Array.from(grade.querySelectorAll('option')).map((option) => option.textContent),
+    ).toEqual([
+      'Seçilmedi',
+      'Hazırlık',
+      '1',
+      '2',
+      '3',
+      '4',
+      'Yüksek lisans',
+      'Doktora',
+      'Mezun',
+      'Diğer',
+    ]);
     expect(screen.getByRole('button', { name: 'Kaydet ve içeri al' })).toBeVisible();
   });
 
@@ -143,6 +170,10 @@ describe('DoorWalkIn', () => {
         firstName: 'Ayşe',
         lastName: 'Yılmaz',
         email: 'ayse@example.com',
+        phone: '',
+        university: '',
+        department: '',
+        grade: '',
       }),
     );
     await waitFor(() => expect(band()).toHaveTextContent('Kayıt yapıldı, giriş yazıldı'));
@@ -298,6 +329,74 @@ describe('DoorWalkIn', () => {
     expect(email()).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('sends the optional fields and keeps the phone off the band', async () => {
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.type(phone(), '0532 123 45 67');
+    await user.type(
+      screen.getByLabelText('Üniversite (isteğe bağlı)'),
+      'Yıldız Teknik Üniversitesi',
+    );
+    await user.type(screen.getByLabelText('Bölüm (isteğe bağlı)'), ' Fizik ');
+    await user.selectOptions(screen.getByLabelText('Sınıf (isteğe bağlı)'), 'Yüksek lisans');
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() =>
+      expect(ticketsApi.walkIn).toHaveBeenCalledWith('e1', {
+        firstName: 'Ayşe',
+        lastName: 'Yılmaz',
+        email: 'ayse@example.com',
+        phone: '0532 123 45 67',
+        university: 'Yıldız Teknik Üniversitesi',
+        department: 'Fizik',
+        grade: 'masters',
+      }),
+    );
+    await waitFor(() => expect(band()).toHaveTextContent('Kayıt yapıldı'));
+    expect(band()).not.toHaveTextContent('0532');
+  });
+
+  it('refuses a phone of the wrong shape, and lets an empty one through', async () => {
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.type(phone(), '12345');
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Telefon geçersiz.');
+    expect(phone()).toHaveAttribute('aria-invalid', 'true');
+    expect(ticketsApi.walkIn).not.toHaveBeenCalled();
+    await user.clear(phone());
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() => expect(ticketsApi.walkIn).toHaveBeenCalledTimes(1));
+  });
+
+  it('marks the phone core refused, opening Ek bilgiler', async () => {
+    (ticketsApi.walkIn as jest.Mock).mockRejectedValue(
+      new ProblemError(400, 'Bad Request', { code: 'phone_invalid' }),
+    );
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.type(phone(), '+90 532 123 45 67');
+    await user.click(screen.getByText('Ek bilgiler'));
+    expect(phone()).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Telefon geçersiz.'));
+    expect(phone()).toBeVisible();
+    expect(phone()).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('keeps Ek bilgiler closed for the next person once closed', async () => {
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.click(screen.getByText('Ek bilgiler'));
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() => expect(band()).toHaveTextContent('Kayıt yapıldı'));
+    await user.click(screen.getByRole('button', { name: 'Kapıda kayıt' }));
+    expect(phone()).not.toBeVisible();
+  });
+
   it('closes empty on Vazgeç', async () => {
     const user = userEvent.setup();
     render(<DoorWalkIn eventId="e1" entryMode="venue" />);
@@ -305,6 +404,44 @@ describe('DoorWalkIn', () => {
     await user.click(screen.getByRole('button', { name: 'Vazgeç' }));
     expect(screen.queryByRole('form', { name: 'Kapıda kayıt' })).not.toBeInTheDocument();
     expect(ticketsApi.walkIn).not.toHaveBeenCalled();
+  });
+});
+
+describe('walk-in fields', () => {
+  it.each([
+    ['05321234567', true],
+    ['0532 123 45 67', true],
+    ['0532-123-45-67', true],
+    ['+90 532 123 45 67', true],
+    ['5321234567', true],
+    ['(0212) 383 70 70', true],
+    ['+49 30 1234567', true],
+    ['12345', false],
+    ['0532 123 45 6', false],
+    ['abc', false],
+    ['+0 123 4567', false],
+  ])('phone %s → %s', (value, ok) => {
+    expect(phoneShapeOk(value)).toBe(ok);
+  });
+
+  it('sends core the required fields and only the optional ones that are filled', () => {
+    expect(
+      walkInRequest({
+        firstName: 'Ayşe',
+        lastName: 'Yılmaz',
+        email: 'ayse@example.com',
+        phone: ' 0532 123 45 67 ',
+        university: '',
+        department: '  ',
+        grade: '3',
+      }),
+    ).toEqual({
+      firstName: 'Ayşe',
+      lastName: 'Yılmaz',
+      email: 'ayse@example.com',
+      phoneNumber: '0532 123 45 67',
+      grade: '3',
+    });
   });
 });
 

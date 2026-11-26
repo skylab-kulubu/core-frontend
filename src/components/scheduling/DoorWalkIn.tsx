@@ -5,21 +5,68 @@ import { Button, cn } from '@skylab-kulubu/skylcn-ui';
 import { CheckCircle2, CircleAlert, UserPlus } from 'lucide-react';
 import { Field } from '@/components/chrome/Field';
 import { FieldLabel } from '@/components/chrome/FieldLabel';
+import { Select } from '@/components/chrome/Select';
 import { ProblemError } from '@/lib/api/core';
-import { ticketsApi, type EntryMode, type WalkInBody, type WalkInResult } from '@/lib/api/tickets';
+import {
+  ticketsApi,
+  type EntryMode,
+  type WalkInBody,
+  type WalkInGrade,
+  type WalkInResult,
+} from '@/lib/api/tickets';
 import { coreProblemMessage } from '@/lib/core-problems';
 import { BUTTON_TEXT, TEXT_SECONDARY } from '@/lib/ui/type-scale';
 
-type FieldName = keyof WalkInBody;
+type Values = Required<WalkInBody>;
+type FieldName = keyof Values;
 
-const EMPTY: WalkInBody = { firstName: '', lastName: '', email: '' };
+const EMPTY: Values = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  university: '',
+  department: '',
+  grade: '',
+};
 const ORDER: FieldName[] = ['firstName', 'lastName', 'email'];
 
 /** A rough shape only (x@y.z); core checks the address. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * A Turkish number of 10 digits, with or without 0 or +90 in front, or an international one
+ * from + (7 to 15 digits); spaces, dashes and brackets are let through. Core checks it again.
+ */
+export function phoneShapeOk(value: string): boolean {
+  const digits = value.replace(/[\s\-()]/g, '');
+  return /^(?:\+90|0)?[1-9]\d{9}$/.test(digits) || /^\+[1-9]\d{6,14}$/.test(digits);
+}
+
+/** Universities offered first; anything else can be typed. */
+const UNIVERSITIES = [
+  'Yıldız Teknik Üniversitesi',
+  'İstanbul Teknik Üniversitesi',
+  'Boğaziçi Üniversitesi',
+  'İstanbul Üniversitesi',
+  'Marmara Üniversitesi',
+];
+
+const GRADES: [WalkInGrade, string][] = [
+  ['prep', 'Hazırlık'],
+  ['1', '1'],
+  ['2', '2'],
+  ['3', '3'],
+  ['4', '4'],
+  ['masters', 'Yüksek lisans'],
+  ['phd', 'Doktora'],
+  ['graduate', 'Mezun'],
+  ['other', 'Diğer'],
+];
+
 const FIELDS_REQUIRED = 'Ad, soyad ve e-posta gerekli.';
 const EMAIL_INVALID = 'E-posta geçersiz.';
+const PHONE_INVALID = 'Telefon geçersiz.';
 
 /** What the last walk-in came to: written (green), already in today (amber), or refused (red). */
 type Shown =
@@ -54,6 +101,7 @@ const CLOSED: Record<string, string> = {
 /** Core's refusals of a walk-in, in the door's words. */
 const REFUSED: Record<string, string> = {
   email_invalid: EMAIL_INVALID,
+  phone_invalid: PHONE_INVALID,
   event_full: 'Kontenjan dolu; kapıda kayıt yapılamaz.',
   ticket_waitlisted: 'Bekleme listesinde. Yetkili kişi öne almalı.',
   ticket_cancelled: 'Bileti iptal edilmiş. Yetkili kişiye yönlendir.',
@@ -104,7 +152,9 @@ export function DoorWalkIn({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [values, setValues] = useState<WalkInBody>(EMPTY);
+  const [values, setValues] = useState<Values>(EMPTY);
+  // Ek bilgiler comes open; closed once, it stays closed for the next person
+  const [extras, setExtras] = useState(true);
   const [invalid, setInvalid] = useState<FieldName[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -142,6 +192,7 @@ export function DoorWalkIn({
   }
 
   function refuse(names: FieldName[], text: string) {
+    if (names.includes('phone')) setExtras(true);
     setInvalid(names);
     setProblem(text);
     if (names[0]) focusField(names[0]);
@@ -154,6 +205,10 @@ export function DoorWalkIn({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
       email: values.email.trim(),
+      phone: values.phone.trim(),
+      university: values.university.trim(),
+      department: values.department.trim(),
+      grade: values.grade,
     };
     const missing = ORDER.filter((name) => !body[name]);
     if (missing.length) {
@@ -162,6 +217,10 @@ export function DoorWalkIn({
     }
     if (!EMAIL.test(body.email)) {
       refuse(['email'], EMAIL_INVALID);
+      return;
+    }
+    if (body.phone && !phoneShapeOk(body.phone)) {
+      refuse(['phone'], PHONE_INVALID);
       return;
     }
     setInvalid([]);
@@ -179,6 +238,8 @@ export function DoorWalkIn({
       if (named.length) refuse(named, FIELDS_REQUIRED);
       else if (err instanceof ProblemError && err.code === 'email_invalid') {
         refuse(['email'], EMAIL_INVALID);
+      } else if (err instanceof ProblemError && err.code === 'phone_invalid') {
+        refuse(['phone'], PHONE_INVALID);
       } else setShown(walkInRefusal(err));
     } finally {
       setBusy(false);
@@ -189,12 +250,14 @@ export function DoorWalkIn({
   const formId = `${id}-form`;
   const problemId = `${id}-problem`;
   const field = (
-    name: FieldName,
+    name: Exclude<FieldName, 'grade'>,
     label: string,
     props: Partial<Parameters<typeof Field>[0]>,
     then?: FieldName,
+    /** The whole row at phone width; one of two columns from `sm` up. */
+    wide = false,
   ) => (
-    <div className="space-y-1">
+    <div className={cn('min-w-0 space-y-1', wide && 'col-span-2 sm:col-span-1')}>
       <label htmlFor={fieldId(name)} className="block">
         <FieldLabel>{label}</FieldLabel>
       </label>
@@ -238,7 +301,7 @@ export function DoorWalkIn({
           onSubmit={(event) => void submit(event)}
           className="border-border-subtle bg-card space-y-3 rounded-xl border p-4"
         >
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             {field(
               'firstName',
               'Ad',
@@ -259,6 +322,76 @@ export function DoorWalkIn({
             enterKeyHint: 'done',
             spellCheck: false,
           })}
+          <details
+            open={extras}
+            onToggle={(event) => setExtras(event.currentTarget.open)}
+            className="border-border-subtle rounded-lg border"
+          >
+            <summary
+              className={cn(
+                'text-foreground flex min-h-11 cursor-pointer items-center px-3 font-medium select-none',
+                TEXT_SECONDARY,
+              )}
+            >
+              Ek bilgiler
+            </summary>
+            <div className="grid grid-cols-2 gap-3 px-3 pb-3">
+              {field(
+                'phone',
+                'Telefon (isteğe bağlı)',
+                {
+                  type: 'tel',
+                  inputMode: 'tel',
+                  autoComplete: 'tel',
+                  enterKeyHint: 'next',
+                  placeholder: '0 5xx xxx xx xx',
+                },
+                'university',
+                true,
+              )}
+              {field(
+                'university',
+                'Üniversite (isteğe bağlı)',
+                { list: `${id}-universities` },
+                undefined,
+                true,
+              )}
+              <datalist id={`${id}-universities`}>
+                {UNIVERSITIES.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              {field(
+                'department',
+                'Bölüm (isteğe bağlı)',
+                {
+                  autoCapitalize: 'words',
+                  enterKeyHint: 'next',
+                },
+                'grade',
+              )}
+              <div className="min-w-0 space-y-1">
+                <label htmlFor={fieldId('grade')} className="block">
+                  <FieldLabel>Sınıf (isteğe bağlı)</FieldLabel>
+                </label>
+                <Select
+                  id={fieldId('grade')}
+                  name="grade"
+                  value={values.grade}
+                  onChange={(change) => setField('grade', change.target.value)}
+                  disabled={busy}
+                  className="h-11"
+                >
+                  <option value="">Seçilmedi</option>
+                  {GRADES.map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          </details>
           {problem ? (
             <p id={problemId} role="alert" className="text-destructive text-sm">
               {problem}
