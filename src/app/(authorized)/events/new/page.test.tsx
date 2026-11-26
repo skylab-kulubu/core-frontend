@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import NewEventPage from '@/app/(authorized)/events/new/page';
 import { emptyEventForm } from '@/components/scheduling/EventEditor';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
 import { EVENT_DRAFT_PREFIX } from '@/lib/event-draft';
 import { EventSaveIncomplete, saveEventWithSeason } from '@/lib/scheduling/save-event';
@@ -15,8 +16,13 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
+let mockGroups = ['/UYELER/YK'];
 jest.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1', groups: ['/UYELER/YK'], roles: [] } }),
+  useAuth: () => ({ user: { id: 'u1', groups: mockGroups, roles: [] } }),
+}));
+// core's capabilities: unread (the group rule) unless a test answers them
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn() },
 }));
 
 jest.mock('@/lib/api/teams', () => ({ teamsApi: { list: jest.fn().mockResolvedValue([]) } }));
@@ -47,6 +53,8 @@ describe('Yeni etkinlik', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockEventCreate = null;
+    mockGroups = ['/UYELER/YK'];
+    (capabilitiesApi.get as jest.Mock).mockRejectedValue(new Error('unread'));
     mockSearchParams = new URLSearchParams({ formUrl: 'https://forms.example.com/f/gecekodu' });
     sessionStorage.clear();
     sessionStorage.setItem(
@@ -172,5 +180,41 @@ describe('Yeni etkinlik', () => {
     expect(JSON.parse(sessionStorage.getItem(`${EVENT_DRAFT_PREFIX}:new`) ?? '{}').ownerTeam).toBe(
       '',
     );
+  });
+
+  describe('Kapı görevlileri', () => {
+    const leader = ['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER', '/UYELER/ORGANIZASYON/GECEKODU'];
+    const capabilitiesFor = (assignDoorStaff: boolean) => ({
+      can: { 'event.create': true },
+      teams: [
+        {
+          team: 'GECEKODU',
+          levels: ['LEADER'],
+          can: { 'event.create': true, 'event.assignDoorStaff': assignDoorStaff },
+        },
+      ],
+      otherTeams: { can: {} },
+      noOwnerTeam: { can: {} },
+    });
+
+    beforeEach(() => {
+      mockSearchParams = new URLSearchParams();
+      sessionStorage.clear();
+      mockGroups = leader;
+    });
+
+    it('shows the section to the Owner team’s Leader when core lets them assign', async () => {
+      (capabilitiesApi.get as jest.Mock).mockResolvedValue(capabilitiesFor(true));
+      render(<NewEventPage />);
+      expect(await screen.findByText('Kapı görevlileri')).toBeInTheDocument();
+    });
+
+    it('hides it when core does not (a core before the Leader rule)', async () => {
+      (capabilitiesApi.get as jest.Mock).mockResolvedValue(capabilitiesFor(false));
+      render(<NewEventPage />);
+      expect(await screen.findByRole('navigation', { name: 'Bölümler' })).toBeInTheDocument();
+      await waitFor(() => expect(capabilitiesApi.get).toHaveBeenCalled());
+      expect(screen.queryByText('Kapı görevlileri')).not.toBeInTheDocument();
+    });
   });
 });
