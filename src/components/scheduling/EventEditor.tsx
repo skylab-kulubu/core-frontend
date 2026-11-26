@@ -37,6 +37,7 @@ import { listStatus } from '@/lib/list-status';
 import { lookupPeople } from '@/lib/people-lookup';
 import { pickerMatch } from '@/lib/picker';
 import { TEXT_SECONDARY } from '@/lib/ui/type-scale';
+import { useAttendanceMailOn } from '@/lib/use-app-can';
 import { EventFormSlots } from './EventFormSlots';
 import { EventLocationFields } from './EventLocationFields';
 import { EventMediaFields } from './EventMediaFields';
@@ -83,6 +84,9 @@ type EventEditorProps = {
   /** The saved Event's active Tickets (core `ticketCount`), for the lowered-capacity note. */
   activeTickets?: number;
 };
+
+/** Under a door's mail switch while core sends none (capabilities `features`). */
+export const MAIL_OFF_HINT = 'Bu posta şu an kapalı.';
 
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
 export const ATTENDEE_NOTE_MAX = 1000;
@@ -261,6 +265,8 @@ export function EventEditor({
   const [staffQuery, setStaffQuery] = useState('');
   const [staffPeople, setStaffPeople] = useState<ReadonlyMap<string, Person>>(new Map());
   const staffSearch = usePersonSearch(staffOpen, staffQuery);
+  // Off on core (ATTENDANCE_MAIL): the switch is greyed out, the Event's value kept
+  const mailOn = useAttendanceMailOn();
 
   const staffIds = value.doorStaffIds ?? [];
   const staffKey = staffIds.join(',');
@@ -466,16 +472,26 @@ export function EventEditor({
         {value.attendanceWelcomeMail !== undefined ? (
           <>
             <Switch
-              checked={value.attendanceWelcomeMail ?? true}
+              checked={mailOn.welcome && (value.attendanceWelcomeMail ?? true)}
               onChange={(attendanceWelcomeMail) => patch({ attendanceWelcomeMail })}
               label="Hoş geldin postası"
-              hint="Kişinin günün ilk girişinden 2 dakika sonra gider."
+              hint={
+                mailOn.welcome
+                  ? 'Kişinin günün ilk girişinden 2 dakika sonra gider.'
+                  : MAIL_OFF_HINT
+              }
+              disabled={!mailOn.welcome}
             />
             <Switch
-              checked={value.attendanceRecordedMail ?? true}
+              checked={mailOn.recorded && (value.attendanceRecordedMail ?? true)}
               onChange={(attendanceRecordedMail) => patch({ attendanceRecordedMail })}
               label="Katılım postası"
-              hint="Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar."
+              hint={
+                mailOn.recorded
+                  ? 'Her oturum yoklamasından 2 dakika sonra gider; kaç oturuma katıldığını yazar.'
+                  : MAIL_OFF_HINT
+              }
+              disabled={!mailOn.recorded}
             />
           </>
         ) : null}

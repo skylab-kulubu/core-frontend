@@ -12,6 +12,7 @@ import { useChangeNoticeQuestion } from '@/components/scheduling/use-change-noti
 import { certificatesApi } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 import { eventTabHref } from '@/lib/event-workspace';
+import { useTeamDecide } from '@/lib/use-app-can';
 import { useUnsavedChanges } from '@/lib/ui/use-unsaved-changes';
 
 /** Jumps to the section a form problem is in, so the reader sees the field. */
@@ -58,6 +59,13 @@ export function EventEditPage() {
   const overview = eventTabHref(event.id);
   const legacyRules = useLegacyCertificateRules(event.id, canMutate);
   const [askChangeNotice, changeNoticeDialog] = useChangeNoticeQuestion();
+  // core's Assign on the saved Event (privileged, or its Owner team's Leader); the group rule if unread
+  const teamDecide = useTeamDecide();
+  const assignDoorStaff = teamDecide(
+    event.ownerTeam ?? '',
+    'event.assignDoorStaff',
+    editor.privileged,
+  );
 
   // Leaving the page drops what was not saved: the next visit starts from the event
   useEffect(() => () => form.reset(), [form]);
@@ -110,7 +118,7 @@ export function EventEditPage() {
           seasons={editor.seasons}
           showSeason={editor.privileged}
           ownerOptional={editor.privileged}
-          assignDoorStaff={editor.privileged}
+          assignDoorStaff={assignDoorStaff}
           knownMedia={[
             ...(event.coverImageId
               ? [{ id: event.coverImageId, name: 'Kapak', url: event.coverImageUrl }]
