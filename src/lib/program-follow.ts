@@ -12,18 +12,28 @@ export type ProgramSession = {
   cancelled?: boolean;
 };
 
-/** `current`: running now. `next`: none is, this one starts next. `last`: the day is over. */
+/**
+ * `current`: running now. `next`: none is, this one starts within HANDOVER_MS (or the day has not
+ * begun). `last`: the session that ended last, kept for late scans until HANDOVER_MS before the
+ * next one starts, and once the day is over.
+ */
 export type ProgramPickState = 'current' | 'next' | 'last';
 
 export type ProgramPick<S extends ProgramSession> = { session: S; state: ProgramPickState };
 
 /** A session without an end runs until the next one starts, the last one an hour. */
 const OPEN_ENDED_MS = 60 * 60 * 1000;
+/**
+ * In a gap between sessions the one that ended stays on screen for late scans until this long
+ * before the next one starts (Açılış ends 12:00, 1. Oturum starts 12:15: Açılış until 12:10).
+ */
+export const HANDOVER_MS = 5 * 60 * 1000;
 
 /**
- * The session to show at `now`: the one running (the latest started, if they overlap); else the
- * next one to start; else the last one. Cancelled sessions and sessions without a start time are
- * skipped; null when none is left.
+ * The session to show at `now`: the one running (the latest started, if they overlap); else, in a
+ * gap, the one that ended last until HANDOVER_MS before the next one starts, then the next one;
+ * before the first session the first; after the last the last. Cancelled sessions and sessions
+ * without a start time are skipped; null when none is left.
  */
 export function pickProgramSession<S extends ProgramSession>(
   sessions: readonly S[],
@@ -50,8 +60,14 @@ export function pickProgramSession<S extends ProgramSession>(
     if (span.start <= now && now < span.end) current = span;
   }
   if (current) return { session: current.s, state: 'current' };
+  let ended: (typeof spans)[number] | undefined;
+  for (const span of spans) {
+    if (span.end <= now && (!ended || span.end >= ended.end)) ended = span;
+  }
   const next = spans.find((span) => span.start > now);
-  if (next) return { session: next.s, state: 'next' };
+  if (next && (!ended || now >= next.start - HANDOVER_MS))
+    return { session: next.s, state: 'next' };
+  if (ended) return { session: ended.s, state: 'last' };
   return { session: spans[spans.length - 1].s, state: 'last' };
 }
 

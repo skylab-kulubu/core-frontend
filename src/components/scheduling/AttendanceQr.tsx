@@ -27,8 +27,9 @@ const CONTROLS_MS = 4_000;
  *
  * With the event's `program`, the operator may pick another session here, or turn on
  * "Programı izle" (off by default, remembered on this device): the screen then shows the session
- * running now by the clock, or the next one ("Sıradaki: …"), so one OBS scene can stay up all
- * day. Picking a session by hand turns it off.
+ * running now by the clock; in a gap the one that ended until five minutes before the next one
+ * starts, then the next one ("Sıradaki: …"); so one OBS scene can stay up all day. Picking a
+ * session by hand turns it off. `onSession` hears which session the screen shows.
  *
  * Limits (the browser's, not core's): a hidden window (minimised, fully covered, another macOS
  * Space, a background tab) does not renew the QR, and the last one leaves the screen when it
@@ -40,11 +41,13 @@ export function AttendanceQr({
   title,
   onMode,
   program,
+  onSession,
 }: {
   sessionId: string;
   title: string;
   onMode?: (mode: SessionQrMode) => void;
   program?: readonly ProgramSession[];
+  onSession?: (session: { id: string; title: string }) => void;
 }) {
   const screenRef = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
@@ -69,6 +72,10 @@ export function AttendanceQr({
   useEffect(() => {
     setPinnedId(sessionId);
   }, [sessionId]);
+
+  useEffect(() => {
+    onSession?.({ id: shownSession.id, title: shownSession.title });
+  }, [shownSession.id, shownSession.title, onSession]);
 
   const hasProgram = Boolean(program);
   useEffect(() => {
@@ -196,7 +203,11 @@ export function AttendanceQr({
       </div>
       {modeLine && !full ? (
         <p className="text-secondary-foreground text-sm">
-          {pick?.state === 'next' ? `${modeLine} (sıradaki)` : modeLine}
+          {pick?.state === 'next'
+            ? `${modeLine} (sıradaki)`
+            : pick?.state === 'last'
+              ? `${modeLine} (bitti)`
+              : modeLine}
         </p>
       ) : null}
       {message ? (

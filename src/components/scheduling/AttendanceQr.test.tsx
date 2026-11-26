@@ -108,28 +108,37 @@ describe('AttendanceQr with the program', () => {
   });
 
   it('stays on the session it was opened for until "Programı izle" is turned on', async () => {
+    const onSession = jest.fn();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    render(<AttendanceQr sessionId="a" title="Açılış" program={program} />);
+    render(<AttendanceQr sessionId="a" title="Açılış" program={program} onSession={onSession} />);
     await screen.findByAltText('Oturum yoklaması için QR');
     expect(createDoorQr).toHaveBeenLastCalledWith('a', 'display');
     expect(screen.getByText('Elle seçildi · Açılış')).toBeInTheDocument();
+    expect(onSession).toHaveBeenLastCalledWith({ id: 'a', title: 'Açılış' });
 
     await user.click(screen.getByRole('switch', { name: /Programı izle/ }));
-    // 12:05, between Açılış and 1. Oturum: the next one, said so.
-    expect(await screen.findByText('Programı izliyor · 1. Oturum (sıradaki)')).toBeInTheDocument();
-    expect(createDoorQr).toHaveBeenLastCalledWith('b', 'display');
+    // 12:05: Açılış ended at 12:00, 1. Oturum starts 12:15: Açılış stays until 12:10.
+    expect(await screen.findByText('Programı izliyor · Açılış (bitti)')).toBeInTheDocument();
     expect(window.localStorage.getItem('attendance-qr-follow')).toBe('on');
 
-    // 12:20: 1. Oturum is running; 12:46: 2. Oturum is next.
-    await act(async () => {
-      jest.setSystemTime(new Date('2026-11-27T09:20:00Z'));
-      jest.advanceTimersByTime(15_000);
-    });
+    const at = async (iso: string) => {
+      await act(async () => {
+        jest.setSystemTime(new Date(iso));
+        jest.advanceTimersByTime(15_000);
+      });
+    };
+    // 12:11: 1. Oturum next.
+    await at('2026-11-27T09:11:00Z');
+    expect(screen.getByText('Programı izliyor · 1. Oturum (sıradaki)')).toBeInTheDocument();
+    expect(createDoorQr).toHaveBeenLastCalledWith('b', 'display');
+    expect(onSession).toHaveBeenLastCalledWith({ id: 'b', title: '1. Oturum' });
+    // 12:20 running; 12:50 ended but 2. Oturum (13:00) is more than five minutes away.
+    await at('2026-11-27T09:20:00Z');
     expect(screen.getByText('Programı izliyor · 1. Oturum')).toBeInTheDocument();
-    await act(async () => {
-      jest.setSystemTime(new Date('2026-11-27T09:46:00Z'));
-      jest.advanceTimersByTime(15_000);
-    });
+    await at('2026-11-27T09:50:00Z');
+    expect(screen.getByText('Programı izliyor · 1. Oturum (bitti)')).toBeInTheDocument();
+    // 12:56: 2. Oturum next.
+    await at('2026-11-27T09:56:00Z');
     expect(screen.getByText('Programı izliyor · 2. Oturum (sıradaki)')).toBeInTheDocument();
     expect(createDoorQr).toHaveBeenLastCalledWith('c', 'display');
   });
@@ -137,7 +146,7 @@ describe('AttendanceQr with the program', () => {
   it('remembers "Programı izle" on this device, and a session picked by hand turns it off', async () => {
     window.localStorage.setItem('attendance-qr-follow', 'on');
     render(<AttendanceQr sessionId="a" title="Açılış" program={program} />);
-    expect(await screen.findByText('Programı izliyor · 1. Oturum (sıradaki)')).toBeInTheDocument();
+    expect(await screen.findByText('Programı izliyor · Açılış (bitti)')).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Oturum' }), { target: { value: 'c' } });
     expect(await screen.findByText('Elle seçildi · 2. Oturum')).toBeInTheDocument();
@@ -147,6 +156,8 @@ describe('AttendanceQr with the program', () => {
 
   it('full screen: shows the mode and the next session, and "Bu oturumda kal" pins it', async () => {
     window.localStorage.setItem('attendance-qr-follow', 'on');
+    // 12:11: 1. Oturum starts in four minutes.
+    jest.setSystemTime(new Date('2026-11-27T09:11:00Z'));
     Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
       configurable: true,
       value: jest.fn().mockResolvedValue(undefined),

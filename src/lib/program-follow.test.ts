@@ -39,8 +39,25 @@ describe('pickProgramSession', () => {
     });
   });
 
-  it('shows the next one in the gap between two sessions', () => {
+  it('keeps the session that ended until five minutes before the next one starts', () => {
+    // Açılış ends 12:00, 1. Oturum starts 12:15: Açılış until 12:10, then 1. Oturum.
     expect(pickProgramSession(day, at('2026-11-27T09:00:00Z'))).toMatchObject({
+      session: { id: 'a' },
+      state: 'last',
+    });
+    expect(pickProgramSession(day, at('2026-11-27T09:09:59Z'))?.session.id).toBe('a');
+    expect(pickProgramSession(day, at('2026-11-27T09:10:00Z'))).toMatchObject({
+      session: { id: 'b' },
+      state: 'next',
+    });
+  });
+
+  it('goes to the next one at once when the gap is under five minutes', () => {
+    const tight = [
+      { id: 'a', title: 'A', startTime: '2026-11-27T08:00:00Z', endTime: '2026-11-27T09:00:00Z' },
+      { id: 'b', title: 'B', startTime: '2026-11-27T09:03:00Z', endTime: '2026-11-27T10:00:00Z' },
+    ];
+    expect(pickProgramSession(tight, at('2026-11-27T09:00:00Z'))).toMatchObject({
       session: { id: 'b' },
       state: 'next',
     });
@@ -55,6 +72,7 @@ describe('pickProgramSession', () => {
 
   it('skips cancelled and untimed sessions; null when none is left', () => {
     const sessions = [{ ...day[1], cancelled: true }, { id: 'x', title: 'Saatsiz' }, day[0]];
+    // Açılış is cancelled: before 1. Oturum the screen already shows it.
     expect(pickProgramSession(sessions, at('2026-11-27T08:40:00Z'))).toMatchObject({
       session: { id: 'b' },
       state: 'next',

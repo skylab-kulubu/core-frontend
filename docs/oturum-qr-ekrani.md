@@ -9,14 +9,14 @@ Core'un ekran belirteci (`door-qr?use=display`): 15 sn'de bir yenilenir, her bir
 ## Programı izle (seçmeli)
 
 - Varsayılan **kapalı**: ekran operatörün seçtiği oturumu gösterir (çekmeceyi hangi oturumdan açtıysa, ya da "Oturum" listesinden seçtiği).
-- Açılınca saate göre: o an süren oturum (iç içe geçenlerde en son başlayan); yoksa sıradaki, başlık "Sıradaki: 1. Oturum · 12:15"; gün bitince son oturum. Saatsiz ve iptal edilmiş oturumlar atlanır; bitişi olmayan oturum bir sonrakinin başlangıcına kadar (sonuncusu 1 sa) sürer. Saat 15 sn'de bir yeniden okunur.
+- Açılınca saate göre: o an süren oturum (iç içe geçenlerde en son başlayan). İki oturum arasında biten oturum geç okutanlar için, sıradakinin başlamasına **5 dk kalana kadar** ekranda kalır (Açılış 12:00 biter, 1. Oturum 12:15: 12:10'a kadar Açılış); sonra sıradaki, başlık "Sıradaki: 1. Oturum · 12:15". Aradaki boşluk 5 dk'dan kısaysa sıradakine hemen geçer. Gün başlamadan ilk oturum, gün bitince son oturum. Saatsiz ve iptal edilmiş oturumlar atlanır; bitişi olmayan oturum bir sonrakinin başlangıcına kadar (sonuncusu 1 sa) sürer. Saat 15 sn'de bir yeniden okunur.
 - Tercih **bu cihazda** hatırlanır (`localStorage`, `attendance-qr-follow`); gizli pencerede sayfa kapanınca unutulur.
 - Elle oturum seçmek (liste ya da tam ekranda **Bu oturumda kal**) Programı izle'yi kapatır. Saatler kayarsa elle seç.
 - Tam ekranda sol altta kip ve oturum yazar ("Programı izliyor · 2. Oturum" / "Elle seçildi · 2. Oturum"). Fare kıpırdatınca ya da dokununca üstte 4 sn denetim çubuğu çıkar: Programı izle, Bu oturumda kal, oturum listesi.
 
 ## Sabit QR (yazdır/ekran)
 
-Ekran dönen QR'ı gösteremezse yedek: oturumun tek, değişmeyen QR'ı (`door-qr?use=static`). Yalnız "Sabit QR'ı göster"e basınca alınır; **Tam ekran** ve **PNG indir** (1024 px, altında oturum adı). Dönen QR'la aynı pencerede geçerli (12 sa önce – 12 sa sonra); kullanım sınırı yok. Fotoğrafı paylaşılırsa salonda olmayan da bu sürede okutabilir: canlı yayına, kayda koyma; ekran dönen QR'ı gösterebildiği anda ona dön. Sızarsa core'da `DOOR_QR_STATIC=off` (hepsi durur).
+Ekran dönen QR'ı gösteremezse yedek: oturumun tek, değişmeyen QR'ı (`door-qr?use=static`). Bölüm hangi oturumun QR'ı olduğunu yazar ("Oturum: …"). Yalnız "Sabit QR'ı göster"e basınca alınır; gösterildikten sonra yukarıdaki ekranın oturumunu izler (elle seçilen ya da Programı izle'nin seçtiği): oturum değişince yenisi yerinde, tam ekranda da gelir; **Tam ekran** ve **PNG indir** (1024 px, altında oturum adı). Dönen QR'la aynı pencerede geçerli (12 sa önce – 12 sa sonra); kullanım sınırı yok. Fotoğrafı paylaşılırsa salonda olmayan da bu sürede okutabilir: canlı yayına, kayda koyma; ekran dönen QR'ı gösterebildiği anda ona dön. Sızarsa core'da `DOOR_QR_STATIC=off` (hepsi durur).
 
 ## Sınırlar (tarayıcının)
 

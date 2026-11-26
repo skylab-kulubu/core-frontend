@@ -115,6 +115,9 @@ export default function EventProgramPage() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [qrSession, setQrSession] = useState<EventSession | null>(null);
+  // The session the attendance QR shows now (picked by hand or by "Programı izle"); the static QR
+  // follows it.
+  const [qrShown, setQrShown] = useState<{ id: string; title: string } | null>(null);
   // Core's SESSION_QR_MODE, learnt from the attendance QR; null until it answers.
   const [sessionQrMode, setSessionQrMode] = useState<SessionQrMode | null>(null);
   const [checkInSession, setCheckInSession] = useState<EventSession | null>(null);
@@ -718,7 +721,10 @@ export default function EventProgramPage() {
       </Drawer>
       <Drawer
         open={qrSession !== null}
-        onClose={() => setQrSession(null)}
+        onClose={() => {
+          setQrSession(null);
+          setQrShown(null);
+        }}
         title={qrSession ? `${qrSession.title} QR` : 'Oturum QR'}
       >
         {qrSession ? (
@@ -729,10 +735,14 @@ export default function EventProgramPage() {
                 title={qrSession.title}
                 onMode={setSessionQrMode}
                 program={sessions}
+                onSession={setQrShown}
               />
             ) : null}
             {canDesk && !qrSession.cancelled ? (
-              <StaticSessionQr sessionId={qrSession.id} title={qrSession.title} />
+              <StaticSessionQr
+                sessionId={qrShown?.id ?? qrSession.id}
+                title={qrShown?.title ?? qrSession.title}
+              />
             ) : null}
             {sessionQrMode === 'qr' ? (
               <p className="text-secondary-foreground text-sm">
