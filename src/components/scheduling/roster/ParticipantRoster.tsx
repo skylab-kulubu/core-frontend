@@ -372,9 +372,15 @@ export function ParticipantRoster({
       {onMarkAttended && sessions.length > 0 && !attendSession && !apartView ? (
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
         {onImport ? (
-          <ActionButton icon={Upload} label="İçe aktar" showLabel onClick={onImport} />
+          <ActionButton
+            icon={Upload}
+            label="İçe aktar"
+            showLabel
+            iconOnlyOnPhone
+            onClick={onImport}
+          />
         ) : null}
         {onAddParticipant ? (
           <ActionButton
@@ -386,7 +392,13 @@ export function ParticipantRoster({
         ) : null}
         {renderExport?.({ ticketIds: rows.map((row) => row.id), filtered })}
         {apartView ? null : (
-          <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
+          <ActionButton
+            icon={Mail}
+            label="E-posta"
+            showLabel
+            iconOnlyOnPhone
+            onClick={mailChosen}
+          />
         )}
       </div>
     </div>

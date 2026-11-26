@@ -115,9 +115,17 @@ export function ExportMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button className={BUTTON_TEXT} size="sm" variant="outline" disabled={busy}>
+            <Button
+              className={BUTTON_TEXT}
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              aria-label={busy ? 'Hazırlanıyor' : 'İndir'}
+              title="İndir"
+            >
               <Download className="size-4" aria-hidden />
-              {busy ? 'Hazırlanıyor…' : 'İndir'}
+              {/* Under 640px the icon alone, as the toolbar's other actions */}
+              <span className="hidden sm:inline">{busy ? 'Hazırlanıyor…' : 'İndir'}</span>
             </Button>
           }
         />

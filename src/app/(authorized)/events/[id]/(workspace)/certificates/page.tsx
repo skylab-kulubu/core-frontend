@@ -20,6 +20,7 @@ export default function EventCertificatesPage() {
     canBindCertificate,
     canRevokeCertificate,
     canReadIssuedCertificates,
+    canTickets,
     canMutate,
     days,
     sessions,
@@ -48,7 +49,7 @@ export default function EventCertificatesPage() {
       days={days}
       onRuleSaved={() => void reload()}
       exportAction={
-        canReadIssuedCertificates ? (
+        canReadIssuedCertificates && canTickets ? (
           <CertificateListDownload eventId={event.id} eventName={event.name} />
         ) : undefined
       }
