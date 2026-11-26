@@ -541,6 +541,21 @@ describe('the attendee note', () => {
   });
 });
 
+describe('the ticket note', () => {
+  it('is sent trimmed when changed, "" clears it, a new event leaves an empty one out', () => {
+    const loaded = formStateFromEvent({ ...savedEvent, ticketNote: 'https://chat.whatsapp.com/A' });
+    expect(eventPatchFromForm(loaded, loaded)).toEqual({});
+    expect(
+      eventPatchFromForm({ ...loaded, ticketNote: '  Grup: https://chat.whatsapp.com/B ' }, loaded),
+    ).toEqual({ ticketNote: 'Grup: https://chat.whatsapp.com/B' });
+    expect(eventPatchFromForm({ ...loaded, ticketNote: '' }, loaded)).toEqual({ ticketNote: '' });
+    expect(eventBodyFromForm({ ...loaded, ticketNote: '' })).not.toHaveProperty('ticketNote');
+    expect(eventBodyFromForm({ ...loaded, ticketNote: 'Grup' }).ticketNote).toBe('Grup');
+    // An older core, or a reader who may not see it: nothing is written back
+    expect(eventPatchFromForm(formStateFromEvent(savedEvent))).not.toHaveProperty('ticketNote');
+  });
+});
+
 describe('a new event’s door mails', () => {
   it('sends a switch only when turned off', () => {
     const fresh = emptyEventForm('GECEKODU');

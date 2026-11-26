@@ -102,6 +102,9 @@ export const MAIL_OFF_HINT = 'Bu posta şu an kapalı.';
 /** core's bound on the attendee note, in characters (docs/attendance-mail.md). */
 export const ATTENDEE_NOTE_MAX = 1000;
 
+/** core's bound on the ticket note, in characters (docs/ticket-note.md). */
+export const TICKET_NOTE_MAX = 500;
+
 /** The door's mode (core docs/venue-entry.md); `auto` is core's `null`. */
 export const ENTRY_MODES: { value: EntryMode | 'auto'; label: string; hint: string }[] = [
   {
@@ -161,6 +164,7 @@ export function emptyEventForm(ownerTeam = ''): EventFormState {
   return {
     // A new event takes the note and the door's mails; an edited one shows them once core sends them
     attendeeNote: '',
+    ticketNote: '',
     attendanceWelcomeMail: true,
     attendanceRecordedMail: true,
     formResponsesAutoTicket: true,
@@ -516,6 +520,27 @@ export function EventEditor({
                 : 'Dolunca kayıt alınmaz.'
             }
           />
+        ) : null}
+        {value.ticketNote !== undefined ? (
+          <div className="space-y-1">
+            <label className="block space-y-1">
+              <FieldLabel>Bilet duyurusu</FieldLabel>
+              <TextArea
+                rows={2}
+                maxLength={TICKET_NOTE_MAX}
+                placeholder="WhatsApp grubu: https://chat.whatsapp.com/…"
+                value={value.ticketNote}
+                onChange={(e) => patch({ ticketNote: e.target.value })}
+                aria-describedby="bilet-duyurusu-ipucu"
+              />
+            </label>
+            <span
+              id="bilet-duyurusu-ipucu"
+              className={`text-subtle-foreground block ${TEXT_SECONDARY}`}
+            >
+              Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.
+            </span>
+          </div>
         ) : null}
         <label className="block space-y-1">
           <FieldLabel>Kapı düzeni</FieldLabel>

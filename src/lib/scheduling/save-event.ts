@@ -51,6 +51,7 @@ function doorBody(
   create = false,
 ): Pick<EventPatch, 'entryMode' | 'attendanceWelcomeMail' | 'attendanceRecordedMail'> & {
   attendeeNote?: string;
+  ticketNote?: string;
 } {
   return {
     ...(form.entryMode !== undefined ? { entryMode: form.entryMode } : {}),
@@ -66,6 +67,10 @@ function doorBody(
     // A new event leaves an empty one out; an edit sends "" to clear it
     ...(typeof form.attendeeNote === 'string' && (!create || form.attendeeNote.trim())
       ? { attendeeNote: form.attendeeNote.trim() }
+      : {}),
+    // The ticket mails' announcement, the same way (core docs/ticket-note.md)
+    ...(typeof form.ticketNote === 'string' && (!create || form.ticketNote.trim())
+      ? { ticketNote: form.ticketNote.trim() }
       : {}),
   };
 }

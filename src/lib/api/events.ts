@@ -65,6 +65,12 @@ export type CoreEvent = {
    */
   attendeeNote?: string;
   /**
+   * The organizer's announcement for the Ticket holders (a WhatsApp group, say; core
+   * docs/ticket-note.md), sent in the ticket mails and the reminder: to the readers of
+   * attendeeNote, `""` for none; absent otherwise and before core's ticket note.
+   */
+  ticketNote?: string;
+  /**
    * A linked form's newly accepted answer gets its Ticket by itself (core
    * docs/form-respondents.md, default true); off, it waits on Katılımcılar. Absent before core's
    * form respondents.
@@ -230,6 +236,7 @@ export type EventBody = {
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
   attendeeNote?: string;
+  ticketNote?: string;
   /** Left out: core's default (on). */
   formResponsesAutoTicket?: boolean;
   startDate?: string;
@@ -285,6 +292,8 @@ export type EventPatch = {
   attendanceRecordedMail?: boolean;
   /** `""` or `null` clears it. */
   attendeeNote?: string | null;
+  /** `""` or `null` clears it. */
+  ticketNote?: string | null;
   /** Takes no `null` (400). */
   formResponsesAutoTicket?: boolean;
   startDate?: string | null;

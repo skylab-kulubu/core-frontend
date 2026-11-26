@@ -328,6 +328,22 @@ describe('EventEditor capacity and waiting list', () => {
     expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ attendeeNote: 'Wi-Fi' }));
   });
 
+  it('takes the ticket note when core sends it, says where it shows, and hides it otherwise', async () => {
+    const user = userEvent.setup();
+    const onValue = jest.fn();
+    const { unmount } = render(<CapacityEditor start={{ capacity: 0, ticketNote: undefined }} />);
+    expect(screen.queryByText('Bilet duyurusu')).not.toBeInTheDocument();
+    unmount();
+    render(<CapacityEditor start={{ capacity: 0, ticketNote: '' }} onValue={onValue} />);
+    const note = screen.getByRole('textbox', { name: 'Bilet duyurusu' });
+    expect(note).toHaveAttribute('maxLength', '500');
+    expect(note).toHaveAccessibleDescription(
+      'Bilet postasında ve hatırlatmada görünür. https bağlantıları tıklanır.',
+    );
+    await user.type(note, 'Grup');
+    expect(onValue).toHaveBeenLastCalledWith(expect.objectContaining({ ticketNote: 'Grup' }));
+  });
+
   it('says nobody is taken out when the capacity goes below the tickets', () => {
     render(<CapacityEditor start={{ capacity: 40 }} activeTickets={52} />);
     expect(

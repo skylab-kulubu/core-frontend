@@ -402,6 +402,11 @@ describe('coreProblemMessage for any core refusal', () => {
       'Katılımcı notu geçersiz: en çok 1000 karakter, görünmez karakter olmasın.',
     ],
     [
+      'event_ticket_note_invalid',
+      400,
+      'Bilet duyurusu en çok 500 karakter olabilir, görünmez karakter içermemeli.',
+    ],
+    [
       'invalid_name',
       422,
       'Grup adı 2-24 karakter olmalı: büyük harfle başlar, yalnız büyük harf (A-Z), rakam ve tire içerir (ör. WEBLAB, AI-LAB).',
