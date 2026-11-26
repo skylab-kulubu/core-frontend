@@ -56,6 +56,19 @@ export function eventEditHref(eventId: string): string {
   return `/events/${encodeURIComponent(eventId)}/edit`;
 }
 
+/** A section of the edit page (#basvuru, #kapi-gorevlileri…): where a tab's settings live. */
+export function eventEditSectionHref(eventId: string, section: string): string {
+  return `${eventEditHref(eventId)}#${section}`;
+}
+
+/** The door staff list on the edit page (inside Bilet ve kapı). */
+export const DOOR_STAFF_ANCHOR = 'kapi-gorevlileri';
+
+/** Where an event's door staff are chosen: Program, Kapı and the overview link here. */
+export function eventDoorStaffHref(eventId: string): string {
+  return eventEditSectionHref(eventId, DOOR_STAFF_ANCHOR);
+}
+
 export function isEventEditPath(pathname: string): boolean {
   return /^\/events\/[^/]+\/edit\/?$/.test(pathname);
 }

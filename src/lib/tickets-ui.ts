@@ -126,10 +126,10 @@ export function ticketApplicantName(row: Ticket, people: Map<string, Person>): s
  * e-mail address or an id, which the tab and the history would keep.
  */
 export function ticketCrumbName(row: Ticket, people: Map<string, Person>): string {
-  if (row.ticketType === 'GUEST') return guestName(row) || 'Başvuru';
+  if (row.ticketType === 'GUEST') return guestName(row) || 'Kayıt';
   const owner = ownerPerson(row, people);
   const name = owner ? `${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim() : '';
-  return name || 'Başvuru';
+  return name || 'Kayıt';
 }
 
 export function ticketApplicantEmail(row: Ticket, people: Map<string, Person>): string {

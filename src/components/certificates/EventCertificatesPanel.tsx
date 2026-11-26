@@ -735,6 +735,10 @@ export function EventCertificatesPanel({
           resolution: template.view.resolution ?? summary?.resolution ?? null,
         }
       : null;
+  // The Kural card's template row has Örnek PDF and Ekip şablonlarından seç: the bar has them only
+  // while that row is not there (still loading, unread) or cannot pick (an older core)
+  const barPreview = !templateView;
+  const barPick = canPick && (!templateView || templateView.legacy);
   const pendingCount = (summary?.queuedCount ?? 0) + (summary?.failedCount ?? 0);
   const ruleKind = rule?.rule ?? attendanceRule;
   const ruleText = rule
@@ -872,8 +876,10 @@ export function EventCertificatesPanel({
             {/* Wide: each command its own button (the mail ones from xl, where
                 they fit); narrower, the rest goes behind one menu */}
             <span className="hidden md:contents">
-              <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
-              {canPick ? (
+              {barPreview ? (
+                <Command icon={Eye} label="Örnek PDF" onClick={() => void preview()} />
+              ) : null}
+              {barPick ? (
                 <Command
                   icon={FileBadge}
                   label="Şablonu değiştir"
@@ -903,15 +909,19 @@ export function EventCertificatesPanel({
               <CommandMenu
                 name="Diğer sertifika eylemleri"
                 items={[
-                  <MenuItem
-                    key="preview"
-                    icon={Eye}
-                    className="md:hidden"
-                    onClick={() => void preview()}
-                  >
-                    Örnek PDF
-                  </MenuItem>,
-                  ...(canPick
+                  ...(barPreview
+                    ? [
+                        <MenuItem
+                          key="preview"
+                          icon={Eye}
+                          className="md:hidden"
+                          onClick={() => void preview()}
+                        >
+                          Örnek PDF
+                        </MenuItem>,
+                      ]
+                    : []),
+                  ...(barPick
                     ? [
                         <MenuItem
                           key="binding"
@@ -955,7 +965,7 @@ export function EventCertificatesPanel({
       ) : null}
       {summary || !workspace || figuresRefused ? (
         <ObjectCard
-          title="Kural"
+          title="Kural ve şablon"
           action={
             rule && ruleHref ? (
               <button

@@ -33,6 +33,7 @@ import { Select } from '@/components/chrome/Select';
 import { StateCard } from '@/components/chrome/StateCard';
 import { useChromeCrumbName } from '@/components/layout/chrome-crumb-names';
 import { DoorFlash, type DoorFlashResult } from '@/components/scheduling/DoorFlash';
+import { DoorLinks } from '@/components/scheduling/DoorLinks';
 import { DoorScanner, canScanWithCamera } from '@/components/scheduling/DoorScanner';
 import { GuestDoorQr } from '@/components/scheduling/GuestDoorQr';
 import { ProblemError } from '@/lib/api/core';
@@ -700,17 +701,27 @@ export function DoorDesk({ eventId }: { eventId: string }) {
       framed={false}
       className="sm:justify-start"
       brand={
-        <Link
-          href={eventTabHref(eventId)}
-          className={cn(
-            buttonVariants({ variant: 'ghost', size: 'sm' }),
-            BUTTON_TEXT,
-            '-ml-2 max-w-full',
-          )}
-        >
-          <ArrowLeft aria-hidden />
-          <span className="truncate">{event?.name ?? 'Etkinliğe dön'}</span>
-        </Link>
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href={eventTabHref(eventId)}
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              BUTTON_TEXT,
+              '-ml-2 max-w-full min-w-0',
+            )}
+          >
+            <ArrowLeft aria-hidden />
+            <span className="truncate">{event?.name ?? 'Etkinliğe dön'}</span>
+          </Link>
+          {event ? (
+            <DoorLinks
+              eventId={eventId}
+              ownerTeam={event.ownerTeam}
+              sessions={sessions}
+              sessionId={sessionId}
+            />
+          ) : null}
+        </div>
       }
     >
       {body}

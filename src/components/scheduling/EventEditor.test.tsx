@@ -366,7 +366,7 @@ describe('EventEditor capacity and waiting list', () => {
 });
 
 describe('EventEditor external registration link', () => {
-  it('takes the link in Başvuru ve form and says why a plain http one is refused', async () => {
+  it('takes the link in Kayıt ve form and says why a plain http one is refused', async () => {
     const user = userEvent.setup();
     render(<Editor doorStaffIds={[]} />);
     const field = screen.getByRole('textbox', { name: 'Dış kayıt bağlantısı' });

@@ -98,7 +98,7 @@ const CODE_MESSAGES: Record<string, string> = {
   event_ended: 'Etkinlik bitmiş; iptal edilemez.',
   event_not_draft: 'Yalnız taslak etkinlik silinir.',
   event_not_cancelled: 'Etkinlik iptal edilmemiş.',
-  registration_closed: 'Etkinliğin başvurusu kapalı.',
+  registration_closed: 'Etkinliğin kayıtları kapalı.',
   // An Event's place (core docs/event-location.md): a half point, one off the globe, a control character
   event_location_invalid: 'Konum geçersiz: noktayı ve açık adresi denetle.',
   // The external registration link and the attendee import (core docs/attendee-import.md)
