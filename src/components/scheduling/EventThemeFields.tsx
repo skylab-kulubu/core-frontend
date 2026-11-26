@@ -125,7 +125,7 @@ export function EventThemeFields({
           <div className="space-y-1">
             <FieldLabel>Tema</FieldLabel>
             <div className="flex flex-wrap items-center gap-3">
-              <span role="alert" className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
+              <span className={`text-subtle-foreground ${TEXT_SECONDARY}`}>
                 Temalar yüklenemedi.
               </span>
               <ActionButton
