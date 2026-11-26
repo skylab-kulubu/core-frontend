@@ -386,6 +386,30 @@ describe('DoorWalkIn', () => {
     expect(phone()).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it.each([
+    ['grade_invalid', 'Sınıf (isteğe bağlı)', 'Sınıf geçersiz; listeden seç.'],
+    ['university_too_long', 'Üniversite (isteğe bağlı)', 'Üniversite en çok 200 karakter.'],
+    ['department_too_long', 'Bölüm (isteğe bağlı)', 'Bölüm en çok 200 karakter.'],
+  ])('marks the field of core’s %s', async (code, label, text) => {
+    (ticketsApi.walkIn as jest.Mock).mockRejectedValue(
+      new ProblemError(400, 'Bad Request', { code }),
+    );
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await fill(user, ayse);
+    await user.click(screen.getByRole('button', { name: 'Kaydet ve içeri al' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(text));
+    expect(screen.getByLabelText(label)).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('caps the university and the department at 200 characters', async () => {
+    const user = userEvent.setup();
+    render(<DoorWalkIn eventId="e1" entryMode="venue" />);
+    await user.click(screen.getByRole('button', { name: 'Kapıda kayıt' }));
+    expect(screen.getByLabelText('Üniversite (isteğe bağlı)')).toHaveAttribute('maxlength', '200');
+    expect(screen.getByLabelText('Bölüm (isteğe bağlı)')).toHaveAttribute('maxlength', '200');
+  });
+
   it('keeps Ek bilgiler closed for the next person once closed', async () => {
     const user = userEvent.setup();
     render(<DoorWalkIn eventId="e1" entryMode="venue" />);
@@ -416,10 +440,13 @@ describe('walk-in fields', () => {
     ['5321234567', true],
     ['(0212) 383 70 70', true],
     ['+49 30 1234567', true],
+    ['90 532 123 45 67', true],
+    ['0532.123.45.67', true],
     ['12345', false],
     ['0532 123 45 6', false],
+    ['1234567890', false],
+    ['+12 345', false],
     ['abc', false],
-    ['+0 123 4567', false],
   ])('phone %s → %s', (value, ok) => {
     expect(phoneShapeOk(value)).toBe(ok);
   });

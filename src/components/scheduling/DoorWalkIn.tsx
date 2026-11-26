@@ -35,12 +35,12 @@ const ORDER: FieldName[] = ['firstName', 'lastName', 'email'];
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * A Turkish number of 10 digits, with or without 0 or +90 in front, or an international one
- * from + (7 to 15 digits); spaces, dashes and brackets are let through. Core checks it again.
+ * Core's phone shapes: a Turkish number of 10 digits (bare from 2–5, or after 0, 90 or +90), or
+ * an international one of 8–15 digits after +; spaces, dashes, dots and brackets are let through.
  */
 export function phoneShapeOk(value: string): boolean {
-  const digits = value.replace(/[\s\-()]/g, '');
-  return /^(?:\+90|0)?[1-9]\d{9}$/.test(digits) || /^\+[1-9]\d{6,14}$/.test(digits);
+  const digits = value.replace(/[\s\-.()]/g, '');
+  return /^(?:\+90|90|0)\d{10}$|^[2-5]\d{9}$/.test(digits) || /^\+\d{8,15}$/.test(digits);
 }
 
 /** Universities offered first; anything else can be typed. */
@@ -102,10 +102,21 @@ const CLOSED: Record<string, string> = {
 const REFUSED: Record<string, string> = {
   email_invalid: EMAIL_INVALID,
   phone_invalid: PHONE_INVALID,
+  grade_invalid: 'Sınıf geçersiz; listeden seç.',
+  university_too_long: 'Üniversite en çok 200 karakter.',
+  department_too_long: 'Bölüm en çok 200 karakter.',
   event_full: 'Kontenjan dolu; kapıda kayıt yapılamaz.',
   ticket_waitlisted: 'Bekleme listesinde. Yetkili kişi öne almalı.',
   ticket_cancelled: 'Bileti iptal edilmiş. Yetkili kişiye yönlendir.',
   audit_unavailable: 'Şu an yazılamadı; tekrar dene.',
+};
+
+/** Core's refusals of one optional field: marked on the field, the form kept. */
+const FIELD_CODES: Record<string, FieldName> = {
+  phone_invalid: 'phone',
+  grade_invalid: 'grade',
+  university_too_long: 'university',
+  department_too_long: 'department',
 };
 
 export function walkInRefusal(err: unknown): Extract<Shown, { kind: 'already' | 'refused' }> {
@@ -192,7 +203,7 @@ export function DoorWalkIn({
   }
 
   function refuse(names: FieldName[], text: string) {
-    if (names.includes('phone')) setExtras(true);
+    if (names.some((name) => !ORDER.includes(name))) setExtras(true);
     setInvalid(names);
     setProblem(text);
     if (names[0]) focusField(names[0]);
@@ -238,8 +249,8 @@ export function DoorWalkIn({
       if (named.length) refuse(named, FIELDS_REQUIRED);
       else if (err instanceof ProblemError && err.code === 'email_invalid') {
         refuse(['email'], EMAIL_INVALID);
-      } else if (err instanceof ProblemError && err.code === 'phone_invalid') {
-        refuse(['phone'], PHONE_INVALID);
+      } else if (err instanceof ProblemError && err.code && FIELD_CODES[err.code]) {
+        refuse([FIELD_CODES[err.code]], REFUSED[err.code]);
       } else setShown(walkInRefusal(err));
     } finally {
       setBusy(false);
@@ -352,7 +363,7 @@ export function DoorWalkIn({
               {field(
                 'university',
                 'Üniversite (isteğe bağlı)',
-                { list: `${id}-universities` },
+                { list: `${id}-universities`, maxLength: 200 },
                 undefined,
                 true,
               )}
@@ -367,6 +378,7 @@ export function DoorWalkIn({
                 {
                   autoCapitalize: 'words',
                   enterKeyHint: 'next',
+                  maxLength: 200,
                 },
                 'grade',
               )}
@@ -379,6 +391,8 @@ export function DoorWalkIn({
                   name="grade"
                   value={values.grade}
                   onChange={(change) => setField('grade', change.target.value)}
+                  aria-invalid={invalid.includes('grade') || undefined}
+                  aria-describedby={invalid.includes('grade') && problem ? problemId : undefined}
                   disabled={busy}
                   className="h-11"
                 >

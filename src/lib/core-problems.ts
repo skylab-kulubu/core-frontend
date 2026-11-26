@@ -135,6 +135,9 @@ const CODE_MESSAGES: Record<string, string> = {
   event_full: 'Kontenjan dolu.',
   walk_in_rate_limited: 'Çok fazla kayıt; biraz sonra dene.',
   phone_invalid: 'Telefon geçersiz.',
+  grade_invalid: 'Sınıf geçersiz.',
+  university_too_long: 'Üniversite en çok 200 karakter.',
+  department_too_long: 'Bölüm en çok 200 karakter.',
   // One form in one place (ADR 0069 and its addendum of 2026-11-22); the named Event: formInUseOf
   form_in_use: 'Bu form başka bir yerde kullanılıyor; başka bir form seç.',
   // Linking a form the person is not on the team of in Forms (core docs/form-respondents.md)
