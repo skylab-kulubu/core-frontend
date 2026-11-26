@@ -34,7 +34,7 @@ export default function EventCheckinPage() {
       {canDesk || qrTarget ? (
         <EventCardFrame id="tarama" title="Tarama">
           <p className={`text-secondary-foreground ${TEXT_SECONDARY}`}>
-            Bilet okutma ve misafir QR’ı tarama sayfasında.
+            Bilet okutma, kapıda kayıt ve misafir QR’ı tarama sayfasında.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {canDesk ? (
