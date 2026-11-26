@@ -26,6 +26,7 @@ import { DoorAttendeePick } from '@/components/scheduling/DoorAttendeePick';
 import { FeedbackFormPanel } from '@/components/scheduling/EventFeedbackPanel';
 import { EventFormSlots } from '@/components/scheduling/EventFormSlots';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { StaticSessionQr } from '@/components/scheduling/StaticSessionQr';
 import { coreProblemMessage, formInUseOf, type FormInUse } from '@/lib/core-problems';
 import { eventDaysApi } from '@/lib/api/eventDays';
 import { eventsApi, type FeedbackCount } from '@/lib/api/events';
@@ -728,6 +729,9 @@ export default function EventProgramPage() {
                 title={qrSession.title}
                 onMode={setSessionQrMode}
               />
+            ) : null}
+            {canDesk && !qrSession.cancelled ? (
+              <StaticSessionQr sessionId={qrSession.id} title={qrSession.title} />
             ) : null}
             {sessionQrMode === 'qr' ? (
               <p className="text-secondary-foreground text-sm">

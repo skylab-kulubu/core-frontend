@@ -1,5 +1,5 @@
 import { ProblemError } from '@/lib/api/core';
-import { doorQrFailure, svgDataUrl } from '@/lib/door-qr';
+import { doorQrFailure, staticQrFailure, staticQrWindowText, svgDataUrl } from '@/lib/door-qr';
 
 describe('svgDataUrl', () => {
   it('encodes the markup so it is safe in an image address', () => {
@@ -46,5 +46,33 @@ describe('doorQrFailure', () => {
       retryAfterSeconds: 15,
       hideQr: false,
     });
+  });
+});
+
+describe('staticQrWindowText', () => {
+  it("says the session window in Istanbul's time", () => {
+    expect(staticQrWindowText('2026-11-26T20:30:00Z', '2026-11-27T22:15:00Z')).toBe(
+      'Geçerli: 26 Kas 23:30 – 28 Kas 01:15',
+    );
+  });
+
+  it('says nothing without both ends', () => {
+    expect(staticQrWindowText(undefined, '2026-11-27T22:15:00Z')).toBe('');
+    expect(staticQrWindowText('nope', '2026-11-27T22:15:00Z')).toBe('');
+  });
+});
+
+describe('staticQrFailure', () => {
+  it("names core's refusals", () => {
+    expect(
+      staticQrFailure(new ProblemError(400, 'Bad Request', { code: 'door_qr_static_off' })),
+    ).toBe('Sabit QR kapalı.');
+    expect(staticQrFailure(new ProblemError(403, 'Forbidden', { code: 'session_closed' }))).toBe(
+      'Oturum iptal edilmiş.',
+    );
+    expect(staticQrFailure(new ProblemError(403, 'Forbidden'))).toBe(
+      'Bu etkinlikte görevli değilsin.',
+    );
+    expect(staticQrFailure(new Error('network'))).toBe('Sabit QR alınamadı.');
   });
 });
