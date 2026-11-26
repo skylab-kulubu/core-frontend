@@ -5,6 +5,7 @@ import MapRegionsPage, { REGION_POLL_MS } from '@/app/(authorized)/map-regions/p
 import { ProblemError } from '@/lib/api/core';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { mapRegionsApi, type MapRegion } from '@/lib/api/map-regions';
+import { sceneTitle } from '@/test/error-scenes';
 
 // The address is the list's state (the open row too): the hook writes history, this reads it back
 const mockListeners = new Set<() => void>();
@@ -273,7 +274,9 @@ describe('Harita bölgeleri', () => {
   it('tells anyone without media:manage that the page is not theirs', async () => {
     (mapRegionsApi.list as jest.Mock).mockRejectedValue(new ProblemError(403, 'Forbidden'));
     render(<MapRegionsPage />);
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
   });
 
   it('shows the ready regions without a button to whoever core gives no media:manage', async () => {

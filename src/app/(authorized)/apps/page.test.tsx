@@ -3,6 +3,7 @@ import React from 'react';
 import AppsPage from '@/app/(authorized)/apps/page';
 import { appsApi } from '@/lib/api/apps';
 import { capabilitiesApi } from '@/lib/api/capabilities';
+import { sceneTitle } from '@/test/error-scenes';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
@@ -58,7 +59,9 @@ describe('Uygulamalar', () => {
   it('says the page is closed while core’s app assignments are off, and reads nothing', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: { 'apps.read': false } });
     render(<AppsPage />);
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
     expect(appsApi.list).not.toHaveBeenCalled();
   });
 });

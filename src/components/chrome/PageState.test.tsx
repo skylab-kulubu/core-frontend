@@ -8,16 +8,30 @@ import {
   RouteErrorState,
 } from '@/components/chrome/PageState';
 import { SearchContext } from '@/components/layout/search-context';
+import { sceneAction, sceneTitle } from '@/test/error-scenes';
 
 describe('page states', () => {
-  it('says no access in one way, under the page title, and leads to Özet', () => {
+  it('says no access to a whole page with the 403 scene, its one h1, and leads to Özet', () => {
     render(<Forbidden pageTitle="Duyurular" />);
-    expect(screen.getByRole('heading', { name: 'Duyurular' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByRole('heading', { level: 1, name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Duyurular' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: sceneAction('forbidden') })).toHaveAttribute(
+      'href',
+      '/dashboard',
+    );
+  });
+
+  it('keeps the card for a forbidden tab inside an object page, with no h1 of its own', () => {
+    render(<Forbidden />);
     expect(screen.getByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Özete dön' })).toHaveAttribute('href', '/dashboard');
   });
 
-  it('says a missing page in Turkish and opens the search', async () => {
+  it('says a missing page with the 404 scene and opens the search', async () => {
     const pointer = userEvent.setup();
     const open = jest.fn();
     render(
@@ -25,8 +39,13 @@ describe('page states', () => {
         <NotFoundState />
       </SearchContext.Provider>,
     );
-    expect(screen.getByText('Sayfa bulunamadı')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Özete dön' })).toHaveAttribute('href', '/dashboard');
+    expect(
+      screen.getByRole('heading', { level: 1, name: sceneTitle('notFound') }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: sceneAction('notFound') })).toHaveAttribute(
+      'href',
+      '/dashboard',
+    );
     await pointer.click(screen.getByRole('button', { name: 'Ara' }));
     expect(open).toHaveBeenCalledTimes(1);
   });
@@ -36,11 +55,15 @@ describe('page states', () => {
     expect(screen.queryByRole('button', { name: 'Ara' })).not.toBeInTheDocument();
   });
 
-  it('retries a page that broke', async () => {
+  it('retries a page that broke, with the 500 scene, or leads to Özet', async () => {
     const pointer = userEvent.setup();
     const retry = jest.fn();
     render(<RouteErrorState onRetry={retry} />);
-    await pointer.click(screen.getByRole('button', { name: 'Tekrar dene' }));
+    expect(
+      screen.getByRole('heading', { level: 1, name: sceneTitle('error') }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Özete dön' })).toHaveAttribute('href', '/dashboard');
+    await pointer.click(screen.getByRole('button', { name: sceneAction('error') }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
