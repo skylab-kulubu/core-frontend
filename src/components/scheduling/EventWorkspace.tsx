@@ -122,7 +122,9 @@ export function eventPermissions(
     canAssign: canAssignEventTicket(groups, team),
     canCancelTickets: canCancelEventTicket(groups, team),
     canDesk: canDeskCheckIn(groups, team) || doorAccess,
-    canCertificates: canUseCertificateWorkspace(groups, roles, team),
+    // Who edits the event sets its certificate rule and template there too
+    canCertificates:
+      canUseCertificateWorkspace(groups, roles, team) || canWriteEvent(groups, team, 'update'),
     canReadIssuedCertificates: canReadCertificates(groups, roles, team),
     canIssueCertificate: canIssueCertificates(groups, roles, team),
     canBindCertificate: canBindCertificateTemplates(groups, roles, team),
@@ -152,12 +154,13 @@ export function withTeamCapabilities(
     canAssign: team('ticket.assign', can.canAssign),
     canCancelTickets: team('event.update', can.canCancelTickets),
     canDesk: doorAccess || team('door.checkIn', can.canDesk),
-    // The tab: any certificate decision of the team
+    // The tab: any certificate decision of the team, or editing the event (its rule and template)
     canCertificates:
       team('certificate.read', can.canCertificates) ||
       ['certificate.issue', 'certificate.revoke', 'certificateTemplate.assign'].some((key) =>
         team(key, false),
-      ),
+      ) ||
+      team('event.update', false),
     canReadIssuedCertificates: team('certificate.read', can.canReadIssuedCertificates),
     canIssueCertificate: team('certificate.issue', can.canIssueCertificate),
     canBindCertificate: team('certificateTemplate.assign', can.canBindCertificate),

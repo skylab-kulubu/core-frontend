@@ -33,9 +33,17 @@ export function eventDoorHref(eventId: string): string {
   return `/events/${encodeURIComponent(eventId)}/door`;
 }
 
-/** Pages drawn without the sidebar: one task done start to finish (an event's door). */
+/** The editor of an event's own certificate template: a focus page, like the door. */
+export function eventCertificateTemplateHref(eventId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/certificate-template`;
+}
+
+/**
+ * Pages drawn without the sidebar: one task done start to finish (an event's
+ * door), or one that wants the whole width (its certificate template's editor).
+ */
 export function isFocusPath(pathname: string): boolean {
-  return /^\/events\/[^/]+\/door\/?$/.test(pathname);
+  return /^\/events\/[^/]+\/(?:door|certificate-template)\/?$/.test(pathname);
 }
 
 export function eventTabHref(eventId: string, tab: EventTab = 'overview'): string {

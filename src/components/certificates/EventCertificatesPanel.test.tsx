@@ -8,6 +8,9 @@ import {
 import { certificatesApi, type CertificateBatch } from '@/lib/api/certificates';
 import { ProblemError } from '@/lib/api/core';
 
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
+
 jest.mock('@/lib/api/certificates', () => ({
   certificatesApi: {
     summary: jest.fn(),
@@ -30,6 +33,16 @@ jest.mock('@/lib/api/certificates', () => ({
     rescan: jest.fn(),
     resendMail: jest.fn(),
     resendEventMails: jest.fn(),
+    // An older core: no Event templates; the card names the resolved one from the figures
+    eventTemplate: jest.fn(() => {
+      const { ProblemError: Problem } = jest.requireActual('@/lib/api/core');
+      return Promise.reject(new Problem(404, 'Not Found'));
+    }),
+    resolve: jest.fn(() => Promise.reject(new Error('404'))),
+    createEventTemplate: jest.fn(),
+    previewEvent: jest.fn(),
+    setBinding: jest.fn(),
+    clearBinding: jest.fn(),
   },
 }));
 

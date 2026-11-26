@@ -162,6 +162,8 @@ const CODE_MESSAGES: Record<string, string> = {
   layout_not_verifiable: "Doğrulama QR'ı ya da sertifika kodundan biri gerekli.",
   layout_background_placement_invalid: 'Arka plan yerleşimi geçerli değil.',
   background_size_unknown: 'Arka plan görselinin boyutu okunamadı.',
+  template_event_scoped: 'Etkinliğe özel şablon yalnız kendi etkinliğinde kullanılır.',
+  template_event_exists: 'Bu etkinliğin zaten kendi şablonu var.',
   asset_empty: 'Arka plan ya da görsel dosyası boş; yeniden yükle.',
   asset_too_large: 'Görseller çok büyük (tek görsel 20 MB, toplam 50 MB).',
   asset_type_unsupported:

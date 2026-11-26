@@ -40,6 +40,7 @@ export default function EventCertificatesPage() {
       canBind={canBindCertificate}
       canRevoke={canRevokeCertificate}
       canReadIssued={canReadIssuedCertificates}
+      canEditEvent={canMutate}
       ruleHref={canMutate ? `${eventEditHref(event.id)}#sertifika` : undefined}
       days={days}
       onRuleSaved={() => void reload()}

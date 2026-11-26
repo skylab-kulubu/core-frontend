@@ -28,7 +28,7 @@ export type CopySkippedPart =
 const SKIPPED_TEXT: Record<CopySkippedPart, string> = {
   cover: 'Kapak görseli kopyalanmadı.',
   certificateTemplate:
-    'Sertifika şablonu bağlaması kopyalanmadı: bu ekipte şablon bağlama yetkin yok.',
+    'Sertifika şablonu kopyalanmadı: seçilmedi, bu ekipte şablon bağlama yetkin yok ya da şablon bu ekibe uymuyor.',
   doorStaff: 'Kapı görevlileri kopyalanmadı: bu ekipte görevli atama yetkin yok.',
   competitions: 'Yarışmalar kopyalanmadı: bu ekipte yarışma yönetme yetkin yok.',
   attendeeNote: 'Katılımcı notu kopyalanmadı: bu notu görme yetkin yok.',

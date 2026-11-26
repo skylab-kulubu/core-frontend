@@ -69,6 +69,7 @@ export function EventCopyDialog({
   const [withCompetitions, setWithCompetitions] = useState(false);
   const [withExternalRegistration, setWithExternalRegistration] = useState(true);
   const [withAttendeeNote, setWithAttendeeNote] = useState(true);
+  const [withCertificateTemplate, setWithCertificateTemplate] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A second click before the first answer is the same request
@@ -131,6 +132,7 @@ export function EventCopyDialog({
         includeCompetitions: competitionCount > 0 && withCompetitions,
         includeExternalRegistration: offersExternalRegistration && withExternalRegistration,
         includeAttendeeNote: offersAttendeeNote && withAttendeeNote,
+        includeCertificateTemplate: withCertificateTemplate,
         ...(target !== source.ownerTeam ? { ownerTeam: target } : {}),
       });
       onOpenChange(false);
@@ -228,6 +230,18 @@ export function EventCopyDialog({
                 onChange={setWithAttendeeNote}
               />
             ) : null}
+            {/* core copies the template unless told not to (docs/event-copy.md) */}
+            <div className="space-y-0.5">
+              <CheckboxRow
+                label="Sertifika şablonunu da kopyala"
+                defaultChecked={withCertificateTemplate}
+                onChange={setWithCertificateTemplate}
+                describedBy="kopya-sertifika-ipucu"
+              />
+              <p id="kopya-sertifika-ipucu" className="text-subtle-foreground pl-6 text-[13px]/5">
+                Etkinliğe özel şablon kopyalanır.
+              </p>
+            </div>
           </DialogBody>
           <DialogFooter className="mt-4">
             <DialogClose
