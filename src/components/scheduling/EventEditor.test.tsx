@@ -7,12 +7,17 @@ import {
   FEEDBACK_MODES,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
+import { capabilitiesApi } from '@/lib/api/capabilities';
 import { identityApi } from '@/lib/api/identity';
 
 jest.mock('@/lib/api/identity', () => ({
   identityApi: { listUsers: jest.fn(), getUser: jest.fn() },
 }));
 jest.mock('@/lib/api/media', () => ({ mediaApi: { upload: jest.fn() } }));
+// core's capabilities: unread unless a test answers them
+jest.mock('@/lib/api/capabilities', () => ({
+  capabilitiesApi: { get: jest.fn(() => Promise.reject(new Error('unread'))) },
+}));
 jest.mock('@/lib/api/events', () => ({
   eventsApi: { list: jest.fn().mockResolvedValue([]) },
 }));
@@ -109,7 +114,7 @@ describe('EventEditor feedback form', () => {
       expect.objectContaining({ feedbackMode: 'event_with_sessions' }),
     );
 
-    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'Yeni form' });
+    const [, feedbackSkyforms] = screen.getAllByRole('radio', { name: 'SkyForms' });
     await user.click(feedbackSkyforms!);
     // Skyforms brings the new form back to the feedback field
     const links = screen
@@ -276,6 +281,20 @@ describe('EventEditor capacity and waiting list', () => {
     );
   });
 
+  it('greys the door’s mails out while core sends none (ATTENDANCE_MAIL off)', async () => {
+    (capabilitiesApi.get as jest.Mock).mockResolvedValueOnce({
+      features: { attendanceWelcomeMail: false, attendanceRecordedMail: true },
+    });
+    render(<CapacityEditor start={{ capacity: 0 }} />);
+    const welcome = screen.getByRole('switch', { name: /Hoş geldin postası/ });
+    await waitFor(() => expect(welcome).toHaveAttribute('aria-disabled', 'true'));
+    expect(welcome).not.toBeChecked();
+    expect(screen.getByText('Bu posta şu an kapalı.')).toBeInTheDocument();
+    const recorded = screen.getByRole('switch', { name: /Katılım postası/ });
+    expect(recorded).not.toHaveAttribute('aria-disabled', 'true');
+    expect(recorded).toBeChecked();
+  });
+
   it('hides the door’s mail switches when core sends none (an older core)', () => {
     render(
       <CapacityEditor
@@ -321,5 +340,36 @@ describe('EventEditor external registration link', () => {
     await user.type(field, 'https://forms.office.com/r/x');
     expect(field).toHaveAttribute('aria-invalid', 'false');
     expect(screen.getByText(/Katılımcılar → İçe aktar/)).toBeInTheDocument();
+  });
+
+  it('warns on a Skyforms address and moves it to Başvuru formu', async () => {
+    const user = userEvent.setup();
+    let latest: EventFormState | null = null;
+    function Watched() {
+      const [value, setValue] = useState<EventFormState>(emptyEventForm('GECEKODU'));
+      return (
+        <EventEditor
+          value={value}
+          onChange={(next) => {
+            latest = next;
+            setValue(next);
+          }}
+          ownerOptions={['GECEKODU']}
+        />
+      );
+    }
+    render(<Watched />);
+    const id = '3f2b8c1e-5d4a-4e6f-9a1b-2c3d4e5f6a7b';
+    const field = screen.getByRole('textbox', { name: 'Dış kayıt bağlantısı' });
+    await user.type(field, `https://forms.yildizskylab.com/${id}`);
+    expect(field).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByText(/yanıtları bilete dönmez/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Başvuru formuna taşı' }));
+    expect(field).toHaveValue('');
+    expect(screen.queryByText(/yanıtları bilete dönmez/)).not.toBeInTheDocument();
+    expect(latest!.externalRegistrationUrl).toBe('');
+    expect(latest!.formUrl).toBe(`https://forms.yildizskylab.com/${id}`);
+    expect(latest!.formSlots[0]).toMatchObject({ key: 'apply', mode: 'skyforms' });
   });
 });
