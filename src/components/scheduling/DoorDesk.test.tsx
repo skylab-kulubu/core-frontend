@@ -154,7 +154,7 @@ describe('DoorDesk', () => {
     expect(screen.getByRole('button', { name: 'Oturum QR' })).toBeInTheDocument();
     expect(await screen.findByRole('link', { name: 'Kapı görevlileri' })).toHaveAttribute(
       'href',
-      '/events/e1/edit#kapi-gorevlileri',
+      '/events/e1/checkin#kapi-gorevlileri',
     );
   });
 

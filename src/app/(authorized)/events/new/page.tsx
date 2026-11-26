@@ -7,9 +7,9 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import {
   emptyEventForm,
   EventEditor,
+  showIssueSection,
   type EventFormState,
 } from '@/components/scheduling/EventEditor';
-import { showIssueSection } from '@/components/scheduling/EventEditPage';
 import { EventFormLayout } from '@/components/scheduling/EventFormLayout';
 import { seasonsApi, type Season } from '@/lib/api/seasons';
 import { teamsApi } from '@/lib/api/teams';

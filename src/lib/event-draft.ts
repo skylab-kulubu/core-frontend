@@ -155,6 +155,8 @@ export function formStateFromEvent(ev: CoreEvent): EventFormState {
     attendanceAutoFinalize: ev.attendanceAutoFinalize,
     doorStaffIds: ev.doorStaffIds ?? [],
     registrationClosesAt: toDatetimeLocal(ev.registrationClosesAt),
+    // Undefined while core sends none: nothing is written back
+    registrationClosed: ev.registrationClosed,
     reservedId: ev.id,
   };
 }

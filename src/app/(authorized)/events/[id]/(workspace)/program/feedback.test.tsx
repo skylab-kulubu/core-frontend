@@ -233,7 +233,9 @@ describe('Back from Skyforms with a Session feedback form', () => {
       ),
     );
     await waitFor(() => expect(workspaceRouter.replace).toHaveBeenCalledWith('/events/e1/program'));
-    expect(workspaceRouter.replace).not.toHaveBeenCalledWith('/events/e1/edit');
+    expect(workspaceRouter.replace).not.toHaveBeenCalledWith(
+      expect.stringContaining('/participants/settings'),
+    );
   });
 
   it('says so and clears the address when the Session is gone', async () => {

@@ -435,7 +435,7 @@ describe('EventCertificatesPanel rule card', () => {
     api.listBatches.mockResolvedValue([]);
   });
 
-  function renderRule(ruleHref?: string) {
+  function renderRule(canEditRule = false) {
     render(
       <EventCertificatesPanel
         eventId="e1"
@@ -447,7 +447,7 @@ describe('EventCertificatesPanel rule card', () => {
         canBind={false}
         canRevoke={false}
         canReadIssued={false}
-        ruleHref={ruleHref}
+        canEditRule={canEditRule}
         days={[{ id: 'd1', eventId: 'e1', name: '1. gün' }]}
       />,
     );
@@ -477,20 +477,18 @@ describe('EventCertificatesPanel rule card', () => {
       countedTotal: 3,
       sessions,
     });
-    renderRule('/events/e1/edit#sertifika');
+    renderRule(true);
     await user.click(await screen.findByRole('button', { name: 'Kuralı düzenle' }));
     const sheet = await screen.findByRole('dialog', { name: 'Sertifika kuralı' });
     expect(within(sheet).getByRole('spinbutton', { name: 'En az kaç oturum' })).toHaveValue(2);
     expect(within(sheet).getByText('(%67)')).toBeInTheDocument();
   });
 
-  it('keeps the link to the edit page on an older core', async () => {
-    renderRule('/events/e1/edit#sertifika');
-    expect(await screen.findByRole('link', { name: 'Kuralı değiştir' })).toHaveAttribute(
-      'href',
-      '/events/e1/edit#sertifika',
-    );
-    expect(screen.getByText('Oturum sayısı')).toBeInTheDocument();
+  it('offers no rule editor on an older core: the rule is read here alone', async () => {
+    renderRule(true);
+    expect(await screen.findByText('Oturum sayısı')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kuralı düzenle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Kuralı değiştir' })).not.toBeInTheDocument();
   });
 });
 

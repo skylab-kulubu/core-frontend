@@ -27,6 +27,17 @@ describe('chromeCrumbs', () => {
     expect(chromeCrumbs(`${event}/certificates`).at(-1)?.label).toBe('Sertifikalar');
     expect(chromeCrumbs(`${event}/content`).at(-1)?.label).toBe('Dosyalar');
     expect(chromeCrumbs(`${event}/competition`).at(-1)?.label).toBe('Yarışma');
+    expect(chromeCrumbs(`${event}/checkin`).at(-1)?.label).toBe('Kapı');
+    expect(chromeCrumbs(`${event}/emails`).at(-1)?.label).toBe('Postalar');
+  });
+
+  it('names an event’s settings apart from the panel’s Ayarlar', () => {
+    const event = '/events/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    expect(chromeCrumbs(`${event}/settings/schedule`).slice(-2)).toEqual([
+      { href: `${event}/settings`, label: 'Etkinlik ayarları' },
+      { href: `${event}/settings/schedule`, label: 'Zaman ve yer' },
+    ]);
+    expect(chromeCrumbs(`${event}/participants/settings`).at(-1)?.label).toBe('Kayıt ayarları');
   });
 
   it('leads a ticket back to the Katılımcılar tab, never to a missing tickets page', () => {
