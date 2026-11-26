@@ -63,6 +63,12 @@ export type CoreEvent = {
    * only to who may edit the event, `""` for none; absent otherwise and before core's door mails.
    */
   attendeeNote?: string;
+  /**
+   * A linked form's newly accepted answer gets its Ticket by itself (core
+   * docs/form-respondents.md, default true); off, it waits on Katılımcılar. Absent before core's
+   * form respondents.
+   */
+  formResponsesAutoTicket?: boolean;
   /** `capacity > 0` and the active Tickets fill it. */
   full?: boolean;
   /** The active Tickets; only for who may edit the Event. */
@@ -202,6 +208,8 @@ export type EventBody = {
   attendanceWelcomeMail?: boolean;
   attendanceRecordedMail?: boolean;
   attendeeNote?: string;
+  /** Left out: core's default (on). */
+  formResponsesAutoTicket?: boolean;
   startDate?: string;
   endDate?: string;
   linkedin?: string;
@@ -253,6 +261,8 @@ export type EventPatch = {
   attendanceRecordedMail?: boolean;
   /** `""` or `null` clears it. */
   attendeeNote?: string | null;
+  /** Takes no `null` (400). */
+  formResponsesAutoTicket?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   linkedin?: string | null;
