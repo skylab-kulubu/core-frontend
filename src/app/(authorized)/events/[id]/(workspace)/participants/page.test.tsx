@@ -6,6 +6,8 @@ import { ProblemError } from '@/lib/api/core';
 import { eventsApi } from '@/lib/api/events';
 import { ticketsApi } from '@/lib/api/tickets';
 import {
+  authModule,
+  authUser,
   guestTicket,
   primeEventWorkspace,
   renderEventTab,
@@ -104,6 +106,26 @@ describe('Event Katılımcılar tab', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Katılımcı ekle' })).toBeInTheDocument(),
     );
+  });
+
+  it('links Çekiliş for who assigns the tickets, not for a reader', async () => {
+    signInAs(['/UYELER/ORGANIZASYON/GECEKODU/LIDERLER']);
+    await renderParticipants();
+    expect(await screen.findByRole('link', { name: 'Çekiliş' })).toHaveAttribute(
+      'href',
+      '/events/e1/raffles',
+    );
+  });
+
+  it('shows no Çekiliş link to a member who only reads the roster', async () => {
+    // A WEBLAB member who issues certificates reads the roster; edits and assigns nothing
+    authModule.useAuth.mockReturnValue({
+      user: { ...authUser(['/UYELER/ARGE/WEBLAB']), roles: ['certificate:issue'] },
+    });
+    (eventsApi.get as jest.Mock).mockResolvedValue({ ...workspaceEvent, ownerTeam: 'WEBLAB' });
+    await renderParticipants();
+    await screen.findByRole('searchbox', { name: 'Katılımcı ara' });
+    expect(screen.queryByRole('link', { name: 'Çekiliş' })).not.toBeInTheDocument();
   });
 
   it('keeps the roster from door staff who open the tab by its address', async () => {

@@ -6,6 +6,7 @@ import { StateCard } from '@/components/chrome/StateCard';
 import { AddParticipantDrawer } from '@/components/scheduling/AddParticipantDrawer';
 import { AttendeeImportDrawer } from '@/components/scheduling/roster/AttendeeImportDrawer';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
+import { rafflesHref } from '@/components/raffle/raffle-copy';
 import { ParticipantRoster } from '@/components/scheduling/roster/ParticipantRoster';
 import { RespondentList, useRespondents } from '@/components/scheduling/roster/RespondentList';
 import { eventHasEnded, ticketCancelQuestions } from '@/components/scheduling/roster/ticket-cancel';
@@ -207,6 +208,8 @@ export default function EventParticipantsPage() {
         onOpenTicket={show}
         onAddParticipant={canAssign ? () => setAddOpen(true) : undefined}
         onImport={canAssign ? () => setImportOpen(true) : undefined}
+        // core decides a raffle for who edits the Event or assigns its Tickets
+        raffleHref={canMutate || canAssign ? rafflesHref(event.id) : undefined}
         onMail={(recipients) =>
           void mailApplicants(recipients.map((recipient) => recipient.ticketId))
         }
