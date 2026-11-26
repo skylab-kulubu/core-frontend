@@ -113,6 +113,9 @@ const CODE_MESSAGES: Record<string, string> = {
   // The attendee note (core docs/attendance-mail.md): over 1000 characters or an invisible character
   event_attendee_note_invalid:
     'Katılımcı notu geçersiz: en çok 1000 karakter, görünmez karakter olmasın.',
+  // The ticket note (core docs/ticket-note.md): over 500 characters or an invisible character
+  event_ticket_note_invalid:
+    'Bilet duyurusu en çok 500 karakter olabilir, görünmez karakter içermemeli.',
   // Sending a Ticket again, renewing its link (core docs/ticket-resend.md)
   ticket_resend_rate_limited:
     'Bu bilet çok sık gönderildi (saatte 3, günde 6). Bir saat sonra tekrar dene.',
