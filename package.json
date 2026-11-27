@@ -33,7 +33,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@protomaps/basemaps": "5.7.2",
-    "@skylab-kulubu/skylcn-ui": "^0.2.2",
+    "@skylab-kulubu/skylcn-ui": "https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz",
     "@tiptap/extension-link": "^2.27.3",
     "@tiptap/pm": "^2.27.3",
     "@tiptap/react": "^2.27.3",

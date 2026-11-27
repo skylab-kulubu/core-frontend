@@ -320,6 +320,25 @@ function dash(value: string | undefined | null): string {
   return text || '—';
 }
 
+/** A guest's grade key (core ticket.Grades) in Turkish. */
+const GRADE_LABELS: Record<string, string> = {
+  prep: 'Hazırlık',
+  '1': '1. sınıf',
+  '2': '2. sınıf',
+  '3': '3. sınıf',
+  '4': '4. sınıf',
+  masters: 'Yüksek lisans',
+  phd: 'Doktora',
+  graduate: 'Mezun',
+  other: 'Diğer',
+};
+
+/** The grade as the panel says it; a key it does not know as it came, none as "—". */
+export function gradeLabel(grade: string | undefined | null): string {
+  const key = (grade ?? '').trim();
+  return GRADE_LABELS[key] ?? dash(key);
+}
+
 function extraFieldLabel(key: string): string {
   const spaced = key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -369,7 +388,7 @@ export function ticketDetailFields(
     person('Üniversite', dash(row.guestUniversity)),
     person('Fakülte', dash(row.guestFaculty)),
     person('Bölüm', dash(row.guestDepartment)),
-    person('Sınıf', dash(row.guestGrade)),
+    person('Sınıf', gradeLabel(row.guestGrade)),
     ticket('Bilet kodu', dash(row.code)),
     ticket('Bilet türü', ticketTypeLabel(row.ticketType)),
     ticket('Durum', status.label),

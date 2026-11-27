@@ -5,6 +5,7 @@ import AppAssignmentsPage from '@/app/(authorized)/apps/[clientId]/page';
 import { appsApi, type AppAssignment, type AppAssignments } from '@/lib/api/apps';
 import { capabilitiesApi } from '@/lib/api/capabilities';
 import { ProblemError } from '@/lib/api/core';
+import { sceneTitle } from '@/test/error-scenes';
 
 // The address is the page's state (?bolum=, ?view=): the hooks write history, this reads it back
 const mockListeners = new Set<() => void>();
@@ -312,7 +313,9 @@ describe('SkyNotify · Kullanıcılar ve gruplar', () => {
   it('reads nothing while core’s app assignments are off', async () => {
     (capabilitiesApi.get as jest.Mock).mockResolvedValue({ can: {} });
     render(<AppAssignmentsPage />);
-    expect(await screen.findByText('Bu sayfaya erişimin yok')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: sceneTitle('forbidden') }),
+    ).toBeInTheDocument();
     expect(appsApi.assignments).not.toHaveBeenCalled();
   });
 });

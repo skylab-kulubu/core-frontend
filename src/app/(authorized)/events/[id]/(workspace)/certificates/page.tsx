@@ -2,6 +2,7 @@
 
 import { Forbidden } from '@/components/chrome/PageState';
 import { EventCertificatesPanel } from '@/components/certificates/EventCertificatesPanel';
+import { CertificateListDownload } from '@/components/scheduling/exports/ExportMenu';
 import { useEventWorkspace } from '@/components/scheduling/EventWorkspace';
 import { lastSessionEnded } from '@/lib/certificate-attendance';
 import { attendanceFinalizeOpen } from '@/lib/events-view';
@@ -19,6 +20,7 @@ export default function EventCertificatesPage() {
     canBindCertificate,
     canRevokeCertificate,
     canReadIssuedCertificates,
+    canTickets,
     canMutate,
     days,
     sessions,
@@ -46,6 +48,11 @@ export default function EventCertificatesPage() {
       canEditRule={canMutate}
       days={days}
       onRuleSaved={() => void reload()}
+      exportAction={
+        canReadIssuedCertificates && canTickets ? (
+          <CertificateListDownload eventId={event.id} eventName={event.name} />
+        ) : undefined
+      }
     />
   );
 }
