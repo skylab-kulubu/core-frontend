@@ -3,6 +3,7 @@ import type { Ticket } from '@/lib/api/tickets';
 import { ProblemError } from '@/lib/api/core';
 import {
   filterApplicantRoster,
+  gradeLabel,
   normalizeTicketCode,
   ticketSendProblem,
   ticketDetailFields,
@@ -158,6 +159,23 @@ describe('filter applicant roster', () => {
   });
 });
 
+describe('gradeLabel', () => {
+  it.each([
+    ['prep', 'Hazırlık'],
+    ['1', '1. sınıf'],
+    ['4', '4. sınıf'],
+    ['masters', 'Yüksek lisans'],
+    ['phd', 'Doktora'],
+    ['graduate', 'Mezun'],
+    ['other', 'Diğer'],
+    ['', '—'],
+    [undefined, '—'],
+    ['3. Sınıf', '3. Sınıf'],
+  ])('%s → %s', (grade, label) => {
+    expect(gradeLabel(grade)).toBe(label);
+  });
+});
+
 describe('ticket detail fields', () => {
   it('labels every guest field instead of dumping raw keys', () => {
     const ticket: Ticket = {
@@ -195,7 +213,7 @@ describe('ticket detail fields', () => {
     expect(byLabel['Üniversite']?.value).toBe('YTÜ');
     expect(byLabel['Fakülte']?.value).toBe('Elektrik');
     expect(byLabel['Bölüm']?.value).toBe('Bilgisayar');
-    expect(byLabel['Sınıf']?.value).toBe('3');
+    expect(byLabel['Sınıf']?.value).toBe('3. sınıf');
     expect(byLabel['Bilet e-postası']?.value).toBe('Hayır');
     expect(byLabel['Oluşturulma']?.value).toBe('Bugün, 08:05');
     expect(byLabel['Bilet kodu']?.group).toBe('Bilet');

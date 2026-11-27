@@ -8,7 +8,7 @@ import {
   type DataListColumn,
 } from '@skylab-kulubu/skylcn-ui';
 import { DataList } from '@/components/chrome/DataList';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Ban,
   Clock,
@@ -153,6 +153,7 @@ export function EventCertificatesPanel({
   canEditRule = false,
   days = [],
   onRuleSaved,
+  exportAction,
 }: {
   /** Who may edit the event changes the rule here, in core's rule editor. */
   canEditRule?: boolean;
@@ -160,6 +161,8 @@ export function EventCertificatesPanel({
   days?: readonly EventDay[];
   /** The rule was saved: the event and its Sessions changed. */
   onRuleSaved?: () => void;
+  /** "Listeyi indir" beside the attendance list's heading (CertificateListDownload). */
+  exportAction?: ReactNode;
   eventId: string;
   ownerTeam: string;
   attendanceRule: string;
@@ -1067,7 +1070,10 @@ export function EventCertificatesPanel({
 
       {attendance || attendanceFailed ? (
         <section className="flex flex-col gap-3" aria-label="Katılımcılar">
-          <h2 className="text-foreground text-sm font-semibold">Katılımcılar</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-foreground text-sm font-semibold">Katılımcılar</h2>
+            {exportAction}
+          </div>
           {attendanceFailed ? (
             <EmptyState
               kind="failed"

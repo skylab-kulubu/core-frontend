@@ -15,8 +15,8 @@ importers:
         specifier: 5.7.2
         version: 5.7.2
       '@skylab-kulubu/skylcn-ui':
-        specifier: ^0.2.2
-        version: 0.2.2(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.9(react@19.2.9))(react@19.2.9)(redux@5.0.1)
+        specifier: https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz
+        version: https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.9(react@19.2.9))(react@19.2.9)(redux@5.0.1)
       '@tiptap/extension-link':
         specifier: ^2.27.3
         version: 2.27.3(@tiptap/core@2.27.3(@tiptap/pm@2.27.3))(@tiptap/pm@2.27.3)
@@ -1099,8 +1099,9 @@ packages:
   '@sinonjs/fake-timers@13.0.5':
     resolution: {integrity: sha512-36/hTbH2uaWuGVERyC6da9YwGWnzUZXuPro/F2LfsdOsLnCojz/iSH8MxUt/FD2S5XBSVPhmArFUXcpCQ2Hkiw==}
 
-  '@skylab-kulubu/skylcn-ui@0.2.2':
-    resolution: {integrity: sha512-p/L20412d8QshCjD/dDfxIjU84WBLv0MwOsgEKTqibnFr3iAWhPF8tfzVaV8YRQVd3muGUiKmue18legI6GNVw==}
+  '@skylab-kulubu/skylcn-ui@https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz':
+    resolution: {integrity: sha512-7HEZTuhOicjIW9mgf9zGECQ2sG3fypFHJ9ut5m1iCfVnEQyxEMhoIGbBSAcw4B7ubMoz4oqSJsEGd/EJnhbmAw==, tarball: https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz}
+    version: 0.3.0-onizleme.1
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -5806,7 +5807,7 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
-  '@skylab-kulubu/skylcn-ui@0.2.2(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.9(react@19.2.9))(react@19.2.9)(redux@5.0.1)':
+  '@skylab-kulubu/skylcn-ui@https://github.com/skylab-kulubu/skylcn-ui/releases/download/v0.3.0-onizleme.1/skylab-kulubu-skylcn-ui-0.3.0-onizleme.1.tgz(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.9(react@19.2.9))(react@19.2.9)(redux@5.0.1)':
     dependencies:
       '@base-ui/react': 1.8.0(@date-fns/tz@1.5.0)(@types/react@19.2.7)(date-fns@4.4.0)(react-dom@19.2.9(react@19.2.9))(react@19.2.9)
       '@tanstack/react-table': 9.2.4(react-dom@19.2.9(react@19.2.9))(react@19.2.9)

@@ -14,6 +14,7 @@ import {
 import {
   CheckCircle2,
   ChevronRight,
+  Gift,
   Mail,
   Ban,
   ChevronsUp,
@@ -104,6 +105,8 @@ export type ParticipantRosterProps = {
   onAddParticipant?: () => void;
   /** "İçe aktar": a list from another form turned into tickets (core docs/attendee-import.md). */
   onImport?: () => void;
+  /** "Çekiliş": the Event's raffles, for who edits the Event or assigns its Tickets. */
+  raffleHref?: string;
   onMail: (recipients: TicketMailRecipient[]) => void;
   /** Writes the entry; a refusal comes back as its text and shows in the row. */
   onMarkAttended?: (ticket: Ticket, sessionId: string) => Promise<string | null>;
@@ -126,6 +129,8 @@ export type ParticipantRosterProps = {
   respondentCounts?: { unticketed: number; formsPending: number; failed?: boolean };
   /** Their list, in place of the Tickets', for the two respondent views. */
   renderRespondents?: (view: RespondentView, query: string) => ReactNode;
+  /** "İndir" in the toolbar (ExportMenu): the rows the list shows, in its order, and whether narrowed. */
+  renderExport?: (shown: { ticketIds: string[]; filtered: boolean }) => ReactNode;
 };
 
 /**
@@ -147,6 +152,7 @@ export function ParticipantRoster({
   onOpenTicket,
   onAddParticipant,
   onImport,
+  raffleHref,
   onMail,
   onMarkAttended,
   onResend,
@@ -158,6 +164,7 @@ export function ParticipantRoster({
   dialogs,
   respondentCounts,
   renderRespondents,
+  renderExport,
 }: ParticipantRosterProps) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<ListView>('all');
@@ -369,9 +376,18 @@ export function ParticipantRoster({
       {onMarkAttended && sessions.length > 0 && !attendSession && !apartView ? (
         <p className="text-warning text-[13px]/5">Katıldı için oturum seç</p>
       ) : null}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {raffleHref ? (
+          <ActionButton href={raffleHref} icon={Gift} label="Çekiliş" showLabel iconOnlyOnPhone />
+        ) : null}
         {onImport ? (
-          <ActionButton icon={Upload} label="İçe aktar" showLabel onClick={onImport} />
+          <ActionButton
+            icon={Upload}
+            label="İçe aktar"
+            showLabel
+            iconOnlyOnPhone
+            onClick={onImport}
+          />
         ) : null}
         {onAddParticipant ? (
           <ActionButton
@@ -381,8 +397,15 @@ export function ParticipantRoster({
             onClick={onAddParticipant}
           />
         ) : null}
+        {renderExport?.({ ticketIds: rows.map((row) => row.id), filtered })}
         {apartView ? null : (
-          <ActionButton icon={Mail} label="E-posta" showLabel onClick={mailChosen} />
+          <ActionButton
+            icon={Mail}
+            label="E-posta"
+            showLabel
+            iconOnlyOnPhone
+            onClick={mailChosen}
+          />
         )}
       </div>
     </div>
